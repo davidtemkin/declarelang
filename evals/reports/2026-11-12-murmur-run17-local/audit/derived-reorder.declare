@@ -1,0 +1,24 @@
+// A derived list that re-sorts source records by activity; each row names its
+// record (`tid`) and counts that record's messages. After an insert re-sorts
+// the list, does every row's count belong to its own record?
+schema M [ id: string, at: number ]
+schema T [ id: string, msgs[]: M ]
+class Row extends View [ height = 20,
+    tid: string = { :id ?? "" },
+    t: T = { app.thread(classroot.tid) ?? :@ },
+    n: number = { classroot.t.msgs.length },
+    u: number = { app.count(classroot.t) },
+    label: Text [ text = { classroot.tid + " n=" + classroot.n + " u=" + classroot.u } ] ]
+App [ width = 400, height = 300,
+    s: Dataset { { "threads": [
+        { "id": "a", "msgs": [ { "id": "a1", "at": 3 } ] },
+        { "id": "b", "msgs": [ { "id": "b1", "at": 2 }, { "id": "b2", "at": 2 } ] },
+        { "id": "c", "msgs": [ { "id": "c1", "at": 1 }, { "id": "c2", "at": 1 }, { "id": "c3", "at": 1 } ] } ] } },
+    threads() -> T[] { return app.s.value?.threads ?? [] },
+    thread(id: string) -> T? { return app.threads().find((t) => t.id == id) ?? null },
+    last(t: T) -> number { return t.msgs[t.msgs.length - 1]?.at ?? 0 },
+    count(t: T) -> number { let n = 0; for (const m of t.msgs) n++; return n },
+    inbox: Dataset [ contents = { { rows: [...app.threads()].sort((x, y) => app.last(y) - app.last(x)) } } ],
+    bump(i: number, at: number) { app.s.insert(["threads", i, "msgs"], app.s.value.threads[i].msgs.length, { id: "x" + at, at: at }) },
+    list: View [ layout: SimpleLayout [ axis = y ], datapath = { app.inbox.value },
+        Row [ datapath = :rows[] ] ] ]

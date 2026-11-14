@@ -1,0 +1,2 @@
+after Enter, Escape: popover shown = false · App's Escape ran 0 time(s)
+second Escape: popover shown = false · App's Escape ran 1

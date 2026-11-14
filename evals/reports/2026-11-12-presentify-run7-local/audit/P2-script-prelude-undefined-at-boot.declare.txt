@@ -1,0 +1,15 @@
+// A shared function ("callable in any { } body") called from a script block.
+script {
+    function half(c: number): number { return colorWithAlpha(c, 128) }
+    }
+App [ width = 200, height = 100, fill = { half(0xFF0000) } ]
+
+/* ── against the local tree, 2026-11-12:
+  R3 ✓ analysis
+  R4 ✗ boot
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/script-prelude.declare — FAILED at R4: boot: the program did not come up — colorWithAlpha is not defined — while working out App.fill at ap…
+-- measureText, the same:
+  R3 ✓ analysis
+  R4 ✗ boot
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/script-mt.declare — FAILED at R4: boot: the program did not come up — measureText is not defined — while working out Text.text at app.…
+*/

@@ -1,0 +1,43 @@
+# eval-cadence-33
+total 11.6 min · 64 turns · output 63115 tokens (thinking 21156)
+phases: reading 4.1 · writing 2.4 · checking 5.1 min
+tool time 1.9 min · model time 9.7 min
+tools:
+  verify    10×   0.88 min  (median 2.5 s)
+  look       9×   0.68 min  (median 4.8 s)
+  help       9×   0.28 min  (median 1.3 s)
+  bash      11×   0.04 min  (median 0.0 s)
+model turns, by what came before:
+  after help      9×   3.58 min  (median 16.1 s)
+  after edit      1×   2.21 min  (median 132.9 s)
+  after bash     11×   1.07 min  (median 2.8 s)
+  after image     8×   0.83 min  (median 4.5 s)
+  after verify   10×   0.68 min  (median 3.6 s)
+  after look      9×   0.44 min  (median 1.4 s)
+  after read     12×   0.36 min  (median 1.2 s)
+  after write     2×   0.23 min  (median 7.0 s)
+app: 2 .declare files, 964 non-blank lines · 13 snapshots changed them: 1204 lines added, 72 removed
+verify results mentioning accessibility: 3
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+diagnostic codes, by tool results reporting them: DECLARE1002 6, DECLARE4035 2, DECLARE2000 1, DECLARE3006 1, DECLARE4032 1, DECLARE4022 1, DECLARE4036 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   0.86 min    16×  R5 behavior, in all
+   0.66 min    16×  script: the assert script, in all
+   0.32 min    22×  compile (R1–R3)
+   0.17 min    42×  drive.click
+   0.16 min    23×  page: load, compile in the page and boot
+   0.15 min    16×  open: the app loaded and arrived, in all
+   0.12 min    74×  check: scrolling come to rest
+   0.12 min     6×  drive.drag
+   0.11 min    48×  drive.settleMotion
+   0.10 min     7×  drive.pinch
+   0.07 min    46×  drive.wait
+   0.07 min     7×  R4 boot, in all
+   0.04 min    11×  drive.settleData
+   0.03 min    23×  page: a new page
+   0.03 min    15×  end: layout questions at the end of the script
+   0.02 min    23×  chrome: a browser (shared between calls)
+   0.01 min     2×  drive.wheel
+   0.01 min    15×  end: the network quiet after the script
+   0.01 min     4×  drive.key
+   0.01 min    10×  screenshot: capture and write

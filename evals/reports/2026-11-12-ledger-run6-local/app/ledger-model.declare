@@ -1,0 +1,217 @@
+/*
+# Ledger: the model
+
+The shapes of what the service sends, the books' lookups (categories,
+channels, products, contacts), and every write. `ledger.declare` includes this
+file; the App holds one `Books` and one `Writer`.
+
+The service is the one source of truth. Nothing here keeps a copy of a
+transaction: a write goes to the service, and when it lands the App's `rev`
+moves on, which every read's address carries, so every list, chart and total
+asks again. A read whose answer is overtaken by a newer one is never shown —
+a `DataSource` drops a superseded reply.
+*/
+
+// ── The shapes ──────────────────────────────────────────────────────────────
+
+schema Category [ id: string, name: string, kind: "income" | "expense", colour: number, archived: boolean ]
+schema Channel [ id: string, name: string ]
+schema Product [ id: string, name: string, price: number, unitCost: number, archived: boolean ]
+schema Contact [ id: string, name: string, type: string, usualCategoryId?: string,
+    transactionCount: number, lastDate?: string ]
+
+schema Split [ parts: number, categoryIds[]: string ]
+schema Summary [ count: number, in: number, out: number, net: number ]
+
+// One row of the list. `inFilter` is what it counts for under the filter:
+// a split expense filtered by category counts only its parts in them.
+
+schema Txn [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, split?: Split, channel?: string,
+    amount: number, signed: number, inFilter?: number, lineCount: number,
+    refundOf?: string, refunded?: number ]
+
+schema TxnList [ total: number, summary: Summary, rows[]: Txn ]
+
+// One transaction, opened: its lines, parts, refunds, and for a sale its margin.
+
+schema Line [ id: string, productId?: string, description: string, quantity: number, unitPrice: number,
+    amount: number, unitCost?: number, refunded?: number, refundedQuantity?: number,
+    refundable?: number, refundableQuantity?: number, saleLineId?: string ]
+schema Part [ categoryId: string, amount: number ]
+schema RefundRef [ id: string, date: string, amount: number, description: string ]
+schema SaleRef [ id: string, date: string, description: string, amount: number, channel?: string ]
+schema TxnDetail [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, split?: Split, channel?: string,
+    amount: number, signed: number, lineCount: number, refundOf?: string, refunded?: number,
+    parts[]?: Part, lines[]: Line, refunds[]?: RefundRef, sale?: SaleRef,
+    refundable?: number, cost?: number, margin?: number ]
+
+// The aggregates. Every figure carries how many transactions are behind it.
+
+schema Measure [ amount: number, count: number ]
+schema Margin [ amount: number, percent?: number, count: number ]
+schema Period [ period: string, start: string, end: string, from: string, to: string, partial: boolean,
+    revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema PeriodTotal [ revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema Periods [ by: string, from?: string, to?: string, periods[]: Period, total: PeriodTotal ]
+
+schema CatAgg [ categoryId?: string, amount: number, count: number ]
+schema CatAggs [ side: string, categories[]: CatAgg, total: Measure ]
+schema ProdAgg [ productId?: string, units: number, revenue: number, cost: number, margin: number,
+    marginPercent?: number, count: number ]
+schema ContactAgg [ contactId?: string, contactName?: string, amount: number, count: number ]
+schema ContactAggs [ side: string, contacts[]: ContactAgg, total: Measure ]
+schema Bucket [ min: number, max?: number, count: number ]
+schema Amounts [ buckets[]: Bucket, count: number, lowest?: number, highest?: number ]
+schema CatCount [ categoryId?: string, count: number ]
+schema Budget [ categoryId: string, amount: number, spent: number, remaining: number, count: number ]
+schema Budgets [ month: string, from: string, to: string, budgets[]: Budget ]
+
+// One line of a phone's list: a day's heading, or a transaction.
+
+schema DayLine [ id: string, head?: boolean, date: string, net?: number, kind?: string, description?: string, channel?: string,
+    contactName?: string, categoryId?: string, split?: Split, signed?: number ]
+schema DayLines [ lines[]: DayLine ]
+
+// What Undo needs: the service's change id, and what to say about it.
+
+schema Change [ id: string, said: string ]
+
+
+// ── The lookups ─────────────────────────────────────────────────────────────
+//
+// Fetched once; a write that makes a contact asks for the contacts again.
+
+class Books extends Node [
+    base: string = "",
+
+    today: DataSource [ url = { classroot.base + "/api/today" }, autoFetch = true, schema = [ today: string ] ],
+    cats: DataSource [ url = { classroot.base + "/api/categories" }, autoFetch = true, schema = [ categories[]: Category ] ],
+    chans: DataSource [ url = { classroot.base + "/api/channels" }, autoFetch = true, schema = [ channels[]: Channel ] ],
+    prods: DataSource [ url = { classroot.base + "/api/products" }, autoFetch = true, schema = [ products[]: Product ] ],
+    people: DataSource [ url = { classroot.base + "/api/contacts" }, autoFetch = true, schema = [ contacts[]: Contact ] ],
+
+    sources() -> DataSource[] { return [this.today, this.cats, this.chans, this.prods, this.people] },
+    ready: boolean = { this.sources().every((s) => s.loaded) },
+    failed: boolean = { this.sources().some((s) => s.failed) },
+    retry() {
+        for (const s of this.sources()) if (!s.loaded) s.fetch()
+        },
+
+    categories() -> Category[] { return this.cats.value?.categories ?? [] },
+    channels() -> Channel[] { return this.chans.value?.channels ?? [] },
+    products() -> Product[] { return this.prods.value?.products ?? [] },
+    contacts() -> Contact[] { return this.people.value?.contacts ?? [] },
+
+    category(id: string?) -> Category? { return this.categories().find((c) => c.id == id) ?? null },
+    catName(id: string?) -> string { return id == null ? "Uncategorised" : this.category(id)?.name ?? id },
+    colourOf(id: string?) -> number { return this.category(id)?.colour ?? -1 },
+    channelName(id: string?) -> string { return id == null ? "" : this.channels().find((c) => c.id == id)?.name ?? id },
+    product(id: string?) -> Product? { return this.products().find((p) => p.id == id) ?? null },
+    productName(id: string?) -> string { return id == null ? "Other items" : this.product(id)?.name ?? id },
+    contact(id: string?) -> Contact? { return this.contacts().find((c) => c.id == id) ?? null },
+    contactName(id: string?) -> string { return id == null ? "No contact" : this.contact(id)?.name ?? id },
+
+    // What can be chosen for something new: archived categories never are.
+
+    expenseCats() -> Category[] { return this.categories().filter((c) => c.kind == "expense" && !c.archived) },
+    incomeCats() -> Category[] { return this.categories().filter((c) => c.kind == "income" && !c.archived) },
+    vendors() -> Contact[] { return this.contacts().filter((c) => c.type == "vendor") },
+    customers() -> Contact[] { return this.contacts().filter((c) => c.type == "customer") },
+    sellable() -> Product[] { return this.products().filter((p) => !p.archived) }
+    ]
+
+
+// ── The writes ──────────────────────────────────────────────────────────────
+//
+// One source per kind of write, so two different writes in flight never
+// overtake each other. Each says what happened through the App: `landed`
+// (with the change id Undo needs) or `refused` (with the service's problems,
+// for the place that made the change to show).
+
+class Writer extends Node [
+    base: string = "",
+
+    // An in-place edit or a bulk change: what it is, so a failure can be retried.
+
+    patchId: string = "",
+    patchBody: object = null,
+    patchSaid: string = "",
+    patch: DataSource [ url = { classroot.base + "/api/transactions/" + classroot.patchId }, method = "PATCH",
+        body = { classroot.patchBody },
+        onLoad() { app.landed(this.value?.changeId ?? null, classroot.patchSaid) },
+        onError() { app.editFailed(classroot.patchSaid, this.errorBody?.message ?? this.error) }
+        ],
+    update(id: string, body: object, said: string) {
+        patchId = id
+        patchBody = body
+        patchSaid = said
+        patch.fetch()
+        },
+
+    bulkBody: object = null,
+    bulkSaid: string = "",
+    bulk: DataSource [ url = { classroot.base + "/api/transactions/bulk" }, method = "POST",
+        body = { classroot.bulkBody },
+        onLoad() {
+            const n = this.value?.count ?? 0
+            const skipped = (this.value?.skipped ?? []).length
+            app.landed(this.value?.changeId ?? null,
+                classroot.bulkSaid.replace("#", count(n) + (n == 1 ? " transaction" : " transactions"))
+                + (skipped > 0 ? " · " + count(skipped) + " skipped" : ""))
+            },
+        onError() { app.editFailed(classroot.bulkSaid.replace("#", "transactions"), this.errorBody?.message ?? this.error) }
+        ],
+    many(body: object, said: string) {
+        bulkBody = body
+        bulkSaid = said
+        bulk.fetch()
+        },
+
+    removeId: string = "",
+    removeOne: DataSource [ url = { classroot.base + "/api/transactions/" + classroot.removeId }, method = "DELETE",
+        onLoad() { app.landed(this.value?.changeId ?? null, "Deleted 1 transaction") },
+        onError() { app.editFailed("Deleting the transaction", this.errorBody?.message ?? this.error) }
+        ],
+    remove(id: string) { removeId = id; removeOne.fetch() },
+
+    undoId: string = "",
+    undoReq: DataSource [ url = { classroot.base + "/api/changes/" + classroot.undoId + "/undo" }, method = "POST",
+        onLoad() { app.undone(this.value?.count ?? 0) },
+        onError() { app.undoFailed(this.errorBody?.message ?? this.error) }
+        ],
+    undo(changeId: string) { undoId = changeId; undoReq.fetch() },
+
+    // Budgets go one at a time, in order: starting a month from last month's
+    // spending is several, and each must land.
+
+    budgetQueue: array = [],
+    budgetMonth: string = "",
+    budgetCat: string = "",
+    budgetBody: object = null,
+    budget: DataSource [ url = { classroot.base + "/api/budgets/" + classroot.budgetMonth + "/" + classroot.budgetCat }, method = "PUT",
+        body = { classroot.budgetBody },
+        onLoad() { classroot.nextBudget() },
+        onError() {
+            classroot.budgetQueue = []
+            app.editFailed("Saving the budget", this.errorBody?.message ?? this.error)
+            }
+        ],
+    setBudget(month: string, cat: string, cents: number?) {
+        const idle = budgetQueue.length == 0 && !budget.loading
+        budgetQueue = [...budgetQueue, ({ month: month, cat: cat, amount: cents })]
+        if (idle) nextBudget()
+        },
+    nextBudget() {
+        if (budgetQueue.length == 0) { app.budgetSaved(); return }
+        const b = budgetQueue[0]
+        budgetQueue = budgetQueue.slice(1)
+        budgetMonth = b.month
+        budgetCat = b.cat
+        budgetBody = ({ amount: b.amount })
+        budget.fetch()
+        }
+    ]

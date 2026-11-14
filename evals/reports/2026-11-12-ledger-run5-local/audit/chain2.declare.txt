@@ -1,0 +1,9 @@
+class K [ width = { classroot.m ? 10 : 50 }, height = 20,
+    a: string? = null,
+    m: boolean = { classroot.a == null },
+    opacity = { classroot.m ? 0.3 : 1 },
+    n2: string = { classroot.m ? "missing" : "present" },
+    fill = { classroot.n2 == "missing" ? 0xFF0000 : 0x00AA00 } ]
+App [ width = 200, height = 100,
+    k: K [ a = { "x" } ]
+    ]

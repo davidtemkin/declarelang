@@ -1,0 +1,6 @@
+// #59: a Toast's sentence matches twice (the toast and its live announcement), and the
+// strictness refusal lists both matches with empty descriptions.
+App [ width = 400, height = 300,
+    Button [ label = "Go", onClick() { app.toast.say("Seat A1 has just been taken by someone else.") } ],
+    toast: Toast [ duration = 7000 ]
+    ]

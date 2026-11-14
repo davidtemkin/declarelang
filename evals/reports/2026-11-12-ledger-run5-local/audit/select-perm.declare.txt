@@ -1,0 +1,10 @@
+// A field that always exists; a button focuses it and selects all of it.
+// app.order: 0 = Focus.focus then select("all"); 1 = select("all") then Focus.focus
+App [ width = 400, height = 200, order: number = 0, saved: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 8 ], padding = 10,
+    go: Button [ label = "Go", onClick() {
+        if (app.order == 0) { Focus.focus(app.f); app.f.select("all") } else { app.f.select("all"); Focus.focus(app.f) } } ],
+    f: TextInput [ width = 200, commitOn = "end", value = "Original", accessibilityLabel = "Field",
+        commit(v: string) { app.saved = v } ],
+    after: Button [ label = "Next" ]
+    ]

@@ -1,0 +1,6 @@
+// A program class named like one of TypeScript's utility types; one { } body.
+class Pick extends View [ width = 80, height = 40, fill = 0xDDDDDD,
+    label: string = "",
+    opacity = { label == "" ? 0.5 : 1 } ]
+
+App [ width = 200, height = 100, Pick [ label = "a" ] ]

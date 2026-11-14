@@ -1,0 +1,9 @@
+// Account item 12: an override of Form.refusal (base: refusal(body: any) -> FormProblem[],
+// records { name, message }) declared `-> array` and returning { field, message } — the
+// wrong key — compiles clean, and every refusal then lands on no field.
+class Editor extends Form [
+    refusal(body: object) -> array {
+        return [ ({ field: "amount", message: "Too much" }) ]
+        }
+    ]
+App [ width = 300, height = 100, Editor [ ] ]

@@ -1,0 +1,7 @@
+App [ width = 400, height = 300,
+    s: Dataset { { "threads": [ { "id": "t1", "msgs": [ { "id": "m1" } ] }, { "id": "t2", "msgs": [] } ] } },
+    inbox: Dataset [ contents = { { rows: app.s.value.threads } } ],
+    add() { app.s.insert(["threads", 0, "msgs"], 0, { id: "m2" }) },
+    direct: Text [ y = 0, text = { "direct " + app.s.value.threads[0].msgs.length } ],
+    list: View [ y = 40, layout: SimpleLayout [ axis = y ],
+        Text [ datapath = { app.inbox.value }, text = { "derived " + ((:rows as any)[0].msgs.length) } ] ] ]

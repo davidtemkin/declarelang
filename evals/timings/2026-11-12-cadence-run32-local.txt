@@ -1,0 +1,42 @@
+# eval-cadence-32
+total 14.6 min · 79 turns · output 79852 tokens (thinking 31075)
+phases: reading 4.1 · writing 4.0 · checking 6.5 min
+tool time 2.3 min · model time 12.4 min
+tools:
+  verify    18×   1.54 min  (median 3.0 s)
+  look      11×   0.55 min  (median 2.5 s)
+  help       6×   0.15 min  (median 1.7 s)
+model turns, by what came before:
+  after help      6×   4.82 min  (median 37.7 s)
+  after read     17×   1.94 min  (median 1.9 s)
+  after write     2×   1.62 min  (median 48.6 s)
+  after verify   18×   1.28 min  (median 3.2 s)
+  after look     11×   1.09 min  (median 2.8 s)
+  after bash     15×   0.69 min  (median 2.3 s)
+  after image     7×   0.60 min  (median 4.3 s)
+  after edit      1×   0.02 min  (median 1.1 s)
+app: 2 .declare files, 972 non-blank lines · 20 snapshots changed them: 1259 lines added, 116 removed
+verify results mentioning accessibility: 1
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+diagnostic codes, by tool results reporting them: DECLARE1002 2, DECLARE1000 1, DECLARE2000 1, DECLARE6001 1, DECLARE4035 1, DECLARE4032 1, DECLARE4026 1, DECLARE4022 1, DECLARE4025 1, DECLARE4015 1, DECLARE2001 1
+inside the agent's verify and look calls:
+   1.01 min    23×  R5 behavior, in all
+   0.77 min    23×  script: the assert script, in all
+   0.38 min    36×  page: load, compile in the page and boot
+   0.37 min    32×  compile (R1–R3)
+   0.27 min    13×  R4 boot, in all
+   0.23 min   138×  check: scrolling come to rest
+   0.22 min    92×  drive.settleMotion
+   0.22 min    46×  drive.click
+   0.17 min    23×  open: the app loaded and arrived, in all
+   0.10 min    29×  drive.settleData
+   0.06 min     5×  drive.pinch
+   0.06 min     5×  drive.drag
+   0.05 min     6×  drive.reveal
+   0.05 min    36×  page: a new page
+   0.03 min    10×  locator.click
+   0.03 min    17×  end: layout questions at the end of the script
+   0.02 min    36×  chrome: a browser (shared between calls)
+   0.01 min   138×  check: the layout questions
+   0.01 min    17×  end: the network quiet after the script
+   0.01 min    10×  screenshot: capture and write

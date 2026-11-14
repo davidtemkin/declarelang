@@ -1,0 +1,17 @@
+// A child named inside unnamed containers, read as if it were the class's member.
+class Page [
+    View [ View [
+        Text [ text = { classroot.form.name } ],
+        form: Form [ ]
+        ] ]
+    ]
+App [ width = 200, height = 100, Page [ ] ]
+
+/* ── no hint that 'form' exists two unnamed views down (names.txt: ×3, no hint):
+  R1 ✓ structure
+  R2 ✓ resolution
+  R3 ✗ analysis
+       'form' is not a member of Page — declare it (form: <type> = …) or fix the name [DECLARE6001] (line 4, col 35)
+  hint: TypeScript 2339
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/nested-member.declare — FAILED at R3
+*/

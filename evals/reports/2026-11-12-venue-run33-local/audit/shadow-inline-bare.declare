@@ -1,0 +1,16 @@
+// The first-boot defect, inline: an attribute set on a replicated instance reads
+// the instance's own record, so `:name` / `:priceCents` here are the ROW's, not the section's.
+// SeatRow has no priceCents; the schema should let the path be checked.
+schema SeatRow [ name: string, seats[]: [ number: number ] ]
+schema Section [ name: string, priceCents: number, rows[]: SeatRow ]
+schema Plan [ sections[]: Section ]
+App [ width = 400, height = 300,
+    plan: Dataset [ schema = Plan, contents = { { sections: [ { name: "Orchestra", priceCents: 8000, rows: [ { name: "A", seats: [ { number: 1 } ] } ] } ] } } ],
+    View [ datapath = { app.plan.value }, layout: SimpleLayout [ axis = y ],
+        View [ datapath = :sections[], layout: SimpleLayout [ axis = y ],
+            Row [ datapath = :rows[], section = { :name }, price = { :priceCents } ]
+            ]
+        ]
+    ]
+class Row [ section: string = "", price: number = 0, height = 20,
+    Text [ text = { classroot.section + ", row " + (:name ?? "") + " " + classroot.price } ] ]

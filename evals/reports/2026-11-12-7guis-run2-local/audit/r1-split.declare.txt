@@ -1,0 +1,4 @@
+schema Cell [ id: string, v: string ]
+class Sheet extends Dataset [ schema = [ rows[]: Cell ] ]
+class Thing [ visible(p: number) -> number { return p } ]
+App [ width = 200, height = 100, s: Sheet { { "rows": [] } } ]

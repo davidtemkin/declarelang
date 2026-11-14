@@ -60,7 +60,7 @@ const FIELD_ROLES = new Set(["textbox", "searchbox", "combobox", "spinbutton", "
 async function nodes(page) {
   const out = [];
   const walk = (n) => { out.push(n); for (const c of n.children ?? []) walk(c); };
-  const root = await page.accessibility.snapshot({ interestingOnly: true });
+  const root = await page.accessibility.snapshot({ interestingOnly: false });   // the whole tree, as assistive technology has it: the pruned one drops a disabled option inside a list box
   if (root) walk(root);
   return out;
 }
@@ -251,6 +251,9 @@ async function controlFor(page, title, re) {
 const NOT_SLIDE = "(?!.*slide)";
 async function newPresentation(page) {
   await page.goto(APP, { waitUntil: "networkidle2" });
+  // as a person would: the list has arrived and come to rest before anything is pressed
+  await seeText(page, "Studio launch plan", 12000);
+  await sleep(600);
   const make = await control(page, /new presentation|^new\b|create|^\+$|blank/i, { timeout: 15000 });
   await press(page, make);
   const s = await slide(page);
@@ -292,7 +295,18 @@ const SCENARIOS = {
     await click(page, s.at(820, 420));
     await page.keyboard.type("Hello there", { delay: 20 });
     await page.keyboard.press("Escape");
-    const d = await stored(async () => { const d = await deck("new"); const k = kinds(d); return ["rect", "ellipse", "line", "text"].every((x) => k.includes(x)) && d; }, "a rectangle, an ellipse, a line and a text box");
+    // what was typed is stored once the typing has been saved: an app that saves as the
+    // person types stores the text box partway first, so wait for the words, not the box
+    let seenText = "";
+    const d = await stored(async () => {
+      const d = await deck("new"); const k = kinds(d);
+      const te = flat(d.slides[0].elements).find((e) => e.kind === "text");
+      seenText = te?.text?.content ?? seenText;
+      return ["rect", "ellipse", "line", "text"].every((x) => k.includes(x)) && seenText === "Hello there" && d;
+    }, "a rectangle, an ellipse, a line and a text box").catch((e) => {
+      if (seenText !== "" && seenText !== "Hello there") throw new Error(`the text box holds "${seenText}"`);
+      throw e;
+    });
     const els = flat(d.slides[0].elements);
     const r = els.find((e) => e.kind === "rect");
     if (!near(r.x, 100) || !near(r.y, 100) || !near(r.width, 300) || !near(r.height, 200)) throw new Error(`the rectangle is ${r.x},${r.y} ${r.width}×${r.height}, not where it was drawn`);

@@ -1,0 +1,305 @@
+/*
+# Ledger: the parts
+
+The look of Ledger, kept apart from how it works: the two themes, the drawn
+icons, and the small pieces the screens are made of: money as text, a
+category's chip, a filter chip, a sparkline, a card. `ledger.declare`
+includes this file.
+*/
+
+// The appearance control names its icons by class name, so the build keeps them.
+
+use [ SunIcon, MoonIcon, AutoIcon ]
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's preset, so library controls read the same palette.
+// `cats` is one color per category `colour` index (0–11): a category keeps
+// its color on every chart and chip. `catTints` are the same hues, quiet, for
+// a chip's ground. `good` and `bad` color a change where its direction means
+// something; `income` and `expense` are the two sides on every chart.
+
+theme LedgerLight [
+    background = #F6F5F2, surface = #FFFFFF, card = #FFFFFF, sunken = #F0EEEA,
+    line = #E4E1DB, lineStrong = #D3CFC7, hover = #F3F1EC, selection = #E9EEF9,
+    text = #1E1F22, textMuted = #66676D, textFaint = #9A9BA1,
+    accent = #2F5BD3, accentHovered = #284FBA, accentPressed = #2246A6, linkColor = #2F5BD3,
+    control = #EFEDE8, controlHovered = #E7E4DE, controlPressed = #DDD9D2, controlSelected = #E2E8F8,
+    income = #2E8B62, incomeSoft = #CFE7DA, expense = #C8573A, expenseSoft = #F3D8CF,
+    net = #2F5BD3, compare = #9A9BA1, running = #8A5BD0,
+    good = #23805A, bad = #C0442B, warn = #B7791F, warnTint = #FBF1DE, badTint = #FBE7E1, goodTint = #E1F2E9,
+    attention = #B7791F, attentionTint = #FBF1DE,
+    highlight = #FFF0B3,
+    tooltipFill = #1E1F22, tooltipTextColor = #F6F5F2,
+    cats = [#3F8F6B, #5AA27F, #86B79A, #C0753F, #B89B2E, #3E7CB1, #8D5A97, #6A5ACD, #D0567A, #4F8C8C, #8C8577, #A0A0A0],
+    catTints = [#E3F1EA, #E7F3EC, #EEF5F0, #F7EADF, #F5F0DC, #E2ECF6, #F0E6F2, #EAE8F9, #F9E5EB, #E2EFEF, #EFEDE9, #EEEEEE]
+    ]
+
+
+theme LedgerDark [
+    background = #17181B, surface = #1F2024, card = #222327, sunken = #1B1C1F,
+    line = #2F3036, lineStrong = #3D3E45, hover = #26272C, selection = #253150,
+    text = #ECECEF, textMuted = #A3A4AB, textFaint = #75767E,
+    accent = #6E95F7, accentHovered = #7FA2F8, accentPressed = #5E86EA, linkColor = #7FA2F8,
+    control = #2A2B30, controlHovered = #33343A, controlPressed = #3B3C43, controlSelected = #2B3756,
+    income = #4FBF8C, incomeSoft = #1E3A2E, expense = #EE7F60, expenseSoft = #432820,
+    net = #7FA2F8, compare = #75767E, running = #B590F0,
+    good = #4FBF8C, bad = #F07E62, warn = #E3A84A, warnTint = #3A2E18, badTint = #3E231C, goodTint = #1C3328,
+    attention = #E3A84A, attentionTint = #3A2E18,
+    highlight = #5B4B12,
+    tooltipFill = #ECECEF, tooltipTextColor = #17181B,
+    cats = [#5BC08F, #7CCB9F, #A3D3B5, #E39A62, #D9BE52, #6AA6DD, #B784C2, #9688F0, #EE7C9E, #6FB9B9, #ADA697, #8E8E8E],
+    catTints = [#1D3529, #20382B, #243A2D, #3B2A1D, #38321A, #1C2C3D, #33243A, #29263F, #3D2129, #1D3333, #2F2D29, #2B2B2B]
+    ]
+
+
+// A search hit inside a description: the words matched, set apart.
+
+style Hit [ fontWeight = bold, underline = true ]
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// One pen for every mark: a 1.6px stroke with round ends on a 16-unit grid.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "overview") {
+            d.roundRect(2, 2, 5, 5, 1.2); d.roundRect(9, 2, 5, 5, 1.2); d.roundRect(2, 9, 5, 5, 1.2); d.roundRect(9, 9, 5, 5, 1.2); d.stroke()
+        } else if (shape == "list") {
+            for (const y of [4, 8, 12]) { d.moveTo(5.5, y); d.lineTo(14, y) }
+            d.stroke(); d.beginPath()
+            for (const y of [4, 8, 12]) { d.moveTo(3, y); d.arc(2.6, y, 0.9, 0, 6.3) }
+            d.fill()
+        } else if (shape == "insights") {
+            d.moveTo(2, 14); d.lineTo(14, 14); d.moveTo(4, 11); d.lineTo(4, 8); d.moveTo(8, 11); d.lineTo(8, 4)
+            d.moveTo(12, 11); d.lineTo(12, 6.5); d.stroke()
+        } else if (shape == "budgets") {
+            d.arc(8, 8, 6, 0, 6.3); d.moveTo(8, 8); d.lineTo(8, 2); d.moveTo(8, 8); d.lineTo(13.2, 11); d.stroke()
+        } else if (shape == "search") {
+            d.arc(7, 7, 4.6, 0, 6.3); d.moveTo(10.5, 10.5); d.lineTo(14, 14); d.stroke()
+        } else if (shape == "plus") {
+            d.moveTo(8, 3); d.lineTo(8, 13); d.moveTo(3, 8); d.lineTo(13, 8); d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(4.5, 4.5); d.lineTo(11.5, 11.5); d.moveTo(11.5, 4.5); d.lineTo(4.5, 11.5); d.stroke()
+        } else if (shape == "left") {
+            d.moveTo(10, 3.5); d.lineTo(5.5, 8); d.lineTo(10, 12.5); d.stroke()
+        } else if (shape == "right") {
+            d.moveTo(6, 3.5); d.lineTo(10.5, 8); d.lineTo(6, 12.5); d.stroke()
+        } else if (shape == "down") {
+            d.moveTo(4, 6); d.lineTo(8, 10); d.lineTo(12, 6); d.stroke()
+        } else if (shape == "calendar") {
+            d.roundRect(2, 3, 12, 11, 2); d.moveTo(2, 6.5); d.lineTo(14, 6.5)
+            d.moveTo(5.5, 1.5); d.lineTo(5.5, 4); d.moveTo(10.5, 1.5); d.lineTo(10.5, 4); d.stroke()
+        } else if (shape == "download") {
+            d.moveTo(8, 2.5); d.lineTo(8, 10.5); d.moveTo(4.5, 7); d.lineTo(8, 10.5); d.lineTo(11.5, 7)
+            d.moveTo(2.5, 13.5); d.lineTo(13.5, 13.5); d.stroke()
+        } else if (shape == "attention") {
+            d.moveTo(8, 2); d.lineTo(14.5, 13.5); d.lineTo(1.5, 13.5); d.closePath(); d.moveTo(8, 6.5); d.lineTo(8, 9.5); d.stroke()
+            d.beginPath(); d.arc(8, 11.6, 0.8, 0, 6.3); d.fill()
+        } else if (shape == "check") {
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (shape == "columns") {
+            d.roundRect(2, 3, 12, 10, 1.5); d.moveTo(6, 3); d.lineTo(6, 13); d.moveTo(10, 3); d.lineTo(10, 13); d.stroke()
+        } else if (shape == "table") {
+            d.roundRect(2, 3, 12, 10, 1.5); d.moveTo(2, 6.5); d.lineTo(14, 6.5); d.moveTo(2, 10); d.lineTo(14, 10); d.stroke()
+        } else if (shape == "chart") {
+            d.moveTo(2, 12); d.lineTo(6, 7.5); d.lineTo(9, 10); d.lineTo(14, 4); d.stroke()
+        } else if (shape == "back") {
+            d.moveTo(13, 8); d.lineTo(3, 8); d.moveTo(7, 4); d.lineTo(3, 8); d.lineTo(7, 12); d.stroke()
+        } else if (shape == "expense") {
+            d.moveTo(8, 2.5); d.lineTo(8, 13.5); d.moveTo(4, 9.5); d.lineTo(8, 13.5); d.lineTo(12, 9.5); d.stroke()
+        } else if (shape == "sale") {
+            d.moveTo(8, 13.5); d.lineTo(8, 2.5); d.moveTo(4, 6.5); d.lineTo(8, 2.5); d.lineTo(12, 6.5); d.stroke()
+        } else if (shape == "more") {
+            d.arc(3.5, 8, 1.1, 0, 6.3); d.fill(); d.beginPath(); d.arc(8, 8, 1.1, 0, 6.3); d.fill()
+            d.beginPath(); d.arc(12.5, 8, 1.1, 0, 6.3); d.fill()
+        } else {
+            d.arc(8, 8, 5, 0, 6.3); d.stroke()
+        }
+        }
+    ]
+
+
+// ── Money and numbers ───────────────────────────────────────────────────────
+//
+// Money as text: two decimals, a true minus, tabular figures so a column of
+// them lines up digit for digit.
+
+class Money extends Text [ wrap = false, numeralWidth = tabular,
+    cents: number = 0,
+    text = { money(classroot.cents) }
+    ]
+
+
+// A category as a chip: its color's dot and its name on its tint. A split
+// reads "Split (3)" with a dot per part; no category reads "Uncategorised",
+// marked as needing attention.
+
+class CatChip [ height = 22, cornerRadius = 11, padding = [0, 9, 0, 7],
+    catId: string? = null,
+    parts: number = 0,                 // > 0 for a split
+    partIds: string[] = [],
+    colour: number = { app.books.colourOf(classroot.catId) },
+    uncategorised: boolean = { classroot.catId == null && classroot.parts == 0 },
+    fill = { classroot.colour >= 0 ? provided("theme").catTints[classroot.colour] : provided("theme").control },
+    State [ applied = { classroot.uncategorised }, fill = { provided("theme").attentionTint } ],
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    dot: View [ visible = { classroot.parts == 0 && !classroot.uncategorised }, width = 7, height = 7, cornerRadius = 3.5,
+        fill = { classroot.colour >= 0 ? provided("theme").cats[classroot.colour] : provided("theme").textFaint } ],
+
+    // a split's parts, one overlapping dot each in its category's color
+
+    dots: View [ visible = { classroot.parts > 0 }, height = 8, width = { 3 + 5 * Math.min(4, classroot.partIds.length) },
+        tones: Color[] = { classroot.partIds.slice(0, 4).map((id) => provided("theme").cats[Math.max(0, app.books.colourOf(id))]) },
+        draw(d: DrawContext) {
+            tones.forEach((c, i) => {
+                d.fillStyle = c
+                d.beginPath()
+                d.arc(4 + i * 5, 4, 3.5, 0, 6.3)
+                d.fill()
+                })
+            }
+        ],
+    warn: Glyph [ visible = { classroot.uncategorised }, shape = "attention", iconSize = 11, ink = { provided("theme").attention } ],
+    Text [ fontSize = 12, fontWeight = medium, wrap = false,
+        textColor = { classroot.uncategorised ? provided("theme").attention : provided("theme").text },
+        text = { classroot.parts > 0 ? "Split (" + classroot.parts + ")" : app.books.catName(classroot.catId) } ]
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A round or pill icon button with a name for a screen reader.
+
+class IconButton extends Control [ width = { app.tap }, height = { app.tap }, cornerRadius = 8,
+    shape: string = "",
+    tone: Color = { provided("theme").textMuted },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    Glyph [ x = center, y = center, iconSize = 16, weight = 1.7, shape = { classroot.shape }, ink = { classroot.tone } ]
+    ]
+
+
+// A button that opens a menu or popover: a label and a chevron. `on` marks a
+// filter that is set.
+
+class DropButton extends Control [ height = { app.tap }, cornerRadius = 8, padding = [0, 8, 0, 11],
+    label: string = "",
+    on: boolean = false,
+    stroke = { stroke(1, provided("theme").line) },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : provided("theme").surface },
+    State [ applied = { classroot.on }, fill = { provided("theme").controlSelected }, stroke = { stroke(1, provided("theme").accent) } ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    t: Text [ fontSize = 13, wrap = false, fontWeight = { classroot.on ? "semibold" : "normal" }, text = { classroot.label } ],
+    Glyph [ shape = "down", iconSize = 12, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// An active filter as a chip: its name and value, and an × that removes it.
+// The whole chip is the remove control, named for what it removes.
+
+class FilterChip extends Control [ height = 26, cornerRadius = 13, padding = [0, 6, 0, 11],
+    label: string = "",
+    accessibilityLabel = { "Remove filter " + classroot.label },
+    fill = { hovered || pressed ? provided("theme").controlHovered : provided("theme").controlSelected },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Text [ fontSize = 12.5, fontWeight = medium, wrap = false, text = { classroot.label } ],
+    Glyph [ shape = "close", iconSize = 12, weight = 1.8, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// A plain text link-button: "Clear all", "Retry", "Show as table".
+
+class LinkButton extends Control [ height = 26, cornerRadius = 6, padding = [0, 6, 0, 6],
+    label: string = "",
+    tone: Color = { provided("theme").accent },
+    fill = { hovered ? provided("theme").hover : null },
+    TextLabel [ y = center, fontSize = 13, fontWeight = medium, wrap = false, textColor = { classroot.tone }, text = { classroot.label } ]
+    ]
+
+
+// ── Containers ──────────────────────────────────────────────────────────────
+
+// A titled section of a page: a heading, an optional line beneath it, and
+// what it holds. Content placed in it goes into `body`.
+
+class Panel [ width = 100%, cornerRadius = 12, padding = 18,
+    title: string = "",
+    fill = { provided("theme").card },
+    stroke = { stroke(1, provided("theme").line) },
+    defaultPlacement = body,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 15, fontWeight = semibold, wrap = false, accessibilityRole = heading, accessibilityLevel = 2,
+            text = { classroot.title } ]
+        ],
+    body: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ]
+        ]
+    ]
+
+
+// A placeholder that keeps a panel's shape while its data loads, or says
+// what went wrong, with Retry.
+
+class LoadState [ width = 100%, height = 120,
+    failed: boolean = false,
+    loading: boolean = true,
+    retry() { },
+    fill = { provided("theme").sunken }, cornerRadius = 8,
+    col: View [ x = center, y = center,
+        layout: SimpleLayout [ axis = y, spacing = 6, align = center ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { classroot.failed ? "Couldn't load this." : "Loading…" } ],
+        LinkButton [ visible = { classroot.failed }, label = "Retry",
+            press() { classroot.retry() }
+            ]
+        ]
+    ]
+
+
+// ── Drawn figures ───────────────────────────────────────────────────────────
+
+// A sparkline: the last periods of one measure, the latest marked. Drawn
+// words are pixels, so it is named for a screen reader by its owner.
+
+class Spark [ height = 28,
+    values: number[] = [],
+    tone: Color = gray,
+    draw(d: DrawContext) {
+        const v = values
+        if (v.length < 2) return
+        const lo = Math.min(0, ...v), hi = Math.max(...v, lo + 1)
+        const x = (i: number) => 2 + i * (d.w - 4) / (v.length - 1)
+        const y = (n: number) => d.h - 3 - (n - lo) / (hi - lo) * (d.h - 6)
+        d.strokeStyle = tone
+        d.lineWidth = 1.6
+        d.lineJoin = "round"
+        d.beginPath()
+        v.forEach((n, i) => { if (i == 0) d.moveTo(x(i), y(n)); else d.lineTo(x(i), y(n)) })
+        d.stroke()
+        d.fillStyle = tone
+        d.beginPath()
+        d.arc(x(v.length - 1), y(v[v.length - 1]), 2.4, 0, 6.3)
+        d.fill()
+        }
+    ]
+
+
+// A thin bar of a share: the part filled in a color over a quiet track.
+
+class ShareBar [ height = 6, cornerRadius = 3,
+    frac: number = 0,
+    tone: Color = gray,
+    fill = { provided("theme").sunken },
+    View [ height = 6, cornerRadius = 3, width = { Math.max(classroot.frac > 0 ? 3 : 0, parent.width * Math.min(1, classroot.frac)) },
+        fill = { classroot.tone } ]
+    ]

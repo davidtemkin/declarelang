@@ -1,0 +1,6 @@
+// Aside, not met in the run: Control.press says "Pointer and keyboard both land here",
+// but a click on a Button whose instance overrides press() does not reach it.
+App [ width = 400, height = 200, n: number = 0,
+    b: Button [ label = "Go", press() { app.n = app.n + 1 } ],
+    Text [ y = 60, text = { "presses " + app.n } ]
+    ]

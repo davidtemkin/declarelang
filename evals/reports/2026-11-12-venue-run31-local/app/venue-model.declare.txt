@@ -1,0 +1,223 @@
+/*
+# The Venue: the model
+
+The shapes of what the service sends, the helpers that turn its values into
+words (money, dates, card numbers), and `Payment`, the values the checkout
+form edits. `venue.declare` includes this file.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments: formatting and checking. A constraint that
+// calls one re-runs when what it passes changes.
+
+script {
+    const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+    const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+
+    // $240.00
+    function money(cents: number): string { return USD.format(cents / 100) }
+
+    // "2026-11-13T19:30" is the hall's own clock, as printed on a ticket:
+    // read its parts, never through a time zone.
+    function stamp(iso: string): number[] {
+        const m = /^(\d+)-(\d+)-(\d+)T(\d+):(\d+)/.exec(iso)
+        return m == null ? [2000, 1, 1, 0, 0] : m.slice(1, 6).map(Number)
+    }
+    // Fri 13 Nov
+    function dayLabel(iso: string): string {
+        const p = stamp(iso)
+        return WEEKDAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] + " " + p[2] + " " + MONTHS[p[1] - 1]
+    }
+    function weekday(iso: string): string { const p = stamp(iso); return WEEKDAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] }
+    function dayOfMonth(iso: string): string { return "" + stamp(iso)[2] }
+    function monthShort(iso: string): string { return MONTHS[stamp(iso)[1] - 1] }
+    function monthName(iso: string): string { const p = stamp(iso); return MONTH_NAMES[p[1] - 1] + " " + p[0] }
+    // 7:30pm
+    function timeLabel(iso: string): string {
+        const p = stamp(iso)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + (p[4] < 10 ? "0" : "") + p[4] + (p[3] < 12 ? "am" : "pm")
+    }
+    function isMatinee(iso: string): boolean { return stamp(iso)[3] < 17 }
+
+    // 3 seats · $240.00
+    function seatCount(n: number): string { return n + (n == 1 ? " seat" : " seats") }
+
+    // ── cards ──
+    function digitsOf(s: string): string { return s.replace(/\D/g, "") }
+    function cardBrand(d: string): string {
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^4/.test(d)) return "visa"
+        if (/^(5[1-5]|2[2-7])/.test(d)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        if (b == "visa") return "Visa"
+        if (b == "mastercard") return "Mastercard"
+        if (b == "amex") return "American Express"
+        if (b == "discover") return "Discover"
+        return ""
+    }
+    function brandShort(b: string): string {
+        return ({ visa: "VISA", mastercard: "MC", amex: "AMEX", discover: "DISC" } as Record<string, string>)[b] ?? ""
+    }
+    function cardLength(b: string): number { return b == "amex" ? 15 : b == "visa" || b == "discover" ? 19 : 16 }
+    function codeLength(b: string): number { return b == "amex" ? 4 : 3 }
+    // Grouped as printed: 4-6-5 for American Express, fours for the rest.
+    function groupCard(d: string): string {
+        const b = cardBrand(d)
+        const s = d.slice(0, cardLength(b))
+        if (b == "amex") return [s.slice(0, 4), s.slice(4, 10), s.slice(10, 15)].filter((g) => g != "").join(" ")
+        return (s.match(/.{1,4}/g) ?? []).join(" ")
+    }
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum = sum + n
+        }
+        return d.length > 0 && sum % 10 == 0
+    }
+    function cardProblem(d: string): string {
+        const b = cardBrand(d)
+        if (b == "") return "Enter a Visa, Mastercard, American Express or Discover card number."
+        const ok = b == "amex" ? d.length == 15 : b == "visa" ? [13, 16, 19].includes(d.length) : b == "discover" ? d.length >= 16 : d.length == 16
+        if (!ok || !luhn(d)) return "That card number isn't complete or isn't right. Check it against your card."
+        return ""
+    }
+    // Expiry, typed as digits and shown as "MM / YY".
+    function groupExpiry(t: string): string {
+        let d = digitsOf(t)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        d = d.slice(0, 4)
+        return d.length > 2 ? d.slice(0, 2) + " / " + d.slice(2) : d
+    }
+    function expiryMonth(t: string): number { return Number(digitsOf(t).slice(0, 2)) }
+    function expiryYear(t: string): number { return 2000 + Number(digitsOf(t).slice(2, 4)) }
+    function expiryProblem(t: string, year: number, month: number): string {
+        const d = digitsOf(t)
+        if (d.length < 4) return "Enter the expiry as month and year, like 04 / 28."
+        const m = expiryMonth(t), y = expiryYear(t)
+        if (m < 1 || m > 12) return "The month should be between 01 and 12."
+        if (y < year || (y == year && m < month)) return "This card has expired. Use another card."
+        return ""
+    }
+    function isExpired(expMonth: number, expYear: number, year: number, month: number): boolean {
+        return expYear < year || (expYear == year && expMonth < month)
+    }
+    function twoDigits(n: number): string { return (n < 10 ? "0" : "") + n }
+
+    // ── addresses ──
+    function tidyPostal(t: string, country: string): string { return country == "US" ? t : t.toUpperCase() }
+    function postalProblem(t: string, country: string): string {
+        const v = t.trim()
+        if (country == "US") return /^\d{5}(-\d{4})?$/.test(v) ? "" : "Enter a 5-digit ZIP code, like 94110."
+        if (country == "CA") return /^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/.test(v) ? "" : "Enter a postal code like K1A 0B1."
+        if (country == "GB") return /^[A-Za-z]{1,2}\d[A-Za-z\d]? ?\d[A-Za-z]{2}$/.test(v) ? "" : "Enter a postcode like SW1A 2AA."
+        return "Choose a country first."
+    }
+    function emailProblem(v: string): string {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "" : "Enter an email address like name@example.com."
+    }
+
+    // A deterministic pattern of modules for a ticket's code, from its text.
+    function codeBits(s: string, n: number): boolean[] {
+        let h = 2166136261
+        for (let i = 0; i < s.length; i++) { h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0 }
+        const out: boolean[] = []
+        for (let i = 0; i < n * n; i++) {
+            h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0
+            out.push((h & 1) == 1)
+        }
+        return out
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number,
+    seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema SeatRec [ id: string, number: number, status: "available" | "sold" ]
+schema RowRec [ name: string, seats[]: SeatRec ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: RowRec ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing?: Billing, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+// A seat the person has chosen, with what checkout shows of it.
+
+schema SeatPick [ id: string, section: string, row: string, number: number, priceCents: number, feeCents: number ]
+
+// What the service says when it refuses.
+
+schema Refusal [ error?: string, message?: string, field?: string, conflicts[]?: string ]
+
+schema Country [ id: string, label: string ]
+
+
+// ── What the checkout form edits ────────────────────────────────────────────
+//
+// The values live here, on the App, rather than in the form: the form comes
+// and goes (back to the hall after a lost seat, a sign-in sheet over it), and
+// nothing typed should go with it. The ones an account knows are computed
+// defaults: they follow the account until the person types their own.
+
+class Payment extends Node [
+    account: Account? = null,
+    year: number = 2026,
+    month: number = 1,
+
+    usable: SavedCard[] = { (classroot.account?.cards ?? []).filter((c) => !isExpired(c.expMonth, c.expYear, classroot.year, classroot.month)) },
+
+    // A saved card when there is one, unless a new one is already being typed.
+
+    method: string = { classroot.usable.length > 0 && classroot.number == "" ? classroot.usable[0].id : "new" },
+    saved: SavedCard? = { (classroot.account?.cards ?? []).find((c) => c.id == classroot.method) ?? null },
+    useSaved: boolean = { classroot.saved != null },
+
+    email: string = { classroot.account?.email ?? "" },
+    name: string = { classroot.account?.name ?? "" },
+    number: string = "",
+    expiry: string = "",
+    cvc: string = "",
+    line1: string = { classroot.account?.billing?.line1 ?? "" },
+    line2: string = { classroot.account?.billing?.line2 ?? "" },
+    city: string = { classroot.account?.billing?.city ?? "" },
+    postalCode: string = { classroot.account?.billing?.postalCode ?? "" },
+    country: string = { classroot.account?.billing?.country ?? "US" },
+
+    digits: string = { digitsOf(classroot.number) },
+    brand: string = { classroot.useSaved ? classroot.saved?.brand ?? "" : cardBrand(classroot.digits) },
+
+    // What goes to the service: a saved card and its code, or a new card
+    // with its billing address.
+
+    payment() -> object {
+        if (useSaved) return ({ savedCardId: method, cvc: cvc })
+        return ({
+            card: ({ number: digits, expMonth: expiryMonth(expiry), expYear: expiryYear(expiry), cvc: cvc, name: name.trim() }),
+            billing: ({ line1: line1.trim(), line2: line2.trim() == "" ? null : line2.trim(), city: city.trim(),
+                postalCode: postalCode.trim(), country: country })
+            })
+        },
+    payEmail() -> string { return useSaved ? (account?.email ?? email).trim() : email.trim() },
+
+    // After a payment goes through, the card's details are not kept.
+
+    forgetCard() { number = ""; expiry = ""; cvc = "" }
+    ]

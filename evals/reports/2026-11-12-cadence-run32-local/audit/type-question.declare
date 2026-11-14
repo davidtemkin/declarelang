@@ -1,0 +1,8 @@
+schema Session [ id: string, effort: number ]
+App [ width = 200, height = 100,
+    rows: Session[] = [],
+    best() : string {
+        let best: Session? = null
+        for (const s of rows) if (best == null || s.effort > best.effort) best = s
+        return best?.id ?? ""
+    } ]

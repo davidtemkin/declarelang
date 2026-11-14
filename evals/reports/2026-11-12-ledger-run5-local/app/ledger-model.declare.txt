@@ -1,0 +1,262 @@
+/*
+# Ledger: the model
+
+What the books are, whoever is looking at them: the shapes the service sends
+(schemas), the lookups every screen names things by (`Books`), and every
+write the app makes (`Writes`). Nothing here knows what the person is
+looking at — the filters, the page and the selection are the App's.
+
+The service is the only source of truth. Every total on screen is one the
+service computed over the same filter, so the numbers reconcile by
+construction; this file never adds money up itself except to show what a
+person is typing (a split's remainder, a sale's total).
+*/
+
+script [ "ledger-format.ts" ]
+
+// ── The shapes the service sends ────────────────────────────────────────────
+
+schema Category [ id: string, name: string, kind: "income" | "expense", colour: number, archived: boolean ]
+schema Channel [ id: string, name: string ]
+schema Product [ id: string, name: string, price: number, unitCost: number, archived: boolean ]
+schema Contact [ id: string, name: string, type: string, usualCategoryId?: string,
+    transactionCount: number, lastDate?: string ]
+
+schema Summary [ count: number, in: number, out: number, net: number ]
+
+schema Split [ parts: number, categoryIds[]: string ]
+
+// One row of the transaction list. `signed` is the transaction's own signed
+// total; `inFilter` is the part of it the filter counts (a split's parts in
+// the chosen categories, a sale's lines of the chosen products).
+
+schema Txn [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, split?: Split, channel?: string,
+    amount: number, signed: number, inFilter: number, lineCount: number,
+    refundOf?: string, refunded?: number ]
+
+schema TxnPage [ total: number, summary: Summary, rows[]: Txn ]
+
+// One transaction, opened.
+
+schema TxnLine [ id: string, productId?: string, description: string, quantity: number, unitPrice: number,
+    amount: number, unitCost?: number, refunded?: number, refundedQuantity?: number,
+    refundable?: number, refundableQuantity?: number, saleLineId?: string ]
+schema Part [ categoryId: string, amount: number ]
+schema RefundRef [ id: string, date: string, amount: number, description: string ]
+schema SaleRef [ id: string, date: string, description: string, amount: number, channel?: string ]
+
+schema TxnDetail [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, channel?: string,
+    amount: number, signed: number, lineCount: number, refundOf?: string, refunded?: number,
+    parts[]?: Part, lines[]: TxnLine, refunds[]?: RefundRef, sale?: SaleRef,
+    refundable?: number, cost?: number, margin?: number ]
+
+schema Saved [ transaction: TxnDetail, changeId?: string ]
+
+// Aggregates. Every figure carries how many transactions are behind it.
+
+schema Measure [ amount: number, count: number ]
+schema Margin [ amount: number, percent?: number, count: number ]
+schema Period [ period: string, start: string, end: string, from: string, to: string, partial: boolean,
+    revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema PeriodTotal [ revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema Periods [ by: string, from: string, to: string, periods[]: Period, total: PeriodTotal ]
+
+schema CategoryTotal [ categoryId?: string, amount: number, count: number ]
+schema CategoryTotals [ side: string, categories[]: CategoryTotal, total: Measure ]
+
+schema ProductTotal [ productId?: string, units: number, revenue: number, cost: number, margin: number,
+    marginPercent?: number, count: number ]
+schema ProductTotals [ products[]: ProductTotal ]
+
+schema ContactTotal [ contactId?: string, contactName?: string, amount: number, count: number ]
+schema ContactTotals [ side: string, contacts[]: ContactTotal, total: Measure ]
+
+schema Bucket [ min: number, max?: number, count: number ]
+schema Buckets [ buckets[]: Bucket, count: number, lowest?: number, highest?: number ]
+
+schema CategoryCount [ categoryId?: string, count: number ]
+schema CategoryCounts [ categories[]: CategoryCount, total: number ]
+
+schema Budget [ categoryId: string, amount: number, spent: number, remaining: number, count: number ]
+schema Budgets [ month: string, from: string, to: string, budgets[]: Budget ]
+
+
+// ── The lookups ─────────────────────────────────────────────────────────────
+//
+// Categories, channels, products and contacts, loaded once and named by id
+// everywhere else. Contacts change (a vendor is created on the spot), so
+// they reload after a write that makes one.
+
+class Books extends Node [
+    base: string = "",
+
+    todaySrc: DataSource [ url = { classroot.base + "/api/today" }, autoFetch = true, schema = [ today: string ] ],
+    today: string = { this.todaySrc.value?.today ?? "" },
+    year: number = { Number((this.today || "2000").slice(0, 4)) },
+
+    catSrc: DataSource [ url = { classroot.base + "/api/categories" }, autoFetch = true, schema = [ categories[]: Category ] ],
+    chanSrc: DataSource [ url = { classroot.base + "/api/channels" }, autoFetch = true, schema = [ channels[]: Channel ] ],
+    prodSrc: DataSource [ url = { classroot.base + "/api/products" }, autoFetch = true, schema = [ products[]: Product ] ],
+    contactSrc: DataSource [ url = { classroot.base + "/api/contacts" }, autoFetch = true, schema = [ contacts[]: Contact ] ],
+
+    sources: DataSource[] = { [this.todaySrc, this.catSrc, this.chanSrc, this.prodSrc, this.contactSrc] },
+    loaded: boolean = { this.sources.every((s) => s.loaded) },
+    failed: boolean = { this.sources.some((s) => s.failed) },
+    retry() { for (const s of sources) if (!s.loaded) s.fetch() },
+
+    categories() -> Category[] { return this.catSrc.value?.categories ?? [] },
+    channels() -> Channel[] { return this.chanSrc.value?.channels ?? [] },
+    products() -> Product[] { return this.prodSrc.value?.products ?? [] },
+    contacts() -> Contact[] { return this.contactSrc.value?.contacts ?? [] },
+
+    category(id: string?) -> Category? { return this.categories().find((c) => c.id == id) ?? null },
+    catName(id: string?) -> string { return id == null ? "Uncategorised" : this.category(id)?.name ?? id },
+    catColour(id: string?) -> number { return this.category(id)?.colour ?? -1 },
+    expenseCategories() -> Category[] { return this.categories().filter((c) => c.kind == "expense" && !c.archived) },
+    incomeCategories() -> Category[] { return this.categories().filter((c) => c.kind == "income" && !c.archived) },
+
+    channelName(id: string?) -> string { return id == null ? "" : this.channels().find((c) => c.id == id)?.name ?? id },
+    product(id: string?) -> Product? { return this.products().find((p) => p.id == id) ?? null },
+    productName(id: string?) -> string { return id == null ? "Other items" : this.product(id)?.name ?? id },
+    contact(id: string?) -> Contact? { return this.contacts().find((c) => c.id == id) ?? null },
+    contactName(id: string?) -> string { return id == null ? "" : this.contact(id)?.name ?? id },
+    vendors() -> Contact[] { return this.contacts().filter((c) => c.type == "vendor") },
+    customers() -> Contact[] { return this.contacts().filter((c) => c.type == "customer") },
+
+    // the date of the oldest record, for "All time"; two years back is what
+    // the service holds
+
+    first: string = { this.today == "" ? "" : addMonths(monthStart(this.today), -24) }
+    ]
+
+
+// ── The writes ──────────────────────────────────────────────────────────────
+//
+// Each write is a DataSource whose method is not GET: a handler aims it
+// (`target`, `body`) and sends it. Every write the service accepts returns a
+// `changeId`, which Undo puts back; every accepted write also bumps
+// `revision`, which every read's address carries, so every list, chart and
+// total re-reads at once.
+
+class Writes extends Node [
+    base: string = "",
+    revision: number = 0,
+    lastChange: string = "",             // the change ⌘Z undoes
+    lastSaid: string = "",               // what the last change did, in words
+
+    // the in-place edit (a PATCH) and what to do with its answer
+
+    patchId: string = "",
+    patchBody: object = null,
+    patchLabel: string = "",
+    patch: DataSource [ url = { classroot.base + "/api/transactions/" + classroot.patchId }, method = "PATCH",
+        body = { classroot.patchBody }, schema = Saved,
+        onLoad() { classroot.done(this.value?.changeId ?? "", classroot.patchLabel) }
+        ],
+
+    // a refused or failed edit: kept, marked as not saved, with Retry
+
+    patchFailed: boolean = { this.patch.failed },
+    patchError: string = { (this.patch.errorBody as any)?.message ?? (this.patch.failure == "rejected" ? "The change was refused" : "The service didn't answer") },
+
+    update(id: string, body: object, label: string) {
+        patchId = id
+        patchBody = body
+        patchLabel = label
+        patch.fetch()
+        },
+
+    // bulk changes over ids or over the whole filter
+
+    bulkBody: object = null,
+    bulkVerb: string = "",
+    bulk: DataSource [ url = { classroot.base + "/api/transactions/bulk" }, method = "POST",
+        body = { classroot.bulkBody },
+        onLoad() {
+            const v = this.value as any
+            const n = v?.count ?? 0
+            const skipped = (v?.skipped ?? []).length
+            classroot.done(v?.changeId ?? "", classroot.bulkVerb + " " + count(n) + (n == 1 ? " transaction" : " transactions")
+                + (skipped > 0 ? " · " + skipped + " skipped" : ""))
+            }
+        ],
+    bulkError: string = { (this.bulk.errorBody as any)?.message ?? "" },
+    runBulk(body: object, verb: string) { bulkBody = body; bulkVerb = verb; bulk.fetch() },
+
+    // one deletion
+
+    delId: string = "",
+    del: DataSource [ url = { classroot.base + "/api/transactions/" + classroot.delId }, method = "DELETE",
+        onLoad() { classroot.done((this.value as any)?.changeId ?? "", "Deleted 1 transaction") }
+        ],
+    remove(id: string) { delId = id; del.fetch() },
+
+    // undo
+
+    undoId: string = "",
+    undoSrc: DataSource [ url = { classroot.base + "/api/changes/" + classroot.undoId + "/undo" }, method = "POST",
+        onLoad() {
+            classroot.revision = classroot.revision + 1
+            classroot.lastChange = ""
+            classroot.said("Undone")
+            },
+        onError() { classroot.said((this.errorBody as any)?.message ?? "Couldn't undo that change") }
+        ],
+    undo() {
+        if (lastChange == "") return
+        undoId = lastChange
+        undoSrc.fetch()
+        },
+
+    // a vendor or customer made on the spot; `made` hears the new contact
+
+    contactBody: object = null,
+    made: (c: Contact) => void = null,
+    contactSrc: DataSource [ url = { classroot.base + "/api/contacts" }, method = "POST",
+        body = { classroot.contactBody }, schema = Contact,
+        onLoad() { classroot.contactMade(this.value as Contact) },
+        onError() {
+            // a name that already exists comes back as the existing contact
+            const c = (this.errorBody as any)?.contact
+            if (c != null) classroot.contactMade(c as Contact)
+            }
+        ],
+    makeContact(name: string, type: string, usual: string?, then: (c: Contact) => void) {
+        contactBody = ({ name: name, type: type, usualCategoryId: type == "vendor" ? usual : null })
+        made = then
+        contactSrc.fetch()
+        },
+    contactMade(c: Contact) {
+        if (made != null) made(c)
+        made = null
+        app.books.contactSrc.fetch()
+        },
+
+    // a monthly budget
+
+    budgetUrl: string = "",
+    budgetBody: object = null,
+    budgetSrc: DataSource [ url = { classroot.budgetUrl }, method = "PUT", body = { classroot.budgetBody },
+        onLoad() { classroot.revision = classroot.revision + 1 }
+        ],
+    budgetError: string = { this.budgetSrc.failed ? ((this.budgetSrc.errorBody as any)?.message ?? "Not saved") : "" },
+    setBudget(month: string, categoryId: string, cents: number?) {
+        budgetUrl = base + "/api/budgets/" + month + "/" + categoryId
+        budgetBody = ({ amount: cents })
+        budgetSrc.fetch()
+        },
+
+    // every accepted write lands here: everything re-reads, and the toast
+    // says what happened, with Undo
+
+    done(changeId: string, words: string) {
+        revision = revision + 1
+        if (changeId != "") lastChange = changeId
+        said(words)
+        },
+    said(words: string) { lastSaid = words; app.announceChange(words, lastChange != "" && words != "Undone") }
+    ]

@@ -1,0 +1,6 @@
+// A class declares an attribute named like one every View has.
+class DayBar [ width = 40, height = 100,
+    scale: number = 1,
+    grown: number = 50,
+    bar: View [ width = 100%, height = { parent.height * classroot.grown / classroot.scale / 100 } ] ]
+App [ width = 200, height = 100, DayBar [ scale = 2 ] ]

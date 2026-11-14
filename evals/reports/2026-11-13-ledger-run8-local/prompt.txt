@@ -1,0 +1,3 @@
+You have just downloaded the Declare distribution into `declarelang/`. Declare is a UI language not in your training data; that repository is the only source of truth and documents itself. Start at its README.md. Build the app described in `task/brief.md`. The data service is described in `task/api/API.md` and is already running on port 8370; do not modify it.
+
+Before you hand it over, it must build and start with no errors. Check that and nothing more: do not drive it, script it, take screenshots of it or look at it in a browser. When you hand it over, say what you established.

@@ -1,0 +1,6 @@
+class Transcript extends View [ width = 100%, height = 300,
+    feed: View [ width = 100%, height = 100%, scrolls = y,
+        list: View [ width = 100%, layout: SimpleLayout [ axis = y ] ] ],
+    dayChip: View [ ignoreScroll = true, opacity = 0,
+        Spring [ attribute = opacity, to = { parent.userScrolling && parent.list.firstVisibleRow > 0 ? 1 : 0 } ] ] ]
+App [ Transcript [ ] ]

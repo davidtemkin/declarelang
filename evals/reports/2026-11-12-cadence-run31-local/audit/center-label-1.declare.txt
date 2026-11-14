@@ -1,0 +1,9 @@
+// A content-sized pill whose label centers itself: R4 finding (correct).
+class Pill extends Control [ height = 44, padding = [0, 16, 0, 16], fill = #DDDDDD,
+    label: string = "",
+    accessibilityLabel = { label },
+    TextLabel [ x = center, text = { classroot.label } ]
+    ]
+App [ width = 300, height = 100, fill = white,
+    Pill [ x = 20, y = 20, label = "Log a session" ]
+    ]

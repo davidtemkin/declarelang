@@ -1,0 +1,4 @@
+  R5 ✗ behavior
+       unexpected error: Protocol error (Tracing.start): Tracing has already been started (possibly in another tab). (after: profile from boot (itemized) → profile)
+      at at startFrames (file://~/Code/Declare/tools/internal/verify-behave.mjs:1038:28)
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/prof.declare — FAILED at R5: unexpected error: Protocol error (Tracing.start): Tracing has already been started (possibly in anot…

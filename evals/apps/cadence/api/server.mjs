@@ -78,6 +78,10 @@ const SESSIONS = [];
 SESSIONS.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));   // newest first
 const BY_ID = new Map(SESSIONS.map((s) => [s.id, s]));
 let seq = SESSIONS.length;
+// the history as generated — what a harness reset returns to, edits and deletions included
+const ORIGINAL = JSON.stringify(SESSIONS);
+// every request the app makes, for a harness to read (GET /api/_log; never in API.md)
+const LOG = [];
 
 // ── the session in progress ──────────────────────────────────────────────────
 // Starts when the server does, so its elapsed time actually advances. Its shape
@@ -116,6 +120,18 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const p = url.pathname;
   if (req.method === "OPTIONS") { res.writeHead(204, CORS); return res.end(); }
+  if (!p.startsWith("/api/_")) {
+    const entry = { method: req.method, path: p + url.search, at: Date.now() };
+    LOG.push(entry);
+    if (req.method === "POST" || req.method === "PUT") {
+      // the body is read here once and handed on, so the log holds what was sent
+      const body = await readBody(req);
+      entry.body = body;
+      req.$body = body;
+    }
+  }
+  // GET /api/_log — HARNESS ONLY, absent from API.md
+  if (p === "/api/_log" && req.method === "GET") return send(res, 200, { requests: LOG });
 
   // GET /api/today — the frozen clock, so every derived number is stable
   if (p === "/api/today" && req.method === "GET") return send(res, 200, { today: TODAY });
@@ -143,7 +159,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/sessions — record one that already happened
   if (p === "/api/sessions" && req.method === "POST") {
-    const b = await readBody(req);
+    const b = req.$body ?? await readBody(req);
     const bad = [];
     if (!VALID_SPORT(b.sport)) bad.push("sport must be one of run, ride, lift, swim");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.date ?? ""))) bad.push("date must be YYYY-MM-DD");
@@ -170,7 +186,7 @@ const server = createServer(async (req, res) => {
   if (one && req.method === "PUT") {
     const s = BY_ID.get(one[1]);
     if (!s) return send(res, 404, { error: "no such session" });
-    const b = await readBody(req);
+    const b = req.$body ?? await readBody(req);
     for (const k of ["sport", "date", "minutes", "distanceKm", "effort", "heartAvg", "note"]) {
       if (b[k] !== undefined) s[k] = b[k];
     }
@@ -188,10 +204,9 @@ const server = createServer(async (req, res) => {
 
   // POST /api/_reset — HARNESS ONLY, absent from API.md
   if (p === "/api/_reset" && req.method === "POST") {
-    for (const s of [...SESSIONS]) if (Number(s.id.slice(1)) > 100000) SESSIONS.splice(SESSIONS.indexOf(s), 1);
-    // rebuild from the deterministic set: drop everything added this run
-    const keep = SESSIONS.filter((s) => Number(s.id.slice(1)) <= seqAtBoot);
-    SESSIONS.length = 0; SESSIONS.push(...keep);
+    // back to the history as generated: additions dropped, corrections and deletions undone
+    SESSIONS.length = 0; SESSIONS.push(...JSON.parse(ORIGINAL));
+    LOG.length = 0;
     BY_ID.clear(); for (const s of SESSIONS) BY_ID.set(s.id, s);
     seq = seqAtBoot;
     return send(res, 200, { reset: true, sessions: SESSIONS.length });

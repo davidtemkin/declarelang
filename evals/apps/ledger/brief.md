@@ -50,7 +50,7 @@ In five seconds: how are we doing this period, and what needs attention?
 - Four headline figures: **Revenue, Expenses, Net profit, Gross margin %**. Each shows its value, its change
   against the comparison period (an arrow, the signed change and words: "▲ 12% vs Oct"; coloured as good or bad
   where that means something, and an increase in expenses is the unfavourable one), and a small line of the last
-  12 periods. Opening a figure goes to its trend in Insights.
+  12 periods. Opening a figure opens its records: Transactions filtered to exactly what makes it up (§6).
 - **Income vs expenses**, month by month, with net profit as a line.
 - **Expenses by category**: the top categories as bars, the rest as "Other".
 - **Top products** and **top customers**: five each, with small bars.

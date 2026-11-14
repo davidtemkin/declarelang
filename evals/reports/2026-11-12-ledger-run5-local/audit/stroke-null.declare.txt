@@ -1,0 +1,16 @@
+// A stroke constraint that starts non-null (categoryId null at first) and
+// becomes null once the bound value arrives.
+class Chip [ height = 22, width = 120, cornerRadius = 11,
+    categoryId: string? = null,
+    missing: boolean = { classroot.categoryId == null },
+    fill = { classroot.missing ? 0xFFE7C2 : 0xE2ECFF },
+    stroke = { classroot.missing ? stroke(1, 0xC77700) : null },
+    Text [ x = 8, y = center, fontSize = 12, text = { classroot.missing ? "! missing" : (classroot.categoryId ?? "") } ]
+    ]
+App [ width = 300, height = 300, fill = white,
+    rows: Dataset { { "rows": [ { "c": "a" }, { "c": null }, { "c": "b" } ] } },
+    View [ datapath = { app.rows.value }, layout: SimpleLayout [ axis = y, spacing = 6 ], x = 10, y = 10,
+        Chip [ datapath = :rows[], categoryId = { :c ?? null } ] ],
+    late: Chip [ x = 150, y = 10, categoryId = null ],
+    plain: Chip [ x = 150, y = 50, categoryId = "x" ]
+    ]

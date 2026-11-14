@@ -1,0 +1,264 @@
+/*
+# Presentify: the open presentation
+
+`Doc` holds the presentation being edited — its slides, which one is open,
+what is selected — and every verb that changes it. Views read it and call
+it; nothing else writes a slide.
+
+**One step is one thing the person did.** A change is made inside a
+*gesture*: `begin()` notes how things stood, the change is written live (so
+the slide, its thumbnail and the inspector follow the pointer), and `end()`
+records one history step if anything changed. A drag is one gesture however
+many moves it has; a run of typing is one; a click in the inspector is one.
+`act(…)` wraps a change that is over at once.
+*/
+
+class Doc extends Node [
+    slides: Slide[] = [],
+    current: string = "",           // the open slide's id
+    selection: string[] = [],       // selected elements' ids, at any depth
+    scope: string = "",             // the group double-clicked into, or ""
+    history: History [ ],
+    before: Snapshot? = null,       // how things stood when this gesture began
+
+    // ── what is open ────────────────────────────────────────────────────
+
+    index: number = { this.slides.findIndex((s) => s.id == this.current) },
+    slide: Slide? = { this.slides[this.index] ?? null },
+    els: Element[] = { this.slide?.elements ?? [] },
+    selected: Element[] = { findAll(this.els, this.selection) },
+    selBox: Bounds = { boundsOf(this.selected) },
+    single: Element? = { this.selected.length == 1 ? this.selected[0] : null },
+    leavesSel: Element[] = { this.selected.flatMap(leaves) },
+
+    load(list: Slide[]) {
+        slides = list
+        current = list[0]?.id ?? ""
+        selection = []
+        scope = ""
+        before = null
+        history.clear()
+        },
+
+    // ── gestures and history ────────────────────────────────────────────
+
+    snap() -> Snapshot { return copyOf(({ slides: slides, current: current, selection: selection })) },
+    restore(s: Snapshot) {
+        const c = copyOf(s)
+        slides = c.slides
+        current = c.current
+        selection = c.selection
+        scope = ""
+        },
+    begin() { if (before == null) before = this.snap() },
+    end() {
+        const b = before
+        before = null
+        if (b != null && !this.same(b.slides, slides)) history.push(({ before: b, after: this.snap() }))
+        },
+
+    // A gesture taken back (Escape mid-drag): everything as it was.
+
+    cancel() {
+        const b = before
+        before = null
+        if (b != null) this.restore(b)
+        },
+
+    // Whether two versions of the slides say the same thing. A slide that
+    // didn't change is the same object; one rebuilt to the same content (a
+    // text box made and left empty) compares by content.
+
+    same(a: Slide[], b: Slide[]) -> boolean {
+        return JSON.stringify(a) == JSON.stringify(b)
+        },
+    act(change: () => void) {
+        this.begin()
+        change()
+        this.end()
+        },
+
+    undo() {
+        this.end()
+        const s = history.takeUndo()
+        if (s != null) this.restore(s.before)
+        },
+    redo() {
+        this.end()
+        const s = history.takeRedo()
+        if (s != null) this.restore(s.after)
+        },
+
+    // ── live writes, inside a gesture ───────────────────────────────────
+
+    setSlide(s: Slide) { slides = slides.map((x) => x.id == s.id ? s : x) },
+    setEls(list: Element[]) {
+        const s = slide
+        if (s != null) this.setSlide(({ ...s, elements: list.map((e) => this.fitText(e)) }))
+        },
+    replace(byId: Record<string, Element>) { this.setEls(replaceEls(els, byId)) },
+
+    // A text box is as tall as its words: its height is worked out again
+    // whenever its words, its type or its width change.
+
+    textStyle(t: TextBlock) -> TextStyle {
+        return ({ fontFamily: [t.font, "Helvetica Neue", "Arial", "sans-serif"], fontSize: t.size, fontWeight: t.weight as FontWeight,
+            italic: t.italic, lineHeight: 1.2 })
+        },
+    fitText(e: Element) -> Element {
+        if (e.kind == "group") return ({ ...e, children: (e.children ?? []).map((c) => this.fitText(c)) })
+        if (e.kind != "text" || e.text == null) return e
+        const m = measureText(e.text.content == "" ? " " : e.text.content, this.textStyle(e.text), Math.max(1, e.width ?? 1))
+        const h = Math.max(Math.round(e.text.size * 1.2), Math.ceil(m.height))
+        return h == e.height ? e : ({ ...e, height: h })
+        },
+
+    // ── selecting ───────────────────────────────────────────────────────
+
+    select(ids: string[]) { selection = ids },
+    clearSel() { selection = []; scope = "" },
+    selectAll() { scope = ""; selection = els.map((e) => e.id) },
+    go(id: string) {
+        if (id == current) return
+        current = id
+        selection = []
+        scope = ""
+        },
+    goBy(d: number) {
+        const i = Math.max(0, Math.min(slides.length - 1, index + d))
+        this.go(slides[i]?.id ?? current)
+        },
+
+    // ── elements ────────────────────────────────────────────────────────
+
+    add(e: Element) {
+        this.setEls([...els, e])
+        selection = [e.id]
+        scope = ""
+        },
+    deleteSel() {
+        if (selection.length == 0) return
+        this.act(() => { this.setEls(removeEls(els, selection)); this.clearSel() })
+        },
+    nudge(dx: number, dy: number) {
+        if (selected.length == 0) return
+        const by: Record<string, Element> = {}
+        for (const e of selected) by[e.id] = moveEl(e, dx, dy)
+        this.act(() => this.replace(by))
+        },
+
+    // Copies of `list`, offset a little, added in front and selected.
+
+    place(list: Element[], dx: number, dy: number) {
+        if (list.length == 0) return
+        const copies = list.map((e) => moveEl(reId(e), dx, dy))
+        this.act(() => {
+            this.setEls([...els, ...copies])
+            scope = ""
+            selection = copies.map((c) => c.id)
+            })
+        },
+    duplicateSel() { this.place(selected, 16, 16) },
+
+    // Applies `fn` to each selected thing it suits: every leaf under the
+    // selection that `fits` accepts.
+
+    restyle(fits: (e: Element) => boolean, fn: (e: Element) => Element) {
+        const by: Record<string, Element> = {}
+        for (const l of leavesSel) if (fits(l)) by[l.id] = fn(l)
+        if (Object.keys(by).length > 0) this.act(() => this.replace(by))
+        },
+
+    group() {
+        const top = this.siblingSel()
+        if (top.length < 2) return
+        const gid = newId("g")
+        this.act(() => {
+            this.setEls(groupEls(els, top, gid))
+            selection = [gid]
+            })
+        },
+    ungroup() {
+        const groups = selected.filter((e) => e.kind == "group")
+        if (groups.length == 0) return
+        this.act(() => {
+            this.setEls(ungroupEls(els, groups.map((g) => g.id)))
+            selection = [...selected.filter((e) => e.kind != "group").map((e) => e.id),
+                ...groups.flatMap((g) => (g.children ?? []).map((c) => c.id))]
+            scope = ""
+            })
+        },
+
+    // The selected elements that share the first one's parent: what can be
+    // grouped together.
+
+    siblingSel() -> string[] {
+        if (selection.length == 0) return []
+        const list = siblingsOf(els, selection[0]) ?? []
+        return selection.filter((id) => list.some((e) => e.id == id))
+        },
+    canGroup: boolean = { this.siblingSel().length >= 2 },
+    canUngroup: boolean = { this.selected.some((e) => e.kind == "group") },
+
+    align(how: string) {
+        if (selected.length < 2) return
+        this.act(() => this.replace(alignEls(selected, how)))
+        },
+    distribute(axis: string) {
+        if (selected.length < 3) return
+        this.act(() => this.replace(distributeEls(selected, axis)))
+        },
+    order(how: string) {
+        if (selection.length == 0) return
+        this.act(() => this.setEls(reorderEls(els, selection, how)))
+        },
+
+    // ── slides ──────────────────────────────────────────────────────────
+
+    blankSlide() -> Slide { return ({ id: newId("s"), background: slide?.background ?? "#FFFFFF", elements: [] }) },
+    insertAfter(at: number, s: Slide) {
+        const list = [...slides]
+        list.splice(at + 1, 0, s)
+        slides = list
+        current = s.id
+        selection = []
+        scope = ""
+        },
+    addSlide() { const s = this.blankSlide(); this.act(() => this.insertAfter(index, s)) },
+    duplicateSlide(id: string) {
+        const i = slides.findIndex((s) => s.id == id)
+        if (i < 0) return
+        const src = slides[i]
+        const copy: Slide = ({ id: newId("s"), background: src.background, elements: src.elements.map(reId) })
+        this.act(() => this.insertAfter(i, copy))
+        },
+    deleteSlide(id: string) {
+        const i = slides.findIndex((s) => s.id == id)
+        if (i < 0 || slides.length <= 1) return
+        this.act(() => {
+            const wasHere = current == id
+            slides = slides.filter((s) => s.id != id)
+            if (wasHere) { current = slides[Math.min(i, slides.length - 1)].id; selection = []; scope = "" }
+            })
+        },
+    moveSlide(id: string, to: number) {
+        const i = slides.findIndex((s) => s.id == id)
+        if (i < 0 || i == to) return
+        this.act(() => {
+            const list = slides.filter((s) => s.id != id)
+            list.splice(Math.max(0, Math.min(list.length, to)), 0, slides[i])
+            slides = list
+            })
+        },
+    setBackground(c: string) {
+        const s = slide
+        if (s != null && s.background != c) this.act(() => this.setSlide(({ ...s, background: c })))
+        },
+
+    // Someone else's copy of a slide, taken in place of ours.
+
+    takeTheirs(local: string, theirs: ServerSlide) {
+        this.act(() => this.setSlide(({ id: local, background: theirs.background, elements: theirs.elements })))
+        if (current == local) selection = []
+        }
+    ]

@@ -1,0 +1,12 @@
+// The run's desk checkout in miniature: a fixed-height row whose layout
+// stretches a scrolling pane. The pane should be 300 tall and scroll its 600
+// of content; in the run's tree it takes its content's height and cannot scroll.
+App [ width = 600, height = 400, fill = white,
+    row: View [ width = 100%, height = { app.height - 100 },
+        layout: SimpleLayout [ axis = x, align = stretch ],
+        pane: View [ flexes = true, scrolls = y,
+            View [ width = 100, height = 600, fill = steelblue ]
+            ],
+        aside: View [ width = 150, fill = whitesmoke ]
+        ]
+    ]

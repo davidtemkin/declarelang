@@ -1,0 +1,23 @@
+// The R3 warnings the run met, in one program.
+class Chip extends Control [ height = 44, width = 60,
+    label: string = "",
+    on: boolean = false,
+    fill = { on ? 0x222222 : 0xEEEEEE },
+    opacity = { disabled ? 0.4 : pressed ? 0.82 : hovered ? 0.92 : 1 },
+    TextLabel [ text = { classroot.label } ] ]
+
+class Bar [ width = 20, height = 40, accessibilityLabel = "Mon, 32m" ]
+
+App [ width = 400, height = 300,
+    minutes: number = 30,
+    sport: string = "run",
+    look: object = { ({ a: 1 }) },
+    Bar [ ],
+    View [ y = 50, layout: SimpleLayout [ axis = x ],
+        Chip [ label = "30", on = { app.minutes == 30 }, press() { app.minutes = 30 } ],
+        Chip [ label = "45", on = { app.minutes == 45 }, press() { app.minutes = 45 } ],
+        Chip [ label = "60", on = { app.minutes == 60 }, press() { app.minutes = 60 } ],
+        Chip [ label = "90", on = { app.minutes == 90 }, press() { app.minutes = 90 } ] ],
+    View [ y = 120, layout: SimpleLayout [ axis = x ],
+        Chip [ label = "Run", accessibilityRole = radio, accessibilityChecked = { app.sport == "run" }, press() { app.sport = "run" } ],
+        Chip [ label = "Ride", accessibilityRole = radio, accessibilityChecked = { app.sport == "ride" }, press() { app.sport = "ride" } ] ] ]

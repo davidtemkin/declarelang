@@ -1,0 +1,160 @@
+/*
+# Murmur: the parts
+
+The look, kept apart from how the app works: the two palettes, the drawn
+marks, and the small pieces every screen is built from (a person's face, a
+conversation's face, a round icon button). `murmur.declare` includes this.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over a library preset, so library controls (the text field, the
+// popover) read the same palette. Murmur's own tokens are read by name.
+//
+// The idea in the palette: dusk. A warm paper ground, everyone else's words on
+// a stone-grey bubble, yours on a deep evening blue. One warm ember marks what
+// is new, and nothing else is that color. `voices` gives each person in a group
+// their own ink, for their name and the edge of their bubbles.
+
+theme MurmurLight [
+    background = #F7F5F0, surface = #FFFFFF, raised = #FFFFFF,
+    line = #E6E2DA, lineStrong = #D4CFC5, hover = #EFECE5, selection = #E9E6F5,
+    text = #1A1A1F, textMuted = #6B6964, textFaint = #9A978F,
+    accent = #34397A, accentHovered = #2B2F68, accentPressed = #23275A, accentTextColor = #FFFFFF,
+    linkColor = #34397A,
+    theirs = #ECE9E2, theirsText = #1A1A1F,
+    mine = #34397A, mineText = #F4F3FF, mineMuted = #B9BBE6,
+    ember = #D9572B, emberText = #FFFFFF,
+    wave = #A9A59B, wavePlayed = #34397A,
+    placeholder = #E4E0D7, placeholderInk = #A39F94,
+    viewer = #0E0E10,
+    chip = #FFFFFF, chipMine = #E4E5F7, chipLine = #E2DED5,
+    voices = [#B5462A, #1F7A6D, #6B47B8, #9A6A12, #B03A6F, #2F5FB3, #4D7A1E, #8A3FA0]
+    ]
+
+
+theme MurmurDark [
+    background = #121215, surface = #1A1A1F, raised = #232329,
+    line = #2A2A31, lineStrong = #3A3A43, hover = #222228, selection = #262848,
+    text = #F1EFEA, textMuted = #A3A09A, textFaint = #75736E,
+    accent = #8E93F0, accentHovered = #9EA2F3, accentPressed = #7E83E4, accentTextColor = #121215,
+    linkColor = #A9ADF5,
+    theirs = #25252B, theirsText = #F1EFEA,
+    mine = #3C4196, mineText = #F4F3FF, mineMuted = #A9ACE6,
+    ember = #F07447, emberText = #121215,
+    wave = #5E5C64, wavePlayed = #A9ADF5,
+    placeholder = #26262C, placeholderInk = #5A5860,
+    viewer = #000000,
+    chip = #232329, chipMine = #30335F, chipLine = #34343C,
+    voices = [#F08A66, #4FC3B0, #A98CF0, #E0B050, #EE7FB0, #7FA6F2, #9CCB6A, #D18BEA]
+    ]
+
+
+// ── Marks ───────────────────────────────────────────────────────────────────
+//
+// One pen for every mark: a round-ended stroke on the library's 16-unit grid.
+// `Icon` scales the grid to `iconSize` (`unit`) and keeps the stroke at
+// `weight` device pixels.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "back") {              // a chevron pointing back
+            d.moveTo(10, 2.5); d.lineTo(4.5, 8); d.lineTo(10, 13.5); d.stroke()
+        } else if (shape == "send") {       // an arrow, up
+            d.moveTo(8, 13.5); d.lineTo(8, 2.8); d.moveTo(3.2, 7.4); d.lineTo(8, 2.6); d.lineTo(12.8, 7.4); d.stroke()
+        } else if (shape == "photo") {      // a frame with a hill and a sun
+            d.roundRect(1.8, 3, 12.4, 10, 2)
+            d.moveTo(2.2, 11.6); d.lineTo(6, 7.8); d.lineTo(9, 10.6); d.lineTo(10.6, 9.2); d.lineTo(13.8, 12.2)
+            d.stroke(); d.beginPath(); d.arc(10.6, 6.2, 1.2, 0, 6.3); d.fill()
+        } else if (shape == "play") {       // a triangle, filled
+            d.moveTo(5, 3); d.lineTo(13, 8); d.lineTo(5, 13); d.closePath(); d.fill(); d.stroke()
+        } else if (shape == "pause") {      // two bars, filled
+            d.roundRect(4, 3, 2.8, 10, 1); d.roundRect(9.2, 3, 2.8, 10, 1); d.fill()
+        } else if (shape == "react") {      // a face, and a plus at its shoulder
+            d.arc(7, 9, 5.4, 0, 6.3); d.stroke(); d.beginPath()
+            d.moveTo(4.8, 10.6); d.quadraticCurveTo(7, 12.6, 9.2, 10.6); d.stroke(); d.beginPath()
+            d.arc(5.2, 7.6, 0.7, 0, 6.3); d.arc(8.8, 7.6, 0.7, 0, 6.3); d.fill(); d.beginPath()
+            d.moveTo(13.2, 0.8); d.lineTo(13.2, 4.8); d.moveTo(11.2, 2.8); d.lineTo(15.2, 2.8); d.stroke()
+        } else if (shape == "down") {       // an arrow, down
+            d.moveTo(8, 2.5); d.lineTo(8, 13.2); d.moveTo(3.4, 8.6); d.lineTo(8, 13.2); d.lineTo(12.6, 8.6); d.stroke()
+        } else if (shape == "close") {      // a cross
+            d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke()
+        } else if (shape == "mic") {        // a microphone, for a voice preview
+            d.roundRect(5.5, 1.5, 5, 8.5, 2.5); d.moveTo(3, 7.5); d.quadraticCurveTo(3, 12.5, 8, 12.5)
+            d.quadraticCurveTo(13, 12.5, 13, 7.5); d.moveTo(8, 12.5); d.lineTo(8, 14.8); d.stroke()
+        }
+        }
+    ]
+
+
+// ── Faces ───────────────────────────────────────────────────────────────────
+//
+// A person: their photograph in a circle, or, for someone with none, their
+// initials on their own voice color. The initials are always there beneath, so
+// a photograph still loading shows a face of sorts rather than a hole.
+
+class Avatar [ width = 32, height = 32, cornerRadius = { this.width / 2 }, clip = true,
+    person: string = "",
+    who: Person? = { app.store.person(classroot.person) },
+    src: string = { classroot.who?.avatar ?? "" },
+    fill = { app.voiceOf(classroot.person) },
+    accessibilityRole = image,
+    accessibilityLabel = { classroot.who?.name ?? "" },
+    TextLabel [ x = center, y = center, fontSize = { classroot.width * 0.38 }, fontWeight = semibold,
+        textColor = white, wrap = false, text = { initials(classroot.who?.name ?? "") } ],
+    pic: Image [ exists = { classroot.src != "" }, width = 100%, height = 100%, fit = cover,
+        source = { app.service + classroot.src },
+        opacity = { this.loaded ? 1 : 0 } ]
+    ]
+
+
+// A conversation: the other person's face for a pair; for a group, two of the
+// others' faces overlapping, the second ringed in the ground color so they
+// read as two.
+
+class ThreadFace [ width = 48, height = 48,
+    others: string[] = [],
+    group: boolean = { classroot.others.length > 1 },
+    ring: Color = { provided("theme").background },
+    Avatar [ visible = { !classroot.group }, width = 48, height = 48, person = { classroot.others[0] ?? "" } ],
+    Avatar [ visible = { classroot.group }, width = 34, height = 34, person = { classroot.others[0] ?? "" } ],
+    View [ visible = { classroot.group }, x = 12, y = 12, width = 36, height = 36, cornerRadius = 18,
+        fill = { classroot.ring },
+        Avatar [ x = center, y = center, width = 32, height = 32, person = { classroot.others[1] ?? "" } ]
+        ]
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A round button holding one mark: back, attach, close, react. On a phone it
+// is finger-sized; on a desk it is compact.
+
+class IconButton extends Control [ width = { app.tap }, height = { this.width }, cornerRadius = { this.width / 2 },
+    shape: string = "",
+    tone: Color = { provided("theme").textMuted },
+    markSize: number = { app.wide ? 16 : 20 },
+    fill = { pressed ? provided("theme").line : hovered ? provided("theme").hover : null },
+    Glyph [ x = center, y = center, iconSize = { classroot.markSize }, weight = 1.8,
+        shape = { classroot.shape }, ink = { classroot.tone } ]
+    ]
+
+
+// A count on the ember: how many new messages a conversation holds.
+
+class Count [ height = 20, cornerRadius = 10, padding = [0, 6, 0, 6],
+    n: number = 0,
+    fill = { provided("theme").ember },
+    width = { Math.max(20, this.label.width + 12) },
+    label: TextLabel [ x = center, y = center, fontSize = 12, fontWeight = bold, numeralWidth = tabular,
+        textColor = { provided("theme").emberText }, wrap = false,
+        text = { classroot.n > 99 ? "99+" : "" + classroot.n } ]
+    ]

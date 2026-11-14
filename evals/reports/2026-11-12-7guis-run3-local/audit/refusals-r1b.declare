@@ -1,0 +1,6 @@
+// The run's R1 refusals, minimal: a program class named for a library class (DECLARE5000),
+// and a Dataset subclass that fills itself in onInit, placed with no body (DECLARE2000).
+schema Row [ id: number ]
+schema Grid [ rows[]: Row ]
+class MySheet extends Dataset [ schema = Grid, onInit() { this.set([], ({ rows: [] })) } ]
+App [ width = 200, height = 100, s: MySheet [ ] ]

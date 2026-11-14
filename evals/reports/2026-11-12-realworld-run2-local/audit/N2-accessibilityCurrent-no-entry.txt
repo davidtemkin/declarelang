@@ -1,0 +1,7 @@
+$ npx declare-help accessibilityCurrent
+no entry for 'accessibilityCurrent' — searched reference (1973 entries), classes (112), enums, diagnostics, the hint tables, and the concept table.
+If it is a concept the docs discuss in prose, the guide index is docs/guide/;
+if it should exist and does not, that absence is worth reporting.
+
+$ grep -rn aria-current runtime/src library   → (nothing)
+Only BreadcrumbStep.current carries 'where you are'; a nav link or a page button has no way to say it.

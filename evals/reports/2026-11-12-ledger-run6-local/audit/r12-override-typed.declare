@@ -1,0 +1,7 @@
+// The same override declared with the base's return type: is the wrong key caught then?
+class Editor extends Form [
+    refusal(body: object) -> FormProblem[] {
+        return [ ({ field: "amount", message: "Too much" }) ]
+        }
+    ]
+App [ width = 300, height = 100, Editor [ ] ]

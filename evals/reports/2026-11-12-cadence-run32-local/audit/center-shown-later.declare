@@ -1,0 +1,8 @@
+// The same pill, shown only once a flag turns true (as data arriving would do).
+App [ width = 400, height = 200,
+    shown: boolean = false,
+    Button [ x = 20, y = 140, label = "Show", onClick() { app.shown = true } ],
+    pill: View [ x = 20, y = 20, height = 40, padding = [0, 10, 0, 10], fill = 0xDDDDDD,
+        visible = { app.shown },
+        TextLabel [ x = center, text = "Season" ] ]
+    ]

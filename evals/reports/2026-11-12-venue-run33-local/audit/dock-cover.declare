@@ -1,0 +1,30 @@
+// The state at #61: a form that scrolls with the page (the App), and a pay bar fixed at the
+// bottom by ignoreScroll. The form's bottom padding (140) leaves room to scroll every field
+// clear of the bar (100), as a person would.
+App [ minWidth = 320,
+    form: View [ width = 100%, padding = [16, 20, 140, 20], layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Field [ width = 100%, stacked = true, label = "Alpha", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Bravo", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Charlie", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Delta", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Echo", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Foxtrot", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Golf", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Hotel", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "India", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Juliet", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Kilo", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Lima", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Mike", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "November", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Oscar", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Papa", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Quebec", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Romeo", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Sierra", TextInput [ width = 100% ] ],
+        Field [ width = 100%, stacked = true, label = "Tango", TextInput [ width = 100% ] ]
+        ],
+    dock: View [ ignoreScroll = true, ignoreLayout = true, y = end, width = { app.width }, height = 100,
+        fill = #EEEEEE,
+        Button [ width = 100%, height = 100, label = "Pay" ] ]
+    ]

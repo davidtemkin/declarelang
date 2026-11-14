@@ -1,0 +1,27 @@
+// An in-place edit cell: a button that shows the value, and a field that
+// exists only while editing. Leaving the field (Tab) puts the field away.
+// Variant via app.mode: 0 = onBlur sets editing false (the agent's step 3),
+// 1 = onBlur ends the edit first (the agent's fix).
+class EditCell [ width = 200, height = 32,
+    editing: boolean = false,
+    start: string = "Original",
+    saved: string = "",
+    begin() {
+        editing = true
+        afterSettle(() => { if (classroot.field != null) { Focus.focus(classroot.field); classroot.field.select("all") } })
+        },
+    show: Control [ visible = { !classroot.editing }, width = 100%, height = 100%, accessibilityLabel = "Edit me",
+        Text [ y = center, text = { classroot.start } ],
+        press() { classroot.begin() } ],
+    field: TextInput [ exists = { classroot.editing }, width = 100%, height = 30, commitOn = "end",
+        accessibilityLabel = "Cell field",
+        value = { classroot.start },
+        commit(v: string) { classroot.saved = v; classroot.start = v },
+        onBlur() { super.onBlur(); if (app.mode == 1) this.endEdit(); classroot.editing = false } ]
+    ]
+App [ width = 400, height = 200,
+    mode: number = 0,
+    layout: SimpleLayout [ axis = y, spacing = 8 ], padding = 10,
+    cell: EditCell [ ],
+    after: Button [ label = "Next" ]
+    ]

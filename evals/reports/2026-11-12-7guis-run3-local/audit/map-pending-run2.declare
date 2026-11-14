@@ -1,0 +1,23 @@
+// A declared default `{ new Map() }` read in a handler after a write that has
+// readers (so work is pending) is evaluated live — a fresh, empty Map — until the settle.
+class Store extends Dataset [
+    _m: Map<string, number> = { new Map() },
+    seen: number = -1,
+    put(k: string) {
+        _m.set(k, 1)
+        this.set(["n"], 1)      // a write something reads: work is now pending
+        seen = _m.size          // 1 expected
+        }
+    ]
+
+App [ width = 400, height = 200,
+    s: Store { { "n": 0 } },
+    Text [ datapath = { app.s.value }, text = { "n = " + :n } ],
+    v: View [ y = 40,
+        _m: Map<string, number> = { new Map() },
+        w: number = 0,
+        seen: number = -1,
+        put(k: string) { _m.set(k, 1); w = 1; seen = _m.size },
+        Text [ text = { "w = " + parent.w } ]
+        ]
+    ]

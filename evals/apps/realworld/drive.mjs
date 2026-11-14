@@ -169,6 +169,13 @@ const control = (page, re, o = {}) => find(page, (n) => ACTION_ROLES.has(n.role)
 const button = (page, re, o = {}) => find(page, (n) => ["button", "togglebutton"].includes(n.role) && named(n, re) && !n.disabled, { what: `a button named ${re}`, ...o });
 const link = (page, re, o = {}) => find(page, (n) => n.role === "link" && named(n, re), { what: `a link named ${re}`, ...o });
 const field = (page, re, o = {}) => find(page, (n) => FIELD_ROLES.has(n.role) && named(n, re) && !n.disabled, { what: `a field named ${re}`, ...o });
+// A page that needs an account may send a signed-out visitor to the sign-in page, or show
+// the sign-in form where it is: either keeps them out. In place, the form is there and
+// the page's own (an editor's title, settings' fields) is not.
+const signInInPlace = async (page) =>
+  (await maybe(field(page, /password/i, { timeout: 1500 }))) !== null
+  && (await maybe(button(page, /^sign in$/i, { timeout: 1500 }))) !== null
+  && (await maybe(field(page, /article title|^title$|username|bio/i, { timeout: 500 }))) === null;
 // A title: a heading named for it (the templates' <h1>), else — noted — its text shown plainly
 const norm = (x) => x.replace(/\s+/g, " ").trim();
 const isTitle = (n, t) => ["heading", "StaticText", "link"].includes(n.role) && nameOf(n) === norm(t);
@@ -248,15 +255,26 @@ async function seeText(page, text, timeout = FIND_MS) {
   }
 }
 const lines = async (page) => new Set((await page.evaluate(() => document.body.innerText).catch(() => "")).split("\n").map((s) => s.trim()).filter(Boolean));
-// `.error-messages` → a new visible line that reads as an error (or an alert's text)
-const ERRORISH = /error|invalid|fail|unable|can'?t|cannot|could ?n[o']t|wrong|forbidden|unauthori[sz]ed|not authori[sz]ed|denied|expired|connect|network|offline|try again|blank|taken|problem|not allowed|too short|must|sorry|logged in/i;
+// `.error-messages` → a new message: what an alert or an assertive live region newly says (an
+// error by its role, whatever its words), or a new visible line that reads as an error. The
+// words cover the usual ones and the Declare Form's defaults ("No answer came back, so this may
+// or may not have gone through…", "That didn't go through…", "…couldn't be read…")
+const ERRORISH = /error|invalid|fail|unable|can'?t|cannot|could ?n[o']t|did ?n[o']t go through|no answer|may not have|wrong|forbidden|unauthori[sz]ed|not authori[sz]ed|denied|expired|connect|network|offline|try again|trying again|blank|taken|problem|not allowed|too short|must|sorry|logged in/i;
+// (a route announcer's live region, which reads out the new page's title or heading, is not one)
+const alertTexts = (page) => page.evaluate(() => {
+  const plain = (e) => (e.textContent ?? "").replace(/[\uE000-\uF8FF]/g, "").replace(/\s+/g, " ").trim();
+  const pageNames = new Set([document.title.trim(), ...[...document.querySelectorAll("h1, [role=heading]")].map(plain)]);
+  return [...document.querySelectorAll("[role=alert], [aria-live=assertive]")].map(plain).filter((t) => t && !pageNames.has(t));
+}).catch(() => []);
 async function errorAppears(page, before, what, timeout = 6000) {
   const until = Date.now() + timeout;
   for (;;) {
+    const said = (await alertTexts(page)).find((t) => !before.has(t));
+    if (said) return said.slice(0, 120);
     const now = await lines(page);
     const fresh = [...now].filter((l) => !before.has(l) && ERRORISH.test(l));
     if (fresh.length) return fresh[0].slice(0, 120);
-    const alert = (await nodes(page)).find((n) => n.role === "alert" && nameOf(n) && ERRORISH.test(nameOf(n)));
+    const alert = (await nodes(page)).find((n) => n.role === "alert" && nameOf(n) && !before.has(nameOf(n)));
     if (alert) return nameOf(alert).slice(0, 120);
     if (Date.now() > until) throw new Error(`${what}: no error message shown`);
     await sleep(200);
@@ -649,8 +667,8 @@ const SCENARIOS = {
     await ctx.check("should prevent accessing editor when not logged in", async () => {
       await go(page, "/editor");
       await sleep(1500);
-      if (routeOf(page) === "/editor") throw new Error("a signed-out visitor stays on /editor");
-      ctx.observed.redirectedTo = routeOf(page);
+      if (routeOf(page) === "/editor" && !(await signInInPlace(page))) throw new Error("a signed-out visitor stays on /editor, with the editor");
+      ctx.observed.redirectedTo = routeOf(page) === "/editor" ? "sign-in shown in place" : routeOf(page);
     });
     await ctx.check("should maintain session after page reload", async () => {
       const u = newUser();
@@ -724,7 +742,8 @@ const SCENARIOS = {
       const slug = await createArticleUI(page, a);
       await press(page, await button(page, /delete article/i));
       await atRoute(page, "/", "after Delete Article");
-      await banner(page);
+      // home by its feed: the banner shows only to a signed-out visitor
+      await control(page, /^global feed$/i).catch(() => { throw new Error("after Delete Article: no Global Feed tab (the home page's feed isn't shown)"); });
       await gone(page, (n) => isTitle(n, a.title), "the deleted article is still listed on the home page");
       await stored((st) => !st.articles.some((x) => x.slug === slug), "the deletion");
     });
@@ -1394,8 +1413,10 @@ const SCENARIOS = {
     const bioArea = async (username) => {
       await heading(page, username);
       await control(page, /edit profile settings|follow/i);
+      // what a reader gets: an icon font's glyph (a private-use character, hidden from screen
+      // readers) is not text
       return page.evaluate((name) => {
-        const t = document.body.innerText.split("\n").map((s) => s.trim()).filter(Boolean);
+        const t = document.body.innerText.split("\n").map((s) => s.replace(/[\uE000-\uF8FF]/g, "").trim()).filter(Boolean);
         const j = t.findIndex((s) => /edit profile settings|^\W*follow\b/i.test(s)), i = t.lastIndexOf(name, j);
         return i >= 0 && j > i ? t.slice(i + 1, j).join(" | ") : null;
       }, username);
@@ -1898,7 +1919,11 @@ const SCENARIOS = {
         net.set([{ when: /^GET \/user$/, act }]);
         await go(page, path);
         await appShell(page, name);
-        if (leaves) { await sleep(1200); if (routeOf(page) === path) throw new Error(`${name}: still at ${path}`); ctx.observed[name] = routeOf(page); }
+        if (leaves) {
+          await sleep(1200);
+          if (routeOf(page) === path && !(await signInInPlace(page))) throw new Error(`${name}: still at ${path}, showing it`);
+          ctx.observed[name] = routeOf(page) === path ? "sign-in shown in place" : routeOf(page);
+        }
         else await someContent(page, name);
       });
     }

@@ -34,7 +34,7 @@ class Shelf extends View [ height = 140, cornerRadius = 10,
         text = { classroot.title + " — total " + app.sumOf(classroot.which) } ],
     row: View [ x = 12, y = 32, height = 96,
         layout: SimpleLayout [ axis = x, spacing = 8 ],
-        Block [ datapath = :rows[], key = :id ]
+        Block [ datapath = :rows[], identityKey = :id ]
         ]
     ]
 

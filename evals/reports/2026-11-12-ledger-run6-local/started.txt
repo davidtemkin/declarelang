@@ -1,0 +1,12 @@
+STARTED=2026-11-13T11:29:47Z
+APP=ledger
+MODEL=claude-opus-5-5
+SUBJECT=local tree at 3bc519f9 Four silent failures said: onChange that tracks nothing, a mistyped text face, a focusShape of no box, hover on a view that takes no presses + 573 changed, 25 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=none (the bare prompt, so the default of the SKILL)
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-ledger-6/work (logs outside it)
+PORT=8370 (the brief names 8370)
+SERVICE=node task/api/server.mjs --port=8370
+AGENT_PID=27285

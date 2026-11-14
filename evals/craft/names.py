@@ -44,14 +44,25 @@ MISS = [  # (kind, regex giving name and owner)
     ("type",      re.compile(r"unknown type '(?P<name>\w+)'(?P<rest>.*)")),
     ("global",    re.compile(r"'(?P<name>\w+)' is the host's, not Declare's(?P<rest>.*)")),
     ("payload",   re.compile(r"'(?P<owner>\w+)' receives an? (?P<want>\w+) — write .*?, not '(?P<name>\w+)'(?P<rest>.*)")),
+    # a keyword value outside its slot's set (`accessibilityRole = img`)
+    ("value",     re.compile(r"(?P<owner>\w+\.\w+) expects an? \w+ \(one of [^)]*\), got '(?P<name>[\w$]+)'(?P<rest>.*)")),
 ]
 COLLIDE = [
     ("library class", re.compile(r"'(?P<name>\w+)' is a library class — a (?:class|schema) of the program can't take its name")),
+    ("built-in class", re.compile(r"'(?P<name>\w+)' is a built-in class — a class of the program can't take its name")),
     ("Declare's type", re.compile(r"(?:class|schema|type) (?P<name>\w+) takes the name of one of Declare's own types")),
+    ("TS library", re.compile(r"(?:class|schema|theme|style) (?P<name>\w+) takes a name TypeScript's standard library already declares")),
+    # a child or method of the agent's own named as an attribute its class already has (`x`)
+    ("attribute", re.compile(r"\w+\.(?P<name>\w+) is an attribute — a (?:child|method) may not take an attribute's name")),
+    # …and an attribute of its own declared with a name its class already has (`scale: number = 1`)
+    ("attribute", re.compile(r"\w+ already has an attribute '(?P<name>\w+)' — a declaration introduces a new one")),
+    ("built-in field", re.compile(r"'(?P<name>\w+)' is a built-in field of the runtime \w+, not a method — a method may not take its name")),
+    # an attribute of the agent's own named `key`, which the language keeps for replication
+    ("replication key", re.compile(r"'(?P<name>key)' is replication metadata — .*an attribute called 'key' could never be set")),
 ]
 
 def answer_kind(name, rest):
-    if "instinct" in rest or "is not a Declare name" in rest: return "foreign hint"
+    if "instinct" in rest or "is not a Declare name" in rest or "ARIA's word" in rest: return "foreign hint"
     if "did you mean" in rest: return "did-you-mean"
     if name in TABLES["host"]: return "foreign hint"
     if "—" in rest and any(w in rest for w in ("is '", "is a ", "write ", "use ")): return "hint"
@@ -117,10 +128,12 @@ for ln in open(STREAM, errors="replace"):
                     m = rx.search(line)
                     if m and m.group("name") not in collisions:
                         collisions[m.group("name")] = {"kind": kind, "first": minute, "said": line.strip()[:200]}
+            # every answer in the output, not only its first line: one command line often asks
+            # declare-help several things (`declare-help A | head; declare-help reducedMotion`)
             if n == "Bash" and "declare-help" in (a.get("command") or ""):
-                first = out.strip().split("\n")[0] if out.strip() else ""
-                if first.startswith("no entry for") or first.startswith("no '") or "is not a Declare name" in first:
-                    help_misses.append((minute, a.get("command", "").strip()[:120], first[:160]))
+                for said in out.split("\n"):
+                    q = re.match(r"^(?:no entry for '(?P<a>[^']+)'|no '(?P<b>[^']+)' —|'(?P<c>[^']+)' is not a Declare name|\w+ has no member '(?P<d>[^']+)')", said.strip())
+                    if q: help_misses.append((minute, next(g for g in q.groups() if g), said.strip()[:160]))
             if n == "Grep" and re.match(r"^\s*(No files found|No matches found|Found 0)", out or ""):
                 grep_misses.append((minute, a.get("pattern", ""), a.get("path", ".")))
 
@@ -154,7 +167,7 @@ if collisions:
     for n, c in sorted(collisions.items(), key=lambda kv: kv[1]["first"]):
         print(f"  {mins(c['first']):>4} · {c['kind']:<14} · {n}")
 if help_misses:
-    print("\nDECLARE-HELP MISSES (min · asked · answered)")
+    print("\nDECLARE-HELP MISSES (min · asked for · answered)")
     for t, cmd, first in help_misses: print(f"  {mins(t):>4} · {cmd} · {first}")
 if grep_misses:
     print("\nEMPTY SEARCHES (min · pattern · where)")

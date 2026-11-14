@@ -1,0 +1,228 @@
+/*
+# Ledger: the filters
+
+One set of filters shapes every screen. The filter itself is one record on
+the App (`app.f`); everything here reads it and hands changes back through
+`app.setF(…)`, which is the only way it changes. The pieces:
+
+- **`DateRangeBar`** — the date range, always present, with arrows that step
+  to the range before or after of the same length, and the comparison beside it.
+- **`RangePanel`** — the presets and the two dates, in a popover.
+- **`AmountPanel`** — the amount: a histogram of the amounts the other filters
+  let through, a two-handled slider over a ladder of friendly values, and two
+  fields for exact cents.
+- **`PickPanel`** — several values of one filter (kinds, categories,
+  contacts), each a checkbox, with a count where the service gives one.
+- **`ChipRow`** — every active filter as a chip, and "Clear all".
+*/
+
+// ── the date range ──────────────────────────────────────────────────────────
+
+class DateRangeBar [ height = { app.tap },
+    layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+    prev: IconButton [ shape = "left", tip = "Previous period  [",
+        press() { app.stepDates(-1) }
+        ],
+    range: Control [ height = { app.tap }, cornerRadius = 8, padding = [0, 10, 0, 10],
+        accessibilityLabel = { "Date range, " + app.rangeText },
+        fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+        press() { app.rangePop.showFor(this) },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        TextLabel [ fontSize = { app.wide ? 14 : 15 }, fontWeight = semibold, wrap = false, text = { app.rangeText } ],
+        ChevronIcon [ iconSize = 10, ink = { provided("theme").textMuted } ]
+        ],
+    next: IconButton [ shape = "right", tip = "Next period  ]",
+        press() { app.stepDates(1) }
+        ]
+    ]
+
+
+// A preset: one line in the range popover, ticked when it is the range in force.
+
+class PresetItem extends Control [ height = { app.tap }, cornerRadius = 6, padding = [0, 10, 0, 10],
+    pid: string = "",
+    label: string = "",
+    on: boolean = { app.f.preset == classroot.pid },
+    accessibilityPressed = { on },
+    fill = { hovered || pressed ? provided("theme").hover : null },
+    press() { app.choosePreset(pid); app.rangePop.close() },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Mark [ iconSize = 13, weight = 2, shape = "check", ink = { provided("theme").accent }, opacity = { classroot.on ? 1 : 0 } ],
+    TextLabel [ fontSize = 13.5, wrap = false, fontWeight = { classroot.on ? "semibold" : "normal" }, text = { classroot.label } ]
+    ]
+
+
+class RangePanel [ width = { app.phone ? app.width - 40 : 300 },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    presets: Dataset { { "rows": [
+        { "id": "this-month", "label": "This month" }, { "id": "last-month", "label": "Last month" },
+        { "id": "last-30", "label": "Last 30 days" }, { "id": "this-quarter", "label": "This quarter" },
+        { "id": "last-quarter", "label": "Last quarter" }, { "id": "this-year", "label": "This year" },
+        { "id": "last-year", "label": "Last year" }, { "id": "last-12", "label": "Last 12 months" },
+        { "id": "all", "label": "All time" } ] } },
+    list: View [ width = 100%, datapath = { classroot.presets.value },
+        accessibilityRole = radioGroup, accessibilityLabel = "Date range",
+        layout: WrappingLayout [ columns = 2, spacing = 2, rowSpacing = 0 ],
+        PresetItem [ datapath = :rows[], flexes = true, pid = :id, label = :label ]
+        ],
+    View [ width = 100%, height = 1, fill = { provided("theme").line } ],
+    dates: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = end ],
+        Field [ label = "From", stacked = true, flexes = true,
+            DatePicker [ width = 100%, height = { app.tap }, value = { app.f.from },
+                commit(v: string) { app.setDates(v, app.f.to) }
+                ]
+            ],
+        Field [ label = "To", stacked = true, flexes = true,
+            DatePicker [ width = 100%, height = { app.tap }, value = { app.f.to },
+                commit(v: string) { app.setDates(app.f.from, v) }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── the amount ──────────────────────────────────────────────────────────────
+//
+// The slider moves over an index into AMOUNT_STEPS, a ladder of friendly
+// values ($1 steps to $20, $5 to $100, … $250 steps in the thousands), so the
+// scale bends to how amounts are spread and the handles snap to sensible
+// values. The low handle at the start means "no minimum", the high handle at
+// the end "no maximum". The fields take exact cents.
+
+class AmountPanel [ width = { app.wide ? 360 : app.width - 64 },
+    top: number = { AMOUNT_STEPS.length - 1 },
+    lowIx: number = { app.amountMin == null ? 0 : stepIndex(app.amountMin, false) },
+    highIx: number = { app.amountMax == null ? classroot.top : stepIndex(app.amountMax, true) },
+    frac(i: number) -> number { return i / top },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+
+    Text [ fontSize = 13, fontWeight = semibold, text = { "Amount · " + app.amountWords } ],
+
+    // the histogram: how the transactions the other filters let through are
+    // spread by amount, the chosen range in the accent
+
+    hist: View [ width = 100%, height = 56, accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const b = app.histogram.value?.buckets ?? []
+            const peak = Math.max(1, ...b.map((x) => x.count))
+            const lo = classroot.lowIx, hi = classroot.highIx
+            for (const k of b) {
+                if (k.count == 0) continue
+                const i0 = stepIndex(k.min, false)
+                const i1 = k.max == null ? classroot.top : stepIndex(k.max, true)
+                const x0 = classroot.frac(i0) * d.w + 1
+                const x1 = Math.max(x0 + 2, classroot.frac(i1) * d.w - 1)
+                const h = Math.max(2, (d.h - 2) * Math.sqrt(k.count / peak))
+                const inside = i0 >= lo && i1 <= hi
+                d.fillStyle = inside ? provided("theme").accent : provided("theme").lineStrong
+                d.fillRect(x0, d.h - h, x1 - x0, h)
+                }
+            }
+        ],
+    slider: RangeSlider [ width = 100%, height = { app.touchFirst || app.phone ? 44 : 28 }, min = 0, max = { classroot.top }, step = 1,
+        accessibilityLabel = "amount",
+        value = { ({ low: classroot.lowIx, high: classroot.highIx }) },
+        valueText(v: number) -> string {
+            if (v >= classroot.top) return "no maximum"
+            if (v <= 0) return "no minimum"
+            return dollars(AMOUNT_STEPS[v])
+            },
+        commit(v: object) {
+            const r = v as { low: number, high: number }
+            app.draftAmount(r.low <= 0 ? null : AMOUNT_STEPS[r.low], r.high >= classroot.top ? null : AMOUNT_STEPS[r.high])
+            }
+        ],
+    ticks: View [ width = 100%, height = 16,
+        View [ datapath = { app.amountTicks.value }, width = 100%, height = 16,
+            Text [ datapath = :rows[], y = 0, fontSize = 11, wrap = false, textColor = { provided("theme").textMuted },
+                x = { Math.max(0, Math.min(parent.width - this.width, classroot.frac(stepIndex(:cents, false)) * parent.width - this.width / 2)) },
+                text = { dollars(:cents).replace(",000", "k") } ]
+            ]
+        ],
+    fields: View [ width = 100%, padding = [6, 0, 0, 0],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = end ],
+        Field [ label = "Minimum", stacked = true, flexes = true,
+            TextInput [ width = 100%, purpose = decimal, placeholder = "No minimum", commitOn = "end",
+                accessibilityLabel = "Minimum amount, in dollars",
+                value = { moneyInput(app.amountMin) },
+                validate(v: string) -> string { return v.trim() == "" || parseMoney(v) != null ? "" : "Type an amount, like 20 or 19.99" },
+                commit(v: string) { const c = parseMoney(v); if (v.trim() == "" || c != null) app.setAmount(c, app.f.max ?? null) }
+                ]
+            ],
+        Field [ label = "Maximum", stacked = true, flexes = true,
+            TextInput [ width = 100%, purpose = decimal, placeholder = "No maximum", commitOn = "end",
+                accessibilityLabel = "Maximum amount, in dollars",
+                value = { moneyInput(app.amountMax) },
+                validate(v: string) -> string { return v.trim() == "" || parseMoney(v) != null ? "" : "Type an amount, like 200 or 199.99" },
+                commit(v: string) { const c = parseMoney(v); if (v.trim() == "" || c != null) app.setAmount(app.f.min ?? null, c) }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── several values of one filter ────────────────────────────────────────────
+//
+// The rows come from `app.pickRows`, made for whichever filter the panel is
+// open for: `{ id, label, count?, colour?, on }` each.
+
+class PickRow extends Control [ width = 100%, height = { app.tap }, cornerRadius = 6, padding = [0, 18, 0, 8],
+    on: boolean = { :on ?? false },
+    accessibilityRole = checkbox,
+    accessibilityChecked = { on },
+    accessibilityLabel = { :label ?? "" },
+    fill = { hovered || pressed ? provided("theme").hover : null },
+    press() { app.togglePick(:id ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 9, align = center ],
+    box: View [ width = 16, height = 16, cornerRadius = 4,
+        stroke = { classroot.on ? null : stroke(1.4, provided("theme").lineStrong) },
+        fill = { classroot.on ? provided("theme").accent : null },
+        Mark [ x = center, y = center, iconSize = 12, weight = 2.2, shape = "check", visible = { classroot.on },
+            ink = { provided("theme").accentTextColor } ]
+        ],
+    dot: View [ visible = { (:colour ?? -1) >= 0 }, width = 8, height = 8, cornerRadius = 4,
+        fill = { (:colour ?? -1) >= 0 ? provided("theme").cats[(:colour ?? 0) % 12] : null } ],
+    TextLabel [ flexes = true, fontSize = 13.5, wrap = false, maxLines = 1, text = { :label ?? "" } ],
+    n: TextLabel [ visible = { (:count ?? -1) >= 0 }, fontSize = 12, wrap = false, numeralWidth = tabular,
+        textColor = { provided("theme").textMuted }, text = { count(:count ?? 0) } ]
+    ]
+
+
+class PickPanel [ width = { app.wide ? 300 : app.width - 64 },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = center ],
+        Text [ flexes = true, fontSize = 13, fontWeight = semibold, text = { app.pickTitle } ],
+        Control [ visible = { app.pickSelected.length > 0 }, height = 28, padding = [0, 6, 0, 6], cornerRadius = 6,
+            fill = { hovered ? provided("theme").hover : null },
+            press() { app.clearPick() },
+            TextLabel [ fontSize = 12.5, fontWeight = medium, textColor = { provided("theme").accent }, text = "Clear" ]
+            ]
+        ],
+    find: SearchField [ visible = { app.pick == "contact" }, width = 100%, placeholder = "Find a contact",
+        value = { app.pickQuery },
+        commit(v: string) { app.pickQuery = v }
+        ],
+    rows: View [ width = 100%, height = { Math.min((app.pickData.value?.rows.length ?? 0) * app.tap, app.wide ? 340 : 420) }, scrolls = y,
+        datapath = { app.pickData.value },
+        layout: SimpleLayout [ axis = y ],
+        PickRow [ datapath = :rows[] ]
+        ]
+    ]
+
+
+// ── the chips ───────────────────────────────────────────────────────────────
+
+class ChipRow [ width = 100%,
+    layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+    View [ datapath = { app.chips.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+        FilterChip [ datapath = :rows[], label = :label, chipId = :id ]
+        ],
+    clear: Control [ height = 30, cornerRadius = 15, padding = [0, 10, 0, 10],
+        fill = { hovered || pressed ? provided("theme").hover : null },
+        press() { app.clearAll() },
+        TextLabel [ fontSize = 12.5, fontWeight = semibold, textColor = { provided("theme").accent }, text = "Clear all" ]
+        ]
+    ]

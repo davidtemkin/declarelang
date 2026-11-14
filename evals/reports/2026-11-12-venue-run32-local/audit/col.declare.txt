@@ -1,0 +1,11 @@
+// Run 32 d9: a centred column bounded by its parent's content box, holding one
+// line wider than the window, at 390 wide.
+App [ width = 390, height = 600,
+    tickets: View [ width = 100%, padding = [20, 16, 56, 16],
+        col: View [ x = center, width = { Math.min(420, parent.contentBox("width")) },
+            layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+            Text [ fontSize = 16, text = "Sent to someone@example.com" ],
+            Text [ fontSize = 14, text = "Confirmation VN-4F7Q2K · Visa ending 4242 · charged $229.00 on 13 Nov" ]
+            ]
+        ]
+    ]

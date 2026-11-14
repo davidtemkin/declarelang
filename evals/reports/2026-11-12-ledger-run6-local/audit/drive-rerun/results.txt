@@ -1,0 +1,7 @@
+FAIL  overview_drill  21.4 s  after choosing the Expenses figure: the summary line reads nothing in the form N transactions · In … · Out … · Net …, the service says 30 transactions · In $0.00 · Out $3,735.27 · Net −$3,735.27
+      fallbacks: no expense bar for this month found by pointer or keyboard; chose the Expenses figure instead
+FAIL  sale_refund  17.6 s  not found: the mug line in the refund
+      fallbacks: no quantity fields in the refund; chose the mug's line
+FAIL  bulk_undo  15.0 s  filtered to Uncategorised, the summary line reads "104 transactions · In $4,021.00 · Out $3,889.27 · Net $131.73", matching neither this month's nor all time's uncategorised
+      fallbacks: no "Clear all" (a fresh start has no filters to clear)
+0 of 3 passed in 54 s

@@ -1,0 +1,551 @@
+/*
+# Ledger: the model
+
+What the books are and how they are reached, kept apart from how they look.
+`ledger.declare` includes this file.
+
+- **Helpers** — plain functions of their arguments: money and percentages
+  written for the reader, calendar dates (never instants, so nothing shifts
+  with the time zone), date ranges and their names, the filter as a query
+  string, and the CSV export.
+- **The shape of the data** — schemas for what the service answers.
+- **The service** — `Api`, the one way a write reaches the service: a queue,
+  so writes land in the order they were made and an undo always follows the
+  change it undoes. Reads are `DataSource`s on the screens that show them.
+- **The lookups** — `Books`: categories, channels, products and contacts,
+  loaded once and reloaded after a contact is created.
+
+Money is integer cents everywhere in the program. It becomes text only at the
+edge, in `money()` and its relatives.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+script {
+    const MINUS = "−"
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+    const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+    // ── money: cents in, text out ──
+
+    function groupDigits(n: number): string {
+        return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+    }
+
+    // "$1,204.50", "−$45.00": always two decimals, a true minus sign
+    function money(cents: number): string {
+        const c = Math.round(cents)
+        const a = Math.abs(c)
+        const s = "$" + groupDigits(Math.floor(a / 100)) + "." + String(a % 100).padStart(2, "0")
+        return c < 0 ? MINUS + s : s
+    }
+
+    // "+$45.00" / "−$45.00": a change, signed either way
+    function moneySigned(cents: number): string {
+        return cents > 0 ? "+" + money(cents) : money(cents)
+    }
+
+    // a bound a person set, as a chip says it: "$20", "$1,250", or "$20.50" when it has cents
+    function moneyBound(cents: number): string {
+        return cents % 100 == 0 ? "$" + groupDigits(cents / 100) : money(cents)
+    }
+
+    // amounts typed into a field: "42.5" → "42.50", without the dollar sign or grouping
+    function moneyPlain(cents: number): string {
+        const a = Math.abs(Math.round(cents))
+        return (cents < 0 ? "-" : "") + Math.floor(a / 100) + "." + String(a % 100).padStart(2, "0")
+    }
+
+    // a chart axis only: "$1.2k", "$850", "−$3k"
+    function moneyCompact(cents: number): string {
+        const d = Math.abs(cents) / 100
+        let s = ""
+        if (d >= 1000000) s = "$" + trimZero((d / 1000000).toFixed(1)) + "M"
+        else if (d >= 1000) s = "$" + trimZero((d / 1000).toFixed(d >= 10000 ? 0 : 1)) + "k"
+        else s = "$" + Math.round(d)
+        return cents < 0 ? MINUS + s : s
+    }
+    function trimZero(s: string): string { return s.endsWith(".0") ? s.slice(0, -2) : s }
+
+    // whole dollars for slider labels: "$10", "$1k", "$5k"
+    function dollarsShort(d: number): string {
+        return d >= 1000 ? "$" + trimZero((d / 1000).toFixed(1)) + "k" : "$" + d
+    }
+
+    // "42.50", "$1,204.50", "12" → cents; null when it isn't money
+    function parseMoney(t: string): number | null {
+        const s = t.trim().replace(/[$,\s]/g, "").replace(MINUS, "-")
+        if (s == "") return null
+        if (!/^-?\d*(\.\d{0,2})?$/.test(s) || s == "." || s == "-") return null
+        const neg = s.startsWith("-")
+        const [w, f] = s.replace("-", "").split(".")
+        const cents = Number(w || "0") * 100 + Number((f ?? "").padEnd(2, "0") || "0")
+        return neg ? -cents : cents
+    }
+
+    // "12.4%"; a change: "+12%", "−3%"
+    function pct(p: number | null): string {
+        if (p == null || !isFinite(p)) return "—"
+        return (Math.round(p * 10) / 10).toFixed(1) + "%"
+    }
+    function pctChange(p: number): string {
+        const r = Math.round(p)
+        return (r > 0 ? "+" : r < 0 ? MINUS : "") + Math.abs(r) + "%"
+    }
+
+    // what a transaction with no description is called
+    function untitled(kind: string, channel: string): string {
+        return kind == "sale" ? (channel == "" ? "Sale" : channel + " sale") : kind == "refund" ? "Refund" : "Expense"
+    }
+
+    // ── calendar dates: "YYYY-MM-DD" strings, computed in UTC so no zone moves them ──
+
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+    function iso(y: number, m: number, d: number): string {
+        const dt = new Date(Date.UTC(y, m - 1, d))
+        return dt.getUTCFullYear() + "-" + pad2(dt.getUTCMonth() + 1) + "-" + pad2(dt.getUTCDate())
+    }
+    function ymd(s: string): number[] { return s.split("-").map(Number) }
+    function addDays(s: string, n: number): string { const p = ymd(s); return iso(p[0], p[1], p[2] + n) }
+    function addMonths(s: string, n: number): string {
+        const p = ymd(s)
+        const last = new Date(Date.UTC(p[0], p[1] - 1 + n + 1, 0)).getUTCDate()
+        return iso(p[0], p[1] + n, Math.min(p[2], last))
+    }
+    function monthStart(s: string): string { const p = ymd(s); return iso(p[0], p[1], 1) }
+    function monthEnd(s: string): string { const p = ymd(s); return iso(p[0], p[1] + 1, 0) }
+    function quarterStart(s: string): string { const p = ymd(s); return iso(p[0], Math.floor((p[1] - 1) / 3) * 3 + 1, 1) }
+    function yearStart(s: string): string { return ymd(s)[0] + "-01-01" }
+    function daysBetween(a: string, b: string): number {
+        const p = ymd(a), q = ymd(b)
+        return Math.round((Date.UTC(q[0], q[1] - 1, q[2]) - Date.UTC(p[0], p[1] - 1, p[2])) / 86400000)
+    }
+    function weekday(s: string): string { const p = ymd(s); return WEEKDAYS[new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay()] }
+    function monthKey(s: string): string { return s.slice(0, 7) }
+
+    // "14 Nov 2026"; in a table "14 Nov" this year
+    function dateLong(s: string): string { const p = ymd(s); return p[2] + " " + MONTHS[p[1] - 1] + " " + p[0] }
+    function dateShort(s: string, today: string): string {
+        const p = ymd(s)
+        return p[0] == ymd(today)[0] ? p[2] + " " + MONTHS[p[1] - 1] : p[2] + " " + MONTHS[p[1] - 1] + " " + p[0]
+    }
+    // a day heading on the phone list: "Today", "Yesterday", "Fri 7 Nov"
+    function dayHeading(s: string, today: string): string {
+        const n = daysBetween(s, today)
+        if (n == 0) return "Today"
+        if (n == 1) return "Yesterday"
+        const p = ymd(s)
+        return weekday(s) + " " + p[2] + " " + MONTHS[p[1] - 1] + (p[0] == ymd(today)[0] ? "" : " " + p[0])
+    }
+    function monthName(s: string): string { return MONTHS[ymd(s)[1] - 1] }
+    function monthLong(s: string): string { const p = ymd(s); return MONTHS_LONG[p[1] - 1] + " " + p[0] }
+
+    // What a person types for a date: "today", "yesterday", "3 nov", "nov 3",
+    // "3/11", "2026-11-03", "-2" (two days ago). null when it isn't one.
+    function parseDate(t: string, today: string): string | null {
+        const s = t.trim().toLowerCase()
+        if (s == "" ) return null
+        if (s == "today" || s == "t") return today
+        if (s == "yesterday" || s == "y") return addDays(today, -1)
+        if (s == "tomorrow") return addDays(today, 1)
+        if (/^-\d{1,3}$/.test(s)) return addDays(today, Number(s))
+        let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+        if (m) return valid(Number(m[1]), Number(m[2]), Number(m[3]))
+        const ty = ymd(today)[0]
+        const mon = (w: string) => MONTHS.findIndex((x) => w.startsWith(x.toLowerCase())) + 1
+        m = s.match(/^(\d{1,2})\s*([a-z]+)\.?(?:\s+(\d{4}))?$/)
+        if (m && mon(m[2]) > 0) return pastIfNoYear(Number(m[1]), mon(m[2]), m[3], today)
+        m = s.match(/^([a-z]+)\.?\s*(\d{1,2})(?:,?\s+(\d{4}))?$/)
+        if (m && mon(m[1]) > 0) return pastIfNoYear(Number(m[2]), mon(m[1]), m[3], today)
+        m = s.match(/^(\d{1,2})[\/.](\d{1,2})(?:[\/.](\d{2,4}))?$/)
+        if (m) {
+            const y = m[3] == null ? undefined : (m[3].length == 2 ? "20" + m[3] : m[3])
+            return pastIfNoYear(Number(m[1]), Number(m[2]), y, today)
+        }
+        m = s.match(/^(\d{1,2})$/)
+        if (m) { const p = ymd(today); return valid(p[0], p[1], Number(m[1])) }
+        return null
+        function valid(y: number, mo: number, d: number): string | null {
+            if (mo < 1 || mo > 12 || d < 1 || d > 31) return null
+            const out = iso(y, mo, d)
+            return ymd(out)[2] == d ? out : null
+        }
+        function pastIfNoYear(d: number, mo: number, y: string | undefined, td: string): string | null {
+            if (y != null) return valid(Number(y), mo, d)
+            const v = valid(ty, mo, d)
+            // a day typed without a year is the most recent one: "20 dec" in November is last year's
+            return v != null && v > addDays(td, 31) ? valid(ty - 1, mo, d) : v
+        }
+    }
+
+    // ── date ranges ──
+
+    type Range = { from: string, to: string }
+
+    function presetRange(preset: string, today: string): Range {
+        switch (preset) {
+            case "last-month": { const s = addMonths(monthStart(today), -1); return { from: s, to: monthEnd(s) } }
+            case "30d": return { from: addDays(today, -29), to: today }
+            case "quarter": { const s = quarterStart(today); return { from: s, to: addDays(addMonths(s, 3), -1) } }
+            case "last-quarter": { const s = addMonths(quarterStart(today), -3); return { from: s, to: addDays(addMonths(s, 3), -1) } }
+            case "year": return { from: yearStart(today), to: ymd(today)[0] + "-12-31" }
+            case "last-year": { const y = ymd(today)[0] - 1; return { from: y + "-01-01", to: y + "-12-31" } }
+            case "12m": return { from: addMonths(monthStart(today), -11), to: monthEnd(today) }
+            case "all": return { from: "", to: "" }
+            default: return { from: monthStart(today), to: monthEnd(today) }
+        }
+    }
+
+    // how many whole months a range spans when it starts on the 1st and ends
+    // on a month's last day; 0 when it doesn't
+    function wholeMonths(r: Range): number {
+        if (r.from == "" || r.to == "") return 0
+        if (ymd(r.from)[2] != 1 || r.to != monthEnd(r.to)) return 0
+        const a = ymd(r.from), b = ymd(r.to)
+        return (b[0] - a[0]) * 12 + (b[1] - a[1]) + 1
+    }
+
+    // the range of the same length before (-1) or after (+1): whole months step by months
+    function stepped(r: Range, dir: number): Range {
+        if (r.from == "" || r.to == "") return r
+        const m = wholeMonths(r)
+        if (m > 0) { const s = addMonths(r.from, dir * m); return { from: s, to: monthEnd(addMonths(s, m - 1)) } }
+        const n = daysBetween(r.from, r.to) + 1
+        return { from: addDays(r.from, dir * n), to: addDays(r.to, dir * n) }
+    }
+
+    function compareRange(r: Range, mode: string): Range | null {
+        if (mode == "none" || r.from == "" || r.to == "") return null
+        if (mode == "year") return { from: addMonths(r.from, -12), to: r.to == monthEnd(r.to) ? monthEnd(addMonths(r.to, -12)) : addMonths(r.to, -12) }
+        return stepped(r, -1)
+    }
+
+    // A range said the way a person would: "November 2026", "Q3 2026", "2025",
+    // "3 Oct – 9 Nov 2026", "All time"
+    function rangeLabel(r: Range): string {
+        if (r.from == "" && r.to == "") return "All time"
+        if (r.from == "") return "Until " + dateLong(r.to)
+        if (r.to == "") return "From " + dateLong(r.from)
+        const m = wholeMonths(r)
+        const a = ymd(r.from)
+        if (m == 1) return monthLong(r.from)
+        if (m == 3 && (a[1] - 1) % 3 == 0) return "Q" + ((a[1] - 1) / 3 + 1) + " " + a[0]
+        if (m == 12 && a[1] == 1) return "" + a[0]
+        const b = ymd(r.to)
+        if (m > 0) return MONTHS[a[1] - 1] + (a[0] == b[0] ? "" : " " + a[0]) + " – " + MONTHS[b[1] - 1] + " " + b[0]
+        return a[2] + " " + MONTHS[a[1] - 1] + (a[0] == b[0] ? "" : " " + a[0]) + " – " + dateLong(r.to)
+    }
+
+    // what a comparison is called, short: "Oct", "Q2", "2025", "prev. 30 days"
+    function compareName(r: Range, cmp: Range | null, mode: string): string {
+        if (cmp == null) return ""
+        const m = wholeMonths(cmp)
+        const a = ymd(cmp.from)
+        if (m == 1) return MONTHS[a[1] - 1] + (mode == "year" ? " " + a[0] : "")
+        if (m == 3 && (a[1] - 1) % 3 == 0) return "Q" + ((a[1] - 1) / 3 + 1) + (mode == "year" ? " " + a[0] : "")
+        if (m == 12 && a[1] == 1) return "" + a[0]
+        return mode == "year" ? "last year" : "prev. period"
+    }
+
+    // the granularity a range reads best at
+    function granFor(r: Range, today: string): string {
+        const from = r.from == "" ? "2024-11-01" : r.from
+        const to = r.to == "" ? today : r.to
+        const n = daysBetween(from, to) + 1
+        if (n <= 45) return "day"
+        if (n <= 120) return "week"
+        if (n <= 800) return "month"
+        return "quarter"
+    }
+
+    // a period's names: short for an axis, long for a sentence
+    function periodShort(p: string, by: string): string {
+        if (by == "month") return MONTHS[Number(p.slice(5, 7)) - 1]
+        if (by == "quarter") return p.slice(5) + " " + p.slice(2, 4)
+        const d = ymd(p)
+        return d[2] + " " + MONTHS[d[1] - 1]
+    }
+    function periodLong(p: string, by: string): string {
+        if (by == "month") return MONTHS_LONG[Number(p.slice(5, 7)) - 1] + " " + p.slice(0, 4)
+        if (by == "quarter") return p.slice(5) + " " + p.slice(0, 4)
+        if (by == "week") return "Week of " + dateLong(p)
+        return weekday(p) + " " + dateLong(p)
+    }
+
+    // ── the filter, as the service's query string ──
+
+    type Query = { from?: string, to?: string, q?: string, min?: number, max?: number, kind?: string[],
+        category?: string[], contact?: string[], product?: string[], ids?: string[] }
+
+    function qs(f: Query): string {
+        const out: string[] = []
+        const add = (k: string, v: string) => out.push(k + "=" + encodeURIComponent(v))
+        if (f.from) add("from", f.from)
+        if (f.to) add("to", f.to)
+        if (f.q && f.q.trim() != "") add("q", f.q.trim())
+        if (f.min != null && f.min >= 0) add("min", "" + f.min)
+        if (f.max != null && f.max >= 0) add("max", "" + f.max)
+        if (f.kind && f.kind.length > 0) add("kind", f.kind.join(","))
+        if (f.category && f.category.length > 0) add("category", f.category.join(","))
+        if (f.contact && f.contact.length > 0) add("contact", f.contact.join(","))
+        if (f.product && f.product.length > 0) add("product", f.product.join(","))
+        if (f.ids && f.ids.length > 0) add("ids", f.ids.join(","))
+        return out.join("&")
+    }
+
+    // the kinds both a filter and a figure allow; null when they share none
+    function kindsBoth(filter: string[], figure: string[]): string[] | null {
+        if (filter.length == 0) return figure
+        if (figure.length == 0) return filter
+        const both = figure.filter((k) => filter.includes(k))
+        return both.length == 0 ? null : both
+    }
+
+    // ── search highlighting: the runs of `text` that match a word of the query ──
+
+    function highlightRuns(text: string, q: string): { t: string, hit: boolean }[] {
+        const words = q.trim().toLowerCase().split(/\s+/).filter((w) => w != "" && !/^\$?[\d,.]+$/.test(w))
+        if (words.length == 0 || text == "") return [{ t: text, hit: false }]
+        const plain = text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+        const mark = new Array(text.length).fill(false)
+        for (const w of words) {
+            const ww = w.normalize("NFD").replace(/[̀-ͯ]/g, "")
+            let i = plain.indexOf(ww)
+            while (i >= 0 && ww != "") { for (let k = i; k < i + ww.length && k < mark.length; k++) mark[k] = true; i = plain.indexOf(ww, i + 1) }
+        }
+        const runs: { t: string, hit: boolean }[] = []
+        for (let i = 0; i < text.length; i++) {
+            const last = runs[runs.length - 1]
+            if (last != null && last.hit == mark[i]) last.t = last.t + text[i]
+            else runs.push({ t: text[i], hit: mark[i] })
+        }
+        return runs
+    }
+    function escapeHTML(s: string): string {
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+    }
+    // the matched runs as markup for an HTMLText, each match in a <span class='Hit'>
+    function highlightHTML(text: string, q: string): string {
+        return highlightRuns(text, q).map((r) => r.hit ? "<span class='Hit'>" + escapeHTML(r.t) + "</span>" : escapeHTML(r.t)).join("")
+    }
+
+    // ── the amount slider's scale: friendly steps, not linear ──
+    // Positions 0…N on the track; each is a whole-dollar step. The last
+    // position means "no top". The histogram's bucket edges are all steps,
+    // so its bars sit exactly under the range they count.
+
+    const AMOUNT_STEPS = [0, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150, 175, 200, 250, 300, 400,
+        500, 750, 1000, 1500, 2000, 3000, 5000]
+    function amountSteps(): number[] { return AMOUNT_STEPS }
+    function amountTop(): number { return AMOUNT_STEPS.length }       // the "no top" position
+    // a position from cents: the nearest step at or below (the low end) or at or above (the high end)
+    function posOfCents(cents: number, high: boolean): number {
+        if (cents < 0) return high ? AMOUNT_STEPS.length : 0
+        const d = cents / 100
+        if (high) { const i = AMOUNT_STEPS.findIndex((s) => s >= d); return i < 0 ? AMOUNT_STEPS.length : i }
+        let i = 0
+        for (let k = 0; k < AMOUNT_STEPS.length; k++) if (AMOUNT_STEPS[k] <= d) i = k
+        return i
+    }
+    function centsOfPos(p: number): number { return p >= AMOUNT_STEPS.length ? -1 : AMOUNT_STEPS[p] * 100 }
+
+    // ── CSV: one row per transaction, ISO dates, amounts as plain numbers ──
+
+    function csvCell(v: string): string { return /[",\n]/.test(v) ? "\"" + v.replace(/"/g, "\"\"") + "\"" : v }
+    function toCSV(rows: any[], catName: (id: string | null) => string, chanName: (id: string | null) => string): string {
+        const head = ["id", "date", "kind", "description", "contact", "category", "channel", "amount", "signed"]
+        const lines = [head.join(",")]
+        for (const r of rows) {
+            const cat = r.split != null ? r.split.categoryIds.map((c: string) => catName(c)).join(" / ") : catName(r.categoryId)
+            lines.push([r.id, r.date, r.kind, r.description ?? "", r.contactName ?? "", cat, chanName(r.channel),
+                moneyPlain(r.amount), moneyPlain(r.inFilter ?? r.signed)].map((v) => csvCell("" + v)).join(","))
+        }
+        return lines.join("\n") + "\n"
+    }
+    }
+
+// Saving a file is the browser's: a blob handed to a link the program clicks.
+
+script [ host = browser ] {
+    function saveText(name: string, text: string, type: string) {
+        const blob = new Blob([text], { type: type })
+        const a = document.createElement("a")
+        a.href = URL.createObjectURL(blob)
+        a.download = name
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000)
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Category [ id: string, name: string, kind: "income" | "expense", colour: number, archived: boolean ]
+schema Channel [ id: string, name: string ]
+schema Product [ id: string, name: string, price: number, unitCost: number, archived: boolean ]
+schema Contact [ id: string, name: string, type: "customer" | "vendor", usualCategoryId?: string,
+    transactionCount: number, lastDate?: string ]
+
+schema Split [ parts: number, categoryIds[]: string ]
+
+// One row of the list, as `GET /api/transactions` answers it.
+
+schema Txn [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, split?: Split, channel?: string,
+    amount: number, signed: number, inFilter: number, lineCount: number, refundOf?: string, refunded?: number ]
+
+schema Summary [ count: number, in: number, out: number, net: number ]
+schema TxnPage [ total: number, summary: Summary, rows[]: Txn ]
+
+// A transaction opened: its lines, parts, refunds, cost.
+
+schema Line [ id: string, productId?: string, description: string, quantity: number, unitPrice: number,
+    amount: number, unitCost?: number, refunded?: number, refundedQuantity?: number, refundable?: number,
+    refundableQuantity?: number, saleLineId?: string ]
+schema Part [ categoryId: string, amount: number ]
+schema RefundRef [ id: string, date: string, amount: number, description: string ]
+schema SaleRef [ id: string, date: string, description: string, amount: number, channel?: string ]
+schema Detail [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, channel?: string, amount: number, signed: number,
+    refunded?: number, parts[]?: Part, lines[]: Line, refunds[]?: RefundRef, sale?: SaleRef,
+    refundable?: number, cost?: number, margin?: number, refundOf?: string ]
+schema DetailReply [ transaction: Detail ]
+
+// Totals over a filter, as the aggregates answer them.
+
+schema Measure [ amount: number, count: number ]
+schema Margin [ amount: number, percent?: number, count: number ]
+schema Period [ period: string, start: string, end: string, from: string, to: string, partial: boolean,
+    revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure, cogs: number,
+    grossMargin: Margin ]
+schema PeriodTotal [ revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema Periods [ by: string, from: string, to: string, periods[]: Period, total: PeriodTotal ]
+
+schema CatAmount [ categoryId?: string, amount: number, count: number ]
+schema CatAmounts [ side: string, categories[]: CatAmount, total: Measure ]
+
+schema ProductAmount [ productId?: string, units: number, revenue: number, cost: number, margin: number,
+    marginPercent?: number, count: number ]
+schema ProductAmounts [ products[]: ProductAmount ]
+
+schema ContactAmount [ contactId?: string, contactName?: string, amount: number, count: number ]
+schema ContactAmounts [ side: string, contacts[]: ContactAmount, total: Measure ]
+
+schema Bucket [ min: number, max?: number, count: number ]
+schema Buckets [ buckets[]: Bucket, count: number, lowest?: number, highest?: number ]
+
+schema CatCount [ categoryId?: string, count: number ]
+schema CatCounts [ categories[]: CatCount, total: number ]
+
+schema Budget [ categoryId: string, amount: number, spent: number, remaining: number, count: number ]
+schema Budgets [ month: string, from: string, to: string, budgets[]: Budget ]
+
+// A problem the service names: the field it concerns, what is wrong, and
+// how much was left to allocate or refund.
+
+schema Problem [ field?: string, message: string, remaining?: number ]
+schema Refusal [ error: string, message: string, problems[]?: Problem ]
+
+
+// ── The service ─────────────────────────────────────────────────────────────
+//
+// Every write goes through `send`. Requests wait their turn: one is on the
+// wire at a time, so an edit and the undo that follows it can never pass each
+// other. Each request names what follows its answer (`done`) or its refusal
+// (`failed`). Every answered write moves `rev`, which every read's address
+// carries, so every list, chart and total on screen reloads after a change.
+
+
+
+class Api extends Node [
+    base: string = "http://127.0.0.1:8370",
+    rev: number = 0,                         // moves after every write the service answers
+    busy: boolean = false,
+    queue: array = [],
+    current: object = null,
+
+    send(method: string, path: string, body: object?, done: (reply: object) => void, failed: (r: Refusal | null, failure: string) => void) {
+        queue = [...queue, ({ method: method, path: path, body: body, done: done, failed: failed })]
+        if (!busy) this.next()
+        },
+
+    next() {
+        if (queue.length == 0) { busy = false; current = null; return }
+        current = queue[0]
+        queue = queue.slice(1)
+        busy = true
+        wire.fetch()                         // settles first: the url and body are this request's
+        },
+
+    finish(ok: boolean) {
+        const r = current
+        if (r != null) {
+            if (ok) {
+                rev = rev + 1
+                r.done(wire.value)
+            } else {
+                const body = wire.errorBody as Refusal | null
+                if (wire.failure == "rejected" || wire.failure == "unreadable") rev = rev + 1
+                r.failed(body != null && typeof body == "object" ? body : null, "" + (wire.failure ?? "networkError"))
+            }
+        }
+        this.next()
+        },
+
+    wire: DataSource [ timeout = 20,
+        url = { classroot.current == null ? "" : classroot.base + classroot.current.path },
+        method = { (classroot.current?.method ?? "GET") as "GET" | "POST" | "PUT" | "PATCH" | "DELETE" },
+        body = { classroot.current?.body ?? null },
+        onLoad() { classroot.finish(true) },
+        onError() { classroot.finish(false) }
+        ]
+    ]
+
+
+// ── The lookups ─────────────────────────────────────────────────────────────
+//
+// What the business has been set up with. Loaded once; contacts again after
+// one is created on the spot.
+
+class Books extends Node [
+    base: string = "",
+    today: DataSource [ url = { classroot.base + "/api/today" }, autoFetch = true, schema = [ today: string ] ],
+    cats: DataSource [ url = { classroot.base + "/api/categories" }, autoFetch = true, schema = [ categories[]: Category ] ],
+    chans: DataSource [ url = { classroot.base + "/api/channels" }, autoFetch = true, schema = [ channels[]: Channel ] ],
+    prods: DataSource [ url = { classroot.base + "/api/products" }, autoFetch = true, schema = [ products[]: Product ] ],
+    people: DataSource [ url = { classroot.base + "/api/contacts" }, autoFetch = true, schema = [ contacts[]: Contact ] ],
+
+    loaded: boolean = { classroot.today.loaded && classroot.cats.loaded && classroot.chans.loaded &&
+        classroot.prods.loaded && classroot.people.loaded },
+    failed: boolean = { classroot.today.failed || classroot.cats.failed || classroot.chans.failed ||
+        classroot.prods.failed || classroot.people.failed },
+    retry() {
+        for (const s of [today, cats, chans, prods, people]) if (!s.loaded) s.fetch()
+        },
+
+    todayIs: string = { classroot.today.value?.today ?? "" },
+
+    categories() -> Category[] { return cats.value?.categories ?? [] },
+    channels() -> Channel[] { return chans.value?.channels ?? [] },
+    products() -> Product[] { return prods.value?.products ?? [] },
+    contacts() -> Contact[] { return people.value?.contacts ?? [] },
+
+    cat(id: string?) -> Category? { return id == null ? null : this.categories().find((c) => c.id == id) ?? null },
+    catName(id: string?) -> string { return id == null ? "Uncategorised" : this.cat(id)?.name ?? id },
+    catColour(id: string?) -> number { return this.cat(id)?.colour ?? -1 },
+    chanName(id: string?) -> string { return id == null ? "" : this.channels().find((c) => c.id == id)?.name ?? id },
+    product(id: string?) -> Product? { return id == null ? null : this.products().find((p) => p.id == id) ?? null },
+    productName(id: string?) -> string { return id == null ? "Free-form items" : this.product(id)?.name ?? id },
+    contact(id: string?) -> Contact? { return id == null ? null : this.contacts().find((c) => c.id == id) ?? null },
+    contactName(id: string?) -> string { return id == null ? "No contact" : this.contact(id)?.name ?? id },
+
+    // categories a person can choose now: not archived, of one kind
+    choosable(kind: string) -> Category[] { return this.categories().filter((c) => !c.archived && c.kind == kind) },
+    vendors() -> Contact[] { return this.contacts().filter((c) => c.type == "vendor") },
+    customers() -> Contact[] { return this.contacts().filter((c) => c.type == "customer") }
+    ]

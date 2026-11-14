@@ -1,0 +1,7 @@
+// A baseline row holding a Text and a plain View stack.
+App [ width = 400, height = 200,
+    row: View [ layout: SimpleLayout [ axis = x, spacing = 14, align = baseline ],
+        Text [ fontSize = 60, text = "7" ],
+        View [ layout: SimpleLayout [ axis = y ],
+            Text [ fontSize = 22, text = "Hard" ],
+            Text [ fontSize = 12, text = "effort, of 10" ] ] ] ]

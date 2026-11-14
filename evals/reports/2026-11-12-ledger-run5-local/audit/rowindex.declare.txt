@@ -1,0 +1,10 @@
+// A child of a replicated class reads bare rowIndex: its own, always 0
+class PartRow [ width = 200, height = 24,
+    Text [ text = { "Part " + (rowIndex + 1) } ] ]
+App [ width = 300, height = 200,
+    parts: Dataset { { "parts": [ { "a": 1 }, { "a": 2 } ] } },
+    View [ datapath = { app.parts.value }, layout: SimpleLayout [ axis = y ],
+        PartRow [ datapath = :parts[] ],
+        // the same read written inline, not in a class
+        View [ datapath = :parts[], width = 200, height = 24, Text [ text = { "Inline " + (rowIndex + 1) } ] ] ]
+    ]

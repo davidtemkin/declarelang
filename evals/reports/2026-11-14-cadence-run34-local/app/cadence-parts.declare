@@ -1,0 +1,339 @@
+/*
+# Cadence: the parts
+
+The look of Cadence and the small pieces it is made of, kept apart from how it
+works: the palette, the date and number helpers, the controls the add form is
+built from, and the drawn surfaces (the week's bars, the year, an effort
+histogram). `cadence.declare` includes this file; read that one first.
+
+The design rule the parts keep: the page is ink on paper, and the one colour
+is effort. `app.effortColor(e)` runs from a quiet paper-grey for an easy day to
+the accent for an all-out one, so anywhere a session is drawn, how hard it was
+is the colour it wears.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// Laid over the library's SanFrancisco preset so library controls (the sheet,
+// the date picker, the dialog) read the same paper and ink.
+
+theme Paper [
+    background = #F2EEE6, surface = #FAF7F1, card = #FAF7F1,
+    line = #DDD6C9, quiet = #D3CBBD, wash = #E8E2D7,
+    text = #17140F, textMuted = #6B6458, textFaint = #8F877A,
+    accent = #EE4416, accentHovered = #D93C12, accentPressed = #BF330E, accentTextColor = #FFFFFF,
+    linkColor = #EE4416,
+    control = #E8E2D7, controlHovered = #DED7CA, controlPressed = #D3CBBD, controlSelected = #17140F,
+    tooltipFill = #17140F, tooltipTextColor = #F2EEE6,
+    scrimFill = #17140F, scrimOpacity = 0.28
+    ]
+
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments: dates as day numbers, and the house formats
+// for durations, distances and dates.
+
+script {
+    const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const MONTH = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+    const WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    const WEEKDAY = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    // A date is "YYYY-MM-DD" (the service's form); a day number counts days
+    // from 1970-01-01, so arithmetic on dates is arithmetic on numbers.
+    function dayNum(iso: string): number {
+        const p = iso.split("-").map(Number)
+        return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000)
+    }
+    function isoOf(n: number): string { return new Date(n * 86400000).toISOString().slice(0, 10) }
+    function weekdayOf(n: number): number { return (((n + 3) % 7) + 7) % 7 }      // Monday is 0
+    function dayOfMonth(n: number): number { return new Date(n * 86400000).getUTCDate() }
+    function monthOf(n: number): number { return new Date(n * 86400000).getUTCMonth() }
+    function yearOf(n: number): number { return new Date(n * 86400000).getUTCFullYear() }
+
+    function fmtDur(min: number): string {
+        const m = Math.max(0, Math.round(min))
+        const h = Math.floor(m / 60), r = m % 60
+        if (h == 0) return r + "m"
+        return r == 0 ? h + "h" : h + "h " + r + "m"
+    }
+    function fmtKm(km: number): string { return (Math.round(km * 10) / 10).toFixed(1) + " km" }
+    function weekLetter(n: number): string { return WD[weekdayOf(n)] }
+    function shortDate(iso: string): string {
+        const n = dayNum(iso)
+        return WD[weekdayOf(n)] + " " + dayOfMonth(n) + " " + MON[monthOf(n)]
+    }
+    function longDate(iso: string): string {
+        const n = dayNum(iso)
+        return WEEKDAY[weekdayOf(n)] + " " + dayOfMonth(n) + " " + MONTH[monthOf(n)] + " " + yearOf(n)
+    }
+    function monthShort(n: number): string { return MON[monthOf(n)] }
+
+    // "Today", "Yesterday", a weekday this past week, else the date.
+    function relDay(iso: string, today: string): string {
+        if (iso == "" || today == "") return ""
+        const d = dayNum(today) - dayNum(iso)
+        if (d == 0) return "Today"
+        if (d == 1) return "Yesterday"
+        if (d > 1 && d < 7) return WEEKDAY[weekdayOf(dayNum(iso))]
+        const n = dayNum(iso)
+        return shortDate(iso) + (yearOf(n) != yearOf(dayNum(today)) ? " " + yearOf(n) : "")
+    }
+
+    // The period on the year's surface, said as briefly as it can be.
+    function rangeLabel(a: string, b: string): string {
+        const na = dayNum(a), nb = dayNum(b)
+        const ya = yearOf(na), yb = yearOf(nb), ma = monthOf(na), mb = monthOf(nb)
+        if (nb - na > 62) return ya == yb ? MON[ma] + " – " + MON[mb] + " " + yb : MON[ma] + " " + ya + " – " + MON[mb] + " " + yb
+        if (ya == yb && ma == mb) return dayOfMonth(na) + "–" + dayOfMonth(nb) + " " + MON[mb] + " " + yb
+        if (ya == yb) return dayOfMonth(na) + " " + MON[ma] + " – " + dayOfMonth(nb) + " " + MON[mb] + " " + yb
+        return dayOfMonth(na) + " " + MON[ma] + " " + ya + " – " + dayOfMonth(nb) + " " + MON[mb] + " " + yb
+    }
+
+    // What a person might type for a duration: 45, 45m, 1h20, 1h 20m, 1:20.
+    function parseDur(t: string): number {
+        const s = t.trim().toLowerCase()
+        let m = s.match(/^(\d{1,2}):(\d{1,2})$/)
+        if (m) return Number(m[1]) * 60 + Number(m[2])
+        m = s.match(/^(?:(\d{1,2})\s*h)?\s*(?:(\d{1,3})\s*m?)?$/)
+        if (!m || (m[1] == null && m[2] == null)) return -1
+        return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)
+    }
+    function parseKm(t: string): number {
+        const m = t.trim().toLowerCase().replace(",", ".").match(/^(\d{0,3}(?:\.\d{0,2})?)\s*(?:km)?$/)
+        return m && m[1] != "" && m[1] != "." ? Number(m[1]) : -1
+    }
+
+    function sportName(s: string): string {
+        return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "lift" ? "Lift" : s == "swim" ? "Swim" : s
+    }
+    function effortWord(e: number): string {
+        return e <= 2 ? "very easy" : e <= 4 ? "easy" : e <= 6 ? "steady" : e <= 8 ? "hard" : e == 9 ? "very hard" : "all out"
+    }
+    // Pace in the unit each sport is talked about in.
+    function paceOf(sport: string, minutes: number, km: number): string {
+        if (km <= 0) return ""
+        if (sport == "ride") return (km / (minutes / 60)).toFixed(1) + " km/h"
+        if (sport == "swim") {
+            const s = Math.round(minutes * 60 / (km * 10))
+            return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0") + " /100m"
+        }
+        const s = Math.round(minutes * 60 / km)
+        return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0") + " /km"
+    }
+
+    // Between two colours: how the effort ramp is drawn.
+    function mixColor(a: number, b: number, t: number): number {
+        const k = Math.max(0, Math.min(1, t))
+        const ch = (c: number, sh: number) => (c >> sh) & 255
+        const one = (sh: number) => Math.round(ch(a, sh) + (ch(b, sh) - ch(a, sh)) * k)
+        return (one(16) << 16) | (one(8) << 8) | one(0)
+    }
+    }
+
+
+// ── Labels and figures ──────────────────────────────────────────────────────
+
+// The small spaced capitals that name a block: THIS WEEK, STREAK.
+
+class Kicker extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.4,
+    textTransform = uppercase, textColor = { provided("theme").textMuted }
+    ]
+
+
+// A figure in the display face, with tabular digits so a changing number
+// doesn't jitter its neighbours.
+
+class Figure extends Text [ fontFamily = { app.figFace }, fontWeight = 600, numeralWidth = tabular,
+    letterSpacing = -0.5
+    ]
+
+
+// A figure with its caption beneath: the facts of a session or a period.
+
+class Fact [
+    label: string = "",
+    value: string = "",
+    size: number = 40,
+    tint: Color = null,
+    labelTint: Color = null,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Figure [ fontSize = { classroot.size }, text = { classroot.value },
+        textColor = { classroot.tint ?? provided("theme").text } ],
+    Kicker [ text = { classroot.label }, textColor = { classroot.labelTint ?? provided("theme").textMuted } ]
+    ]
+
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+// One of a few choices, big enough for a thumb: a sport, a day, an effort.
+// Chosen, it is ink (or the colour it is given) with paper text.
+// A ChoiceItem: the ChoiceControl around it holds which one is chosen, and
+// gives the row its keyboard and its "one of N".
+
+class Choice extends ChoiceItem [ height = { app.tap }, cornerRadius = 12, padding = [0, 10, 0, 10],
+    label: string = "",
+    tint: Color = { provided("theme").text },
+    inkOn: Color = { provided("theme").background },
+    accessibilityLabel = { label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.on }, fill = { classroot.tint }, stroke = { stroke(2.5, provided("theme").text) } ],
+    TextLabel [ x = center, y = center, fontSize = { app.touchFirst ? 17 : 15 }, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? classroot.inkOn : provided("theme").text },
+        text = { classroot.label } ]
+    ]
+
+
+// A round step button: − and + beside a figure.
+
+class Nudge extends Control [ width = { app.tap + 8 }, height = { this.width }, cornerRadius = { this.width / 2 },
+    sign: number = 1,
+    accessibilityLabel = { sign > 0 ? "More" : "Less" },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    draw(d: DrawContext) {
+        const c = this.width / 2
+        d.strokeStyle = provided("theme").text
+        d.lineWidth = 2.4
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(c - 8, c); d.lineTo(c + 8, c)
+        if (sign > 0) { d.moveTo(c, c - 8); d.lineTo(c, c + 8) }
+        d.stroke()
+        }
+    ]
+
+
+// A plain word button in ink or the accent: Edit, Delete, a period step.
+
+class Word extends Control [ height = { app.tap }, cornerRadius = { this.height / 2 }, padding = [0, 14, 0, 14],
+    label: string = "",
+    tint: Color = { provided("theme").text },
+    accessibilityLabel = { label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    TextLabel [ x = center, y = center, fontSize = { app.touchFirst ? 16 : 14 }, fontWeight = semibold, wrap = false,
+        textColor = { classroot.tint }, text = { classroot.label } ]
+    ]
+
+
+// A word that is one of a few periods: ink when it is the one shown.
+
+class Period extends ChoiceItem [ height = { app.tap }, cornerRadius = { this.height / 2 }, padding = [0, 14, 0, 14],
+    accessibilityLabel = { choice },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").text } ],
+    TextLabel [ y = center, fontSize = { app.touchFirst ? 16 : 14 }, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").background : provided("theme").text }, text = { classroot.choice } ]
+    ]
+
+
+// The one loud button on a screen: save, log a session.
+
+class Loud extends Control [ height = 56, cornerRadius = 16, padding = [0, 22, 0, 22],
+    label: string = "",
+    accessibilityLabel = { label },
+    fill = { pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent },
+    State [ applied = { classroot.disabled }, fill = { provided("theme").control } ],
+    TextLabel [ x = center, y = center, fontSize = 17, fontWeight = semibold, wrap = false,
+        textColor = { classroot.disabled ? provided("theme").textMuted : provided("theme").accentTextColor },
+        text = { classroot.label } ]
+    ]
+
+
+// ── Drawn surfaces ──────────────────────────────────────────────────────────
+
+// How a session of one sport sits against all the others of that sport: a
+// column per effort from 1 to 10, as tall as how many sessions had it, and
+// this one's column in its effort colour.
+
+class EffortHistogram [ height = 72,
+    counts: number[] = [],
+    mine: number = 0,
+    draw(d: DrawContext) {
+        const n = counts.length
+        if (n == 0) return
+        const top = Math.max(1, ...counts)
+        const gap = 4, w = (this.width - gap * (n - 1)) / n, base = this.height - 18
+        for (let i = 0; i < n; i++) {
+            const h = Math.max(2, (counts[i] / top) * (base - 4))
+            d.fillStyle = i + 1 == mine ? app.effortColor(mine) : provided("theme").wash
+            d.fillRect(i * (w + gap), base - h, w, h)
+            d.fillStyle = i + 1 == mine ? provided("theme").text : provided("theme").textFaint
+            d.font = "600 12px -apple-system, system-ui, sans-serif"
+            d.textAlign = "center"
+            d.fillText(String(i + 1), i * (w + gap) + w / 2, this.height - 2)
+            }
+        }
+    ]
+
+
+// The year, drawn: a bar per day as long as that day's training, in that
+// day's effort colour, with the months marked along the foot. It reads two
+// numbers on the App, where the window starts (`ws`, in days before
+// tomorrow) and how many days it shows (`span`); every way of moving it
+// writes those two, and this drawing follows.
+
+class YearDrawing [
+    draw(d: DrawContext) {
+        const w = this.width, h = this.height
+        const ws = app.ws, span = app.span, total = app.daily.length
+        const end = app.todayN + 1
+        const perDay = w / span
+        const axis = 26, top = 6, base = h - axis
+        const tall = base - top
+        const ink = provided("theme").text
+        const faint = provided("theme").textFaint
+
+        // the floor, and a month line at each month's first day
+        d.fillStyle = provided("theme").line
+        d.fillRect(0, base, w, 1)
+        d.font = "600 12px -apple-system, system-ui, sans-serif"
+        d.textAlign = "left"
+        const first = Math.floor(ws) - 1, last = Math.ceil(ws + span) + 1
+        const days = span <= 21
+        for (let k = first; k <= last; k++) {
+            const n = end + k
+            const x = (k - ws) * perDay
+            if (dayOfMonth(n) == 1) {
+                d.fillStyle = provided("theme").line
+                d.fillRect(Math.round(x), top, 1, tall)
+                if (!days) {
+                    d.fillStyle = monthOf(n) == 0 ? ink : faint
+                    d.fillText(monthOf(n) == 0 ? monthShort(n) + " " + yearOf(n) : monthShort(n), x + 4, h - 8)
+                    }
+                }
+            if (days) {
+                d.fillStyle = n == app.todayN ? ink : faint
+                d.textAlign = "center"
+                d.fillText(weekLetter(n).slice(0, 1) + " " + dayOfMonth(n), x + perDay / 2, h - 8)
+                d.textAlign = "left"
+                }
+            }
+
+        // a bar per day with training in it
+        const bw = Math.max(1, Math.min(perDay * 0.72, 40))
+        const lo = Math.max(0, Math.floor(ws) + total), hi = Math.min(total - 1, Math.ceil(ws + span) + total)
+        for (let i = lo; i <= hi; i++) {
+            const m = app.daily[i]
+            if (m <= 0) continue
+            const x = (i - total - ws) * perDay + (perDay - bw) / 2
+            const bh = Math.max(3, Math.min(1, m / 180) * tall)
+            d.fillStyle = app.effortColor(app.dailyEffort[i])
+            if (bw >= 6) {
+                d.beginPath()
+                d.roundRect(x, base - bh, bw, bh, [Math.min(4, bw / 3), Math.min(4, bw / 3), 0, 0])
+                d.fill()
+            } else {
+                d.fillRect(x, base - bh, bw, bh)
+                }
+            }
+
+        // tomorrow onwards is not yet: a faint wash past today
+        const xNow = (0 - ws) * perDay
+        if (xNow < w) {
+            d.fillStyle = provided("theme").wash
+            d.fillRect(xNow, top, w - xNow, tall)
+            }
+        }
+    ]

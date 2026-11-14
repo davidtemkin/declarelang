@@ -1,0 +1,15 @@
+class Store extends Dataset [
+    _m: Map<string, number> = { new Map() },
+    _plain: Map<string, number>? = null,
+    put(k: string) { _m.set(k, 1) },
+    keys() -> number { return _m.size }
+    ]
+
+App [ width = 400, height = 200,
+    s: Store { { "rows": [] } },
+    v: View [
+        _m: Map<string, number> = { new Map() },
+        put(k: string) { _m.set(k, 1) },
+        keys() -> number { return _m.size }
+        ]
+    ]

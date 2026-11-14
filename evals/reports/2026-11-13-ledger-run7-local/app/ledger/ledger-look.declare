@@ -1,0 +1,247 @@
+/*
+# Ledger: the look
+
+The two palettes, the drawn marks, and the small pieces the screens are built
+from: chips, figure cards, the nav item, section headings. `ledger.declare`
+includes this file. Nothing here knows about the books; each piece is handed
+what it shows.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// Laid over the library's San Francisco preset, so library controls and our
+// own views read one palette. `cats` is twelve category colours, indexed by
+// the `colour` the service gives each category, so a category keeps its colour
+// on every chart and chip. `good` and `bad` carry favourable and unfavourable
+// change; they are never the only carrier of meaning (an arrow and words go
+// with them).
+
+theme LedgerLight [
+    background = #F6F5F2, surface = #FFFFFF, card = #FFFFFF, sunken = #EFEDE8,
+    line = #E3E0D9, lineStrong = #CFCBC2,
+    text = #1F1D1A, textMuted = #67625A, textFaint = #8F897F,
+    accent = #2F6B4F, accentHovered = #285D45, accentPressed = #224F3B, accentTextColor = #FFFFFF,
+    linkColor = #2F6B4F,
+    control = #EDEAE4, controlHovered = #E4E0D8, controlPressed = #D9D4CA, controlSelected = #DCEBE2,
+    hover = #F1EFEA, selection = #E3EFE7,
+    good = #23784F, bad = #B3412E, warn = #9A6400,
+    goodTint = #E2F1E8, badTint = #F8E6E1, warnTint = #F7EDD8,
+    income = #2F7D5B, expense = #C0603F, net = #1F1D1A, compare = #9C968C,
+    hit = #FCE7A6, hitText = #1F1D1A, partial = #00000010,
+    cats = [#2F7D5B, #3E8E8A, #7A9A3A, #4E6FAE, #B07A2A, #C0603F, #8A5BA8, #2E8FB8, #C24E78, #6A7A3A, #8A847A, #5A6676],
+    gridRowHeight = 52, gridHeaderHeight = 34, gridFontSize = 13.5, gridHeaderFontSize = 12
+    ]
+
+
+theme LedgerDark [
+    background = #151513, surface = #1E1E1B, card = #22221F, sunken = #191917,
+    line = #34332F, lineStrong = #4A4843,
+    text = #F0EEE9, textMuted = #ADA79D, textFaint = #827C72,
+    accent = #4FA57C, accentHovered = #469670, accentPressed = #3E8763, accentTextColor = #0F1A14,
+    linkColor = #6FC39A,
+    control = #2C2B28, controlHovered = #35342F, controlPressed = #403E39, controlSelected = #23392D,
+    hover = #262522, selection = #233629,
+    good = #5CC48F, bad = #F08A73, warn = #E3B04B,
+    goodTint = #1D3327, badTint = #3A2420, warnTint = #362C17,
+    income = #4FB585, expense = #E38363, net = #F0EEE9, compare = #8C867C, partial = #FFFFFF12,
+    hit = #6B5617, hitText = #FFF6DA, segmentedSelectedFill = #3E3D38,
+    cats = [#4FB585, #5BB5B0, #A2C25A, #7D9BDB, #D9A24E, #E38363, #B48AD3, #5BB6DE, #E27AA0, #A3B26A, #ADA79D, #8E9AAB],
+    gridRowHeight = 52, gridHeaderHeight = 34, gridFontSize = 13.5, gridHeaderFontSize = 12
+    ]
+
+
+// a search hit inside a highlighted run of text
+
+style Hit [ fontWeight = bold, underline = true ]
+
+// ── Marks ───────────────────────────────────────────────────────────────────
+//
+// One pen for every mark: a stroke on the library's 16-unit grid. `shape`
+// names which.
+
+class Mark extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "overview") {                 // four tiles
+            d.roundRect(2, 2, 5, 5, 1.2); d.roundRect(9, 2, 5, 5, 1.2); d.roundRect(2, 9, 5, 5, 1.2); d.roundRect(9, 9, 5, 5, 1.2); d.stroke()
+        } else if (shape == "transactions") {      // ruled lines
+            for (const y of [3.5, 8, 12.5]) { d.moveTo(2, y); d.lineTo(14, y) }
+            d.stroke()
+        } else if (shape == "insights") {          // a rising line over an axis
+            d.moveTo(2, 2); d.lineTo(2, 14); d.lineTo(14, 14); d.moveTo(4.5, 11); d.lineTo(7.5, 7.5); d.lineTo(10, 9.5); d.lineTo(13.5, 4.5); d.stroke()
+        } else if (shape == "budgets") {           // a gauge
+            d.arc(8, 10, 6, Math.PI, 0); d.moveTo(8, 10); d.lineTo(11, 6.5); d.stroke()
+        } else if (shape == "search") {
+            d.arc(7, 7, 4.6, 0, 6.3); d.moveTo(10.4, 10.4); d.lineTo(14, 14); d.stroke()
+        } else if (shape == "plus") {
+            d.moveTo(8, 2.5); d.lineTo(8, 13.5); d.moveTo(2.5, 8); d.lineTo(13.5, 8); d.stroke()
+        } else if (shape == "left") {
+            d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (shape == "right") {
+            d.moveTo(6, 3); d.lineTo(11, 8); d.lineTo(6, 13); d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(4, 4); d.lineTo(12, 12); d.moveTo(12, 4); d.lineTo(4, 12); d.stroke()
+        } else if (shape == "filter") {            // a funnel
+            d.moveTo(2, 3); d.lineTo(14, 3); d.lineTo(9.5, 8.5); d.lineTo(9.5, 13); d.lineTo(6.5, 14); d.lineTo(6.5, 8.5); d.closePath(); d.stroke()
+        } else if (shape == "export") {            // a tray with an arrow out
+            d.moveTo(8, 10); d.lineTo(8, 2); d.moveTo(5, 5); d.lineTo(8, 2); d.lineTo(11, 5)
+            d.moveTo(2.5, 9); d.lineTo(2.5, 13.5); d.lineTo(13.5, 13.5); d.lineTo(13.5, 9); d.stroke()
+        } else if (shape == "columns") {
+            d.roundRect(2, 2.5, 12, 11, 1.5); d.moveTo(6, 2.5); d.lineTo(6, 13.5); d.moveTo(10, 2.5); d.lineTo(10, 13.5); d.stroke()
+        } else if (shape == "warn") {              // a triangle with a stroke
+            d.moveTo(8, 2); d.lineTo(14.5, 13.5); d.lineTo(1.5, 13.5); d.closePath(); d.moveTo(8, 6.5); d.lineTo(8, 9.5); d.stroke()
+            d.beginPath(); d.arc(8, 11.7, 0.8, 0, 6.3); d.fill()
+        } else if (shape == "check") {
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (shape == "split") {             // one line becoming three
+            d.moveTo(2, 8); d.lineTo(6, 8); d.moveTo(6, 8); d.lineTo(14, 3); d.moveTo(6, 8); d.lineTo(14, 8); d.moveTo(6, 8); d.lineTo(14, 13); d.stroke()
+        } else if (shape == "table") {
+            d.roundRect(2, 3, 12, 10, 1.5); d.moveTo(2, 6.5); d.lineTo(14, 6.5); d.moveTo(2, 10); d.lineTo(14, 10); d.moveTo(7, 3); d.lineTo(7, 13); d.stroke()
+        } else if (shape == "chart") {
+            d.moveTo(3, 13); d.lineTo(3, 8); d.moveTo(8, 13); d.lineTo(8, 3); d.moveTo(13, 13); d.lineTo(13, 6); d.stroke()
+        } else if (shape == "more") {
+            d.arc(3.5, 8, 1.1, 0, 6.3); d.fill(); d.beginPath(); d.arc(8, 8, 1.1, 0, 6.3); d.fill(); d.beginPath(); d.arc(12.5, 8, 1.1, 0, 6.3); d.fill()
+        } else if (shape == "undo") {
+            d.moveTo(5, 3); d.lineTo(2, 6); d.lineTo(5, 9); d.moveTo(2, 6); d.lineTo(10, 6); d.bezierCurveTo(16, 6, 16, 14, 10, 14); d.lineTo(6, 14); d.stroke()
+        }
+        }
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A round icon button. `tip` is both its tooltip and its accessible name.
+
+class IconButton extends Control [ width = { app.tap }, height = { app.tap }, cornerRadius = 8,
+    shape: string = "",
+    tip: string = "",
+    tone: Color = { provided("theme").textMuted },
+    accessibilityLabel = { tip },
+    tooltipLabel = { tip },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    Mark [ x = center, y = center, iconSize = 16, weight = 1.7, shape = { classroot.shape }, ink = { classroot.tone } ]
+    ]
+
+
+// A quiet button with a mark and words: the toolbar's Export, Columns, the
+// filter bar's buttons. `on` marks a filter that is set.
+
+class BarButton extends Control [ height = { app.tap }, cornerRadius = 8, padding = [0, 10, 0, 9],
+    label: string = "",
+    shape: string = "",
+    on: boolean = false,
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.on }, fill = { provided("theme").controlSelected } ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Mark [ visible = { classroot.shape != "" }, iconSize = 14, weight = 1.6, shape = { classroot.shape },
+        ink = { classroot.on ? provided("theme").accent : provided("theme").textMuted } ],
+    TextLabel [ fontSize = 13, fontWeight = medium, wrap = false,
+        textColor = { classroot.on ? provided("theme").accent : provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// An active filter, as a chip: its value, and a × that removes it.
+
+class FilterChip [ height = 30, cornerRadius = 15, padding = [0, 4, 0, 12],
+    label: string = "",
+    chipId: string = "",
+    fill = { provided("theme").controlSelected },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    TextLabel [ fontSize = 12.5, fontWeight = medium, wrap = false, textColor = { provided("theme").text }, text = { classroot.label } ],
+    remove: Control [ width = 24, height = 24, cornerRadius = 12,
+        accessibilityLabel = { "Remove filter " + classroot.label },
+        fill = { hovered || pressed ? provided("theme").controlHovered : null },
+        press() { app.removeChip(classroot.chipId) },
+        Mark [ x = center, y = center, iconSize = 10, weight = 1.8, shape = "close", ink = { provided("theme").textMuted } ]
+        ]
+    ]
+
+
+// A category, as a coloured chip: a dot in its colour and its name. Split and
+// Uncategorised are chips of their own kinds.
+
+class CategoryChip [ height = 22, cornerRadius = 11, padding = [0, 9, 0, 7],
+    name: string = "",
+    colour: number = -1,             // index into the theme's `cats`; -1 for none
+    attention: boolean = false,      // Uncategorised: needs attention
+    fill = { classroot.attention ? provided("theme").warnTint : provided("theme").sunken },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    dot: View [ visible = { classroot.colour >= 0 }, width = 7, height = 7, cornerRadius = 3.5,
+        fill = { classroot.colour >= 0 ? provided("theme").cats[classroot.colour % 12] : null } ],
+    warn: Mark [ visible = { classroot.attention }, iconSize = 11, weight = 1.5, shape = "warn", ink = { provided("theme").warn } ],
+    TextLabel [ fontSize = 12, fontWeight = medium, wrap = false,
+        textColor = { classroot.attention ? provided("theme").warn : provided("theme").text }, text = { classroot.name } ]
+    ]
+
+
+// A section's title, with room for an action at its end.
+
+class SectionHead [ width = 100%, height = 28,
+    title: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ flexes = true, accessibilityRole = heading, accessibilityLevel = 2, fontSize = 14, fontWeight = semibold, wrap = false,
+        text = { classroot.title } ]
+    ]
+
+
+// A card: the surface every Overview and Insights block sits on.
+
+class Panel [ cornerRadius = 12, padding = 16,
+    fill = { provided("theme").card },
+    stroke = { stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = y, spacing = 12 ]
+    ]
+
+
+// A sidebar item: one of the four places, as a link.
+
+class NavItem [ width = 100%, height = 38, cornerRadius = 8, padding = [0, 10, 0, 10],
+    place: string = "",
+    label: string = "",
+    here: boolean = { app.screen == classroot.place },
+    link = { "#" + classroot.place },
+    accessibilityCurrent = { classroot.here ? "page" : "none" },
+    fill = { hovered ? provided("theme").hover : null },
+    State [ applied = { classroot.here }, fill = { provided("theme").selection } ],
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Mark [ iconSize = 16, weight = 1.7, shape = { classroot.place },
+        ink = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ],
+    Text [ fontSize = 14, fontWeight = { classroot.here ? "semibold" : "medium" }, wrap = false,
+        textColor = { classroot.here ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// A phone tab: a mark over a word, finger-sized.
+
+class PhoneTab [ flexes = true, height = 52,
+    place: string = "",
+    label: string = "",
+    here: boolean = { app.screen == classroot.place },
+    link = { "#" + classroot.place },
+    accessibilityCurrent = { classroot.here ? "page" : "none" },
+    accessibilityLabel = { classroot.label },
+    layout: SimpleLayout [ axis = y, spacing = 2, align = center ],
+    padding = [7, 0, 0, 0],
+    Mark [ iconSize = 20, weight = 1.7, shape = { classroot.place },
+        ink = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ],
+    TextLabel [ fontSize = 11, fontWeight = medium, wrap = false,
+        textColor = { classroot.here ? provided("theme").accent : provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// A thin horizontal bar: a share of a whole, in a colour.
+
+class ShareBar [ height = 6, cornerRadius = 3,
+    share: number = 0,
+    tone: Color = gray,
+    fill = { provided("theme").sunken },
+    View [ height = 6, cornerRadius = 3, width = { Math.max(classroot.share > 0 ? 3 : 0, parent.width * Math.min(1, classroot.share)) },
+        fill = { classroot.tone } ]
+    ]

@@ -1,0 +1,335 @@
+/*
+# 7. Cells
+
+A spreadsheet: rows 0 to 99, columns A to Z, scrolling both ways.
+Double-click a cell (or select it and press Enter) to edit its formula; when
+the edit ends the formula is evaluated and the cell shows its value.
+
+Three parts, each readable on its own:
+
+- **The formula language** — `formula.ts`: parsing, the cells a formula
+  reads, evaluation. Plain functions; it knows nothing of views or storage.
+- **The sheet** — `Workbook`, a dataset class: every cell's formula, value and
+  error, and the dependency graph between cells. `setFormula` is its one
+  write. It re-evaluates the edited cell and then the cells that depend on
+  it, and theirs in turn, in dependency order — only those. A cell in a
+  cycle shows #CYCLE!. `lastRecomputed` lists the cells the last edit
+  re-evaluated (the status line under the grid shows it).
+- **The widget** — `Spreadsheet`, built here from views: a pane scrolling
+  both ways, rows replicated from the sheet's data (only the rows near the
+  viewport are built), and row and column headers pinned to the pane's edges.
+  Click selects; double-click, Enter or F2 edits; the arrows move; Delete
+  clears. Return ends an edit and moves down, Escape abandons it.
+*/
+
+script [ "formula.ts" ]
+
+// A cell's value is a number (`n`) or a piece of text (`t`, with `n` null).
+
+schema SheetCell [ id: string, f: string, n?: number, t: string, err: string, msg: string ]
+schema SheetRow [ id: number, cells[]: SheetCell ]
+
+
+// ── The sheet ───────────────────────────────────────────────────────────────
+
+class Workbook extends Dataset [ schema = [ rows[]: SheetRow ],
+    columns: number = 26,
+    rowCount: number = 100,
+    lastRecomputed: string[] = [],
+
+    // Who reads whom: `_users["A1"]` is every cell whose formula reads A1.
+    // Machinery, replaced (never changed in place) by setFormula.
+
+    _users: Record<string, string[]> = { {} },
+
+    onInit() {
+        const rows: SheetRow[] = []
+        for (let r = 0; r < rowCount; r++) {
+            const cells: SheetCell[] = []
+            for (let c = 0; c < columns; c++) cells.push(({ id: cellName(c, r), f: "", n: null, t: "", err: "", msg: "" }))
+            rows.push(({ id: r, cells: cells }))
+            }
+        this.set([], ({ rows: rows }))
+        },
+
+    cell(id: string) -> SheetCell? {
+        const p = cellPosition(id)
+        return p == null ? null : this.read(["rows", p.row, "cells", p.col]) as SheetCell | null
+        },
+    formulaOf(id: string) -> string { return cell(id)?.f ?? "" },
+
+    // A cell's value as another formula sees it; its error, if it has one.
+
+    valueAt(id: string) -> CellValue {
+        const c = cell(id)
+        if (c == null) return ""
+        if (c.err != "") throw new FormulaError(c.err, id + " shows an error (" + c.err + ").")
+        return c.n ?? c.t
+        },
+
+    // ── the one write
+
+    setFormula(id: string, f: string) {
+        const p = cellPosition(id)
+        if (p == null || f == formulaOf(id)) return
+        const users = { ..._users }
+        for (const r of refsOf(id)) users[r] = (users[r] ?? []).filter((u) => u != id)
+        for (const r of formulaReferences(parseFormula(f))) {
+            if (!(users[r] ?? []).includes(id)) users[r] = [...(users[r] ?? []), id]
+            }
+        _users = users
+        this.set(["rows", p.row, "cells", p.col, "f"], f)
+        recompute(id)
+        },
+
+    // The cells a cell's formula reads.
+
+    refsOf(id: string) -> string[] { return formulaReferences(parseFormula(formulaOf(id))) },
+
+    // The edited cell and everything downstream of it.
+
+    affectedBy(id: string) -> string[] {
+        const seen = new Set<string>([id])
+        const stack = [id]
+        while (stack.length > 0) {
+            for (const u of _users[stack.pop()!] ?? []) {
+                if (!seen.has(u)) { seen.add(u); stack.push(u) }
+                }
+            }
+        return [...seen]
+        },
+
+    // Evaluate the affected cells in dependency order (Kahn's algorithm over
+    // the affected part of the graph): a cell waits until every affected
+    // cell it reads is done. What never becomes ready is on, or behind, a cycle.
+
+    recompute(id: string) {
+        const affected = affectedBy(id)
+        const inSet = new Set(affected)
+        const waiting = new Map<string, number>()
+        for (const c of affected) waiting.set(c, new Set(refsOf(c).filter((r) => inSet.has(r))).size)
+        const ready = affected.filter((c) => waiting.get(c) == 0)
+        const order: string[] = []
+        while (ready.length > 0) {
+            const c = ready.pop()!
+            order.push(c)
+            for (const u of _users[c] ?? []) {
+                if (!inSet.has(u)) continue
+                const n = waiting.get(u)! - 1
+                waiting.set(u, n)
+                if (n == 0) ready.push(u)
+                }
+            }
+        for (const c of order) evaluate(c)
+        const done = new Set(order)
+        for (const c of affected) {
+            if (!done.has(c)) store(c, "", "#CYCLE!", "The formula depends on its own value.")
+            }
+        lastRecomputed = affected
+        },
+
+    evaluate(id: string) {
+        const e = parseFormula(formulaOf(id))
+        try {
+            store(id, evaluateFormula(e, (r) => this.valueAt(r)), "", "")
+        } catch (x) {
+            if (!(x instanceof FormulaError)) throw x
+            store(id, "", x.code, x.message)
+            }
+        },
+
+    // Write only what changed, so only the views reading it are touched.
+
+    store(id: string, v: CellValue, err: string, msg: string) {
+        const p = cellPosition(id)!
+        const c = cell(id)!
+        const at = ["rows", p.row, "cells", p.col]
+        const n = typeof v == "number" ? v : null
+        const t = typeof v == "number" ? "" : v
+        if (c.n !== n) this.set([...at, "n"], n)
+        if (c.t != t) this.set([...at, "t"], t)
+        if (c.err != err) this.set([...at, "err"], err)
+        if (c.msg != msg) this.set([...at, "msg"], msg)
+        }
+    ]
+
+
+// ── The widget ──────────────────────────────────────────────────────────────
+
+class Spreadsheet [ scrolls = both, focusable = true, clip = true,
+    accessibilityLabel = "Spreadsheet",
+    fill = { provided("theme").surface },
+    stroke = { stroke(1, provided("theme").line) },
+
+    sheet: Workbook? = null,
+    colW: number = 92,
+    rowH: number = 24,
+    headW: number = 44,
+    margin: number = 16,
+    selected: string = "A0",
+    editing: string = "",          // the cell being edited, "" for none
+
+    select(id: string) {
+        selected = id
+        reveal(id)
+        },
+    move(dc: number, dr: number) {
+        const p = cellPosition(selected)
+        if (p == null || sheet == null) return
+        const c = Math.max(0, Math.min(sheet.columns - 1, p.col + dc))
+        const r = Math.max(0, Math.min(sheet.rowCount - 1, p.row + dr))
+        select(cellName(c, r))
+        },
+    startEdit() { editing = selected },
+    stopEdit(moveDown: boolean) {
+        if (editing == "") return
+        editing = ""
+        if (moveDown) move(0, 1)
+        afterSettle(() => Focus.focus(this))
+        },
+    clear() { sheet?.setFormula(selected, "") },
+
+    // Scroll just enough to bring a cell clear of the pinned headers.
+
+    reveal(id: string) {
+        const p = cellPosition(id)
+        if (p == null) return
+        const w = width - headW - margin, h = height - rowH - margin
+        const x0 = p.col * colW, y0 = p.row * rowH
+        let sx = scrollX, sy = scrollY
+        if (x0 < sx) sx = x0
+        else if (x0 + colW > sx + w) sx = x0 + colW - w
+        if (y0 < sy) sy = y0
+        else if (y0 + rowH > sy + h) sy = y0 + rowH - h
+        if (sx != scrollX || sy != scrollY) scrollTo(({ x: sx, y: sy }))
+        },
+
+    keyBindings = { [ ({ key: "ArrowUp", command: "move", args: [0, -1] }),
+                      ({ key: "ArrowDown", command: "move", args: [0, 1] }),
+                      ({ key: "ArrowLeft", command: "move", args: [-1, 0] }),
+                      ({ key: "ArrowRight", command: "move", args: [1, 0] }),
+                      ({ key: "Enter", command: "startEdit", label: "Edit cell" }),
+                      ({ key: "F2", command: "startEdit" }),
+                      ({ key: "Delete", command: "clear", label: "Clear cell" }),
+                      ({ key: "Backspace", command: "clear" }) ] },
+
+    // The cells: one row view per record, built only near the viewport, each
+    // holding one view per cell of its record.
+
+    // The grid is a margin larger than its cells, so the last row and column
+    // scroll clear of the pane's scrollbars where those take room.
+
+    grid: View [ x = { classroot.headW }, y = { classroot.rowH },
+        width = { (classroot.sheet?.columns ?? 0) * classroot.colW + classroot.margin },
+        height = { (classroot.sheet?.rowCount ?? 0) * classroot.rowH + classroot.margin },
+        datapath = { classroot.sheet?.value ?? null },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = true, height = { classroot.rowH },
+            layout: SimpleLayout [ axis = x ],
+            View [ datapath = :cells[], width = { classroot.colW }, height = { classroot.rowH },
+                cell: string = { :id ?? "" },
+                isSelected: boolean = { classroot.selected == this.cell },
+                isEditing: boolean = { classroot.editing == this.cell },
+                failed: boolean = { (:err ?? "") != "" },
+                stroke = { [null, stroke(1, provided("theme").sheetLine), stroke(1, provided("theme").sheetLine), null] },
+                fill = { this.isSelected ? provided("theme").sheetSelection : null },
+                tooltipLabel = { :msg ?? "" },
+                onClick() { classroot.select(this.cell) },
+                onDoubleClick() { classroot.select(this.cell); classroot.startEdit() },
+
+                Text [ width = 100%, y = center, padding = [0, 5, 0, 5], wrap = false, maxLines = 1, fontSize = 13,
+                    visible = { !parent.isEditing },
+                    numeralWidth = tabular,
+                    textAlign = { :n != null ? "end" : "start" },
+                    textColor = { parent.failed ? provided("theme").error : provided("theme").text },
+                    text = { parent.failed ? :err ?? "" : formatCellValue(:n ?? :t ?? "") } ],
+                ring: View [ visible = { parent.isSelected && !parent.isEditing }, width = 100%, height = 100%,
+                    pointerEvents = "none", stroke = { stroke(2, provided("theme").accent) } ],
+
+                editor: TextInput [ exists = { parent.isEditing }, width = 100%, height = 100%, fontSize = 13,
+                    cornerRadius = 0, padding = [0, 4, 0, 4], accessibilityLabel = { "Formula of " + parent.cell },
+                    commitOn = "end",
+                    value = { :f ?? "" },
+                    commit(v: string) { classroot.sheet?.setFormula(parent.cell, v) },
+                    onEnter() { classroot.stopEdit(true) },
+                    onBlur() { classroot.stopEdit(false) },
+                    keyBindings = { [ ({ key: "Escape", command: "abandon" }) ] },
+                    abandon() {
+                        cancelEdit()
+                        classroot.stopEdit(false)
+                        },
+                    onInit() { afterSettle(() => Focus.focus(this)) }
+                    ]
+                ]
+            ]
+        ],
+
+    // The headers, pinned to the pane's edges and moved with its scroll
+    // along their own axis. Declared after the grid, so they paint over it.
+
+    colHeads: View [ ignoreScroll = true, x = { classroot.headW - classroot.scrollX },
+        width = { (classroot.sheet?.columns ?? 0) * classroot.colW }, height = { classroot.rowH },
+        fill = { provided("theme").sheetHeader },
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        draw(d: DrawContext) {
+            const t = provided("theme")
+            const sel = cellPosition(classroot.selected)
+            for (let c = 0; c < (classroot.sheet?.columns ?? 0); c++) {
+                const left = c * classroot.colW
+                if (sel != null && sel.col == c) { d.fillStyle = t.sheetSelection; d.fillRect(left, 0, classroot.colW, d.h - 1) }
+                d.fillStyle = t.line
+                d.fillRect(left + classroot.colW - 1, 0, 1, d.h)
+                const label = SHEET_COLUMNS[c]
+                const m = measureText(label, ({ fontSize: 12, fontWeight: "semibold" }))
+                d.fillText(label, left + (classroot.colW - m.width) / 2, (d.h - m.height) / 2 + m.baseline,
+                    ({ fontSize: 12, fontWeight: "semibold", textColor: t.textMuted }))
+                }
+            }
+        ],
+    rowHeads: View [ ignoreScroll = true, y = { classroot.rowH - classroot.scrollY },
+        width = { classroot.headW }, height = { (classroot.sheet?.rowCount ?? 0) * classroot.rowH },
+        fill = { provided("theme").sheetHeader },
+        stroke = { [null, stroke(1, provided("theme").line), null, null] },
+        draw(d: DrawContext) {
+            const t = provided("theme")
+            const sel = cellPosition(classroot.selected)
+            for (let r = 0; r < (classroot.sheet?.rowCount ?? 0); r++) {
+                const top = r * classroot.rowH
+                if (sel != null && sel.row == r) { d.fillStyle = t.sheetSelection; d.fillRect(0, top, d.w - 1, classroot.rowH) }
+                d.fillStyle = t.line
+                d.fillRect(0, top + classroot.rowH - 1, d.w, 1)
+                const label = "" + r
+                const m = measureText(label, ({ fontSize: 12 }))
+                d.fillText(label, (d.w - m.width) / 2, top + (classroot.rowH - m.height) / 2 + m.baseline,
+                    ({ fontSize: 12, textColor: t.textMuted }))
+                }
+            }
+        ],
+    corner: View [ ignoreScroll = true, width = { classroot.headW }, height = { classroot.rowH },
+        fill = { provided("theme").sheetHeader },
+        stroke = { [null, stroke(1, provided("theme").line), stroke(1, provided("theme").line), null] } ]
+    ]
+
+
+// ── The task ────────────────────────────────────────────────────────────────
+
+class CellsTask [
+    sheet: Workbook { { "rows": [] } },
+
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    padding = 4,
+
+    // What the selected cell holds: its name and its formula.
+
+    formulaBar: View [ width = 100%, height = 28,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ width = 44, fontWeight = semibold, text = { classroot.grid.selected } ],
+        Text [ flexes = true, wrap = false, maxLines = 1, numeralWidth = tabular,
+            text = { classroot.sheet.formulaOf(classroot.grid.selected) } ]
+        ],
+    grid: Spreadsheet [ width = 100%, flexes = true, sheet = { classroot.sheet } ],
+    Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { classroot.sheet.lastRecomputed.length == 0
+            ? "Double-click a cell, or select it and press Enter, to edit its formula: a number, text, or =A1+SUM(B0:B9)."
+            : "Recomputed " + classroot.sheet.lastRecomputed.join(", ") + "." } ]
+    ]

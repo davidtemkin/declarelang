@@ -1,0 +1,25 @@
+/*
+# 1. Counter
+
+A read-only field showing a count, and a button that adds one to it.
+
+The count is one attribute. The field shows it (`value = { … }`) and refuses
+every edit (`admit` returns null), so it can be selected and copied but not
+typed into; the button assigns the count, and the field follows.
+*/
+
+class CounterTask [
+    count: number = 0,
+
+    row: View [ x = center, y = center,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        field: TextInput [ width = 120, textAlign = end, numeralWidth = tabular, accessibilityLabel = "Count",
+            value = { String(classroot.count) },
+            admit(t: string) -> string | null { return null },
+            commit(t: string) { }
+            ],
+        button: Button [ label = "Count",
+            onClick() { classroot.count = classroot.count + 1 }
+            ]
+        ]
+    ]

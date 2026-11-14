@@ -1,0 +1,14 @@
+// The finding's second suggestion, followed as written: "let its layout place
+// TextLabel (a Spacer on each side centers it in a row)". The pill is still
+// content-sized, so this draws a new finding: the Spacers flex into no room.
+class Pill extends Control [ height = 44, padding = [0, 16, 0, 16], fill = #DDDDDD,
+    label: string = "",
+    accessibilityLabel = { label },
+    layout: SimpleLayout [ axis = x, align = center ],
+    Spacer [ ],
+    TextLabel [ text = { classroot.label } ],
+    Spacer [ ]
+    ]
+App [ width = 300, height = 100, fill = white,
+    Pill [ x = 20, y = 20, label = "Log a session" ]
+    ]

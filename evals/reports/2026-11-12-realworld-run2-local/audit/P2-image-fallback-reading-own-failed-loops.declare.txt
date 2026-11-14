@@ -1,0 +1,41 @@
+// An avatar that falls back to the default picture when its URL fails to load.
+// a: reads its own `failed` (the obvious one-Image fallback); b: the default under, the picture over.
+class Avatar extends Image [ width = 40, height = 40,
+    url: string = "",
+    source = { classroot.url == "" || classroot.failed ? "default-avatar.svg" : classroot.url }
+    ]
+class Layered [ width = 40, height = 40,
+    url: string = "",
+    Image [ width = 40, height = 40, source = "default-avatar.svg" ],
+    pic: Image [ width = 40, height = 40, source = { classroot.url }, visible = { classroot.url != "" && !this.failed } ]
+    ]
+App [ width = 200, height = 100,
+    a: Avatar [ url = "javascript:alert(1)" ]
+    ]
+
+/* ── R4 under declare-verify:
+  R1 ✓ structure
+  R2 ✓ resolution
+  R3 ✓ analysis
+  R4 ✗ boot
+       boot: Navigation timeout of 30000 ms exceeded
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/if-a.declare — FAILED at R4: boot: Navigation timeout of 30000 ms exceeded
+── served on 8290 and probed (probe-image-loop.mjs): 6 s after load
+app.a: {"source":"javascript:alert(1)","failed":false,"loaded":false} (1 ms)
+requests in 6 s: {"javascript:alert(1)": 39834, ... }   (default-avatar.svg never requested)
+── the layered form (the default under, the picture over, visible = { !this.failed }) works:
+    ]
+class Layered [ width = 40, height = 40,
+    url: string = "",
+    Image [ width = 40, height = 40, source = "default-avatar.svg" ],
+    pic: Image [ width = 40, height = 40, source = { classroot.url }, visible = { classroot.url != "" && !this.failed } ]
+    ]
+App [ width = 200, height = 100,
+    b: Layered [ x = 60, url = "javascript:alert(1)" ]
+    ]
+b.pic (layered): {"source":"javascript:alert(1)","loaded":false,"failed":true}
+visible <img> elements: [ 'default-avatar.svg' ]
+  R4 ✓ boot (4 nodes, in Chrome, real text, a laptop)
+  R5 ✓ behavior (1 steps, real input; it asserted nothing, so the pass says only that nothing threw and what the layout checks found — end a flow with an expect of what it should have done)
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/if-b.declare — clean through R5 (3 of 3 constraints statically wired)
+*/

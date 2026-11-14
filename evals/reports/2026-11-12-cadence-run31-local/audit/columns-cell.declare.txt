@@ -1,0 +1,18 @@
+// Run 30's silent zero-width cell, as run 31 wrote it: ChoiceItems with no
+// width of their own (a full-width bar and a centred label) in a `columns` grid.
+class Cell extends ChoiceItem [ height = 56, cornerRadius = 8, fill = #EEEEEE,
+    level: number = 1,
+    choice = { "" + level },
+    accessibilityLabel = { "Effort " + level },
+    View [ width = 100%, height = 20, y = end, fill = #333333 ],
+    TextLabel [ x = center, text = { "" + classroot.level } ]
+    ]
+App [ width = 390, height = 300, fill = white,
+    levels: Dataset { { "items": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } },
+    effort: string = "5",
+    feel: ChoiceControl [ width = 100%, datapath = { app.levels.value }, accessibilityLabel = "Effort",
+        value <-> app.effort,
+        layout: WrappingLayout [ columns = 5, spacing = 6, rowSpacing = 6 ],
+        Cell [ datapath = :items[], level = :@ ]
+        ]
+    ]

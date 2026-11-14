@@ -1,0 +1,81 @@
+/*
+# 7GUIs
+
+The seven tasks of the 7GUIs benchmark (Eugen Kiss) in one window: a row of
+tabs along the top, and the chosen task below it, filling the rest.
+
+How it is put together:
+
+- **Each task is a class in a file of its own**, holding its own state and
+  its own logic, so each reads alone: `counter.declare`,
+  `temperature.declare`, `flight.declare`, `timer.declare`, `crud.declare`,
+  `circles.declare` and `cells.declare` (with the formula language apart from
+  the spreadsheet's interface, in `formula.ts`).
+- **Which task is showing is the App's `location`**, the URL's fragment, so
+  every task has an address (`#cells`) and Back returns to the one before.
+  Each tab is a link to its task; each task view says which location it
+  `shows`.
+- The tasks stay built while another is showing, so a count, a list of people
+  or a drawing is still there when you come back, and the timer keeps time.
+*/
+
+include [ "counter.declare" ]
+
+include [ "temperature.declare" ]
+
+include [ "flight.declare" ]
+
+include [ "timer.declare" ]
+
+include [ "crud.declare" ]
+
+include [ "circles.declare" ]
+
+include [ "cells.declare" ]
+
+defaultFlags [ devices = desktop ]
+
+App [ appName = "7GUIs", minWidth = 760, minHeight = 520,
+    theme = { app.systemDark ? SanFranciscoDark : SanFrancisco },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    scrolls = none,
+
+    // ── where the user is: which task, in the URL
+
+    location = "counter",
+
+    layout: SimpleLayout [ axis = y ],
+
+    // ── the tabs
+
+    header: View [ width = 100%, padding = [14, 20, 14, 20], accessibilityRole = banner,
+        fill = { provided("theme").surface },
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, spacing = 20, align = center ],
+        Text [ fontSize = 17, fontWeight = semibold, wrap = false, text = "7GUIs" ],
+        TabBar [ flexes = true, accessibilityLabel = "Tasks",
+            value = { app.location },
+            items = { [ ({ id: "counter", label: "Counter", location: "counter" }),
+                        ({ id: "temperature", label: "Temperature", location: "temperature" }),
+                        ({ id: "flight", label: "Flight Booker", location: "flight" }),
+                        ({ id: "timer", label: "Timer", location: "timer" }),
+                        ({ id: "crud", label: "CRUD", location: "crud" }),
+                        ({ id: "circles", label: "Circle Drawer", location: "circles" }),
+                        ({ id: "cells", label: "Cells", location: "cells" }) ] },
+            commit(v: string) { app.location = v }
+            ]
+        ],
+
+    // ── the task on show
+
+    body: View [ width = 100%, flexes = true, accessibilityRole = main,
+        counter: CounterTask [ shows = "counter", width = 100%, height = 100% ],
+        temperature: TemperatureTask [ shows = "temperature", width = 100%, height = 100% ],
+        flight: FlightTask [ shows = "flight", width = 100%, height = 100% ],
+        timer: TimerTask [ shows = "timer", width = 100%, height = 100% ],
+        crud: CrudTask [ shows = "crud", width = 100%, height = 100% ],
+        circles: CirclesTask [ shows = "circles", width = 100%, height = 100% ],
+        cells: CellsTask [ shows = "cells", width = 100%, height = 100% ]
+        ]
+    ]

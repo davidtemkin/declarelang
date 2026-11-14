@@ -1,0 +1,197 @@
+/*
+# 6. Circle Drawer
+
+Undo and Redo above a canvas. Click an empty spot to draw a circle; the
+circle nearest the pointer that contains it is selected and filled grey;
+right-click it for "Adjust diameter…", which opens a small window with a
+slider. Closing the window makes the new diameter one step of history.
+
+- **The document** is `CircleDoc`, a class with no view: the circles and
+  the history, as two stacks of steps. Every change to the circles is a
+  method on it. A step is a record of what changed — a circle drawn, or a
+  diameter going from one size to another — so undoing one is applying it
+  backwards.
+- **The canvas** draws the circles (`draw`) and derives the selection from
+  where the pointer is. While a circle's menu is open the selection holds
+  on it. While its diameter is being adjusted the selection holds too, the
+  canvas takes no clicks and Undo and Redo wait, so the history can't
+  change under the open window.
+- Moving the slider changes the circle at once (`preview`, not a step);
+  closing the window records the whole adjustment as one step.
+*/
+
+schema Circle [ id: number, x: number, y: number, d: number ]
+
+// One step of history. A drawn circle carries the circle; an adjustment
+// carries the circle with its new diameter, and the diameter it had (`from`).
+
+schema CircleStep [ kind: "add" | "resize", circle: Circle, from: number ]
+
+
+class CircleDoc extends Node [
+    circles: Circle[] = [],
+    done: CircleStep[] = [],
+    undone: CircleStep[] = [],
+    lastId: number = 0,
+    canUndo: boolean = { this.done.length > 0 },
+    canRedo: boolean = { this.undone.length > 0 },
+
+    byId(id: number) -> Circle? { return circles.find((c) => c.id == id) ?? null },
+
+    // The circle nearest (x, y) among those containing it; 0 for none.
+
+    hit(x: number, y: number) -> number {
+        let best = 0
+        let bestDist = Infinity
+        for (const c of circles) {
+            const dist = Math.hypot(c.x - x, c.y - y)
+            if (dist <= c.d / 2 && dist < bestDist) { best = c.id; bestDist = dist }
+            }
+        return best
+        },
+
+    // ── steps
+
+    record(s: CircleStep) {
+        apply(s)
+        done = [...done, s]
+        undone = []
+        },
+    apply(s: CircleStep) {
+        if (s.kind == "add") circles = [...circles, s.circle]
+        else resize(s.circle.id, s.circle.d)
+        },
+    revert(s: CircleStep) {
+        if (s.kind == "add") circles = circles.filter((c) => c.id != s.circle.id)
+        else resize(s.circle.id, s.from)
+        },
+    resize(id: number, d: number) { circles = circles.map((c) => c.id == id ? ({ ...c, d: d }) : c) },
+
+    // ── the verbs
+
+    add(x: number, y: number, d: number) {
+        lastId = lastId + 1
+        record(({ kind: "add", circle: ({ id: lastId, x: x, y: y, d: d }), from: 0 }))
+        },
+    preview(id: number, d: number) { resize(id, d) },
+    commitResize(id: number, from: number) {
+        const c = byId(id)
+        if (c == null || c.d == from) return
+        // The circle already has its new size; the step records the change.
+        done = [...done, ({ kind: "resize", circle: c, from: from })]
+        undone = []
+        },
+    undo() {
+        if (done.length == 0) return
+        const s = done[done.length - 1]
+        revert(s)
+        done = done.slice(0, -1)
+        undone = [...undone, s]
+        },
+    redo() {
+        if (undone.length == 0) return
+        const s = undone[undone.length - 1]
+        apply(s)
+        undone = undone.slice(0, -1)
+        done = [...done, s]
+        }
+    ]
+
+
+class CircleDrawerTask [
+    doc: CircleDoc [ ],
+    diameter: number = 40,          // of a newly drawn circle
+
+    // ── where the user is
+
+    pointerX: number = 0,
+    pointerY: number = 0,
+    menuFor: number = 0,            // the circle the context menu was opened on
+    adjusting: number = 0,          // the circle in the adjust window, 0 for none
+    adjustFrom: number = 0,         // its diameter when the window opened
+    under: number = { classroot.canvas.hovered ? classroot.doc.hit(classroot.pointerX, classroot.pointerY) : 0 },
+    held: number = { classroot.adjusting != 0 ? classroot.adjusting : classroot.menu.shown ? classroot.menuFor : 0 },
+    selected: number = { classroot.held != 0 ? classroot.held : classroot.under },
+    adjusted: Circle? = { classroot.doc.byId(classroot.adjusting) },
+
+    startAdjust() {
+        const c = doc.byId(menuFor)
+        if (c == null) return
+        adjustFrom = c.d
+        adjusting = c.id
+        },
+    finishAdjust() {
+        doc.commitResize(adjusting, adjustFrom)
+        adjusting = 0
+        },
+    undo() { if (adjusting == 0) doc.undo() },
+    redo() { if (adjusting == 0) doc.redo() },
+
+    keyBindings = { [ ({ key: "Ctrl+Z", command: "undo", label: "Undo" }),
+                      ({ key: "Ctrl+Shift+Z", command: "redo", label: "Redo" }) ] },
+
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    padding = 4,
+
+    bar: View [ x = center,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Button [ label = "Undo", disabled = { !classroot.doc.canUndo || classroot.adjusting != 0 },
+            onClick() { classroot.undo() }
+            ],
+        Button [ label = "Redo", disabled = { !classroot.doc.canRedo || classroot.adjusting != 0 },
+            onClick() { classroot.redo() }
+            ]
+        ],
+
+    canvas: View [ width = 100%, flexes = true, clip = true, cornerRadius = 6,
+        accessibilityRole = image, accessibilityLabel = "Circles",
+        fill = { provided("theme").canvas }, stroke = { stroke(1, provided("theme").line) },
+        onPointerMove(e: PointerEvent) { classroot.pointerX = e.x; classroot.pointerY = e.y },
+        onClick(e: PointerEvent) {
+            if (classroot.adjusting != 0) return
+            if (classroot.doc.hit(e.x, e.y) == 0) classroot.doc.add(e.x, e.y, classroot.diameter)
+            },
+        onContextMenu(e: PointerEvent) {
+            if (classroot.adjusting != 0) return
+            const id = classroot.doc.hit(e.x, e.y)
+            if (id == 0) return
+            classroot.menuFor = id
+            classroot.menu.showAt(this, e)
+            },
+        draw(d: DrawContext) {
+            const t = provided("theme")
+            d.lineWidth = 1.5
+            d.strokeStyle = t.text
+            d.fillStyle = t.circleFill
+            for (const c of classroot.doc.circles) {
+                d.beginPath()
+                d.arc(c.x, c.y, c.d / 2, 0, Math.PI * 2)
+                if (c.id == classroot.selected) d.fill()
+                d.stroke()
+                }
+            }
+        ],
+
+    menu: ContextMenu [
+        items = { [ ({ id: "adjust", label: "Adjust diameter…" }) ] },
+        picked(id: string) { if (id == "adjust") classroot.startAdjust() }
+        ],
+
+    // The adjust window: open while a circle is being adjusted. Its close
+    // button (or Esc) is the end of the adjustment.
+
+    adjustWindow: Window [ ignoreLayout = true, x = 40, y = 70, width = 320, height = 140,
+        title = "Adjust diameter",
+        open = { classroot.adjusting != 0 },
+        commit(v: boolean) { if (!v) classroot.finishAdjust() },
+        View [ width = 100%, padding = 16,
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            Text [ text = { classroot.adjusted == null ? ""
+                : `Adjust diameter of circle at (${Math.round(classroot.adjusted.x)}, ${Math.round(classroot.adjusted.y)}).` } ],
+            Slider [ width = 100%, min = 4, max = 200, step = 1, accessibilityLabel = "Diameter",
+                value = { classroot.adjusted?.d ?? 0 },
+                commit(v: number) { classroot.doc.preview(classroot.adjusting, v) }
+                ]
+            ]
+        ]
+    ]

@@ -1,0 +1,97 @@
+/*
+# Presentify: a slide, drawn
+
+`SlideView` draws one slide record at its true size, 1280 × 720 points, and a
+use site scales it: the editor's canvas, a thumbnail in the list, a card in
+the library, the presenter's screen. One drawing everywhere, so a presentation
+looks exactly as it does in the editor.
+
+Each element is a view of its kind, chosen from the record by `classFor`; a
+group holds its children the same way, so groups nest. Nothing here takes the
+pointer: the editor's canvas does the hit-testing itself, over the data.
+
+A slide in the editor provides `liveSlide`: there the text box being typed
+in steps aside for the field, and a text box being worked on reports its height
+as its lines grow.
+*/
+
+class SlideView [ width = 1280, height = 720, pivotX = 0, pivotY = 0, clip = true, pointerEvents = "none",
+    fill = { hexColor(:background ?? "#FFFFFF") },
+    Shape [ datapath = :elements[],
+        classFor = { :kind == "rect" ? RectShape : :kind == "ellipse" ? EllipseShape : :kind == "line" ? LineShape : :kind == "text" ? TextShape : GroupShape } ]
+    ]
+
+
+class Shape [ pointerEvents = "none" ]
+
+class RectShape extends Shape [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    fill = { hexColor(:fill) },
+    cornerRadius = { Math.min(:cornerRadius ?? 0, (:width ?? 0) / 2, (:height ?? 0) / 2) },
+    stroke = { :stroke == null ? null : stroke(:stroke.width, hexColor(:stroke.color)) }
+    ]
+
+
+// An ellipse is drawn: a box can round its corners, not become an oval.
+// The outline sits inside the box, as a rectangle's does.
+
+class EllipseShape extends Shape [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    fillHex: string? = { :fill },
+    line: LineStyle? = { :stroke },
+    draw(d: DrawContext) {
+        const sw = line?.width ?? 0
+        const rx = Math.max(0, d.w / 2 - sw / 2), ry = Math.max(0, d.h / 2 - sw / 2)
+        d.beginPath()
+        d.ellipse(d.w / 2, d.h / 2, rx, ry, 0, 0, Math.PI * 2)
+        if (fillHex != null) { d.fillStyle = hexColor(fillHex); d.fill() }
+        if (line != null && sw > 0) { d.strokeStyle = hexColor(line.color); d.lineWidth = sw; d.stroke() }
+        }
+    ]
+
+
+// A line's box is its two ends', grown by the stroke so round caps show.
+
+class LineShape extends Shape [
+    pad: number = { (:stroke?.width ?? 2) / 2 + 1 },
+    x1: number = { :x1 ?? 0 },
+    y1: number = { :y1 ?? 0 },
+    x2: number = { :x2 ?? 0 },
+    y2: number = { :y2 ?? 0 },
+    x = { Math.min(this.x1, this.x2) - this.pad }, y = { Math.min(this.y1, this.y2) - this.pad },
+    width = { Math.abs(this.x2 - this.x1) + 2 * this.pad }, height = { Math.abs(this.y2 - this.y1) + 2 * this.pad },
+    line: LineStyle? = { :stroke },
+    draw(d: DrawContext) {
+        if (line == null) return
+        const ox = Math.min(x1, x2) - pad, oy = Math.min(y1, y2) - pad
+        d.strokeStyle = hexColor(line.color)
+        d.lineWidth = line.width
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(x1 - ox, y1 - oy)
+        d.lineTo(x2 - ox, y2 - oy)
+        d.stroke()
+        }
+    ]
+
+
+class TextShape extends Shape [ x = { :x ?? 0 }, y = { :y ?? 0 },
+    live: boolean = { provided("liveSlide", false) },
+    tid: string = { :id ?? "" },
+    size: number = { :text?.size ?? 32 },
+    opacity = { this.live && app.ed.editingId == this.tid ? 0 : 1 },
+    t: Text [ width = { :width ?? 100 }, lineHeight = 1.2, text = { :text?.content ?? "" },
+        fontFamily = { app.faceFor(:text?.font ?? "Inter") }, fontSize = { classroot.size },
+        fontWeight = { :text?.weight ?? 400 }, italic = { :text?.italic ?? false },
+        textColor = { hexColor(:text?.color ?? "#000000") }, textAlign = { :text?.align ?? "left" } ],
+
+    // its height as laid out: at least one line, so an empty box has room for the caret
+
+    laid: number = { Math.max(this.t.height, this.size * 1.2) },
+    trackChanges = ["laid"],
+    onChange() { if (live && app.ed.touching(tid)) app.ed.noteHeight(tid, laid) }
+    ]
+
+
+class GroupShape extends Shape [
+    Shape [ datapath = :children[],
+        classFor = { :kind == "rect" ? RectShape : :kind == "ellipse" ? EllipseShape : :kind == "line" ? LineShape : :kind == "text" ? TextShape : GroupShape } ]
+    ]

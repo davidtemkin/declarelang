@@ -1,0 +1,13 @@
+FAIL  nulls_bio_fields  (3.7 s)  [1/3 checks] — null bio should not render as literal "null" on profile page: a user with no bio has "" (codes f13d) under their name ‖ setting then clearing bio should not show stale data: a cleared bio shows ""
+PASS  errors_auth_forms  (3.8 s)  [4/4 checks]
+PASS  errors_editor  (4.1 s)  [4/4 checks]
+PASS  errors_settings  (3.6 s)  [3/3 checks]
+FAIL  errors_article  (10.9 s)  [6/7 checks] — should handle 403 when deleting another users comment: a 403 on deleting a comment: no error message shown
+note  the app routes by hash (#/…); the spec's routes were taken as hash routes
+3 of 5 scenarios passed (18 of 21 ported tests) · evals/reports/2026-11-12-realworld-run2-local/audit/drive-probe-out/results.json
+PASS  nulls_bio_fields  (3.5 s)  [3/3 checks]
+note  the app routes by hash (#/…); the spec's routes were taken as hash routes
+1 of 1 scenarios passed (3 of 3 ported tests) · evals/reports/2026-11-12-realworld-run2-local/audit/drive-probe-out/results.json
+PASS  article_delete  (4.4 s)  [2/2 checks]
+note  the app routes by hash (#/…); the spec's routes were taken as hash routes
+1 of 1 scenarios passed (2 of 2 ported tests) · evals/reports/2026-11-12-realworld-run2-local/audit/drive-probe-out/results.json

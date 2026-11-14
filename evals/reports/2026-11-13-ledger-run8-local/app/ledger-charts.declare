@@ -1,0 +1,387 @@
+/*
+# Ledger: the charts
+
+A time chart is one control: one stop for the keyboard, whose arrows move
+between periods (left and right) and series (up and down), each point
+announced in a sentence; Enter, or a click, opens the records behind the
+point. Pointing at a mark shows the same facts in a tip, and dragging across
+the chart selects a range of periods and offers it as the date filter.
+
+`TimeChart` draws what every time chart shares (the axis from zero, compact
+labels, the partial period marked, the point under the spot) and its two
+kinds draw their marks over it: `TrendChart`, one measure as a line with the
+comparison period dashed beside it, and `FlowChart`, income and expense bars
+with net profit as a line (and, optionally, its running total).
+
+When the data changes, the marks move from the old values to the new: a
+Spring carries `pos` toward `gen`, and every value drawn is the old one eased
+toward the new by how far it has come. With reduced motion asked for, the
+new values are drawn at once.
+*/
+
+class TimeChart extends Control [ width = 100%, height = 260, cornerRadius = 6,
+    data: ChartData? = null,
+    names: string[] = [],              // each series' name
+    opens: string[] = [],              // the kinds each series' records are ("" = every kind)
+    tones: Color[] = [],
+    by: string = "month",
+    format: "money" | "pct" | "count" = "money",
+    cmpName: string = "",              // the comparison period's name, when one is drawn
+    cumulative: number = -1,           // a series that runs from the first period (a running total)
+    title: string = "",
+
+    rows: ChartPoint[] = { classroot.data?.rows ?? [] },
+    periods: number = { classroot.rows.length },
+
+    // ── where the person is: the period and the series
+
+    spot: number = -1,
+    ser: number = 0,
+    point: ChartPoint? = { classroot.spot >= 0 && classroot.spot < classroot.periods ? classroot.rows[classroot.spot] : null },
+
+    // ── motion between old values and new
+
+    gen: number = 0,
+    pos: number = 0,
+    Spring [ attribute = pos, to = { classroot.gen }, stiffness = 120, damping = 20 ],
+    still: boolean = { provided("accessibilitySettings").reduceMotion },
+    t: number = { classroot.still ? 1 : Math.max(0, Math.min(1, 1 - (classroot.gen - classroot.pos))) },
+    old: number[][] = [],
+    trackChanges = ["data"],
+    onChange() {
+        old = rows.map((r, i) => r.v.map((x, s) => this.shown(i, s)))
+        gen = gen + 1
+        if (spot >= periods) spot = periods - 1
+        },
+
+    // a value as drawn now: the old one eased toward the new
+
+    shown(i: number, s: number) -> number {
+        const now = this.rows[i]?.v[s] ?? 0
+        const was = this.old[i]?.[s] ?? 0
+        return was + (now - was) * this.t
+        },
+
+    // ── geometry: the plot inside room for the axis labels
+
+    padL: number = 56,
+    padB: number = 26,
+    padT: number = 12,
+    plotW: number = { Math.max(1, classroot.width - classroot.padL - 8) },
+    plotH: number = { Math.max(1, classroot.height - classroot.padB - classroot.padT) },
+    slot: number = { classroot.plotW / Math.max(1, classroot.periods) },
+
+    // the scale: from zero (or the lowest value, when net goes below it) to a round top
+
+    top: number = { niceTop(Math.max(1, ...classroot.rows.flatMap((r) => [...r.v, r.c ?? 0]))) },
+    floor: number = { Math.min(0, ...classroot.rows.flatMap((r) => r.v)) < 0 ? -niceTop(-Math.min(0, ...classroot.rows.flatMap((r) => r.v))) : 0 },
+    px(i: number) -> number { return this.padL + (i + 0.5) * this.slot },
+    py(v: number) -> number { return this.padT + (this.top - v) / Math.max(1, this.top - this.floor) * this.plotH },
+    indexAt(x: number) -> number { return Math.max(0, Math.min(this.periods - 1, Math.floor((x - this.padL) / this.slot))) },
+
+    fmt(v: number) -> string {
+        return format == "pct" ? v.toFixed(1) + "%" : format == "count" ? count(Math.round(v)) : money(Math.round(v))
+        },
+    axisFmt(v: number) -> string {
+        return format == "pct" ? Math.round(v) + "%" : format == "count" ? "" + Math.round(v) : moneyCompact(v)
+        },
+
+    // ── what a point says: in the tip, and to a screen reader
+
+    change(i: number, s: number) -> string {
+        const r = this.rows[i]
+        if (r == null) return ""
+        const v = r.v[s] ?? 0
+        const base = s == 0 && r.c != null ? r.c : i > 0 ? (this.rows[i - 1].v[s] ?? 0) : null
+        if (base == null) return ""
+        const against = s == 0 && r.c != null ? this.cmpName : this.rows[i - 1].label
+        if (format == "pct") return (v >= base ? "up " : "down ") + Math.abs(v - base).toFixed(1) + " points from " + against
+        if (base == 0) return v == 0 ? "no change from " + against : "up from nothing in " + against
+        const p = (v - base) / Math.abs(base) * 100
+        return (p >= 0 ? "up " : "down ") + pctText(p) + " from " + against
+        },
+    sentence(i: number, s: number) -> string {
+        const r = this.rows[i]
+        if (r == null) return ""
+        const parts = [r.label + (r.partial ? " (so far)" : ""), this.names[s] ?? "", this.fmt(r.v[s] ?? 0), this.change(i, s),
+            count(r.n[s] ?? 0) + " transactions"]
+        return parts.filter((p) => p != "").join(", ")
+        },
+
+    // ── moving, by key and by pointer
+
+    move(d: number) {
+        if (periods == 0) return
+        spot = Math.max(0, Math.min(periods - 1, spot < 0 ? (d > 0 ? 0 : periods - 1) : spot + d))
+        Accessibility.announce(this.sentence(spot, ser))
+        },
+    series(d: number) {
+        if (names.length < 2) return
+        ser = (ser + d + names.length) % names.length
+        if (spot < 0) spot = periods - 1
+        Accessibility.announce(this.sentence(spot, ser))
+        },
+    first() { spot = 0; Accessibility.announce(this.sentence(0, ser)) },
+    last() { spot = periods - 1; Accessibility.announce(this.sentence(periods - 1, ser)) },
+    keyBindings = { [ ({ key: "ArrowRight", command: "next" }), ({ key: "ArrowLeft", command: "prev" }),
+        ({ key: "ArrowUp", command: "up" }), ({ key: "ArrowDown", command: "down" }),
+        ({ key: "Home", command: "first" }), ({ key: "End", command: "last" }) ] },
+    next() { this.move(1) },
+    prev() { this.move(-1) },
+    up() { this.series(-1) },
+    down() { this.series(1) },
+
+    // the series under the pointer, for kinds that draw several side by side
+
+    seriesAt(i: number, x: number, y: number) -> number { return ser },
+    onPointerMove(e: PointerEvent) {
+        if (periods == 0 || e.x < padL) return
+        spot = this.indexAt(e.x)
+        ser = this.seriesAt(spot, e.x, e.y)
+        },
+
+    // Enter, Space or a click: the records behind the point
+
+    press() {
+        const r = point
+        if (r != null) app.openPeriod(ser == cumulative ? rows[0].from : r.from, r.to, opens[ser] ?? "", title)
+        },
+
+    // ── a drag across the chart selects periods, offered as the date filter
+
+    dragA: number = -1,
+    dragB: number = -1,
+    onDragStart(e: PointerEvent) { dragA = this.indexAt(e.x); dragB = dragA },
+    onDrag(e: PointerEvent) { dragB = this.indexAt(e.x); spot = dragB },
+    onDragEnd(e: DragEndEvent) {
+        const a = Math.min(dragA, dragB), b = Math.max(dragA, dragB)
+        if (!e.canceled && a >= 0 && b > a) app.offerRange(rows[a].from, rows[b].to, rows[a].label + " – " + rows[b].label)
+        dragA = -1
+        dragB = -1
+        },
+
+    accessibilityRole = image,
+    accessibilityLabel = { classroot.title + ". " + classroot.periods + " periods. Arrow keys move between periods and series; Enter opens the transactions." },
+    accessibilityValueText = { classroot.point == null ? "" : classroot.sentence(classroot.spot, classroot.ser) },
+
+    // ── the frame every kind shares
+
+    frame(d: DrawContext) {
+        const th = provided("theme")
+        // a period that isn't over yet, marked so its dip isn't misread
+        rows.forEach((r, i) => {
+            if (!r.partial) return
+            d.fillStyle = th.partial
+            d.fillRect(this.padL + i * this.slot, this.padT, this.slot, this.plotH)
+            })
+        // the band a drag is selecting
+        if (dragA >= 0) {
+            const a = Math.min(dragA, dragB), b = Math.max(dragA, dragB)
+            d.fillStyle = th.selection
+            d.fillRect(this.padL + a * this.slot, this.padT, (b - a + 1) * this.slot, this.plotH)
+            }
+        // the grid and its compact labels, from zero
+        d.font = "11px system-ui, sans-serif"
+        d.textAlign = "right"
+        d.textBaseline = "middle"
+        const steps = 4
+        for (let k = 0; k <= steps; k = k + 1) {
+            const v = this.floor + (this.top - this.floor) * k / steps
+            const y = this.py(v)
+            d.strokeStyle = v == 0 ? th.lineStrong : th.line
+            d.lineWidth = 1
+            d.beginPath()
+            d.moveTo(this.padL, Math.round(y) + 0.5)
+            d.lineTo(this.padL + this.plotW, Math.round(y) + 0.5)
+            d.stroke()
+            d.fillStyle = th.textMuted
+            d.fillText(this.axisFmt(v), this.padL - 8, y)
+            }
+        // period ticks, as many as fit
+        d.textAlign = "center"
+        d.textBaseline = "top"
+        const every = Math.max(1, Math.ceil(56 / this.slot))
+        rows.forEach((r, i) => {
+            if (i % every != 0) return
+            d.fillStyle = r.partial ? th.textFaint : th.textMuted
+            d.fillText(r.tick + (r.partial ? "*" : ""), this.px(i), this.padT + this.plotH + 8)
+            })
+        // the period under the spot
+        if (spot >= 0 && spot < periods) {
+            d.fillStyle = th.hover
+            d.globalAlpha = 0.6
+            d.fillRect(this.padL + spot * this.slot, this.padT, this.slot, this.plotH)
+            d.globalAlpha = 1
+            }
+        },
+    marks(d: DrawContext) { },
+    draw(d: DrawContext) {
+        this.frame(d)
+        this.marks(d)
+        },
+
+    // ── the tip: period, series, value, change and periods
+
+    tip: View [ visible = { (classroot.hovered || classroot.focused) && classroot.point != null },
+        pointerEvents = "none", ignoreLayout = true, cornerRadius = 8, padding = [8, 10, 8, 10],
+        x = { Math.max(0, Math.min(classroot.width - this.width, classroot.px(classroot.spot) + 14)) },
+        y = 4,
+        fill = { provided("theme").tooltipFill },
+        shadow = { shadow(0, 4, 14, 0x00000030) },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 12, fontWeight = semibold, wrap = false, textColor = { provided("theme").tooltipTextColor },
+            text = { (classroot.point?.label ?? "") + ((classroot.point?.partial ?? false) ? " · so far" : "") } ],
+        Text [ fontSize = 12, wrap = false, textColor = { provided("theme").tooltipTextColor },
+            text = { (classroot.names[classroot.ser] ?? "") + ": " + classroot.fmt(classroot.point?.v[classroot.ser] ?? 0) } ],
+        Text [ fontSize = 11.5, wrap = false, textColor = { provided("theme").tooltipTextColor }, opacity = 0.8,
+            text = { classroot.change(classroot.spot, classroot.ser) } ],
+        Text [ fontSize = 11.5, wrap = false, textColor = { provided("theme").tooltipTextColor }, opacity = 0.8,
+            text = { count(classroot.point?.n[classroot.ser] ?? 0) + " transactions · Enter or click to open" } ]
+        ]
+    ]
+
+
+// One measure over time, the comparison period dashed beside it.
+
+class TrendChart extends TimeChart [
+    marks(d: DrawContext) {
+        const th = provided("theme")
+        const tone = tones[0] ?? th.accent
+        // the comparison, dashed
+        if (rows.some((r) => r.c != null)) {
+            d.strokeStyle = th.compare
+            d.lineWidth = 1.5
+            d.setLineDash([5, 4])
+            d.beginPath()
+            let started = false
+            rows.forEach((r, i) => {
+                if (r.c == null) return
+                const y = this.py(r.c * this.t)
+                if (!started) { d.moveTo(this.px(i), y); started = true } else { d.lineTo(this.px(i), y) }
+                })
+            d.stroke()
+            d.setLineDash([])
+            }
+        // the measure: solid while periods are whole, dashed into a partial one
+        d.strokeStyle = tone
+        d.lineWidth = 2.2
+        d.lineJoin = "round"
+        for (let i = 1; i < periods; i = i + 1) {
+            d.setLineDash(rows[i].partial ? [3, 3] : [])
+            d.beginPath()
+            d.moveTo(this.px(i - 1), this.py(this.shown(i - 1, 0)))
+            d.lineTo(this.px(i), this.py(this.shown(i, 0)))
+            d.stroke()
+            }
+        d.setLineDash([])
+        rows.forEach((r, i) => {
+            d.fillStyle = i == spot ? tone : th.card
+            d.strokeStyle = tone
+            d.lineWidth = 2
+            d.beginPath()
+            d.arc(this.px(i), this.py(this.shown(i, 0)), i == spot ? 4.5 : 3, 0, 6.3)
+            d.fill()
+            d.stroke()
+            })
+        }
+    ]
+
+
+// Income and expense bars per period, net profit as a line, and — with
+// `running` — the running total of net profit, which answers "when did we
+// break even?".
+
+class FlowChart extends TimeChart [
+    running: boolean = false,
+    seriesAt(i: number, x: number, y: number) -> number {
+        if (Math.abs(y - this.py(this.rows[i]?.v[2] ?? 0)) < 8) return 2
+        if (running && Math.abs(y - this.py(this.rows[i]?.v[3] ?? 0)) < 8) return 3
+        return x < this.px(i) ? 0 : 1
+        },
+    marks(d: DrawContext) {
+        const th = provided("theme")
+        const bw = Math.max(2, Math.min(22, this.slot * 0.34))
+        rows.forEach((r, i) => {
+            for (let s = 0; s < 2; s = s + 1) {
+                const v = this.shown(i, s)
+                const x = s == 0 ? this.px(i) - bw - 1 : this.px(i) + 1
+                const y0 = this.py(0), y1 = this.py(v)
+                d.fillStyle = tones[s] ?? th.accent
+                d.globalAlpha = r.partial ? 0.55 : (i == spot && s == ser ? 1 : 0.88)
+                d.fillRect(x, Math.min(y0, y1), bw, Math.max(1, Math.abs(y0 - y1)))
+                }
+            })
+        d.globalAlpha = 1
+        const line = (s: number, dash: number[]) => {
+            d.strokeStyle = tones[s] ?? th.net
+            d.lineWidth = 2
+            d.setLineDash(dash)
+            d.beginPath()
+            rows.forEach((r, i) => {
+                const y = this.py(this.shown(i, s))
+                if (i == 0) { d.moveTo(this.px(i), y) } else { d.lineTo(this.px(i), y) }
+                })
+            d.stroke()
+            d.setLineDash([])
+            rows.forEach((r, i) => {
+                d.fillStyle = tones[s] ?? th.net
+                d.beginPath()
+                d.arc(this.px(i), this.py(this.shown(i, s)), i == spot && s == ser ? 4.5 : 2.5, 0, 6.3)
+                d.fill()
+                })
+            }
+        line(2, [])
+        if (running) line(3, [6, 4])
+        }
+    ]
+
+
+// The table version of a time chart: everything it shows, every number a
+// press that opens its records.
+
+class ChartTable [ width = 100%,
+    chart: TimeChart? = null,
+    heads: Dataset [ contents = { { rows: (classroot.chart?.names ?? []).map((n, i) => ({ id: "" + i, name: n })) } } ],
+    layout: SimpleLayout [ axis = y ],
+    head: View [ width = 100%, height = 30, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Caption [ width = 150, text = "Period" ],
+        View [ datapath = { classroot.heads.value }, flexes = true,
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            Caption [ datapath = :rows[], flexes = true, textAlign = right, text = :name ]
+            ],
+        Caption [ width = 110, textAlign = right, visible = { (classroot.chart?.cmpName ?? "") != "" },
+            text = { classroot.chart?.cmpName ?? "" } ]
+        ],
+    body: View [ width = 100%, datapath = { classroot.chart?.data },
+        layout: SimpleLayout [ axis = y ],
+        ChartTableRow [ datapath = :rows[], chart = { classroot.chart } ]
+        ]
+    ]
+
+
+class ChartTableRow [ width = 100%, height = 30,
+    point: ChartPoint? = { :@ },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    chart: TimeChart? = null,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ width = 150, fontSize = 12.5, wrap = false, text = { (:label ?? "") + ((:partial ?? false) ? " (so far)" : "") } ],
+    values: Dataset [ contents = { { rows: (:v ?? []).map((x, s) => ({ id: "" + s, s: s, x: x })) } } ],
+    cells: View [ flexes = true, datapath = { classroot.values.value },
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Control [ datapath = :rows[], flexes = true, height = 26, cornerRadius = 4,
+            accessibilityLabel = { classroot.chart?.sentence(classroot.rowIndex, :s ?? 0) ?? "" },
+            fill = { hovered ? provided("theme").hover : null },
+            press() {
+                const r = classroot.point
+                if (r != null && classroot.chart != null) app.openPeriod(r.from, r.to, classroot.chart.opens[:s ?? 0] ?? "", classroot.chart.title)
+                },
+            TextLabel [ x = end, fontSize = 12.5, wrap = false, numeralWidth = tabular,
+                text = { classroot.chart?.fmt(:x ?? 0) ?? "" } ]
+            ]
+        ],
+    Text [ width = 110, fontSize = 12.5, wrap = false, textAlign = right, numeralWidth = tabular,
+        textColor = { provided("theme").textMuted },
+        visible = { (classroot.chart?.cmpName ?? "") != "" },
+        text = { :c == null ? "—" : classroot.chart?.fmt(:c ?? 0) ?? "" } ]
+    ]

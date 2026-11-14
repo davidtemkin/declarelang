@@ -1,0 +1,11 @@
+// A schema declared on a class that extends Dataset is not seen by the :path check:
+// the same typo is refused when `schema` is on the instance (schema-on-instance.declare).
+schema Section [ name: string, priceCents: number ]
+schema Plan [ sections[]: Section ]
+class PlanData extends Dataset [ schema = Plan ]
+App [ width = 400, height = 300,
+    plan: PlanData [ contents = { { sections: [ { name: "Orchestra", priceCents: 8000 } ] } } ],
+    View [ datapath = { app.plan.value }, layout: SimpleLayout [ axis = y ],
+        Text [ datapath = :sections[], text = { :nmae ?? "" } ]
+        ]
+    ]

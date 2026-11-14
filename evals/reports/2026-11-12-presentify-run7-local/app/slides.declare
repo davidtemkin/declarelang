@@ -1,0 +1,116 @@
+/*
+# Presentify: drawing a slide
+
+One class draws a slide wherever one is shown — the stage, the slide list,
+the presentations' covers, presenting — so they can never disagree. A
+`SlideView` is always 1280 × 720 points; a host shows it at any size with
+`scale` (pivot at the top left), and everything inside stays in slide
+points.
+
+Each element is a view of the class its `kind` names, replicated over the
+slide's `elements`, back to front, so a change to one element moves exactly
+that view. None of them takes the pointer: the editor hit-tests in slide
+points itself (`Stage`, in `editor.declare`).
+*/
+
+class SlideView [ width = 1280, height = 720, clip = true, pointerEvents = "none",
+    pivotX = 0, pivotY = 0,
+
+    // The text box being edited is drawn by its field instead (on the stage
+    // only); its shape steps aside.
+
+    hidden: string = "",
+
+    fill = { app.color(:background ?? "#FFFFFF") },
+    Shape [ datapath = :elements[], classFor = { :kind == "group" ? GroupShape : :kind == "line" ? LineShape : :kind == "text" ? TextShape : :kind == "ellipse" ? EllipseShape : RectShape } ]
+    ]
+
+
+// The base of every element's view.
+
+class Shape [ pointerEvents = "none" ]
+
+class RectShape extends Shape [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    fill = { app.color(:fill ?? "") },
+    stroke = { app.outline(:stroke) },
+    cornerRadius = { Math.min(:cornerRadius ?? 0, (:width ?? 0) / 2, (:height ?? 0) / 2) }
+    ]
+
+
+// An ellipse is drawn: its outline, like a rectangle's, lies inside its box.
+
+class EllipseShape extends Shape [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    paint: string = { :fill ?? "" },
+    line: StrokeStyle? = { :stroke },
+    draw(d: DrawContext) {
+        const sw = classroot.line?.width ?? 0
+        const rx = Math.max(0, d.w / 2 - sw / 2), ry = Math.max(0, d.h / 2 - sw / 2)
+        d.beginPath()
+        d.ellipse(d.w / 2, d.h / 2, rx, ry, 0, 0, Math.PI * 2)
+        if (classroot.paint != "") { d.fillStyle = app.color(classroot.paint); d.fill() }
+        if (classroot.line != null && sw > 0) { d.lineWidth = sw; d.strokeStyle = app.color(classroot.line.color); d.stroke() }
+        }
+    ]
+
+
+// A line's view is its bounds, grown by the stroke so the round caps show.
+
+class LineShape extends Shape [
+    x1: number = { :x1 ?? 0 },
+    y1: number = { :y1 ?? 0 },
+    x2: number = { :x2 ?? 0 },
+    y2: number = { :y2 ?? 0 },
+    line: StrokeStyle? = { :stroke },
+    pad: number = { (classroot.line?.width ?? 2) / 2 + 2 },
+    x = { Math.min(classroot.x1, classroot.x2) - classroot.pad },
+    y = { Math.min(classroot.y1, classroot.y2) - classroot.pad },
+    width = { Math.abs(classroot.x2 - classroot.x1) + 2 * classroot.pad },
+    height = { Math.abs(classroot.y2 - classroot.y1) + 2 * classroot.pad },
+    draw(d: DrawContext) {
+        const s = classroot.line
+        if (s == null || s.width <= 0) return
+        const ox = Math.min(classroot.x1, classroot.x2) - classroot.pad
+        const oy = Math.min(classroot.y1, classroot.y2) - classroot.pad
+        d.lineWidth = s.width
+        d.lineCap = "round"
+        d.strokeStyle = app.color(s.color)
+        d.beginPath()
+        d.moveTo(classroot.x1 - ox, classroot.y1 - oy)
+        d.lineTo(classroot.x2 - ox, classroot.y2 - oy)
+        d.stroke()
+        }
+    ]
+
+
+// A text box: one block, one style, wrapped in its width and as tall as its
+// words.
+
+class TextShape extends Shape [
+    x = { :x ?? 0 }, y = { :y ?? 0 },
+    visible = { :id != provided("hidden", "") },
+    Text [ width = { :width ?? 0 }, wrap = true, lineHeight = 1.2,
+        text = { :text.content ?? "" },
+        fontFamily = { [:text.font ?? "Helvetica Neue", "Helvetica Neue", "Arial", "sans-serif"] },
+        fontSize = { :text.size ?? 24 },
+        fontWeight = { (:text.weight ?? 400) as FontWeight },
+        italic = { :text.italic ?? false },
+        textColor = { app.color(:text.color ?? "#000000") },
+        textAlign = { :text.align ?? "left" } ]
+    ]
+
+
+// A group draws its children where they are: they keep slide coordinates.
+
+class GroupShape extends Shape [ width = 1280, height = 720,
+    Shape [ datapath = :children[], classFor = { :kind == "group" ? GroupShape : :kind == "line" ? LineShape : :kind == "text" ? TextShape : :kind == "ellipse" ? EllipseShape : RectShape } ]
+    ]
+
+
+// A slide at a given width, in a frame of that size: the slide list's
+// thumbnails, the presentations' covers.
+
+class SlideThumb [ height = { this.width * 9 / 16 }, clip = true,
+    SlideView [ scale = { parent.width / 1280 } ]
+    ]

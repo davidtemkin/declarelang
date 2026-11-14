@@ -1,0 +1,4 @@
+PASS  article_delete  4.4 s  met
+      checks: ✓ should delete an article | ✓ should delete an article when server returns 200 instead of 204
+note  the app routes by hash (#/…); the spec's routes were taken as hash routes
+1 of 1 scenarios passed (2 of 2 ported tests) in 5 s

@@ -1,0 +1,10 @@
+// Run 32 audit: the Tab-order layout check, with tabOrder() naming a hidden panel's
+// child (the desk-only aside on a phone), and a bar that is a sibling of the scroller.
+App [ width = 390, height = 600,
+    hall: View [ width = 100%, height = 600,
+        tabOrder() -> View[] { return [this.top, this.aside.picked, this.bar] },
+        top: View [ y = 0, Button [ label = "Heading stop" ] ],
+        aside: View [ visible = false, y = 400, picked: View [ Button [ label = "Continue to checkout" ] ] ],
+        bar: View [ y = 300, Button [ label = "Continue" ] ]
+        ]
+    ]

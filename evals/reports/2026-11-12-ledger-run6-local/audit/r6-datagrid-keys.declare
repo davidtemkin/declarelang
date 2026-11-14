@@ -1,0 +1,13 @@
+// Lead: DataGrid in-place editing after today's key-consumption change (focus.ts deliverDown).
+// An edit column and an own-class cell holding a TextInput: Enter enters, typing replaces after
+// ⌘A, Enter commits, Escape cancels, and the grid keeps the keyboard after each.
+class NoteCell [ width = 100%, height = 100%,
+    f: TextInput [ x = 2, y = 4, width = { parent.width - 4 }, height = { parent.height - 8 }, commitOn = "end",
+        accessibilityLabel = "Note", value = { :note }, commit(v: string) { :note = v } ] ]
+App [ width = 600, height = 300, fill = white,
+    rows: Dataset { { "items": [ { "id": "a", "title": "Alpha", "note": "one" }, { "id": "b", "title": "Beta", "note": "two" } ] } },
+    grid: DataGrid [ x = 10, y = 10, width = 560, height = 200, accessibilityLabel = "G",
+        items = { app.rows.value.items },
+        columns = { [ ({ id: "title", title: "Title", width: 200, edit: true, commitOn: "end" }),
+                      ({ id: "note", title: "Note", width: 200, cell: "NoteCell" }) ] } ]
+    ]

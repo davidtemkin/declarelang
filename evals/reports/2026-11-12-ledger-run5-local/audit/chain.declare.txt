@@ -1,0 +1,10 @@
+// A two-step chain inside a class, its input set by the instance's constraint
+class K [ width = 50, height = 20,
+    a: string? = null,
+    m: boolean = { classroot.a == null },
+    n: string = { classroot.m ? "missing" : "present" },
+    fill = { classroot.m ? 0xFF0000 : 0x00AA00 } ]
+App [ width = 200, height = 100,
+    k: K [ a = { "x" } ],
+    k2: K [ y = 30, a = "x" ]
+    ]

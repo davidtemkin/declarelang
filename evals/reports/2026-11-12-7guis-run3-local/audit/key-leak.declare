@@ -1,0 +1,11 @@
+// d13: a focused view's onKeyDown opens a field that focuses itself; does the same key ALSO
+// type into it? (The run saw "55" for beginEdit(e.key); its delivered sheet relies on the leak.)
+App [ width = 300, height = 140, fill = white, editing: boolean = false, draft: string = "",
+    grid: View [ x = 20, y = 20, width = 200, height = 60, focusable = true, accessibilityLabel = "Grid",
+        fill = 0xEEEEEE,
+        onKeyDown(e: KeyEvent) {
+            if (e.key.length == 1) { app.draft = e.key; app.editing = true }
+            else super.onKeyDown(e)
+            },
+        editor: TextInput [ exists = { app.editing }, width = 180, value <-> app.draft,
+            onInit() { afterSettle(() => Focus.focus(this)) } ] ] ]

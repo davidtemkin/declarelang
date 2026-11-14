@@ -1,0 +1,11 @@
+// A class body whose cursor is `{ app.plan.value }` is unchecked: class bodies accept only
+// `classroot.X.value` as the root noun, so the agent's `class Hall [ datapath = { app.seatMap.value } ]` was never typed.
+schema Section [ name: string, priceCents: number ]
+schema Plan [ sections[]: Section ]
+App [ width = 400, height = 300,
+    plan: Dataset [ schema = Plan, contents = { { sections: [ { name: "Orchestra", priceCents: 8000 } ] } } ],
+    Hall [ ]
+    ]
+class Hall [ datapath = { app.plan.value }, layout: SimpleLayout [ axis = y ],
+    Text [ datapath = :sections[], text = { :nmae ?? "" } ]
+    ]

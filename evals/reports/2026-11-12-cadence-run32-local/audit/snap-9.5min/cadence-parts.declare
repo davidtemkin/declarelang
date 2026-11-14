@@ -1,0 +1,184 @@
+/*
+# Cadence: the parts
+
+The look of Cadence, kept apart from how it works: the palette, the text
+styles a rich line wears, and the small pieces the screens are made of. The
+records, the user's place and the screens are in `cadence.declare`.
+
+The look is ink on paper. One colour is spent, and it means one thing:
+effort. A session's effort decides how loudly it is drawn, from a faint
+grey (an easy spin) to full vermilion (an all-out race). Nothing else is
+coloured.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// Laid over a library preset, so the library's sheets, fields and toasts read
+// the same paper and ink. The library's `accent` is ink: the one colour that
+// means something (`effort`) is kept for effort.
+
+theme Paper [
+    background = #F3F0E9, surface = #FBFAF6, card = #FBFAF6,
+    text = #141412, textMuted = #67635B, textFaint = #8F8A80,
+    line = #DCD7CC, lineStrong = #BEB8AB, quiet = #E8E4DA,
+    accent = #141412, accentHovered = #2B2A27, accentPressed = #000000, accentTextColor = #FBFAF6,
+    linkColor = #141412,
+    control = #E8E4DA, controlHovered = #DFDACE, controlPressed = #D5CFC1, controlSelected = #D5CFC1,
+    ink = #141412, paper = #F3F0E9,
+    effort = #F0441A,
+    easy = #B9B3A6,
+    tooltipFill = #141412, tooltipTextColor = #F3F0E9
+    ]
+
+
+// ── Text styles ─────────────────────────────────────────────────────────────
+//
+// The figures in a rich line ("4 sessions · 3h 40m") wear these by name. A
+// style holds literals, so each size the screens use is a style of its own.
+
+style FigXL [ fontSize = 132, fontWeight = 800, letterSpacing = -6 ]
+style FigL [ fontSize = 84, fontWeight = 800, letterSpacing = -3.5 ]
+style FigM [ fontSize = 56, fontWeight = 800, letterSpacing = -2 ]
+style Faint [ textColor = #8F8A80 ]
+
+// The year's drawn axis labels.
+
+style Tick [ fontSize = 12, fontWeight = 600, letterSpacing = 0.6, textColor = #8F8A80 ]
+style TickInk [ fontSize = 12, fontWeight = 700, letterSpacing = 0.6, textColor = #141412 ]
+
+
+// ── Small pieces ────────────────────────────────────────────────────────────
+
+// A section's name, set small, spaced and quiet: the words are small so the
+// figures can be large.
+
+class Label extends Text [ fontSize = 12, fontWeight = 700, letterSpacing = 1.6,
+    textTransform = uppercase, wrap = false,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+// A stretch of time as a bar: height for how long, colour for how hard.
+// One of the seven days in the week's shape.
+
+class DayBar [ height = { app.wide ? 150 : 112 },
+    minutes: number = { :minutes ?? 0 },
+    effort: number = { :effort ?? 0 },
+    isToday: boolean = { :today ?? false },
+    future: boolean = { :future ?? false },
+    peak: number = 1,
+    grown: number = 0,
+    Spring [ attribute = grown, to = { classroot.minutes }, stiffness = 140, damping = 20 ],
+    accessibilityRole = image,
+    accessibilityLabel = { :name + ", " + (classroot.minutes > 0 ? fmtDur(classroot.minutes) : "rest") },
+    layout: SimpleLayout [ axis = y, spacing = 8, align = stretch ],
+    well: View [ flexes = true,
+        bar: View [ width = 100%, y = end, cornerRadius = 3,
+            height = { Math.max(classroot.minutes > 0 ? 4 : 0, parent.height * Math.min(1, classroot.grown / classroot.peak)) },
+            fill = { app.effortColor(classroot.effort) } ],
+        base: View [ width = 100%, y = end, height = 2,
+            fill = { classroot.future ? provided("theme").line : provided("theme").lineStrong } ]
+        ],
+    Text [ fontSize = 12, fontWeight = { classroot.isToday ? 800 : 600 }, textAlign = center,
+        textColor = { classroot.isToday ? provided("theme").text : provided("theme").textMuted },
+        text = { :letter ?? "" } ],
+    Text [ fontSize = 12, fontWeight = 600, textAlign = center, numeralWidth = tabular,
+        textColor = { provided("theme").textMuted },
+        text = { classroot.minutes > 0 ? fmtDur(classroot.minutes) : "·" } ]
+    ]
+
+
+// Something pressed that is not a library button: a nudge, a step. Paper
+// grey, finger-sized on touch.
+
+class Choice extends Control [ height = { app.tap }, cornerRadius = { app.touchFirst ? 12 : 8 },
+    padding = [0, 12, 0, 12],
+    label: string = "",
+    big: boolean = false,
+    accessibilityLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    opacity = { disabled ? 0.35 : 1 },
+    TextLabel [ x = center, fontSize = { classroot.big ? 17 : 14 }, fontWeight = 700, wrap = false,
+        text = { classroot.label } ]
+    ]
+
+
+// One of several, chosen: the same piece, inked when it is the one. Its
+// ChoiceControl holds the choice, so a screen reader hears "2 of 4" and the
+// arrows move between them. `onFill` lets the effort steps light in the
+// colour of their own effort.
+
+class Option extends ChoiceItem [ height = { app.tap }, cornerRadius = { app.touchFirst ? 12 : 8 },
+    padding = [0, 10, 0, 10],
+    label: string = "",
+    big: boolean = false,
+    onFill: Color = { provided("theme").ink },
+    onInk: Color = { provided("theme").paper },
+    accessibilityLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.on }, fill = { classroot.onFill } ],
+    TextLabel [ x = center, fontSize = { classroot.big ? 17 : 14 }, fontWeight = 700, wrap = false,
+        textColor = { classroot.on ? classroot.onInk : provided("theme").text },
+        text = { classroot.label } ]
+    ]
+
+
+// The one loud button: ink, full width, saying exactly what it will do.
+
+class Primary extends Control [ width = 100%, height = { app.touchFirst ? 60 : 52 }, cornerRadius = 14,
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    fill = { provided("theme").ink },
+    lift: number = { pressed ? 0.82 : hovered ? 0.92 : 1 },
+    opacity = { disabled ? 0.4 : classroot.lift },
+    TextLabel [ x = center, fontSize = 17, fontWeight = 800, wrap = false,
+        textColor = { provided("theme").paper }, text = { classroot.label } ]
+    ]
+
+
+// A quiet text button: Edit, Delete, Back to today.
+
+class Quiet extends Control [ height = { app.tap }, padding = [0, 10, 0, 10], cornerRadius = 8,
+    label: string = "",
+    tone: Color = { provided("theme").text },
+    accessibilityLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").control : null },
+    TextLabel [ fontSize = 14, fontWeight = 700, wrap = false, textColor = { classroot.tone }, text = { classroot.label } ]
+    ]
+
+
+// One session as a line: date, sport, how long and how far, and its effort
+// as a block of colour. Pressing it opens the session.
+
+class SessionRow extends Control [ width = 100%, height = { app.touchFirst ? 60 : 52 },
+    sid: string = { :id ?? "" },
+    effort: number = { :effort ?? 0 },
+    accessibilityLabel = { sportName(:sport) + ", " + fmtDate(:date) + ", " + fmtDur(:minutes) + ", effort " + :effort },
+    press() { app.open(classroot.sid) },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").quiet : null },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+    View [ width = 6, height = 28, cornerRadius = 2, fill = { app.effortColor(classroot.effort) } ],
+    Text [ width = { app.wide ? 110 : 82 }, fontSize = 14, fontWeight = 600, wrap = false,
+        textColor = { provided("theme").textMuted }, text = { fmtDateShort(:date) } ],
+    Text [ flexes = true, shrinks = true, fontSize = 16, fontWeight = 700, wrap = false, maxLines = 1,
+        text = { sportName(:sport) + (:note != null ? "  ·  " + :note : "") } ],
+    Text [ fontSize = 16, fontWeight = 700, wrap = false, numeralWidth = tabular,
+        text = { fmtDur(:minutes) + (:distanceKm != null ? "  " + fmtKm(:distanceKm) : "") } ],
+    Text [ width = 28, fontSize = 16, fontWeight = 800, textAlign = end, numeralWidth = tabular,
+        textColor = { classroot.effort >= 7 ? provided("theme").effort : provided("theme").textMuted },
+        text = { "" + :effort } ]
+    ]
+
+
+// A figure and its unit, for the session page: "14.0" over "KM".
+
+class Stat [
+    value: string = "",
+    unit: string = "",
+    size: number = 44,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = { classroot.size }, fontWeight = 800, letterSpacing = { -classroot.size * 0.035 }, wrap = false,
+        numeralWidth = tabular, text = { classroot.value } ],
+    Label [ text = { classroot.unit } ]
+    ]

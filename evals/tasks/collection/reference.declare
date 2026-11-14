@@ -59,6 +59,6 @@ App [ theme = SanFrancisco, width = 440, height = 520, fill = { provided("theme"
 
     list: View [ x = 24, y = 108, width = 392, datapath = { app.tasks.value },
         layout: SimpleLayout [ axis = y, spacing = 6 ],
-        Row [ datapath = :rows[], key = :id, id = :id, label = :label, done = :done ]
+        Row [ datapath = :rows[], identityKey = :id, id = :id, label = :label, done = :done ]
         ]
     ]

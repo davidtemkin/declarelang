@@ -1,0 +1,78 @@
+{
+  "app": "http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare",
+  "results": [
+    {
+      "name": "overview_drill",
+      "pass": false,
+      "reason": "the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare",
+      "ms": 16411,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/first-boot/overview_drill.png"
+    },
+    {
+      "name": "split_expense",
+      "pass": false,
+      "reason": "the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare",
+      "ms": 16389,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/first-boot/split_expense.png"
+    },
+    {
+      "name": "sale_refund",
+      "pass": false,
+      "reason": "the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare",
+      "ms": 16389,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/first-boot/sale_refund.png"
+    },
+    {
+      "name": "filters_keyboard",
+      "pass": false,
+      "reason": "the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare",
+      "ms": 16380,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/first-boot/filters_keyboard.png"
+    },
+    {
+      "name": "bulk_undo",
+      "pass": false,
+      "reason": "the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare",
+      "ms": 16408,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/first-boot/bulk_undo.png"
+    },
+    {
+      "name": "export_csv",
+      "pass": false,
+      "reason": "the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare",
+      "ms": 16374,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/first-boot/export_csv.png"
+    },
+    {
+      "name": "budget_words",
+      "pass": false,
+      "reason": "the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare",
+      "ms": 16366,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/first-boot/budget_words.png"
+    },
+    {
+      "name": "phone",
+      "pass": false,
+      "reason": "the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare",
+      "ms": 16135,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/first-boot/phone.png"
+    }
+  ],
+  "notes": []
+}

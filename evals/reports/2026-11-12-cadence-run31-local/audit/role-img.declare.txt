@@ -1,0 +1,3 @@
+App [ width = 200, height = 100,
+    View [ width = 100, height = 40, accessibilityRole = img, accessibilityLabel = "A chart" ]
+    ]

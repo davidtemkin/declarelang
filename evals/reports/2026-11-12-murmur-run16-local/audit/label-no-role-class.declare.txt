@@ -1,0 +1,6 @@
+// DECLARE4035 where the label is set in the class body: where does it point?
+class Face [ width = 40, height = 40, accessibilityLabel = "Dana Ruiz" ]
+App [ width = 300, height = 120,
+    one: Face [ ],
+    two: Face [ x = 60 ]
+    ]

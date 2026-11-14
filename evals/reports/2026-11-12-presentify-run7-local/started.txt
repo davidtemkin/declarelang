@@ -1,0 +1,11 @@
+STARTED=2026-11-13T05:33:34Z
+APP=presentify
+MODEL=claude-opus-5-5
+SUBJECT=local tree at 3bc519f9 Four silent failures said: onChange that tracks nothing, a mistyped text face, a focusShape of no box, hover on a view that takes no presses + 542 changed, 15 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-presentify-7/work (logs outside it)
+PORT=8360 (the brief names 8360)
+SERVICE=node ~/Code/Declare/evals/apps/presentify/api/server.mjs --port=8360 --seed=1
+AGENT_PID=119

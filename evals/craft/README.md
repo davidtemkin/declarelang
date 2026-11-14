@@ -36,6 +36,10 @@ evals/craft/launch.sh cadence ~/Code/eval-cadence-7 claude-opus-5-5 <commit>
   every run: less controlled, and closer to how the work is really done (ruled 2026-09-24;
   runs 5–7 had no web).
 - **One round.** The run stands as built; a fix pass, if any, is a separate, labelled step.
+- **One run at a time.** A run's time is part of what it measures, and two at once share the
+  machine and the ports an agent reaches for (Presentify 9 found Ledger 9's dev server
+  answering on the README's default port). `launch.sh` refuses while another run's agent is alive;
+  `EVAL_CONCURRENT=1` overrides it for a comparison that is not about time.
 
 The data service is started by the script on its port. A dev server already running on
 the machine is part of the environment: the agent finds the port taken and picks another,

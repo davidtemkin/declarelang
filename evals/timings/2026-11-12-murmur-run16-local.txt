@@ -1,0 +1,46 @@
+# eval-murmur-16
+total 17.8 min · 87 turns · output 73460 tokens (thinking 23416)
+phases: reading 4.2 · writing 2.4 · checking 11.2 min
+tool time 6.2 min · model time 11.6 min
+tools:
+  verify    22×   5.63 min  (median 7.7 s)
+  look       4×   0.32 min  (median 5.7 s)
+  help       9×   0.18 min  (median 0.8 s)
+  bash      22×   0.09 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     22×   3.24 min  (median 3.6 s)
+  after write     3×   2.37 min  (median 3.2 s)
+  after help      9×   2.28 min  (median 6.0 s)
+  after image    14×   1.82 min  (median 7.3 s)
+  after verify   22×   1.31 min  (median 2.6 s)
+  after read     11×   0.39 min  (median 1.9 s)
+  after look      3×   0.11 min  (median 1.3 s)
+  after edit      1×   0.02 min  (median 1.1 s)
+app: 2 .declare files, 1016 non-blank lines · 16 snapshots changed them: 1259 lines added, 96 removed
+verify results mentioning accessibility: 5
+source reads: library 3 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library
+            library  library/dialog.declare
+            library  library/textinput.declare
+diagnostic codes, by tool results reporting them: DECLARE1002 6, DECLARE4035 5, DECLARE6001 2, DECLARE2005 1, DECLARE2000 1, DECLARE4005 1, DECLARE4025 1
+inside the agent's verify and look calls:
+   4.99 min    22×  R5 behavior, in all
+   4.69 min    22×  script: the assert script, in all
+   4.10 min    77×  drive.waitReal
+   0.37 min    44×  page: load, compile in the page and boot
+   0.33 min    31×  compile (R1–R3)
+   0.23 min    22×  open: the app loaded and arrived, in all
+   0.23 min    22×  R4 boot, in all
+   0.19 min    55×  drive.click
+   0.17 min    68×  drive.settleMotion
+   0.15 min    87×  check: scrolling come to rest
+   0.06 min    44×  page: a new page
+   0.05 min     7×  drive.wheel
+   0.04 min     7×  drive.hold
+   0.03 min    19×  end: layout questions at the end of the script
+   0.03 min    44×  chrome: a browser (shared between calls)
+   0.02 min    12×  drive.wait
+   0.01 min     4×  drive.clickAt
+   0.01 min    19×  end: the network quiet after the script
+   0.01 min    12×  drive.key
+   0.01 min    87×  check: the layout questions

@@ -1,0 +1,337 @@
+/*
+# Ledger: Overview
+
+In five seconds: how are we doing this period, and what needs attention? Four
+headline figures with their change against the comparison and a line of the
+last twelve months; income vs expenses month by month; where the money went;
+the best products and customers; what needs attention; the latest entries.
+Every figure opens the records behind it.
+
+Each part reads its own `DataSource`, addressed by the filters, and fetched
+only while Overview is the screen. A part that is reloading keeps its old
+figures, dimmed; one that fails says so in place, with Retry.
+*/
+
+// ── A headline figure ───────────────────────────────────────────────────────
+
+class Kpi extends Control [ flexes = true, minWidth = 150, cornerRadius = 12, padding = 16,
+    label: string = "",
+    value: string = "",
+    delta: string = "",           // "▲ 12% vs Oct"
+    tone: string = "",            // "good", "bad" or ""
+    spark: number[] = [],
+    loading: boolean = false,
+    fill = { hovered ? provided("theme").hover : provided("theme").surface },
+    stroke = { stroke(1, provided("theme").line) },
+    accessibilityLabel = { label + ", " + value + (delta != "" ? ", " + delta.replace("▲", "up").replace("▼", "down") : "") + ". Opens the records." },
+    opacity = { loading ? 0.6 : 1 },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    Text [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    Text [ fontSize = { app.phone ? 22 : 26 }, fontWeight = semibold, letterSpacing = -0.4, numeralWidth = tabular, wrap = false,
+        text = { classroot.value } ],
+    Text [ fontSize = 12, fontWeight = medium, wrap = false, numeralWidth = tabular,
+        textColor = { classroot.tone == "good" ? provided("theme").good : classroot.tone == "bad" ? provided("theme").bad : provided("theme").textMuted },
+        text = { classroot.delta == "" ? " " : classroot.delta } ],
+    Spark [ width = 100%, values = { classroot.spark },
+        colour = { classroot.tone == "bad" ? provided("theme").bad : provided("theme").accent } ]
+    ]
+
+
+// ── A line in a list: needs attention, recent ───────────────────────────────
+
+class AttentionItem extends Control [ width = 100%, height = { app.tap + 6 }, cornerRadius = 8, padding = [0, 8, 0, 8],
+    fill = { hovered || focused ? provided("theme").hover : null },
+    accessibilityLabel = { (:label ?? "") + ". Opens the records." },
+    press() { app.main.body.overview.openAttention(:@) },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Glyph [ shape = "warn", iconSize = 15, weight = 1.5,
+        ink = { (:tone ?? "") == "bad" ? provided("theme").bad : provided("theme").warn } ],
+    Text [ flexes = true, fontSize = 13, wrap = true, text = { :label ?? "" } ],
+    Text [ fontSize = 12, fontWeight = medium, wrap = false, textColor = { provided("theme").accent }, text = "Review" ]
+    ]
+
+
+class RecentRow extends Control [ width = 100%, height = { app.phone ? 52 : 44 }, cornerRadius = 8, padding = [0, 8, 0, 8],
+    fill = { hovered || focused ? provided("theme").hover : null },
+    accessibilityLabel = { (:description ?? "") + ", " + money(:inFilter ?? 0) + ", " + dateLong(:date ?? "") },
+    press() { app.go("transactions"); app.showTxn(:id ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Text [ width = 52, fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { dateShort(:date ?? "", app.today) } ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ width = 100%, fontSize = 13, fontWeight = medium, wrap = false, maxLines = 1,
+            text = { (:description ?? "") == "" ? untitled(:kind ?? "", app.books.chanName(:channel ?? null)) : :description ?? "" } ],
+        Text [ width = 100%, fontSize = 12, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted }, text = { :contactName ?? "" } ]
+        ],
+    CatChip [ visible = { !app.phone }, catId = { :categoryId ?? "" }, parts = { :split?.parts ?? 0 } ],
+    Money [ width = 96, textAlign = right, fontSize = 13, fontWeight = medium, cents = { :inFilter ?? 0 }, tone = "flow" ]
+    ]
+
+
+// ── The screen ──────────────────────────────────────────────────────────────
+
+class OverviewScreen [ scrolls = y,
+    on: boolean = { app.screen == "overview" && app.ready },
+    base: string = { app.api.base },
+    v: string = { "&v=" + app.api.rev },
+
+    // the twelve months that end with the range: the chart's, and the headline figures' lines
+
+    endDay: string = { app.range.to == "" ? app.today : app.range.to },
+    trendFrom: string = { addMonths(monthStart(classroot.endDay), -11) },
+
+    now: DataSource [ autoFetch = true, schema = Periods,
+        url = { classroot.on ? classroot.base + "/api/aggregates/periods?by=month&" + app.where + classroot.v : "" } ],
+    before: DataSource [ autoFetch = true, schema = Periods,
+        url = { classroot.on && app.cmpRange != null ? classroot.base + "/api/aggregates/periods?by=month&" +
+            qs(app.filterQuery(app.cmpRange)) + classroot.v : "" } ],
+    trend: DataSource [ autoFetch = true, schema = Periods,
+        url = { classroot.on ? classroot.base + "/api/aggregates/periods?by=month&" +
+            qs(app.filterQuery(({ from: classroot.trendFrom, to: classroot.endDay }))) + classroot.v : "" } ],
+    spend: DataSource [ autoFetch = true, schema = CatAmounts,
+        url = { classroot.on ? classroot.base + "/api/aggregates/categories?side=expense&" + app.where + classroot.v : "" } ],
+    prods: DataSource [ autoFetch = true, schema = ProductAmounts,
+        url = { classroot.on ? classroot.base + "/api/aggregates/products?" + app.where + classroot.v : "" } ],
+    custs: DataSource [ autoFetch = true, schema = ContactAmounts,
+        url = { classroot.on ? classroot.base + "/api/aggregates/contacts?side=income&limit=5&" + app.where + classroot.v : "" } ],
+    uncat: DataSource [ autoFetch = true, schema = Summary,
+        url = { classroot.on ? classroot.base + "/api/summary?" + qs(({ ...app.filterQuery(app.range), category: ["none"] })) + classroot.v : "" } ],
+    budgetMonth: string = { monthKey(classroot.endDay) },
+    budgets: DataSource [ autoFetch = true, schema = Budgets,
+        url = { classroot.on ? classroot.base + "/api/budgets?month=" + classroot.budgetMonth + "&" + app.whereNoDate + classroot.v : "" } ],
+    recent: DataSource [ autoFetch = true, schema = TxnPage,
+        url = { classroot.on ? classroot.base + "/api/transactions?limit=8&" + app.where + classroot.v : "" } ],
+
+    // ── the headline figures ──
+
+    tot: PeriodTotal? = { classroot.now.value?.total ?? null },
+    was: PeriodTotal? = { app.cmpRange == null ? null : classroot.before.value?.total ?? null },
+
+    // "▲ 12% vs Oct": the arrow, the signed change, the words; good or bad where that means something
+
+    change(now: number, before: number?, upIsGood: boolean, points: boolean) -> object {
+        if (before == null || app.cmpRange == null) return ({ text: "", tone: "" })
+        const d = points ? Math.round((now - before) * 10) / 10 : (before == 0 ? (now == 0 ? 0 : null) : 100 * (now - before) / Math.abs(before))
+        if (d == null) return ({ text: "New vs " + app.cmpName, tone: "" })
+        const arrow = d > 0 ? "▲ " : d < 0 ? "▼ " : ""
+        const amount = points ? (d > 0 ? "+" : d < 0 ? "−" : "") + Math.abs(d).toFixed(1) + " pts" : pctChange(d)
+        const tone = Math.abs(d) < 0.5 ? "" : (d > 0) == upIsGood ? "good" : "bad"
+        return ({ text: arrow + amount + " vs " + app.cmpName, tone: tone })
+        },
+    trendOf(measure: string) -> number[] {
+        return (trend.value?.periods ?? []).map((p) => measure == "margin" ? (p.grossMargin.percent ?? 0) : p[measure].amount)
+        },
+    revenue: number = { classroot.tot?.revenue.amount ?? 0 },
+    expenses: number = { classroot.tot?.expenses.amount ?? 0 },
+    net: number = { classroot.tot?.net.amount ?? 0 },
+    margin: number? = { classroot.tot?.grossMargin.percent ?? null },
+    dRevenue: object = { classroot.change(classroot.revenue, classroot.was?.revenue.amount ?? null, true, false) },
+    dExpenses: object = { classroot.change(classroot.expenses, classroot.was?.expenses.amount ?? null, false, false) },
+    dNet: object = { classroot.change(classroot.net, classroot.was?.net.amount ?? null, true, false) },
+    dMargin: object = { classroot.margin == null ? ({ text: "", tone: "" }) :
+        classroot.change(classroot.margin, classroot.was?.grossMargin.percent ?? null, true, true) },
+
+    openFigure(kinds: string[], what: string) {
+        app.openRecords(({ from: app.range.from, to: app.range.to, kinds: kinds }), "Overview")
+        },
+
+    // ── income vs expenses, month by month ──
+
+    trendPeriods: array = { (classroot.trend.value?.periods ?? []).map((p) => ({ key: p.period, short: periodShort(p.period, "month"),
+        long: periodLong(p.period, "month"), from: p.from, to: p.to, partial: p.partial })) },
+    trendSeries: array = { [
+        ({ id: "revenue", label: "Revenue", style: "bar", colour: provided("theme").income,
+            values: classroot.trendOf("revenue"), counts: (classroot.trend.value?.periods ?? []).map((p) => p.revenue.count),
+            before: (classroot.trend.value?.periods ?? []).map((p, i, all) => i == 0 ? null : all[i - 1].revenue.amount) }),
+        ({ id: "expenses", label: "Expenses", style: "bar", colour: provided("theme").expense,
+            values: classroot.trendOf("expenses"), counts: (classroot.trend.value?.periods ?? []).map((p) => p.expenses.count),
+            before: (classroot.trend.value?.periods ?? []).map((p, i, all) => i == 0 ? null : all[i - 1].expenses.amount) }),
+        ({ id: "net", label: "Net profit", style: "line", colour: provided("theme").net,
+            values: classroot.trendOf("net"), counts: (classroot.trend.value?.periods ?? []).map((p) => p.net.count),
+            before: (classroot.trend.value?.periods ?? []).map((p, i, all) => i == 0 ? null : all[i - 1].net.amount) }) ] },
+    trendBefore: string[] = { (classroot.trend.value?.periods ?? []).map((p, i, all) => i == 0 ? "" : periodLong(all[i - 1].period, "month")) },
+    openTrend(pi: number, si: number) {
+        const p = (trend.value?.periods ?? [])[pi]
+        if (p == null) return
+        const kinds = si == 0 ? ["sale", "refund"] : si == 1 ? ["expense"] : []
+        app.openRecords(({ from: p.from, to: p.to, kinds: kinds }), "Overview")
+        },
+
+    // ── where the money went: the top categories, the rest as "Other" ──
+
+    spendRows: array = { classroot.topCats(classroot.spend.value?.categories ?? []) },
+    topCats(all: CatAmount[]) -> array {
+        const th = provided("theme")
+        const top = all.slice(0, 5)
+        const rest = all.slice(5)
+        const rows = top.map((c) => ({ id: c.categoryId ?? "none", label: app.books.catName(c.categoryId ?? null), amount: c.amount, count: c.count,
+            colour: c.categoryId == null ? th.warn : th.cats[app.books.catColour(c.categoryId)] ?? th.textFaint, cats: [c.categoryId ?? "none"] }))
+        if (rest.length > 0) rows.push(({ id: "rest", label: "Other (" + rest.length + " categories)", amount: rest.reduce((n, c) => n + c.amount, 0),
+            count: rest.reduce((n, c) => n + c.count, 0), colour: th.textFaint, cats: rest.map((c) => c.categoryId ?? "none") }))
+        return rows
+        },
+
+    // ── the best sellers and customers ──
+
+    prodRows: array = { (classroot.prods.value?.products ?? []).slice(0, 5).map((p) => ({ id: p.productId ?? "none",
+        label: app.books.productName(p.productId ?? null), amount: p.revenue, count: p.count, colour: provided("theme").income })) },
+    custRows: array = { (classroot.custs.value?.contacts ?? []).map((c) => ({ id: c.contactId ?? "none",
+        label: c.contactId == null ? "No customer named" : c.contactName ?? "", amount: c.amount, count: c.count, colour: provided("theme").income })) },
+
+    // ── what needs attention ──
+
+    uncatCount: number = { classroot.uncat.value?.count ?? 0 },
+    attention: object = { { rows: [
+        ...(classroot.uncatCount > 0 ? [({ id: "uncat", kind: "uncat", tone: "warn",
+            label: classroot.uncatCount + (classroot.uncatCount == 1 ? " transaction is" : " transactions are") + " uncategorised" })] : []),
+        ...(classroot.budgets.value?.budgets ?? []).filter((b) => b.remaining < 0 || b.spent >= b.amount * 0.9).map((b) => ({
+            id: "b-" + b.categoryId, kind: "budget", cat: b.categoryId, tone: b.remaining < 0 ? "bad" : "warn",
+            label: app.books.catName(b.categoryId) + (b.remaining < 0 ? ": over budget by " + money(-b.remaining) : ": " + money(b.remaining) + " left of " + money(b.amount)) +
+                " in " + monthLong(classroot.budgetMonth + "-01") })) ] } },
+    attentionData: Dataset [ contents = { classroot.attention } ],
+    openAttention(item: object) {
+        if (item.kind == "uncat") app.openRecords(({ from: app.range.from, to: app.range.to, cats: ["none"] }), "Overview")
+        else {
+            const m = classroot.budgetMonth + "-01"
+            app.openRecords(({ from: m, to: monthEnd(m), kinds: ["expense"], cats: [item.cat] }), "Overview")
+            }
+        },
+
+    // ── the page ──
+
+    page: View [ width = 100%, padding = { app.phone ? [8, 12, 24, 12] : [20, 24, 32, 24] },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+        head: View [ width = 100%, visible = { !app.phone },
+            layout: SimpleLayout [ axis = x, spacing = 12, align = baseline ],
+            Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = "Overview" ],
+            Text [ fontSize = 13, textColor = { provided("theme").textMuted },
+                text = { rangeLabel(app.range) + (app.inProgress ? ", to " + dateLong(app.today) : "") +
+                    (app.cmpRange == null ? "" : " · compared with " + rangeLabel(app.cmpRange)) } ]
+            ],
+        filteredNote: Text [ visible = { app.filtered }, width = 100%, fontSize = 13, wrap = true, textColor = { provided("theme").warn },
+            text = "These figures are filtered: they cover only the transactions matching the filters above." ],
+
+        // a business with nothing recorded yet: what to do first
+
+        welcome: Panel [ width = 100%, visible = { app.emptyBooks },
+            title = "Nothing recorded yet",
+            Text [ width = 100%, fontSize = 14, wrap = true, text = "Start with the last sale you made or the last thing you paid for." ],
+            View [ layout: SimpleLayout [ axis = x, spacing = 10 ],
+                Button [ primary = true, label = "Record a sale",
+                    onClick() { app.record("sale") }
+                    ],
+                Button [ label = "Record an expense",
+                    onClick() { app.record("expense") }
+                    ]
+                ]
+            ],
+
+        kpis: View [ width = 100%,
+            layout: WrappingLayout [ columns = { app.width < 560 ? 2 : 4 }, spacing = 12, rowSpacing = 12 ],
+            Kpi [ label = "Revenue", value = { money(classroot.revenue) }, delta = { classroot.dRevenue.text }, tone = { classroot.dRevenue.tone },
+                spark = { classroot.trendOf("revenue") }, loading = { classroot.now.loading },
+                press() { classroot.openFigure(["sale", "refund"], "Revenue") }
+                ],
+            Kpi [ label = "Expenses", value = { money(classroot.expenses) }, delta = { classroot.dExpenses.text }, tone = { classroot.dExpenses.tone },
+                spark = { classroot.trendOf("expenses") }, loading = { classroot.now.loading },
+                press() { classroot.openFigure(["expense"], "Expenses") }
+                ],
+            Kpi [ label = "Net profit", value = { money(classroot.net) }, delta = { classroot.dNet.text }, tone = { classroot.dNet.tone },
+                spark = { classroot.trendOf("net") }, loading = { classroot.now.loading },
+                press() { classroot.openFigure([], "Net profit") }
+                ],
+            Kpi [ label = "Gross margin", value = { classroot.margin == null ? "—" : pct(classroot.margin) },
+                delta = { classroot.dMargin.text }, tone = { classroot.dMargin.tone },
+                spark = { classroot.trendOf("margin") }, loading = { classroot.now.loading },
+                press() { classroot.openFigure(["sale", "refund"], "Gross margin") }
+                ]
+            ],
+        kpiState: LoadState [ visible = { classroot.now.failed || (classroot.on && !classroot.now.loaded) }, failed = { classroot.now.failed },
+            retry() { classroot.now.fetch(); classroot.before.fetch() }
+            ],
+
+        ive: Panel [ width = 100%, title = "Income vs expenses",
+            opacity = { classroot.trend.loading ? 0.6 : 1 },
+            Text [ width = 100%, fontSize = 13, wrap = true, textColor = { provided("theme").textMuted },
+                text = { "Month by month, the twelve months to " + monthLong(classroot.endDay) + ". Choose a bar or a point to see its transactions." } ],
+            Legend [ width = 100%, items = { classroot.trendSeries } ],
+            chart: TimeChart [ width = 100%, height = { app.phone ? 200 : 260 }, title = "Income vs expenses, month by month",
+                periods = { classroot.trendPeriods }, series = { classroot.trendSeries }, beforeNames = { classroot.trendBefore },
+                opened(pi: number, si: number) { classroot.openTrend(pi, si) },
+                brushed(a: number, b: number) { app.setCustomRange(this.periods[a].from, this.periods[b].to) }
+                ],
+            LoadState [ visible = { classroot.trend.failed }, failed = true,
+                retry() { classroot.trend.fetch() }
+                ]
+            ],
+
+        grid: View [ width = 100%,
+            layout: WrappingLayout [ columns = { app.width < 1000 ? 1 : 2 }, spacing = 16, rowSpacing = 16 ],
+
+            spendPanel: Panel [ flexes = true, title = "Expenses by category", opacity = { classroot.spend.loading ? 0.6 : 1 },
+                BarList [ items = { classroot.spendRows },
+                    opened(r: object) {
+                        app.openRecords(({ from: app.range.from, to: app.range.to, kinds: ["expense"], cats: r.cats }), "Overview") }
+                    ],
+                LoadState [ visible = { classroot.spend.failed || classroot.spendRows.length == 0 }, failed = { classroot.spend.failed },
+                    empty = { classroot.spend.loaded }, emptyText = "No expenses in this range.",
+                    retry() { classroot.spend.fetch() }
+                    ]
+                ],
+
+            attentionPanel: Panel [ flexes = true, title = "Needs attention",
+                list: View [ width = 100%, datapath = { classroot.attentionData.value },
+                    layout: SimpleLayout [ axis = y, spacing = 2 ],
+                    AttentionItem [ datapath = :rows[] ]
+                    ],
+                caughtUp: View [ visible = { classroot.uncat.loaded && classroot.budgets.loaded && classroot.attention.rows.length == 0 },
+                    width = 100%, padding = [6, 0, 6, 0],
+                    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                    Glyph [ shape = "check", iconSize = 16, weight = 1.8, ink = { provided("theme").good } ],
+                    Text [ fontSize = 14, fontWeight = medium, text = "All caught up." ]
+                    ],
+                LoadState [ visible = { classroot.uncat.failed || classroot.budgets.failed }, failed = true,
+                    retry() { classroot.uncat.fetch(); classroot.budgets.fetch() }
+                    ]
+                ],
+
+            prodPanel: Panel [ flexes = true, title = "Top products", opacity = { classroot.prods.loading ? 0.6 : 1 },
+                BarList [ items = { classroot.prodRows },
+                    opened(r: object) {
+                        app.openRecords(({ from: app.range.from, to: app.range.to, kinds: ["sale", "refund"], products: [r.id] }), "Overview") }
+                    ],
+                LoadState [ visible = { classroot.prods.failed || classroot.prodRows.length == 0 }, failed = { classroot.prods.failed },
+                    empty = { classroot.prods.loaded }, emptyText = "No sales in this range.",
+                    retry() { classroot.prods.fetch() }
+                    ]
+                ],
+
+            custPanel: Panel [ flexes = true, title = "Top customers", opacity = { classroot.custs.loading ? 0.6 : 1 },
+                BarList [ items = { classroot.custRows },
+                    opened(r: object) {
+                        app.openRecords(({ from: app.range.from, to: app.range.to, kinds: ["sale", "refund"], contacts: [r.id] }), "Overview") }
+                    ],
+                LoadState [ visible = { classroot.custs.failed || classroot.custRows.length == 0 }, failed = { classroot.custs.failed },
+                    empty = { classroot.custs.loaded }, emptyText = "No sales in this range.",
+                    retry() { classroot.custs.fetch() }
+                    ]
+                ]
+            ],
+
+        recentPanel: Panel [ width = 100%, title = "Recent transactions", opacity = { classroot.recent.loading ? 0.6 : 1 },
+            list: View [ width = 100%, datapath = { classroot.recent.value },
+                layout: SimpleLayout [ axis = y, spacing = 0 ],
+                RecentRow [ datapath = :rows[] ]
+                ],
+            LoadState [ visible = { classroot.recent.failed || (classroot.recent.value?.rows ?? []).length == 0 }, failed = { classroot.recent.failed },
+                empty = { classroot.recent.loaded }, emptyText = "No transactions in this range.",
+                retry() { classroot.recent.fetch() }
+                ],
+            Button [ label = "See all transactions",
+                onClick() { app.go("transactions") }
+                ]
+            ]
+
+        ]
+    ]

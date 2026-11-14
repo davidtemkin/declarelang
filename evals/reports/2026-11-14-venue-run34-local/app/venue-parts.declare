@@ -1,0 +1,558 @@
+/*
+# The Venue: the parts
+
+The look (one theme), and the pieces the screens are made of: a performance's
+card, a saved card to choose, the order summary, the two forms, and the
+ticket. `venue.declare` includes this file; the App and its screens are there.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Ivory paper and warm ink, like a printed programme. One accent, a deep
+// ultramarine: it means "yours" — your seats, your payment — and nothing else.
+// The four sections' seats run from dark umber at the front to pale sand at the
+// back, so where the expensive seats are reads without a word.
+
+theme Venue [
+    background = #F6F2EA, surface = #FBF8F3, card = #FFFFFF,
+    line = #E4DBCC, lineStrong = #C9BBA5, quiet = #EFE8DC,
+    text = #1F1A16, textMuted = #6A5F55, textFaint = #998C7F,
+    accent = #2B3CC4, accentHovered = #2433A8, accentPressed = #1D2A8C, accentTextColor = #FFFFFF,
+    linkColor = #2B3CC4,
+    control = #EDE5D7, controlHovered = #E5DBCA, controlPressed = #DACDB8, controlSelected = #E3D9C7,
+    error = #B42318,
+    tones = [#5B4232, #85664E, #AD8F72, #CDB596],
+    gone = #DCD3C5,
+    stage = #2A221C, stageText = #E9DFCF,
+    chip = #2A221C, chipText = #F6F2EA,
+    chosenTint = #EEF0FC,
+    ticketInk = #231C17, ticketPaper = #FFFDF8
+    ]
+
+
+// ── Small pieces ────────────────────────────────────────────────────────────
+
+// A quiet text button that goes back a step: an arrow and where it goes.
+
+class BackButton extends Control [ height = 44, padding = [0, 10, 0, 4], cornerRadius = 8,
+    label: string = "",
+    fill = { hovered ? provided("theme").quiet : null },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    ArrowIcon [ dir = "left", iconSize = 16, ink = { provided("theme").textMuted } ],
+    TextLabel [ fontSize = 15, fontWeight = medium, textColor = { provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// A card's kind, as a small printed mark.
+
+class BrandBadge [ height = 22, padding = [0, 6, 0, 6], cornerRadius = 4,
+    brand: string = "",
+    visible = { classroot.brand != "" },
+    stroke = { stroke(1, provided("theme").lineStrong) },
+    accessibilityHidden = true,
+    TextLabel [ y = center, fontSize = 11, fontWeight = bold, letterSpacing = 0.8,
+        textColor = { provided("theme").text }, text = { brandShort(classroot.brand) } ]
+    ]
+
+
+// A small label over a group of fields.
+
+class GroupTitle extends Text [ fontSize = 13, fontWeight = bold, letterSpacing = 1.2,
+    textColor = { provided("theme").textMuted }, accessibilityRole = heading, accessibilityLevel = 3
+    ]
+
+
+// ── A performance ───────────────────────────────────────────────────────────
+//
+// Date and time, the lowest price, and how full it is: a bar that fills as
+// the house sells, and words for the last few.
+
+class PerfCard extends Control [ padding = [16, 16, 14, 16], cornerRadius = 14,
+    pid: string = { :id ?? "" },
+    starts: string = { :startsAt ?? "" },
+    left: number = { :seatsLeft ?? 0 },
+    total: number = { :seats ?? 1 },
+    from: number = { :priceFromCents ?? 0 },
+    sold: number = { 1 - classroot.left / Math.max(1, classroot.total) },
+    nearlyGone: boolean = { classroot.left / Math.max(1, classroot.total) <= 0.15 },
+    sellingFast: boolean = { !classroot.nearlyGone && classroot.left / Math.max(1, classroot.total) <= 0.35 },
+    matinee: boolean = { Number(classroot.starts.slice(11, 13)) < 17 },
+    note: string = { classroot.left == 0 ? "Sold out" : classroot.nearlyGone ? "Nearly sold out" : classroot.sellingFast ? "Selling fast" : "" },
+
+    accessibilityLabel = { dayLabel(classroot.starts) + ", " + timeLabel(classroot.starts) + ", from " + money(classroot.from)
+        + ", " + classroot.left + " of " + classroot.total + " seats left" + (classroot.note != "" ? ", " + classroot.note.toLowerCase() : "") },
+    disabled = { classroot.left == 0 },
+    press() { app.openPerformance(classroot.pid) },
+
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").surface : provided("theme").card },
+    stroke = { stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = baseline ],
+        Text [ flexes = true, fontFamily = { app.titleFace }, fontSize = { app.compact ? 19 : 21 }, fontWeight = semibold,
+            wrap = false, text = { dayLabel(classroot.starts) } ]
+        ],
+    Text [ fontSize = 15, textColor = { provided("theme").textMuted },
+        text = { timeLabel(classroot.starts) + (classroot.matinee ? " · Matinee" : "") } ],
+
+    // how full: the bar fills as seats sell
+
+    bar: View [ width = 100%, height = 6, cornerRadius = 3, fill = { provided("theme").quiet },
+        View [ height = 6, cornerRadius = 3, width = { parent.width * classroot.sold },
+            fill = { classroot.nearlyGone ? provided("theme").text : provided("theme").textFaint } ]
+        ],
+    foot: View [ width = 100%, padding = [6, 0, 0, 0],
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, wrap = true, fontSize = 13, numeralWidth = tabular,
+            fontWeight = { classroot.note != "" ? "bold" : "regular" },
+            textColor = { classroot.note != "" ? provided("theme").text : provided("theme").textMuted },
+            text = { (classroot.note != "" ? classroot.note + " · " : "") + classroot.left + " of " + classroot.total + " left" } ],
+        Text [ wrap = false, fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+            text = { "From " + money(classroot.from) } ]
+        ]
+    ]
+
+
+// A month of performances: its name, then its cards.
+
+class MonthBlock [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 13, fontWeight = bold, letterSpacing = 1.4, textColor = { provided("theme").textMuted },
+        accessibilityRole = heading, accessibilityLevel = 2, text = { (:name ?? "").toUpperCase() } ],
+    grid: View [ width = 100%,
+        layout: WrappingLayout [ columns = { app.width >= 1100 ? 5 : app.width >= 820 ? 4 : app.width >= 560 ? 3 : 2 },
+            spacing = { app.compact ? 10 : 14 }, rowSpacing = { app.compact ? 10 : 14 } ],
+        PerfCard [ datapath = :perfs[], flexes = true ]
+        ]
+    ]
+
+
+// ── A saved card, to choose ─────────────────────────────────────────────────
+//
+// Shown the way a person knows a card: its kind, its last four, its expiry.
+// One that has expired says so and can't be chosen.
+
+class PayChoice extends ChoiceItem [ width = 100%, height = 60, padding = [0, 14, 0, 14], cornerRadius = 10,
+    brand: string = "",
+    title: string = "",
+    detail: string = "",
+    stale: boolean = false,
+    disabled = { classroot.stale },
+    fill = { classroot.on ? provided("theme").chosenTint : hovered ? provided("theme").surface : provided("theme").card },
+    stroke = { classroot.on ? stroke(2, provided("theme").accent) : stroke(1, provided("theme").line) },
+    opacity = { classroot.stale ? 0.62 : 1 },
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    dot: View [ width = 20, height = 20, cornerRadius = 10,
+        stroke = { stroke(classroot.on ? 6 : 1.5, classroot.on ? provided("theme").accent : provided("theme").lineStrong) },
+        visible = { !classroot.stale } ],
+    View [ width = 20, height = 20, visible = { classroot.stale } ],
+    BrandBadge [ brand = { classroot.brand } ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ width = 100%, wrap = false, fontSize = 16, fontWeight = medium, numeralWidth = tabular, text = { classroot.title } ],
+        Text [ visible = { classroot.detail != "" }, wrap = false, fontSize = 13, numeralWidth = tabular,
+            fontWeight = { classroot.stale ? "bold" : "regular" },
+            textColor = { classroot.stale ? provided("theme").error : provided("theme").textMuted },
+            text = { classroot.detail } ]
+        ]
+    ]
+
+
+// ── The order: each seat with its price and fee, and the total ──────────────
+//
+// Amounts sit in one right-hand column, in figures of one width, so they line
+// up. At a desk the Pay button lives here, beside the form, never out of sight.
+
+class OrderLine [ width = 100%,
+    layout: SimpleLayout [ axis = x, spacing = 12, align = start ],
+    Text [ flexes = true, fontSize = 15, wrap = true, text = { :label ?? "" } ],
+    View [ layout: SimpleLayout [ axis = y, align = end ],
+        Text [ fontSize = 15, numeralWidth = tabular, text = { money(:priceCents ?? 0) } ],
+        Text [ fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+            text = { "+ " + money(:feeCents ?? 0) + " fee" } ]
+        ]
+    ]
+
+
+class SumRow [ width = 100%,
+    label: string = "",
+    amount: string = "",
+    strong: boolean = false,
+    layout: SimpleLayout [ axis = x, align = baseline ],
+    Text [ flexes = true, fontSize = { classroot.strong ? 17 : 15 }, fontWeight = { classroot.strong ? "bold" : "regular" },
+        textColor = { classroot.strong ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
+    Text [ fontSize = { classroot.strong ? 22 : 15 }, fontWeight = { classroot.strong ? "bold" : "regular" }, numeralWidth = tabular,
+        text = { classroot.amount } ]
+    ]
+
+
+class OrderSummary [ width = 100%,
+    withPay: boolean = false,
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    accessibilityRole = region,
+    accessibilityLabel = "Your order",
+    Text [ fontFamily = { app.titleFace }, fontSize = 20, fontWeight = semibold, text = { app.production.value?.title ?? "" } ],
+    Text [ fontSize = 15, textColor = { provided("theme").textMuted },
+        text = { dayLabel(app.perf?.startsAt ?? "") + " · " + timeLabel(app.perf?.startsAt ?? "") + " · " + (app.production.value?.hall ?? "") } ],
+    View [ width = 100%, height = 1, fill = { provided("theme").line } ],
+    lines: View [ width = 100%, datapath = { app.orderLines.value },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        OrderLine [ datapath = :lines[] ]
+        ],
+    View [ width = 100%, height = 1, fill = { provided("theme").line } ],
+    SumRow [ label = { seatCount(app.chosen.length) }, amount = { money(app.subtotal) } ],
+    SumRow [ label = "Booking fees", amount = { money(app.fees) } ],
+    SumRow [ label = "Total", strong = true, amount = { money(app.total) } ],
+
+    payArea: View [ width = 100%, visible = { classroot.withPay }, padding = [6, 0, 0, 0],
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        PayButton [ width = 100% ],
+        PayStatus [ width = 100% ]
+        ]
+    ]
+
+
+// The one button that pays. It names the amount; while the payment is out it
+// says so beside it, and a second press, tap or Enter sends nothing (the form
+// sends once while it is pending).
+
+class PayButton extends Button [ height = 52, primary = true,
+    label = { "Pay " + money(app.total) },
+    onClick() { app.pay() }
+    ]
+
+
+class PayStatus [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    busy: View [ width = 100%, visible = { app.paying },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        ProgressBar [ width = 100%, height = 4, indeterminate = true, accessibilityLabel = "Payment under way" ],
+        Text [ fontSize = 14, textColor = { provided("theme").textMuted }, accessibilityRole = status, accessibilityLive = polite,
+            text = { app.paying ? "Processing your payment — this takes a moment…" : "" } ]
+        ],
+    problem: Text [ width = 100%, wrap = true, visible = { app.payError != "" }, fontSize = 15, fontWeight = medium,
+        textColor = { provided("theme").error }, accessibilityRole = status, accessibilityLive = assertive,
+        text = { app.payError } ],
+    Text [ width = 100%, wrap = true, visible = { !app.paying && app.payError == "" }, fontSize = 13,
+        textColor = { provided("theme").textMuted },
+        text = "Tickets are sent by email. Your card details go only to the box office." ]
+    ]
+
+
+// ── Paying ──────────────────────────────────────────────────────────────────
+//
+// The form holds no values: they live on the App, so signing in halfway
+// through, or going back to the hall, loses nothing. Each field says what it
+// holds (`purpose`), so a phone brings up the keyboard that suits it and the
+// browser's own card and address autofill fills it. A field is judged once the
+// person leaves it; the form judges all of them when they pay, and a refusal
+// from the service lands on the field it names.
+
+class PayForm extends Form [ width = 100%, enterMoves = true, source = { app.order },
+    failedMessage = "The payment couldn't be sent, and nothing was charged. Please try again.",
+    uncertainMessage = "We couldn't confirm your payment. Check your email for tickets before trying again.",
+    offlineMessage = "You're offline, so nothing was charged. Try again once you're connected.",
+    layout: SimpleLayout [ axis = y, spacing = 26 ],
+
+    fieldH: number = { app.touchFirst ? 48 : 42 },
+    fieldSize: number = { app.touchFirst ? 17 : 16 },
+
+    refusedWith(body: Refusal) {
+        app.refused(body)
+        if (body.error == "card_declined" || body.error == "insufficient_funds") {
+            this.savedCode.code.judged = false
+            this.fresh.card.dates.codeField.code.judged = false
+            }
+        },
+    showProblems() { if (app.lastRefusal != "unavailable") super.showProblems() },
+
+    // ── how to pay: a saved card, or a new one (signed in only)
+
+    method: View [ width = 100%, visible = { app.account != null },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        GroupTitle [ text = "PAY WITH" ],
+        ChoiceControl [ width = 100%, name = "payWith", accessibilityLabel = "Pay with",
+            value = { app.payWith },
+            commit(v: string) { app.payWith = v },
+            datapath = { app.wallet.value },
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            PayChoice [ datapath = :cards[], choice = :id, brand = :brand,
+                title = { brandName(:brand ?? "") + " ending " + (:last4 ?? "") },
+                stale = { app.expired(:expYear ?? 0, :expMonth ?? 0) },
+                detail = { (app.expired(:expYear ?? 0, :expMonth ?? 0) ? "Expired " : "Expires ")
+                    + String(:expMonth ?? 0).padStart(2, "0") + "/" + String((:expYear ?? 0) % 100).padStart(2, "0") },
+                accessibilityLabel = { brandName(:brand ?? "") + " ending " + (:last4 ?? "") + ", "
+                    + (app.expired(:expYear ?? 0, :expMonth ?? 0) ? "expired " : "expires ")
+                    + String(:expMonth ?? 0).padStart(2, "0") + "/" + String((:expYear ?? 0) % 100).padStart(2, "0") } ],
+            PayChoice [ choice = "new", title = "A new card", detail = "" ]
+            ]
+        ],
+
+    // ── a saved card asks only for its code
+
+    savedCode: Field [ width = { app.compact ? parent.width : 240 }, label = "Security code", stacked = true, visible = { app.useSaved },
+        code: TextInput [ width = 100%, height = { classroot.fieldH }, fontSize = { classroot.fieldSize },
+            name = "cvc", purpose = cardCode, required = "Enter the card's security code.",
+            placeholder = { app.cvcLength + " digits" },
+            value <-> app.cvc,
+            admit(t: string) -> string { return digitsOf(t).slice(0, 4) },
+            validate(v: string) -> string { return v.length == app.cvcLength ? "" : "The security code is " + app.cvcLength + " digits." }
+            ]
+        ],
+
+    // ── a new card: where the tickets go, the card, and its billing address
+
+    fresh: View [ width = 100%, visible = { !app.useSaved },
+        layout: SimpleLayout [ axis = y, spacing = 26 ],
+
+        contact: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            GroupTitle [ text = "YOUR TICKETS" ],
+            Field [ width = 100%, label = "Email", stacked = true,
+                TextInput [ width = 100%, height = { classroot.fieldH }, fontSize = { classroot.fieldSize },
+                    name = "email", purpose = email, required = "Enter the email address to send your tickets to.",
+                    value <-> app.email,
+                    validate(v: string) -> string { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "" : "Enter an email address like name@example.com." }
+                    ]
+                ],
+            Text [ width = 100%, wrap = true, fontSize = 13, textColor = { provided("theme").textMuted },
+                text = "We'll send your tickets here. There's nothing to post." ]
+            ],
+
+        card: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            GroupTitle [ text = "CARD" ],
+            Field [ width = 100%, label = "Card number", stacked = true,
+                number: TextInput [ width = 100%, height = { classroot.fieldH }, fontSize = { classroot.fieldSize },
+                    padding = [0, 64, 0, 12], numeralWidth = tabular,
+                    name = "number", purpose = cardNumber, required = "Enter the card number.",
+                    placeholder = "1234 1234 1234 1234",
+                    value <-> app.cardNumber,
+                    admit(t: string) -> string { return groupCard(digitsOf(t)) },
+                    validate(v: string) -> string {
+                        const d = digitsOf(v)
+                        if (!cardLengths(brandOf(d)).includes(d.length) || !luhn(d)) return "That isn't a valid card number. Check the digits."
+                        return ""
+                        },
+                    BrandBadge [ x = { parent.width - this.width - 12 }, y = center, brand = { app.cardBrand } ]
+                    ]
+                ],
+            dates: View [ width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 12 ],
+                Field [ flexes = true, label = "Expiry", stacked = true,
+                    TextInput [ width = 100%, height = { classroot.fieldH }, fontSize = { classroot.fieldSize }, numeralWidth = tabular,
+                        name = "expiry", purpose = cardExpiry, required = "Enter the expiry date.",
+                        placeholder = "MM / YY",
+                        value <-> app.expiry,
+                        admit(t: string) -> string { return groupExpiry(t, app.expiry) },
+                        validate(v: string) -> string { return app.expiryProblem(v) }
+                        ]
+                    ],
+                codeField: Field [ flexes = true, label = "Security code", stacked = true,
+                    code: TextInput [ width = 100%, height = { classroot.fieldH }, fontSize = { classroot.fieldSize }, numeralWidth = tabular,
+                        name = "cvc", purpose = cardCode, required = "Enter the card's security code.",
+                        placeholder = { app.cvcLength + " digits" },
+                        value <-> app.cvc,
+                        admit(t: string) -> string { return digitsOf(t).slice(0, 4) },
+                        validate(v: string) -> string { return v.length == app.cvcLength ? "" : "The security code is " + app.cvcLength + " digits." }
+                        ]
+                    ]
+                ],
+            Field [ width = 100%, label = "Name on card", stacked = true,
+                TextInput [ width = 100%, height = { classroot.fieldH }, fontSize = { classroot.fieldSize },
+                    name = "name", purpose = cardName, required = "Enter the name as it's printed on the card.",
+                    value <-> app.cardName ]
+                ]
+            ],
+
+        billing: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            GroupTitle [ text = "BILLING ADDRESS" ],
+            Field [ width = 100%, label = "Country", stacked = true,
+                Segmented [ width = 100%, height = { classroot.fieldH }, name = "country", required = "Choose the country of your billing address.",
+                    items = { [ ({ id: "US", label: "United States" }), ({ id: "CA", label: "Canada" }), ({ id: "GB", label: "United Kingdom" }) ] },
+                    value = { app.country == "" ? null : app.country },
+                    commit(v: object) { app.country = String(v) }
+                    ]
+                ],
+            Field [ width = 100%, label = "Street address", stacked = true,
+                TextInput [ width = 100%, height = { classroot.fieldH }, fontSize = { classroot.fieldSize },
+                    name = "line1", purpose = addressLine1, required = "Enter the street address.",
+                    value <-> app.line1 ]
+                ],
+            Field [ width = 100%, label = "Address line 2 (optional)", stacked = true,
+                TextInput [ width = 100%, height = { classroot.fieldH }, fontSize = { classroot.fieldSize },
+                    name = "line2", purpose = addressLine2, placeholder = "Flat, suite, floor",
+                    value <-> app.line2 ]
+                ],
+            place: View [ width = 100%,
+                layout: SimpleLayout [ axis = { app.width < 360 ? "y" : "x" }, spacing = 12 ],
+                Field [ flexes = 3, label = "City", stacked = true,
+                    TextInput [ width = 100%, height = { classroot.fieldH }, fontSize = { classroot.fieldSize },
+                        name = "city", purpose = city, required = "Enter the city.",
+                        value <-> app.city ]
+                    ],
+                Field [ flexes = 2, label = "Postal code", stacked = true,
+                    TextInput [ width = 100%, height = { classroot.fieldH }, fontSize = { classroot.fieldSize },
+                        name = "postalCode", purpose = postalCode, required = "Enter the postal code.",
+                        placeholder = { app.country == "GB" ? "SW1A 2AA" : app.country == "CA" ? "K1A 0B1" : app.country == "US" ? "94103" : "" },
+                        value <-> app.postalCode,
+                        onBlur() { app.postalCode = tidyPostal(app.postalCode, app.country) },
+                        validate(v: string) -> string { return app.postalProblem(v) }
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── Signing in ──────────────────────────────────────────────────────────────
+//
+// An email and a password, in a form the browser's password manager knows
+// (each field says its purpose). It is built for each opening, so the password
+// never outlives it. A wrong password is answered with the service's sentence,
+// which arrives as the form's `error`.
+
+class SignInForm extends Form [ width = 100%,
+    email: string = { app.email.trim() },
+    password: string = "",
+    reveal: boolean = false,
+    session: DataSource [ url = { api("/api/session") }, method = "POST", credentials = include,
+        body = { ({ email: classroot.email.trim(), password: classroot.password }) },
+        onLoad() { app.signedIn() }
+        ],
+    source = { classroot.session },
+    failedMessage = "Signing in didn't work just now. Please try again.",
+    uncertainMessage = "Signing in didn't work just now. Please try again.",
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    heading: Text [ fontFamily = { app.titleFace }, fontSize = 26, fontWeight = semibold, focusable = quiet,
+        accessibilityRole = heading, accessibilityLevel = 2, text = "Sign in" ],
+    Text [ width = 100%, wrap = true, fontSize = 15, textColor = { provided("theme").textMuted },
+        text = "Your saved cards and billing address will fill in at checkout. Nothing you've chosen or typed is lost." ],
+    Field [ width = 100%, label = "Email", stacked = true,
+        TextInput [ width = 100%, height = { app.touchFirst ? 48 : 42 }, fontSize = { app.touchFirst ? 17 : 16 },
+            name = "email", purpose = email, required = "Enter your email address.",
+            value <-> classroot.email ]
+        ],
+    Field [ width = 100%, label = "Password", stacked = true,
+        TextInput [ width = 100%, height = { app.touchFirst ? 48 : 42 }, fontSize = { app.touchFirst ? 17 : 16 },
+            name = "password", purpose = password, required = "Enter your password.",
+            concealed = { !classroot.reveal },
+            value <-> classroot.password ]
+        ],
+    Checkbox [ label = "Show password", checked <-> classroot.reveal ],
+    Text [ width = 100%, wrap = true, visible = { classroot.error != "" }, fontSize = 15, fontWeight = medium,
+        textColor = { provided("theme").error }, accessibilityRole = status, accessibilityLive = assertive,
+        text = { classroot.error } ],
+    Button [ width = 100%, height = 48, primary = true, label = "Sign in",
+        onClick() { classroot.submit() }
+        ]
+    ]
+
+
+// ── A ticket ────────────────────────────────────────────────────────────────
+//
+// The thing held up at the door with a queue behind: the seat in large type,
+// the performance and when to arrive, and a barcode to scan.
+
+class Barcode [ height = 64,
+    code: string = "",
+    bars: number[][] = { code39Bars(classroot.code) },
+    accessibilityRole = image,
+    accessibilityLabel = { "Barcode " + classroot.code },
+    draw(d: DrawContext) {
+        const last = bars[bars.length - 1]
+        const total = last != null ? last[0] : 1
+        const u = this.width / total
+        d.fillStyle = provided("theme").ticketInk
+        for (const b of bars) d.fillRect(b[0] * u, 0, b[1] * u, this.height)
+        }
+    ]
+
+
+class TicketCard [
+    index: number = { rowIndex },
+    count: number = { app.receipt?.tickets.length ?? 0 },
+    section: string = { :section ?? "" },
+    rowName: string = { :row ?? "" },
+    num: number = { :number ?? 0 },
+    starts: string = { app.receiptPerf?.startsAt ?? "" },
+    doors: string = { app.receiptPerf?.doorsAt ?? "" },
+    accessibilityRole = region,
+    accessibilityLabel = { "Ticket " + (classroot.index + 1) + " of " + classroot.count },
+
+    paper: View [ x = center, width = { Math.min(360, parent.width - 8) }, height = { parent.height - 8 }, y = 4,
+        cornerRadius = 18, fill = { provided("theme").ticketPaper }, clip = true,
+        shadow = { shadow(0, 8, 24, 0x2A221C26) },
+        stroke = { stroke(1, provided("theme").line) },
+
+        // the band: what and where
+
+        band: View [ width = 100%, height = 100, fill = { provided("theme").ticketInk }, padding = [18, 22, 18, 22],
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ fontSize = 12, fontWeight = bold, letterSpacing = 1.6, textColor = #CDBFA8,
+                text = { (app.production.value?.hall ?? "").toUpperCase() + " · ADMIT ONE" } ],
+            Text [ width = 100%, wrap = true, fontFamily = { app.titleFace }, fontSize = 25, fontWeight = semibold,
+                textColor = #FBF6EC, text = { app.production.value?.title ?? "" } ]
+            ],
+
+        body: View [ y = 100, width = 100%, padding = [16, 22, 0, 22],
+            layout: SimpleLayout [ axis = y, spacing = 14 ],
+            when: View [ width = 100%,
+                layout: SimpleLayout [ axis = x, align = baseline, spacing = 10 ],
+                Text [ fontFamily = { app.titleFace }, fontSize = 24, fontWeight = semibold, text = { dayLabel(classroot.starts) } ],
+                Text [ fontSize = 20, fontWeight = medium, text = { timeLabel(classroot.starts) } ]
+                ],
+            Text [ width = 100%, wrap = true, fontSize = 15, textColor = { provided("theme").textMuted },
+                text = { "Doors open " + timeLabel(classroot.doors) + ". Please arrive by then; latecomers wait for a suitable break. Running time " + (app.production.value?.runningTime ?? "") + "." } ],
+
+            // the seat, large enough to read at arm's length
+
+            seat: View [ width = 100%, padding = [6, 0, 0, 0],
+                layout: SimpleLayout [ axis = x, spacing = 18 ],
+                TicketFact [ label = "SECTION", value = { classroot.section }, flexes = true, big = false ],
+                TicketFact [ label = "ROW", value = { classroot.rowName } ],
+                TicketFact [ label = "SEAT", value = { String(classroot.num) } ]
+                ]
+            ],
+
+        // the stub: torn along the dashes, scanned at the door
+
+        stub: View [ y = { parent.height - this.height }, width = 100%, height = 136, padding = [20, 26, 14, 26],
+            draw(d: DrawContext) {
+                d.strokeStyle = provided("theme").lineStrong
+                d.lineWidth = 1.5
+                d.setLineDash([6, 6])
+                d.beginPath()
+                d.moveTo(16, 1)
+                d.lineTo(this.width - 16, 1)
+                d.stroke()
+                },
+            layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+            Barcode [ width = 100%, code = { :barcode ?? "" } ],
+            Text [ fontSize = 14, letterSpacing = 2, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                text = { (:barcode ?? "") + "   ·   " + (classroot.index + 1) + " of " + classroot.count } ]
+            ],
+
+        // the notches where the stub tears off
+
+        View [ x = -12, y = { parent.height - 148 }, width = 24, height = 24, cornerRadius = 12, fill = { provided("theme").background } ],
+        View [ x = { parent.width - 12 }, y = { parent.height - 148 }, width = 24, height = 24, cornerRadius = 12, fill = { provided("theme").background } ]
+        ]
+    ]
+
+
+class TicketFact [
+    label: string = "",
+    value: string = "",
+    big: boolean = true,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 11, fontWeight = bold, letterSpacing = 1.4, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    View [ height = 48,
+        Text [ y = end, fontSize = { classroot.big ? 44 : 24 }, fontWeight = bold, numeralWidth = tabular,
+            wrap = false, text = { classroot.value } ]
+        ]
+    ]

@@ -1,0 +1,28 @@
+/*
+# Counter
+
+A read-only field showing a count, and a button that adds one to it. The
+count is one attribute; the field reads it and the button writes it.
+*/
+
+class CounterTask [ padding = 32,
+    count: number = 0,
+
+    row: View [
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+
+        // A value to read and select but not change: a selectable Text in a
+        // field's box, not an editable field.
+
+        field: View [ width = 120, height = 40, padding = [0, 10, 0, 10], cornerRadius = 6,
+            fill = { provided("theme").surface },
+            stroke = { stroke(1, provided("theme").line) },
+            accessibilityRole = status, accessibilityLabel = "Count",
+            Text [ y = center, width = 100%, textAlign = end, selectable = true, numeralWidth = tabular,
+                text = { String(classroot.count) } ]
+            ],
+        Button [ label = "Count", primary = true,
+            onClick() { classroot.count = classroot.count + 1 }
+            ]
+        ]
+    ]

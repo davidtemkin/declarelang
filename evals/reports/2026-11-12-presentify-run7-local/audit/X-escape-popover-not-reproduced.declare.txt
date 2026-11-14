@@ -1,0 +1,12 @@
+// Escape with focus in a field inside an open Popover, while the App binds
+// Escape to a command of its own. Which takes the key: the popover (nearest
+// the focus) or the App?
+App [ width = 500, height = 300, fill = white,
+    appTook: number = 0,
+    keyBindings = { [ ({ key: "Escape", command: "esc" }) ] },
+    esc() -> boolean { appTook = appTook + 1; return true },
+    open: Button [ x = 20, y = 20, label = "Open", onClick() { app.pop.showFor(this) } ],
+    pop: Popover [ accessibilityLabel = "Colour",
+        View [ width = 200, layout: SimpleLayout [ axis = y, spacing = 8 ],
+            field: TextInput [ width = 100%, accessibilityLabel = "Hex colour", commitOn = "end" ] ] ]
+    ]

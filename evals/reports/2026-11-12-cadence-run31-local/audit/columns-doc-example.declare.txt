@@ -1,0 +1,8 @@
+// The reference example of WrappingLayout.columns, placed in an App as written.
+App [ width = 400, height = 200,
+    levels: Dataset { { "rows": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } },
+    scale: View [ width = 100%, datapath = { app.levels.value },
+        layout: WrappingLayout [ columns = { app.width < 600 ? 5 : 10 }, spacing = 6, rowSpacing = 6 ],
+        View [ datapath = :rows[], flexes = true, height = 44, cornerRadius = 6, fill = gainsboro ]
+        ]
+    ]

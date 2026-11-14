@@ -1,0 +1,8 @@
+// An Image whose source changes: does `loaded` drop and rise again (so onChange hears it),
+// and does a missing picture read failed, not the old picture's loaded?
+App [ width = 400, height = 300,
+    src: string = "photos/1.jpg",
+    heard: string[] = [],
+    img: Image [ width = 200, height = 120, source = { "http://localhost:8330/" + app.src },
+        trackChanges = ["loaded"],
+        onChange() { app.heard = [...app.heard, app.src + ":" + this.loaded] } ] ]

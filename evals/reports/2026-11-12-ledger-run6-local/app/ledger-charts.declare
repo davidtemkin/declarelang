@@ -1,0 +1,283 @@
+/*
+# Ledger: the time chart
+
+One class draws every chart over time: bars for some series, lines for
+others, a dashed line for the comparison period. It is a `Control`, so it is
+one Tab stop; the arrows move between periods (Left, Right) and series (Up,
+Down), each point is said in a sentence, and Enter opens its records — the
+same as a click on a bar or point. Dragging across it selects a run of
+periods, which the owner may offer as the date filter.
+
+What it is given is data, as records: `points`, one per period, each with a
+value per series; and `series`, one per measure, saying how it is drawn and
+which kinds of transaction make it up. When the points change, the drawing
+moves from the old values to the new on a spring, so the eye sees what
+changed.
+*/
+
+// One period on a chart: its name, its range (what opening it filters to),
+// whether it is over, and one value and one count per series.
+
+schema ChartPoint [ key: string, label: string, tick: string, partial: boolean, from: string, to: string,
+    v[]: number, n[]: number ]
+
+// One measure. `mark` is how it is drawn; `kinds` are the transaction kinds
+// behind it (what opening it adds to the filter); `unit` how its values read.
+// A series with `compareOf` set is the comparison period of another, drawn
+// dashed; its points open nothing.
+
+schema ChartSeries [ id: string, label: string, mark: "bar" | "line" | "dash", tone: any,
+    unit: "money" | "pct" | "count", kinds[]: string, compareOf?: number ]
+
+style AxisText [ fontSize = 11, textColor = #8A8B91 ]
+
+class PeriodChart extends Control [ width = 100%, height = 260,
+    points: ChartPoint[] = [],
+    series: ChartSeries[] = [],
+
+    // What the owner does with a point or a picked range of periods.
+
+    opens(i: number, s: number) { },
+    rangePicked(from: string, to: string) { },
+
+    // ── geometry: the plot inside room for the axis labels
+
+    padL: number = 54,
+    padB: number = 26,
+    padT: number = 10,
+    plotW: number = { Math.max(1, this.width - this.padL - 8) },
+    plotH: number = { Math.max(1, this.height - this.padB - this.padT) },
+    slot: number = { this.plotW / Math.max(1, this.points.length) },
+    bars: number[] = { this.series.map((s, i) => s.mark == "bar" ? i : -1).filter((i) => i >= 0) },
+    barW: number = { Math.max(2, Math.min(28, this.slot * 0.72 / Math.max(1, this.bars.length))) },
+
+    // ── motion: `t` springs toward `gen`; each new set of points starts a
+    //    step from the values on screen at that moment.
+
+    gen: number = 0,
+    t: number = 0,
+    base: number = 0,
+    fromV: array = [],
+    Spring [ attribute = t, to = { classroot.gen }, stiffness = 140, damping = 22 ],
+    reduce: boolean = { provided("accessibilitySettings").reduceMotion },
+    frac: number = { this.reduce || this.gen == this.base ? 1 : Math.min(1, Math.max(0, (this.t - this.base) / (this.gen - this.base))) },
+    trackChanges = ["points"],
+    onChange() {
+        fromV = points.map((p, i) => p.v.map((v, s) => valueAt(i, s)))
+        base = t
+        gen = gen + 1
+        },
+    shown(i: number, s: number) -> number {
+        const now = points[i]?.v[s] ?? 0
+        const was = (fromV[i] ?? [])[s]
+        return was == null ? now : was + (now - was) * frac
+        },
+    valueAt(i: number, s: number) -> number { return shown(i, s) },
+
+    // The scale: from zero (or the lowest value, when some are negative) to
+    // a round top. Money on the axis is compact; the values themselves are full.
+
+    rawLo: number = { Math.min(0, ...this.points.flatMap((p, i) => p.v.map((v, s) => this.shown(i, s)))) },
+    rawHi: number = { Math.max(0, ...this.points.flatMap((p, i) => p.v.map((v, s) => this.shown(i, s)))) },
+    step: number = { niceStep(this.rawHi - this.rawLo, 4) },
+    lo: number = { Math.floor(this.rawLo / this.step) * this.step },
+    hi: number = { Math.max(this.lo + this.step, Math.ceil(this.rawHi / this.step) * this.step) },
+    yOf(v: number) -> number { return padT + plotH - (v - lo) / Math.max(1, hi - lo) * plotH },
+    xOf(i: number) -> number { return padL + slot * (i + 0.5) },
+
+    // ── where the person is: the point under the pointer, or the keyboard's
+
+    hoverIdx: number = -1,
+    active: number = -1,
+    activeSeries: number = 0,
+    hl: number = { this.hoverIdx >= 0 ? this.hoverIdx : this.focused ? this.active : -1 },
+    idxAt(x: number) -> number { return Math.max(0, Math.min(points.length - 1, Math.floor((x - padL) / slot))) },
+    seriesAt(x: number, i: number) -> number {
+        if (bars.length == 0) return Math.max(0, series.findIndex((s) => s.compareOf == null))
+        const left = xOf(i) - barW * bars.length / 2
+        const k = Math.max(0, Math.min(bars.length - 1, Math.floor((x - left) / barW)))
+        return bars[k]
+        },
+    onPointerMove(e: PointerEvent) { hoverIdx = points.length > 0 && e.x >= padL ? idxAt(e.x) : -1 },
+    onPointerOut(e: PointerEvent) { hoverIdx = -1 },
+
+    onClick(e: PointerEvent) {
+        if (points.length == 0 || e.x < padL) return
+        const i = idxAt(e.x)
+        const s = seriesAt(e.x, i)
+        active = i
+        activeSeries = s
+        opens(i, s)
+        },
+
+    // ── a range dragged across
+
+    dragA: number = -1,
+    dragB: number = -1,
+    onDragStart(e: PointerEvent) { if (points.length > 0) { dragA = idxAt(e.x); dragB = dragA } },
+    onDrag(e: PointerEvent) { if (dragA >= 0) dragB = idxAt(e.x) },
+    onDragEnd(e: DragEndEvent) {
+        if (!e.canceled && dragA >= 0 && dragA != dragB) {
+            const a = Math.min(dragA, dragB), b = Math.max(dragA, dragB)
+            rangePicked(points[a].from, points[b].to)
+            }
+        dragA = -1
+        dragB = -1
+        },
+
+    // ── the keyboard: one stop, arrows travel, Enter opens
+
+    keyBindings = { [
+        ({ key: "ArrowRight", command: "move", args: [1, 0] }),
+        ({ key: "ArrowLeft", command: "move", args: [-1, 0] }),
+        ({ key: "ArrowDown", command: "move", args: [0, 1] }),
+        ({ key: "ArrowUp", command: "move", args: [0, -1] }),
+        ({ key: "Home", command: "moveTo", args: [0] }),
+        ({ key: "End", command: "moveTo", args: [-1] }) ] },
+    move(di: number, ds: number) {
+        if (points.length == 0) return
+        hoverIdx = -1
+        active = active < 0 ? points.length - 1 : Math.max(0, Math.min(points.length - 1, active + di))
+        if (ds != 0) {
+            const n = series.length
+            let s = activeSeries
+            do { s = (s + ds + n) % n } while (series[s].compareOf != null && s != activeSeries)
+            activeSeries = s
+            }
+        Accessibility.announce(sentence(active, activeSeries))
+        },
+    moveTo(i: number) {
+        if (points.length == 0) return
+        active = i < 0 ? points.length - 1 : i
+        Accessibility.announce(sentence(active, activeSeries))
+        },
+    press() { if (active >= 0 && points.length > 0) opens(active, activeSeries) },
+    onFocus() {
+        if (active < 0 && points.length > 0) active = points.length - 1
+        if (active >= 0 && points.length > 0) Accessibility.announce(sentence(active, activeSeries))
+        },
+
+    // ── what a point says: "March 2026, Expenses, $4,120.00, up 6% from
+    //    February, 87 transactions"
+
+    fmt(v: number, unit: string) -> string { return unit == "money" ? money(v) : unit == "pct" ? pct(v) : count(v) },
+    compareIdx(s: number) -> number { return series.findIndex((c) => c.compareOf == s) },
+    changeOf(i: number, s: number) -> string {
+        const p = points[i]
+        if (p == null) return ""
+        const c = compareIdx(s)
+        const now = p.v[s]
+        const before = c >= 0 ? p.v[c] : i > 0 ? points[i - 1].v[s] : null
+        if (before == null) return ""
+        const against = c >= 0 ? "the comparison period" : points[i - 1].label
+        if (series[s].unit == "pct") return pointsText(now, before) + " from " + against
+        const ch = change(now, before)
+        if (ch == null) return ""
+        return (ch >= 0 ? "up " : "down ") + signedPct(Math.abs(ch)).replace("+", "") + " from " + against
+        },
+    sentence(i: number, s: number) -> string {
+        const p = points[i]
+        const se = series[s]
+        if (p == null || se == null) return ""
+        const parts = [p.label + (p.partial ? " (so far)" : ""), se.label, fmt(p.v[s], se.unit)]
+        const ch = changeOf(i, s)
+        if (ch != "") parts.push(ch)
+        parts.push(count(p.n[s]) + (p.n[s] == 1 ? " transaction" : " transactions"))
+        return parts.join(", ")
+        },
+
+    // ── the drawing
+
+    draw(d: DrawContext) {
+        const th = provided("theme")
+        const n = points.length
+        // grid lines and the axis's compact labels
+        d.lineWidth = 1
+        for (let v = lo; v <= hi + step / 2; v += step) {
+            const y = Math.round(yOf(v)) + 0.5
+            d.strokeStyle = v == 0 ? th.lineStrong : th.line
+            d.beginPath(); d.moveTo(padL, y); d.lineTo(d.w - 8, y); d.stroke()
+            const label = series[0]?.unit == "pct" ? Math.round(v) + "%" : series[0]?.unit == "count" ? count(v) : moneyCompact(v)
+            const m = measureText(label, AxisText)
+            d.fillText(label, padL - 8 - m.width, y + 4, AxisText)
+            }
+        if (n == 0) return
+        // a dragged range
+        if (dragA >= 0 && dragA != dragB) {
+            const a = Math.min(dragA, dragB), b = Math.max(dragA, dragB)
+            d.fillStyle = th.selection
+            d.fillRect(padL + a * slot, padT, (b - a + 1) * slot, plotH)
+            }
+        // the point under the pointer or the keys
+        if (hl >= 0) {
+            d.fillStyle = th.hover
+            d.fillRect(padL + hl * slot, padT, slot, plotH)
+            }
+        // the ticks: as many as fit
+        const every = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(plotW / 54))))
+        for (let i = 0; i < n; i += every) {
+            const label = points[i].tick + (points[i].partial ? "…" : "")
+            const m = measureText(label, AxisText)
+            d.fillText(label, xOf(i) - m.width / 2, d.h - 8, AxisText)
+            }
+        const zero = yOf(0)
+        // bars, side by side within a period; a partial period's are hatched-light
+        bars.forEach((s, k) => {
+            const se = series[s]
+            for (let i = 0; i < n; i++) {
+                const v = shown(i, s)
+                const x = xOf(i) - barW * bars.length / 2 + k * barW + 1
+                const y = Math.min(yOf(v), zero), h = Math.abs(yOf(v) - zero)
+                d.globalAlpha = points[i].partial ? 0.45 : 1
+                d.fillStyle = se.tone
+                d.beginPath(); d.roundRect(x, y, barW - 2, Math.max(h, v == 0 ? 0 : 1.5), [2, 2, 0, 0]); d.fill()
+                if (points[i].partial) {
+                    d.globalAlpha = 1
+                    d.strokeStyle = se.tone
+                    d.setLineDash([3, 2])
+                    d.strokeRect(x + 0.5, y + 0.5, barW - 3, Math.max(0, h - 1))
+                    d.setLineDash([])
+                    }
+                if (i == hl && s == activeSeries && focused) { d.globalAlpha = 1; d.strokeStyle = th.text; d.lineWidth = 2; d.strokeRect(x - 1, y - 1, barW, h + 2); d.lineWidth = 1 }
+                }
+            d.globalAlpha = 1
+            })
+        // lines, and the comparison dashed
+        series.forEach((se, s) => {
+            if (se.mark == "bar") return
+            d.strokeStyle = se.tone
+            d.lineWidth = se.mark == "dash" ? 1.6 : 2.2
+            d.lineJoin = "round"
+            d.setLineDash(se.mark == "dash" ? [5, 4] : [])
+            d.beginPath()
+            for (let i = 0; i < n; i++) { const x = xOf(i), y = yOf(shown(i, s)); if (i == 0) d.moveTo(x, y); else d.lineTo(x, y) }
+            d.stroke()
+            d.setLineDash([])
+            d.fillStyle = se.tone
+            for (let i = 0; i < n; i++) {
+                if (se.mark == "dash" && i != hl) continue
+                const r = i == hl ? 4 : n > 40 ? 0 : 2.6
+                if (r == 0) continue
+                d.beginPath(); d.arc(xOf(i), yOf(shown(i, s)), r, 0, 6.3); d.fill()
+                }
+            })
+        },
+
+    // ── the tooltip: period, each series, change, how many transactions
+
+    tip: View [ ignoreLayout = true, visible = { classroot.hl >= 0 && classroot.dragA < 0 },
+        accessibilityHidden = true,
+        x = { Math.max(0, Math.min(classroot.width - this.width, classroot.xOf(Math.max(0, classroot.hl)) + 14)) },
+        y = 6, padding = [8, 10, 8, 10], cornerRadius = 8,
+        fill = { provided("theme").tooltipFill },
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        Text [ fontSize = 12, fontWeight = semibold, wrap = false, textColor = { provided("theme").tooltipTextColor },
+            text = { classroot.points[classroot.hl]?.label ?? "" } ],
+        Text [ fontSize = 12, wrap = false, numeralWidth = tabular, textColor = { provided("theme").tooltipTextColor },
+            text = { classroot.hl < 0 ? "" : classroot.series.map((se, s) => se.label + "  " + classroot.fmt(classroot.points[classroot.hl]?.v[s] ?? 0, se.unit)).join("\n") } ],
+        Text [ fontSize = 11.5, wrap = false, textColor = { provided("theme").tooltipTextColor }, opacity = 0.75,
+            text = { classroot.hl < 0 ? "" : [classroot.changeOf(classroot.hl, classroot.activeSeries),
+                count(classroot.points[classroot.hl]?.n[classroot.activeSeries] ?? 0) + " transactions",
+                (classroot.points[classroot.hl]?.partial ?? false) ? "Period not over yet" : ""].filter((s) => s != "").join(" · ") } ]
+        ]
+    ]

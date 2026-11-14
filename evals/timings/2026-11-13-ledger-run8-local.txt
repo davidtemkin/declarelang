@@ -1,0 +1,27 @@
+# eval-ledger-8
+total 20.6 min · 54 turns · output 139202 tokens (thinking 42405)
+phases: reading 5.9 · writing 0.1 · checking 14.7 min
+tool time 1.1 min · model time 19.5 min
+tools:
+  verify    12×   0.67 min  (median 2.3 s)
+  help       8×   0.37 min  (median 1.9 s)
+  bash      12×   0.04 min  (median 0.1 s)
+model turns, by what came before:
+  after write     9×   7.40 min  (median 62.1 s)
+  after bash     11×   5.29 min  (median 2.5 s)
+  after verify   12×   2.81 min  (median 9.3 s)
+  after help      8×   2.04 min  (median 5.6 s)
+  after edit      1×   1.30 min  (median 78.2 s)
+  after read     11×   0.42 min  (median 1.6 s)
+app: 8 .declare files, 2913 non-blank lines · 20 snapshots changed them: 3666 lines added, 307 removed
+verify results mentioning accessibility: 3
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+diagnostic codes, by tool results reporting them: DECLARE4025 5, DECLARE1002 4, DECLARE2000 3, DECLARE4000 2, DECLARE4022 1, DECLARE4023 1, DECLARE3006 1, DECLARE4002 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   0.25 min     6×  R4 boot, in all
+   0.23 min     9×  page: load, compile in the page and boot
+   0.23 min    12×  compile (R1–R3)
+   0.01 min     9×  page: a new page
+   0.00 min     6×  chrome: a browser (shared between calls)
+   0.00 min     6×  end: the browser context released
+   0.00 min     6×  serve: start the program's server

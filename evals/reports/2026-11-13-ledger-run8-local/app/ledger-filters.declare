@@ -1,0 +1,306 @@
+/*
+# Ledger: the filters
+
+One set of filters, at the top of every screen: the date range (a preset or
+two dates, stepped by its arrows), the comparison period beside it, search,
+and kind, category, contact and amount, each opening a small popover. Every
+active filter shows below as a chip with its value and a way to remove it;
+"Clear all" returns to this month. The filters themselves live on the App;
+everything here reads and writes them there.
+*/
+
+class FilterBar [ width = 100%,
+    padding = { app.phone ? [10 + app.safeTop, 12, 8, 12] : [14, 20, 10, 20] },
+    fill = { provided("theme").background },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+    // the screen's name; Back to where a number was opened from; whether the
+    // figures are filtered; export
+
+    titleRow: View [ width = 100%, height = 32,
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Text [ fontSize = { app.phone ? 19 : 22 }, fontWeight = semibold, wrap = false, accessibilityRole = heading,
+            text = { app.screenName } ],
+        backLink: Control [ visible = { app.back != null }, height = 28, cornerRadius = 6, padding = [0, 8, 0, 6],
+            fill = { hovered ? provided("theme").hover : null },
+            press() { app.goBack() },
+            layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+            ChevronIcon [ iconSize = 10, dir = "left", ink = { provided("theme").accent } ],
+            TextLabel [ fontSize = 13, wrap = false, textColor = { provided("theme").accent },
+                text = { "Back to " + (app.back?.label ?? "") } ]
+            ],
+        Spacer [ ],
+        filtered: View [ visible = { app.nonDate }, height = 24, cornerRadius = 12, padding = [0, 10, 0, 10],
+            fill = { provided("theme").warnTint },
+            accessibilityRole = status,
+            TextLabel [ fontSize = 12, fontWeight = medium, wrap = false, textColor = { provided("theme").warn },
+                text = { app.phone ? "Filtered" : "Figures are filtered" } ]
+            ],
+        exportBtn: Button [ visible = { !app.phone }, height = 30, label = "Export CSV",
+            onClick() { app.exportCsv() }
+            ]
+        ],
+
+    filters: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = center ],
+
+        // the date range: its arrows step to the range of the same length
+        // before or after; the button opens the presets
+
+        dates: View [ height = { app.phone ? 44 : 32 },
+            layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+            StepButton [ dir = "left", accessibilityLabel = "Previous range", tooltipLabel = "Previous range  [",
+                disabled = { app.from == "" },
+                press() { app.step(-1) }
+                ],
+            rangeBtn: DropButton [ label = { app.rangeName }, accessibilityLabel = { "Date range, " + app.rangeName },
+                menu = { classroot.presetMenu } ],
+            StepButton [ dir = "right", accessibilityLabel = "Next range", tooltipLabel = "Next range  ]",
+                disabled = { app.from == "" },
+                press() { app.step(1) }
+                ]
+            ],
+        compareBtn: DropButton [ visible = { !app.phone },
+            label = { app.compare == "none" ? "No comparison" : "Compared with " + app.cmpShort },
+            menu = { classroot.compareMenu } ],
+        search: SearchField [ width = { app.phone ? app.width - 24 : 220 }, height = { app.phone ? 44 : 32 },
+            placeholder = "Search  /", accessibilityLabel = "Search transactions",
+            value = { app.searchText },
+            commit(v: string) { app.search(v) }
+            ],
+        kindBtn: DropButton [ label = "Kind", on = { app.kinds.length > 0 },
+            press() { classroot.kindPop.showFor(this) }
+            ],
+        catBtn: DropButton [ label = "Category", on = { app.cats.length > 0 },
+            press() { classroot.catPop.showFor(this) }
+            ],
+        contactBtn: DropButton [ label = "Contact", on = { app.contacts.length > 0 },
+            press() { classroot.contactPop.showFor(this) }
+            ],
+        amountBtn: DropButton [ label = "Amount", on = { app.minC >= 0 || app.maxC >= 0 },
+            press() { classroot.amountPop.showFor(this) }
+            ]
+        ],
+
+    // every active filter, as a chip with a way to remove it
+
+    chipRow: View [ visible = { app.chipCount > 0 }, width = 100%, datapath = { app.chips.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+        FilterChip [ datapath = :rows[], label = { :label ?? "" },
+            press() { app.removeChip(:id ?? "") }
+            ],
+        Control [ height = { app.phone ? 44 : 28 }, padding = [0, 8, 0, 8], cornerRadius = 6,
+            fill = { hovered ? provided("theme").hover : null },
+            press() { app.clearAll() },
+            TextLabel [ fontSize = 12.5, fontWeight = medium, textColor = { provided("theme").accent }, text = "Clear all" ]
+            ]
+        ],
+
+    // ── what the buttons open
+
+    presetMenu: Menu [
+        items = { [ ...PRESETS.map((p) => ({ id: p.id, label: p.label, group: "range", checked: app.preset == p.id })),
+            ({ divider: true }),
+            ({ id: "custom", label: "Choose dates…", checked: app.preset == "custom" }) ] },
+        picked(id: string) {
+            if (id == "custom") classroot.customPop.showFor(classroot.filters.dates.rangeBtn)
+            else app.setPreset(id)
+            }
+        ],
+    compareMenu: Menu [
+        items = { [ ({ id: "previous", label: "Previous period", group: "cmp", checked: app.compare == "previous" }),
+            ({ id: "year", label: "Same period last year", group: "cmp", checked: app.compare == "year" }),
+            ({ id: "none", label: "No comparison", group: "cmp", checked: app.compare == "none" }) ] },
+        picked(id: string) { app.compare = id as "previous" | "year" | "none" }
+        ],
+    customPop: Popover [ accessibilityLabel = "Choose dates",
+        DateRangeForm [ exists = { classroot.customPop.present } ]
+        ],
+    kindPop: Popover [ accessibilityLabel = "Kind",
+        KindFilter [ ]
+        ],
+    catPop: Popover [ accessibilityLabel = "Category",
+        CategoryFilter [ exists = { classroot.catPop.present } ]
+        ],
+    contactPop: Popover [ accessibilityLabel = "Contact",
+        ContactFilter [ exists = { classroot.contactPop.present } ]
+        ],
+    amountPop: Popover [ accessibilityLabel = "Amount",
+        AmountFilter [ exists = { classroot.amountPop.present } ]
+        ]
+    ]
+
+
+// two dates, applied together
+
+class DateRangeForm [ width = 280,
+    a: string = { app.from == "" ? app.today : app.from },
+    b: string = { app.to == "" ? app.today : app.to },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Field [ label = "From", stacked = true,
+        DatePicker [ width = 260, value = { classroot.a },
+            commit(v: string) { classroot.a = v }
+            ]
+        ],
+    Field [ label = "To", stacked = true,
+        DatePicker [ width = 260, value = { classroot.b },
+            commit(v: string) { classroot.b = v }
+            ]
+        ],
+    Button [ primary = true, label = "Apply",
+        onClick() { app.setRange(classroot.a, classroot.b); app.main.bar.customPop.close() }
+        ]
+    ]
+
+
+// sales, refunds, expenses: several at once
+
+class KindFilter [ width = 220,
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Caption [ text = "Kind" ],
+    Checkbox [ label = "Sales", checked = { app.kinds.includes("sale") },
+        commit(v: boolean) { app.toggleKind("sale") }
+        ],
+    Checkbox [ label = "Refunds", checked = { app.kinds.includes("refund") },
+        commit(v: boolean) { app.toggleKind("refund") }
+        ],
+    Checkbox [ label = "Expenses", checked = { app.kinds.includes("expense") },
+        commit(v: boolean) { app.toggleKind("expense") }
+        ]
+    ]
+
+
+// categories, several at once, each with how many transactions it would
+// have under the other filters
+
+schema CatOption [ id: string, label: string, count: number, colour: number ]
+
+class CategoryFilter [ width = 300,
+    counts: DataSource [ schema = CatCounts, autoFetch = true, url = { app.url("aggregates/category-counts", app.qsWithout("category")) } ],
+    options: Dataset [ schema = [ rows[]: CatOption ], contents = { { rows: classroot.optionRows() } } ],
+    optionRows() -> CatOption[] {
+        const got = this.counts.value?.categories ?? []
+        return got.map((c) => ({ id: c.categoryId ?? "none", label: app.books.catName(c.categoryId ?? null),
+            count: c.count, colour: app.books.catColour(c.categoryId ?? null) }))
+        },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    Caption [ text = "Category" ],
+    LoadState [ source = { classroot.counts } ],
+    list: View [ width = 100%, datapath = { classroot.options.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        View [ datapath = :rows[], width = 100%, height = 30,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Checkbox [ flexes = true, label = { :label ?? "" }, checked = { app.cats.includes(:id ?? "") },
+                commit(v: boolean) { app.toggleCat(:id ?? "") }
+                ],
+            Text [ fontSize = 12, wrap = false, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                text = { count(:count ?? 0) } ]
+            ]
+        ]
+    ]
+
+
+// contacts: chosen by typing part of a name
+
+class ContactFilter [ width = 300,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Caption [ text = "Contact" ],
+    Combobox [ width = 100%, placeholder = "Type a name", accessibilityLabel = "Add a contact",
+        items = { app.books.contactChoices("") },
+        value = null,
+        commit(v: object) { if (v != null && !app.contacts.includes((v as Choice).id)) app.toggleContact((v as Choice).id) }
+        ],
+    Checkbox [ label = "No contact", checked = { app.contacts.includes("none") },
+        commit(v: boolean) { app.toggleContact("none") }
+        ],
+    picked: Dataset [ contents = { { rows: app.contacts.filter((c) => c != "none").map((c) => ({ id: c, label: app.books.contactName(c) })) } } ],
+    chosen: View [ width = 100%, datapath = { classroot.picked.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        FilterChip [ datapath = :rows[], label = { :label ?? "" },
+            press() { app.toggleContact(:id ?? "") }
+            ]
+        ]
+    ]
+
+
+// ── the amount: a two-handled slider over a skewed scale ────────────────────
+//
+// Amounts are mostly between $5 and $200 with a few rents in the thousands,
+// so the slider moves over friendly steps (`AMOUNT_STEPS`), not a straight
+// line, and its labels sit at $10, $50, $100, $500, $1k, $5k. Above the
+// track, how the transactions matching the other filters spread by amount,
+// the chosen range highlighted. The number fields take exact cents. The top
+// handle at the end means no top.
+
+class AmountFilter [ width = 340,
+    spread: DataSource [ schema = AmountSpread, autoFetch = true, url = { app.url("aggregates/amounts", app.qsWithout("amount")) } ],
+    lo: number = { amountFrac(Math.max(0, app.minC)) },
+    hi: number = { app.maxC < 0 ? 1 : amountFrac(app.maxC) },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Caption [ text = { "Amount" + (app.minC >= 0 || app.maxC >= 0 ? " · " + amountChip(app.minC, app.maxC) : "") } ],
+
+    // the spread, as a small histogram over the slider's own scale
+
+    histogram: View [ width = 100%, height = 44, accessibilityHidden = true,
+        buckets: Bucket[] = { classroot.spread.value?.buckets ?? [] },
+        draw(d: DrawContext) {
+            const bs = buckets
+            const peak = Math.max(1, ...bs.map((b) => b.count))
+            const th = provided("theme")
+            const pad = 10
+            const w = d.w - pad * 2
+            for (const b of bs) {
+                const a = amountFrac(b.min), z = b.max == null ? 1 : amountFrac(b.max)
+                if (z <= a) continue
+                const mid = (a + z) / 2
+                const inside = mid >= classroot.lo && mid <= classroot.hi
+                const h = b.count == 0 ? 0 : Math.max(2, (d.h - 2) * b.count / peak)
+                d.fillStyle = inside ? th.accent : th.lineStrong
+                d.fillRect(pad + a * w + 1, d.h - h, Math.max(1, (z - a) * w - 2), h)
+                }
+            }
+        ],
+    slider: RangeSlider [ width = 100%, min = 0, max = { amountTop() }, step = 1,
+        accessibilityLabel = "amount",
+        value = { { low: amountIndex(app.minC, false), high: app.maxC < 0 ? amountTop() : amountIndex(app.maxC, true) } },
+        valueText(v: number) -> string { return v >= amountTop() ? "no limit" : money(amountAt(v)) },
+        commit(v: object) {
+            const r = v as { low: number, high: number }
+            app.setAmount(r.low <= 0 ? -1 : amountAt(r.low), r.high >= amountTop() ? -1 : amountAt(r.high))
+            }
+        ],
+
+    // the labels at friendly values, where they fall on the scale
+
+    ticks: View [ width = 100%, height = 16, accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const th = provided("theme")
+            d.font = "11px system-ui, sans-serif"
+            d.fillStyle = th.textMuted
+            d.textAlign = "center"
+            d.textBaseline = "top"
+            const pad = 10
+            for (const c of AMOUNT_TICKS) d.fillText(amountTickLabel(c), pad + amountFrac(c) * (d.w - pad * 2), 0)
+            }
+        ],
+    fields: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Field [ label = "Min", stacked = true, flexes = true,
+            TextInput [ width = 100%, height = 32, purpose = decimal, placeholder = "No minimum", numeralWidth = tabular,
+                value = { centsText(app.minC) }, commitOn = "end",
+                validate(v: string) -> string { return v.trim() == "" || parseMoney(v) >= 0 ? "" : "Type an amount like 20.00" },
+                commit(t: string) { app.setAmount(t.trim() == "" ? -1 : parseMoney(t), app.maxC) }
+                ]
+            ],
+        Field [ label = "Max", stacked = true, flexes = true,
+            TextInput [ width = 100%, height = 32, purpose = decimal, placeholder = "No maximum", numeralWidth = tabular,
+                value = { centsText(app.maxC) }, commitOn = "end",
+                validate(v: string) -> string { return v.trim() == "" || parseMoney(v) >= 0 ? "" : "Type an amount like 200.00" },
+                commit(t: string) { app.setAmount(app.minC, t.trim() == "" ? -1 : parseMoney(t)) }
+                ]
+            ]
+        ],
+    Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { count(classroot.spread.value?.count ?? 0) + " transactions match the other filters" } ]
+    ]

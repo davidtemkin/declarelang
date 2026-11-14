@@ -1,0 +1,47 @@
+# eval-ledger-9
+total 47.8 min · 191 turns · output 229249 tokens (thinking 56345)
+phases: reading 5.3 · writing 0.1 · checking 42.3 min
+tool time 14.6 min · model time 33.1 min
+tools:
+  verify    65×  12.27 min  (median 5.7 s)
+  look      23×   2.04 min  (median 4.3 s)
+  help      16×   0.19 min  (median 0.5 s)
+  bash      34×   0.09 min  (median 0.0 s)
+  read      13×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after help     16×   8.38 min  (median 7.9 s)
+  after verify   65×   7.70 min  (median 5.2 s)
+  after bash     33×   6.49 min  (median 2.6 s)
+  after image    29×   4.49 min  (median 6.8 s)
+  after write    10×   3.73 min  (median 13.2 s)
+  after look     23×   1.38 min  (median 1.4 s)
+  after read     13×   0.62 min  (median 1.6 s)
+app: 10 .declare files, 3720 non-blank lines · 65 snapshots changed them: 4836 lines added, 556 removed
+verify results mentioning accessibility: 5
+source reads: library 4 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/datagrid.declare
+            library  library/table.declare
+            library  library/rangeslider.declare
+            library  library/sheet.declare
+diagnostic codes, by tool results reporting them: DECLARE6001 8, DECLARE2000 6, DECLARE4025 5, DECLARE1002 4, DECLARE5000 1, DECLARE1000 1, DECLARE4032 1, DECLARE4002 1, DECLARE4023 1, DECLARE2006 1
+inside the agent's verify and look calls:
+   8.14 min    93×  R5 behavior, in all
+   6.79 min    92×  script: the assert script, in all
+   3.28 min   128×  compile (R1–R3)
+   1.86 min   172×  page: load, compile in the page and boot
+   1.81 min     4×  drive.profile
+   1.40 min    48×  drive.wheel
+   1.12 min    76×  R4 boot, in all
+   1.05 min    93×  open: the app loaded and arrived, in all
+   1.04 min   219×  locator.click
+   1.00 min   214×  drive.click
+   0.96 min   575×  check: scrolling come to rest
+   0.92 min   269×  drive.settleData
+   0.85 min  1605×  locator: wait a tick for it
+   0.76 min   134×  expect(locator), in all
+   0.58 min   233×  drive.settleMotion
+   0.24 min   211×  drive.key
+   0.23 min   172×  page: a new page
+   0.19 min  1889×  locator: query the page
+   0.14 min    73×  end: layout questions at the end of the script
+   0.12 min    49×  locator.fill

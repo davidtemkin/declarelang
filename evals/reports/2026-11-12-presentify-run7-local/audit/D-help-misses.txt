@@ -1,0 +1,15 @@
+$ npx declare-help ColorPicker
+no entry for 'ColorPicker' — searched reference (1973 entries), classes (112), enums, diagnostics, the hint tables, and the concept table.
+If it is a concept the docs discuss in prose, the guide index is docs/guide/;
+$ npx declare-help ColorWell
+no entry for 'ColorWell' — searched reference (1973 entries), classes (112), enums, diagnostics, the hint tables, and the concept table.
+If it is a concept the docs discuss in prose, the guide index is docs/guide/;
+$ npx declare-help NumberField
+no entry for 'NumberField' — searched reference (1973 entries), classes (112), enums, diagnostics, the hint tables, and the concept table.
+If it is a concept the docs discuss in prose, the guide index is docs/guide/;
+$ npx declare-help Fullscreen
+no entry for 'Fullscreen' — searched reference (1973 entries), classes (112), enums, diagnostics, the hint tables, and the concept table.
+If it is a concept the docs discuss in prose, the guide index is docs/guide/;
+$ npx declare-help focusRing
+FocusRing — library class (library/focusring.declare) · extends View
+  The travelling focus indicator: a **shape-hugging** rounded outline that flies to the focused control and reshapes to its own silhouette on arrival.

@@ -1,0 +1,45 @@
+# eval-venue-34
+total 25.5 min · 100 turns · output 134689 tokens (thinking 64286)
+phases: reading 7.4 · writing 7.5 · checking 10.6 min
+tool time 4.6 min · model time 20.9 min
+tools:
+  verify    18×   3.30 min  (median 6.2 s)
+  look      12×   0.74 min  (median 4.0 s)
+  help      10×   0.32 min  (median 1.5 s)
+  bash      12×   0.23 min  (median 0.0 s)
+model turns, by what came before:
+  after write     7×   4.94 min  (median 3.7 s)
+  after help     10×   4.61 min  (median 3.1 s)
+  after bash     12×   3.56 min  (median 2.0 s)
+  after image    17×   2.25 min  (median 5.6 s)
+  after verify   17×   1.97 min  (median 5.1 s)
+  after edit      7×   1.83 min  (median 3.3 s)
+  after look     12×   0.78 min  (median 1.4 s)
+  after read     16×   0.55 min  (median 1.6 s)
+app: 4 .declare files, 1459 non-blank lines · 25 snapshots changed them: 1785 lines added, 80 removed
+verify results mentioning accessibility: 1
+source reads: library 2 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/icons/*.declare
+            library  library/*.declare
+diagnostic codes, by tool results reporting them: DECLARE4025 4, DECLARE1002 2, DECLARE2000 1, DECLARE4023 1, DECLARE4005 1, DECLARE4032 1, DECLARE3006 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   3.16 min    30×  R5 behavior, in all
+   2.50 min    30×  script: the assert script, in all
+   0.91 min   106×  locator.click
+   0.56 min    30×  open: the app loaded and arrived, in all
+   0.56 min    34×  page: load, compile in the page and boot
+   0.39 min    53×  locator.tap
+   0.37 min   220×  check: scrolling come to rest
+   0.36 min   148×  drive.settleMotion
+   0.31 min    38×  compile (R1–R3)
+   0.21 min     5×  drive.waitReal
+   0.21 min    85×  locator.fill
+   0.19 min    45×  drive.settleData
+   0.12 min     5×  drive.drag
+   0.11 min    64×  drive.key
+   0.11 min   198×  locator: wait a tick for it
+   0.07 min    12×  drive.clickAt
+   0.06 min   218×  expect(locator), in all
+   0.06 min   220×  check: the layout questions
+   0.06 min   657×  locator: query the page
+   0.05 min    27×  end: layout questions at the end of the script

@@ -1,0 +1,298 @@
+/*
+# Ledger: the parts
+
+The look of Ledger, kept apart from how it works: the two themes, the drawn
+icons, and the small pieces every screen is made of — money written so its
+digits line up, a category's chip, a filter chip, a panel, a navigation item.
+`ledger.declare` includes this file.
+*/
+
+use [ Glyph ]
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// Laid over the library's preset so its controls read the same palette.
+// `cats` and `catTints` are indexed by a category's `colour` (0–11), so a
+// category keeps its colour on every chart, chip and bar. `income`,
+// `expense` and `net` are the three measures every chart draws.
+
+theme LedgerLight [
+    background = #F7F5F1, surface = #FFFFFF, sidebar = #EFECE6, raised = #FFFFFF,
+    line = #E4DFD7, lineStrong = #D2CCC2, hover = #F1EEE8, selection = #E3EEEA,
+    text = #1F1D1A, textMuted = #67625A, textFaint = #8E887E,
+    accent = #23695A, accentHovered = #1D5C4E, accentPressed = #184F43, accentTextColor = #FFFFFF,
+    linkColor = #23695A,
+    control = #ECE8E1, controlHovered = #E3DED6, controlPressed = #D8D2C9, controlSelected = #D6E8E2,
+    good = #1E7A4C, bad = #B8412C, warn = #A86A06, warnTint = #FBF1DE, badTint = #FBE9E5, goodTint = #E3F2EA,
+    income = #2F8A6F, expense = #D7834F, net = #2B2925, compare = #9A948A, partial = #00000010,
+    hit = #FCE58A, hitText = #1F1D1A,
+    cats = [#2F8A6F, #5B8C3A, #8C7A2E, #3E78B2, #C0763A, #7A5FB8, #C2546A, #2E9AA6, #D1663F, #6B7F95, #8B8378, #A0785A],
+    catTints = [#E1F1EB, #E8F1DF, #F2EDDA, #E1EBF5, #F7EADF, #ECE6F6, #F7E3E8, #DDF1F3, #F8E5DD, #E8ECF0, #EEECE9, #F1E9E2]
+    ]
+
+
+theme LedgerDark [
+    background = #161513, surface = #201F1C, sidebar = #1B1A18, raised = #2A2925,
+    line = #34322E, lineStrong = #45423D, hover = #26251F, selection = #1F3631,
+    text = #EEEAE3, textMuted = #ABA59B, textFaint = #858077,
+    accent = #6CC3AE, accentHovered = #7FD0BC, accentPressed = #5AB09B, accentTextColor = #10201C,
+    linkColor = #6CC3AE,
+    control = #2C2B27, controlHovered = #35332E, controlPressed = #3E3C36, controlSelected = #234039,
+    good = #5CC08A, bad = #F0806A, warn = #E8B44C, warnTint = #3A3020, badTint = #3C2420, goodTint = #1E3328,
+    income = #4DB596, expense = #E49A6A, net = #EEEAE3, compare = #858077, partial = #FFFFFF10,
+    hit = #7A6418, hitText = #FFF6D6,
+    cats = [#4DB596, #8CBF5E, #C9B356, #6FA6DE, #E49A6A, #A891E0, #E57D92, #4FC3CF, #EE8A62, #96A8BC, #ABA59B, #C49A7A],
+    catTints = [#1D3830, #27331C, #35301A, #1C2C3D, #3B2A1D, #2C2640, #3D2229, #173539, #3E261C, #262D35, #2C2B28, #352A21]
+    ]
+
+
+// The matched words of a search, wherever a description shows them.
+
+style Hit [ fontWeight = semibold ]
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// One pen on the library's 16-unit grid; `shape` picks the mark.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "overview") {            // four tiles
+            d.roundRect(2, 2, 5, 5, 1.2); d.roundRect(9, 2, 5, 5, 1.2); d.roundRect(2, 9, 5, 5, 1.2); d.roundRect(9, 9, 5, 5, 1.2); d.stroke()
+        } else if (shape == "list") {         // ruled lines
+            for (const y of [4, 8, 12]) { d.moveTo(5.5, y); d.lineTo(14, y) }
+            d.stroke(); d.beginPath()
+            for (const y of [4, 8, 12]) { d.moveTo(3, y); d.arc(2.6, y, 0.8, 0, 6.3) }
+            d.fill()
+        } else if (shape == "chart") {        // rising bars
+            d.moveTo(2, 14); d.lineTo(14, 14)
+            d.moveTo(4.5, 12); d.lineTo(4.5, 8); d.moveTo(8, 12); d.lineTo(8, 4.5); d.moveTo(11.5, 12); d.lineTo(11.5, 6.5); d.stroke()
+        } else if (shape == "budget") {       // a gauge
+            d.arc(8, 10, 6, Math.PI, 0); d.moveTo(8, 10); d.lineTo(11, 6.5); d.stroke()
+        } else if (shape == "plus") {
+            d.moveTo(8, 2.5); d.lineTo(8, 13.5); d.moveTo(2.5, 8); d.lineTo(13.5, 8); d.stroke()
+        } else if (shape == "search") {
+            d.arc(7, 7, 4.6, 0, 6.3); d.moveTo(10.4, 10.4); d.lineTo(14, 14); d.stroke()
+        } else if (shape == "filter") {       // a funnel
+            d.moveTo(2, 3); d.lineTo(14, 3); d.lineTo(9.5, 8.5); d.lineTo(9.5, 13); d.lineTo(6.5, 14); d.lineTo(6.5, 8.5); d.closePath(); d.stroke()
+        } else if (shape == "left") {
+            d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (shape == "right") {
+            d.moveTo(6, 3); d.lineTo(11, 8); d.lineTo(6, 13); d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(4, 4); d.lineTo(12, 12); d.moveTo(12, 4); d.lineTo(4, 12); d.stroke()
+        } else if (shape == "download") {
+            d.moveTo(8, 2); d.lineTo(8, 10.5); d.moveTo(4.5, 7); d.lineTo(8, 10.5); d.lineTo(11.5, 7)
+            d.moveTo(2.5, 13.5); d.lineTo(13.5, 13.5); d.stroke()
+        } else if (shape == "warn") {         // a triangle with a mark
+            d.moveTo(8, 2); d.lineTo(14.5, 13.5); d.lineTo(1.5, 13.5); d.closePath(); d.moveTo(8, 6.5); d.lineTo(8, 9.5); d.stroke()
+            d.beginPath(); d.arc(8, 11.7, 0.8, 0, 6.3); d.fill()
+        } else if (shape == "back") {
+            d.moveTo(13.5, 8); d.lineTo(3, 8); d.moveTo(7, 4); d.lineTo(3, 8); d.lineTo(7, 12); d.stroke()
+        } else if (shape == "check") {
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (shape == "table") {        // a grid
+            d.roundRect(2, 3, 12, 10, 1.5); d.moveTo(2, 6.5); d.lineTo(14, 6.5); d.moveTo(2, 10); d.lineTo(14, 10); d.moveTo(7, 3); d.lineTo(7, 13); d.stroke()
+        } else if (shape == "trash") {
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke()
+        } else if (shape == "refund") {       // a curved arrow back
+            d.moveTo(5, 3); d.lineTo(2.5, 5.5); d.lineTo(5, 8); d.moveTo(2.5, 5.5); d.lineTo(10, 5.5)
+            d.arc(10, 9.5, 4, -Math.PI / 2, Math.PI / 2); d.lineTo(6, 13.5); d.stroke()
+        } else if (shape == "dots") {
+            for (const x of [3.5, 8, 12.5]) { d.moveTo(x + 1, 8); d.arc(x, 8, 1, 0, 6.3) }
+            d.fill()
+        } else if (shape == "columns") {
+            d.roundRect(2, 3, 12, 10, 1.5); d.moveTo(6, 3); d.lineTo(6, 13); d.moveTo(10, 3); d.lineTo(10, 13); d.stroke()
+        } else {
+            d.arc(8, 8, 5, 0, 6.3); d.stroke()
+        }
+        }
+    ]
+
+
+// ── Money and text ──────────────────────────────────────────────────────────
+
+// An amount, written for the reader: two decimals, a true minus sign, digits
+// that line up in a column. `tone` colours it when colour means something.
+
+class Money extends Text [ wrap = false, numeralWidth = tabular,
+    cents: number = 0,
+    signed: boolean = true,       // money out shows its minus sign
+    tone: "plain" | "flow" = "plain",
+    text = { money(classroot.signed ? classroot.cents : Math.abs(classroot.cents)) },
+    textColor = { classroot.tone == "flow" && classroot.cents > 0 ? provided("theme").good : provided("theme").text }
+    ]
+
+
+// A caption above a group: small, quiet.
+
+class Caption extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 0.2, wrap = false,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+// ── Category ────────────────────────────────────────────────────────────────
+
+// A transaction's category as a chip: its colour, its name; "Split (3)" for a
+// split; "Uncategorised" marked as needing attention.
+
+class CatChip [ height = 22, cornerRadius = 11, padding = [0, 9, 0, 7],
+    catId: string = "",           // "" = none
+    parts: number = 0,            // a split's part count; 0 = not split
+    colour: number = { app.books.catColour(classroot.catId == "" ? null : classroot.catId) },
+    none: boolean = { classroot.catId == "" && classroot.parts == 0 },
+    fill = { provided("theme").catTints[classroot.colour] ?? provided("theme").control },
+    State [ applied = { classroot.parts > 0 }, fill = { provided("theme").control } ],
+    State [ applied = { classroot.none }, fill = { provided("theme").warnTint } ],
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    dot: View [ visible = { !classroot.none && classroot.parts == 0 }, width = 7, height = 7, cornerRadius = 3.5,
+        fill = { classroot.colour >= 0 ? provided("theme").cats[classroot.colour] : provided("theme").textFaint } ],
+    mark: Glyph [ visible = { classroot.none }, shape = "warn", iconSize = 11, weight = 1.4, ink = { provided("theme").warn } ],
+    Text [ fontSize = 12, fontWeight = medium, wrap = false, maxLines = 1,
+        textColor = { classroot.none ? provided("theme").warn : provided("theme").text },
+        text = { classroot.none ? "Uncategorised" : classroot.parts > 0 ? "Split (" + classroot.parts + ")" : app.books.catName(classroot.catId) } ]
+    ]
+
+
+// A coloured square for a legend or a bar's row.
+
+class Swatch [ width = 10, height = 10, cornerRadius = 3,
+    colour: Color = gray,
+    fill = { classroot.colour }
+    ]
+
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+// A place in the app: the sidebar on a desk, the tab bar on a phone.
+
+class NavItem extends Control [ height = 36, cornerRadius = 8, padding = [0, 10, 0, 10],
+    label: string = "",
+    glyph: string = "",
+    here: boolean = false,
+    accessibilityRole = link,
+    accessibilityCurrent = { here ? "page" : "none" },
+    fill = { here ? provided("theme").controlSelected : hovered ? provided("theme").hover : null },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Glyph [ shape = { classroot.glyph }, iconSize = 16, weight = 1.6,
+        ink = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ],
+    Text [ fontSize = 14, fontWeight = { classroot.here ? "semibold" : "medium" }, wrap = false,
+        textColor = { classroot.here ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// The phone's tab: an icon over its word, a finger's width.
+
+class TabItem extends Control [ height = 56, flexes = true,
+    label: string = "",
+    glyph: string = "",
+    here: boolean = false,
+    accessibilityRole = link,
+    accessibilityCurrent = { here ? "page" : "none" },
+    layout: SimpleLayout [ axis = y, spacing = 3, align = center ],
+    padding = [8, 0, 0, 0],
+    Glyph [ shape = { classroot.glyph }, iconSize = 20, weight = 1.7,
+        ink = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ],
+    Text [ fontSize = 11, fontWeight = medium, wrap = false,
+        textColor = { classroot.here ? provided("theme").accent : provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// An active filter: its value, and a way to remove it.
+
+class FilterChip extends Control [ height = { app.tap }, cornerRadius = { this.height / 2 }, padding = [0, 4, 0, 11],
+    label: string = "",
+    removable: boolean = true,
+    accessibilityLabel = { "Remove filter " + label },
+    fill = { hovered ? provided("theme").controlHovered : provided("theme").control },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    Text [ fontSize = 13, fontWeight = medium, wrap = false, textColor = { provided("theme").text }, text = { classroot.label } ],
+    x2: View [ width = { app.tap - 8 }, height = { app.tap - 8 }, cornerRadius = { this.width / 2 },
+        Glyph [ x = center, y = center, shape = "close", iconSize = 10, weight = 1.6, ink = { provided("theme").textMuted } ]
+        ]
+    ]
+
+
+// A small button with a glyph and, optionally, words.
+
+class GlyphButton extends Control [ height = { app.tap }, cornerRadius = 8, padding = [0, 12, 0, 10],
+    State [ applied = { classroot.label == "" }, width = { app.tap }, padding = 0 ],
+    glyph: string = "",
+    label: string = "",
+    tone: Color = { provided("theme").textMuted },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    g: Glyph [ shape = { classroot.glyph }, iconSize = 15, weight = 1.6, ink = { classroot.tone } ],
+    t: Text [ visible = { classroot.label != "" }, fontSize = 13, fontWeight = medium, wrap = false,
+        textColor = { provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// A button that opens a menu or a popover from the filter bar: its value, and
+// a chevron. `on` marks a filter that is set.
+
+class BarButton extends Control [ height = { app.tap }, cornerRadius = 8, padding = [0, 8, 0, 11],
+    label: string = "",
+    on: boolean = false,
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.on }, fill = { provided("theme").controlSelected } ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    t: Text [ fontSize = 13, fontWeight = { classroot.on ? "semibold" : "medium" }, wrap = false,
+        textColor = { provided("theme").text }, text = { classroot.label } ],
+    ChevronIcon [ iconSize = 10, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// ── Panels ──────────────────────────────────────────────────────────────────
+
+// A card on a screen: a title, an optional line under it, and its content.
+// Children go into `body`.
+
+class Panel [ cornerRadius = 12, padding = 16,
+    title: string = "",
+    defaultPlacement = body,
+    fill = { provided("theme").surface },
+    stroke = { stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    head: View [ width = 100%, visible = { classroot.title != "" },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 15, fontWeight = semibold, accessibilityRole = heading, accessibilityLevel = 2,
+            text = { classroot.title } ]
+        ],
+    body: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ]
+        ]
+    ]
+
+
+// What a part of a screen says while it has nothing to show yet, or could
+// not load: in place, with Retry, so the rest of the screen still works.
+
+class LoadState [ width = 100%, padding = [14, 0, 14, 0],
+    failed: boolean = false,
+    slow: boolean = false,
+    empty: boolean = false,
+    emptyText: string = "Nothing here.",
+    retry() { },
+    says() -> string {
+        if (failed) return "Couldn't load this."
+        if (slow) return "Still working…"
+        return empty ? emptyText : "Loading…"
+        },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Glyph [ visible = { classroot.failed }, shape = "warn", iconSize = 15, weight = 1.5, ink = { provided("theme").bad } ],
+    Text [ fontSize = 13, wrap = true, flexes = true,
+        textColor = { classroot.failed ? provided("theme").bad : provided("theme").textMuted },
+        text = { classroot.says() } ],
+    Button [ visible = { classroot.failed }, label = "Retry", height = 30,
+        onClick() { classroot.retry() }
+        ]
+    ]

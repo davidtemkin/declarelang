@@ -1,0 +1,11 @@
+// Segmented and TabBar at their natural size, with one long label
+App [ width = 700, height = 200, theme = { SanFrancisco }, fill = { provided("theme").background },
+    v: string = "a",
+    layout: SimpleLayout [ axis = y, spacing = 12 ], padding = 20,
+    seg: Segmented [ value = { app.v }, accessibilityLabel = "Measure",
+        items = { [ ({ id: "a", label: "Revenue" }), ({ id: "b", label: "Gross margin %" }), ({ id: "c", label: "Number of sales" }) ] },
+        commit(x: object) { app.v = "" + x } ],
+    tabs: TabBar [ value = { app.v }, accessibilityLabel = "Pages",
+        items = { [ ({ id: "a", label: "Trends" }), ({ id: "b", label: "Income vs expenses" }), ({ id: "c", label: "Breakdown" }) ] },
+        commit(x: object) { app.v = "" + x } ]
+    ]

@@ -1,0 +1,6 @@
+// DECLARE2005 at 6.6: a Spring on an attribute that also has a constraint.
+App [ width = 200, height = 200,
+    chip: View [ width = 80, height = 26, fill = #ddd,
+        opacity = { app.width > 100 ? 1 : 0 },
+        fade: Spring [ attribute = opacity, to = { app.width > 100 ? 1 : 0 } ] ]
+    ]

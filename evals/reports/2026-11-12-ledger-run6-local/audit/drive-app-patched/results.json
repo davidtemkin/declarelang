@@ -1,0 +1,19 @@
+{
+  "app": "http://127.0.0.1:8290/evals/reports/2026-11-12-ledger-run6-local/audit/app-patched/ledger.declare",
+  "results": [
+    {
+      "name": "sale_refund",
+      "pass": true,
+      "reason": "met",
+      "ms": 10217,
+      "fallbacks": [],
+      "observed": {
+        "products": "Speckled mug ×2, Art print A4 ×1",
+        "refundFields": "Quantity of Speckled mug to refund=0; Quantity of Art print A4 to refund=0",
+        "refundShown": "$32.00 · 1 refund"
+      },
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/audit/drive-app-patched/sale_refund.png"
+    }
+  ],
+  "notes": []
+}

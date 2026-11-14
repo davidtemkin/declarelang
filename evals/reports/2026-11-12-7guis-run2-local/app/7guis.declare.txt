@@ -1,0 +1,92 @@
+/*
+# 7GUIs
+
+The seven tasks of the 7GUIs benchmark (Eugen Kiss,
+https://eugenkiss.github.io/7guis/) as one desktop program: a row of tabs
+along the top, and the chosen task below, in full.
+
+Each task is a class in its own file, readable on its own:
+
+- `counter.declare`        1. Counter
+- `temperature.declare`    2. Temperature Converter
+- `flight-booker.declare`  3. Flight Booker
+- `timer.declare`          4. Timer
+- `crud.declare`           5. CRUD
+- `circle-drawer.declare`  6. Circle Drawer
+- `cells.declare`          7. Cells, with its formula language in `formula.ts`
+
+This file holds only what they share: the look, and which task is showing.
+The task is the URL's fragment (`location`), so each has an address
+(`#cells`), and Back returns to the one before. Each page declares the
+location it shows (`shows`), and stays built while another is up, so a task
+keeps its state as you move between them.
+*/
+
+include [ "counter.declare" ]
+
+include [ "temperature.declare" ]
+
+include [ "flight-booker.declare" ]
+
+include [ "timer.declare" ]
+
+include [ "crud.declare" ]
+
+include [ "circle-drawer.declare" ]
+
+include [ "cells.declare" ]
+
+defaultFlags [ devices = desktop ]
+
+// The few colors the tasks draw with beyond the library's: the circle
+// canvas, a selected circle, and the spreadsheet's grid.
+
+theme GuisLight [ canvas = #FFFFFF, circleFill = #BDBDBD,
+    sheetHeader = #F3F3F5, sheetLine = #E6E6EA, sheetSelection = #E3EDFD
+    ]
+
+
+theme GuisDark [ canvas = #1E1E20, circleFill = #6E6E73,
+    sheetHeader = #2A2A2D, sheetLine = #333336, sheetSelection = #23334D
+    ]
+
+
+App [ appName = "7GUIs", minWidth = 820, minHeight = 560, scrolls = none,
+    theme = { app.systemDark ? ({ ...SanFranciscoDark, ...GuisDark }) : ({ ...SanFrancisco, ...GuisLight }) },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    fontSize = 14,
+
+    location = "counter",
+    tasks: array = { [
+        ({ id: "counter", label: "Counter", location: "counter" }),
+        ({ id: "temperature", label: "Temperature", location: "temperature" }),
+        ({ id: "flights", label: "Flight Booker", location: "flights" }),
+        ({ id: "timer", label: "Timer", location: "timer" }),
+        ({ id: "crud", label: "CRUD", location: "crud" }),
+        ({ id: "circles", label: "Circle Drawer", location: "circles" }),
+        ({ id: "cells", label: "Cells", location: "cells" })
+        ] },
+
+    layout: SimpleLayout [ axis = y ],
+
+    bar: View [ width = 100%, padding = [14, 20, 14, 20],
+        fill = { provided("theme").surface },
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        tabs: TabBar [ x = center, width = 720, accessibilityLabel = "Tasks",
+            items = { app.tasks },
+            value = { app.location },
+            commit(v: string) { app.location = v }
+            ]
+        ],
+
+    pages: View [ width = 100%, flexes = true, padding = 20,
+        counter: CounterTask [ shows = "counter", width = 100%, height = 100%, accessibilityRole = tabPanel, accessibilityLabel = "Counter" ],
+        temperature: TemperatureTask [ shows = "temperature", width = 100%, height = 100%, accessibilityRole = tabPanel, accessibilityLabel = "Temperature Converter" ],
+        flights: FlightBookerTask [ shows = "flights", width = 100%, height = 100%, accessibilityRole = tabPanel, accessibilityLabel = "Flight Booker" ],
+        timer: TimerTask [ shows = "timer", width = 100%, height = 100%, accessibilityRole = tabPanel, accessibilityLabel = "Timer" ],
+        crud: CrudTask [ shows = "crud", width = 100%, height = 100%, accessibilityRole = tabPanel, accessibilityLabel = "CRUD" ],
+        circles: CircleDrawerTask [ shows = "circles", width = 100%, height = 100%, accessibilityRole = tabPanel, accessibilityLabel = "Circle Drawer" ],
+        cells: CellsTask [ shows = "cells", width = 100%, height = 100%, accessibilityRole = tabPanel, accessibilityLabel = "Cells" ]
+        ]
+    ]

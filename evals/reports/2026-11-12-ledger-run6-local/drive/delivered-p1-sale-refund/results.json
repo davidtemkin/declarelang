@@ -1,0 +1,21 @@
+{
+  "app": "http://127.0.0.1:8290/my-apps/ledger-run6/ledger.declare",
+  "results": [
+    {
+      "name": "sale_refund",
+      "pass": false,
+      "reason": "not found: the mug line in the refund",
+      "ms": 28458,
+      "fallbacks": [
+        "the sale's detail offers no Refund; opened the refund editor and chose the sale there",
+        "no option named /\\$88\\.00/ offered after typing \"88.00\" into \"Search transactions\" (offered: nothing); pressed Enter",
+        "no quantity fields in the refund; chose the mug's line"
+      ],
+      "observed": {
+        "products": "Speckled mug ×2, Art print A4 ×1"
+      },
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/delivered-p1-sale-refund/sale_refund.png"
+    }
+  ],
+  "notes": []
+}

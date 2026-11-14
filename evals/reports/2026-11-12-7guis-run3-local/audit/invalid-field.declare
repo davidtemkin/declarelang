@@ -1,0 +1,10 @@
+// The taught way to mark a bad date: validate + judged = true. Expect "invalid" in --semantics
+// (aria-invalid on the web) and the error outline, at every moment, not only after leaving.
+App [ width = 320, height = 120, fill = white,
+    TextInput [ x = 20, y = 20, width = 160, accessibilityLabel = "Start date", value = "not a date",
+        judged = true,
+        validate(v: string) -> string { return /^\d{1,2}\.\d{1,2}\.\d{4}$/.test(v) ? "" : "Not a date (dd.mm.yyyy)" } ],
+    TextInput [ x = 20, y = 64, width = 160, accessibilityLabel = "Return date", value = "14.11.2026",
+        judged = true,
+        validate(v: string) -> string { return /^\d{1,2}\.\d{1,2}\.\d{4}$/.test(v) ? "" : "Not a date (dd.mm.yyyy)" } ]
+    ]

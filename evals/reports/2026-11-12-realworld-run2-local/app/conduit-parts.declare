@@ -1,0 +1,416 @@
+/*
+# Conduit: the parts
+
+What the pages are built from, kept apart from the pages themselves:
+
+- **The shape of the data** — schemas for every record the API sends.
+- **Helpers** — plain functions of their arguments: dates, the API's errors,
+  the icon font's code points, the token kept in the browser.
+- **The look** — the shared Conduit theme (`styles.css`) as a token record.
+- **Small parts** — the column grid, links, buttons, tag pills, avatars, the
+  error list, and the form every page's form extends.
+- **Articles** — an article's meta line, its preview, the paged feed of them.
+
+`conduit.declare` includes this file and `conduit-pages.declare`.
+*/
+
+// ── The shape of the data ───────────────────────────────────────────────────
+//
+// The RealWorld API's records. `bio?: string` also takes `null`, which is what
+// the service sends for a person with no bio or picture.
+
+schema Profile [ username: string, bio?: string, image?: string, following: boolean ]
+schema User [ email: string, token: string, username: string, bio?: string, image?: string ]
+schema Article [ slug: string, title: string, description: string, body?: string, tagList[]: string,
+    createdAt: string, updatedAt: string, favorited: boolean, favoritesCount: number, author: Profile ]
+schema Comment [ id: number, createdAt: string, body: string, author: Profile ]
+
+// What each endpoint answers with.
+
+schema UserReply [ user: User ]
+schema ProfileReply [ profile: Profile ]
+schema ArticleReply [ article: Article ]
+schema ArticleList [ articles[]: Article, articlesCount: number ]
+schema CommentList [ comments[]: Comment ]
+schema CommentReply [ comment: Comment ]
+schema TagList [ tags[]: string ]
+
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+script {
+    // "2026-10-14T09:12:40.000Z" → "October 14, 2026", the same for every reader.
+    function longDate(iso: string): string {
+        const d = new Date(iso)
+        if (isNaN(d.getTime())) return ""
+        return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })
+    }
+
+    // The service refuses with `{ "errors": { "email": ["can't be blank"] } }`.
+    // Each message becomes one problem, named for its field, worded as the
+    // RealWorld apps word it: "email can't be blank".
+    function apiProblems(body: any): { name: string, message: string }[] {
+        const errors = body?.errors
+        if (errors == null || typeof errors != "object") return []
+        const out: { name: string, message: string }[] = []
+        for (const field of Object.keys(errors)) {
+            const list = Array.isArray(errors[field]) ? errors[field] : [errors[field]]
+            for (const m of list) out.push({ name: field, message: field + " " + m })
+        }
+        return out
+    }
+
+    // The legacy Ionicons v2 glyphs the templates use, by their class names.
+    const ION: Record<string, string> = {
+        "heart": "", "compose": "", "gear-a": "", "plus-round": "",
+        "trash-a": "", "close-round": "", "edit": ""
+    }
+    function ionGlyph(name: string): string { return ION[name] ?? "" }
+
+    // The `.container` widths of the theme, at its breakpoints.
+    function containerWidth(w: number): number {
+        if (w >= 1200) return 1140
+        if (w >= 992) return 940
+        if (w >= 768) return 720
+        if (w >= 544) return 576
+        return w
+    }
+
+    // A location segment as typed into the URL; a malformed one stays as it is.
+    function decodeSegment(s: string): string {
+        try { return decodeURIComponent(s) } catch (e) { return s }
+    }
+
+    // An article's body is Markdown, written by anyone. Markdown keeps raw HTML
+    // as text; the one tag it reads is a self-closing tag naming one of this
+    // program's view classes, which an author must not be able to build. A
+    // zero-width space after `<` keeps such a tag as the characters typed.
+    function untrustedMarkdown(md: string): string { return md.replace(/<(?=[A-Z])/g, "<​") }
+
+    // Tags typed into the editor: trimmed, no blanks, no repeats.
+    function addTag(tags: string[], typed: string): string[] {
+        const t = typed.trim()
+        return t == "" || tags.includes(t) ? tags : [...tags, t]
+    }
+    }
+
+// The JWT is kept in localStorage, as the RealWorld spec asks, so a reload
+// stays signed in. Only the browser has it, so this block says so.
+
+script [ host = browser ] {
+    const TOKEN_KEY = "jwtToken"
+    function savedToken(): string {
+        try { return window.localStorage.getItem(TOKEN_KEY) ?? "" } catch (e) { return "" }
+    }
+    function keepToken(token: string) {
+        try {
+            if (token == "") window.localStorage.removeItem(TOKEN_KEY)
+            else window.localStorage.setItem(TOKEN_KEY, token)
+        } catch (e) { }
+    }
+    }
+
+// ── The look ────────────────────────────────────────────────────────────────
+//
+// The variables at the top of the shared `styles.css`, laid over a library
+// preset so the library's own controls (the text fields) read the same
+// palette. Views read these by name: `provided("theme").brand`.
+
+theme Conduit [
+    brand = #33AA44, brandHover = #2B8E3A, brandDark = #237630, brandLight = #7DD88B,
+    danger = #B85C5C, dangerLight = #D7A3A3,
+    secondary = #CCCCCC, secondaryHover = #B3B3B3,
+    text = #373A3C, textMuted = #999999, textLight = #BBBBBB, textLighter = #AAAAAA, textDisabled = #818A91,
+    ink = #222222, tabHover = #555555, inputText = #55595C,
+    border = #EEEEEE, pageActive = #EEEEEE, pageHover = #ECEEEF, cardFooter = #F5F5F5,
+    navLink = #0000004D, navLinkHover = #00000099, navLinkActive = #000000CC,
+    background = #FFFFFF, surface = #FFFFFF, accent = #33AA44, linkColor = #33AA44
+    ]
+
+
+// ── Small parts ─────────────────────────────────────────────────────────────
+
+// An icon from the Ionicons font, by its class name without `ion-`. The word
+// beside it says the same thing, so a screen reader skips it.
+
+class Ion extends Text [ wrap = false, accessibilityHidden = true,
+    glyph: string = "",
+    fontFamily = { app.ionicons },
+    text = { ionGlyph(classroot.glyph) }
+    ]
+
+
+// `.container`: centered, as wide as the theme's breakpoint allows. Its
+// columns (`Col`) center inside it.
+
+class Container [ x = center, width = { Math.min(app.containerW, parent.contentBox("width")) },
+    layout: SimpleLayout [ axis = y, align = center ]
+    ]
+
+
+// A `.col-md-N`: N twelfths of the container from the `md` breakpoint up,
+// the whole of it below. Every offset in the templates centers its column.
+
+class Col [ padding = [0, 15, 0, 15],
+    span: number = 12,
+    width = { app.containerW * (app.md ? classroot.span : 12) / 12 },
+    layout: SimpleLayout [ axis = y ]
+    ]
+
+
+// A person's picture, round; the default smiley when they have none.
+
+class Avatar extends Image [ width = 32, height = 32, fit = cover, clip = true,
+    cornerRadius = { this.width / 2 },
+    url: string = "",
+    source = { classroot.url == "" ? "default-avatar.svg" : classroot.url }
+    ]
+
+
+// A text link in the brand green, darker under the pointer.
+
+class TextLink extends Text [
+    to: string = "",
+    link = { "#" + classroot.to },
+    textColor = { hovered ? provided("theme").brandDark : provided("theme").brand },
+    underline = { hovered }
+    ]
+
+
+// `.btn`. Outlined in its tone, filled with it under the pointer; `solid`
+// is filled always (`.btn-primary`). The sizes are `.btn-sm`, `.btn-lg`.
+
+class Btn extends Control [ cornerRadius = 8, padding = [8, 16, 8, 16],
+    textSize: number = 16,
+    fontSize = { classroot.textSize },
+    label: string = "",
+    icon: string = "",
+    detail: string = "",            // `.counter`, small, after the label
+    tone: Color = { provided("theme").brand },
+    toneHover: Color = { provided("theme").brandHover },
+    solid: boolean = false,
+    size: "sm" | "md" | "lg" = "md",
+    lit: boolean = { classroot.hovered || classroot.pressed },
+    filled: boolean = { classroot.solid || classroot.lit },
+    fill = { classroot.filled ? (classroot.solid && classroot.lit ? classroot.toneHover : classroot.tone) : null },
+    stroke = { stroke(1, classroot.solid && classroot.lit ? classroot.toneHover : classroot.tone) },
+    textColor = { classroot.filled ? 0xFFFFFF : classroot.tone },
+    accessibilityLabel = { classroot.label + (classroot.detail == "" ? "" : " " + classroot.detail) },
+    State [ applied = { classroot.size == "sm" }, padding = [4, 8, 4, 8], cornerRadius = 6, textSize = 14 ],
+    State [ applied = { classroot.size == "lg" }, padding = [12, 24, 12, 24], cornerRadius = 10, textSize = 20 ],
+    State [ applied = { classroot.disabled }, opacity = 0.65 ],
+    layout: SimpleLayout [ axis = x, spacing = 4, align = baseline ],
+    Ion [ visible = { classroot.icon != "" }, glyph = { classroot.icon } ],
+    Text [ wrap = false, text = { classroot.label } ],
+    Text [ visible = { classroot.detail != "" }, wrap = false, fontSize = 12.8, text = { classroot.detail } ]
+    ]
+
+
+// Favorite an article, or take it back. It sends its own request and hands
+// the article the service returns to `changed`, which the use site writes
+// where the article lives. Signed out, it goes to sign-up instead.
+
+class FavoriteButton extends Btn [ size = "sm", icon = "heart",
+    slug: string = "",
+    on: boolean = false,
+    accessibilityPressed = { classroot.on },
+    solid = { classroot.on },
+    disabled = { classroot.send.loading },
+    send: DataSource [ schema = ArticleReply, headers = { app.authHeaders },
+        url = { app.api + "/articles/" + encodeURIComponent(classroot.slug) + "/favorite" },
+        method = { classroot.on ? "DELETE" : "POST" },
+        onLoad() { classroot.changed(this.value.article) }
+        ],
+    changed(a: Article) { },
+    press() { if (app.signedIn) this.send.fetch(); else app.go("/register") }
+    ]
+
+
+// Follow a person, or stop. As FavoriteButton: `changed` gets the profile back.
+
+class FollowButton extends Btn [ size = "sm", icon = "plus-round",
+    username: string = "",
+    on: boolean = false,
+    accessibilityPressed = { classroot.on },
+    tone = { provided("theme").secondary },
+    toneHover = { provided("theme").secondaryHover },
+    solid = { classroot.on },
+    label = { (classroot.on ? "Unfollow " : "Follow ") + classroot.username },
+    disabled = { classroot.send.loading },
+    send: DataSource [ schema = ProfileReply, headers = { app.authHeaders },
+        url = { app.api + "/profiles/" + encodeURIComponent(classroot.username) + "/follow" },
+        method = { classroot.on ? "DELETE" : "POST" },
+        onLoad() { classroot.changed(this.value.profile) }
+        ],
+    changed(p: Profile) { },
+    press() { if (app.signedIn) this.send.fetch(); else app.go("/register") }
+    ]
+
+
+// `.tag-pill.tag-default`. A pill with somewhere to go is a link; the
+// outlined kind (`.tag-outline`) is the quiet one under a preview.
+
+class TagPill [ cornerRadius = 100, padding = [3, 12, 3, 12], fontSize = 12.8,
+    label: string = "",
+    to: string = "",
+    outline: boolean = false,
+    link = { classroot.to == "" ? "" : "#" + classroot.to },
+    stroke = { stroke(1, provided("theme").border) },
+    fill = { classroot.to != "" && hovered ? provided("theme").border : null },
+    textColor = { classroot.outline ? provided("theme").textLighter : provided("theme").ink },
+    fontWeight = { classroot.outline ? "light" : "regular" },
+    Text [ wrap = false, text = { classroot.label } ]
+    ]
+
+
+// `.nav-pills.outline-active`: one of the home feed's tabs, underlined in
+// green when it is the one shown. The tabs are one choice (a ChoiceControl).
+
+class FeedTab extends ChoiceItem [ padding = [8, 16, 8, 16],
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    stroke = { [null, null, stroke(2, classroot.on ? provided("theme").brand : 0xFFFFFF00), null] },
+    textColor = { classroot.on ? provided("theme").brand : hovered ? provided("theme").tabHover : provided("theme").textLighter },
+    Text [ wrap = false, text = { classroot.label } ]
+    ]
+
+
+// The form every page's form is: the service's refusals, read from its
+// `{ errors: { field: [ … ] } }`, land on the fields of those names; the
+// list at the top (`ErrorList`) shows every one.
+
+class ApiForm extends Form [
+    failedMessage = "Something went wrong. Please try again.",
+    refusal(body: object) -> array { return apiProblems(body) }
+    ]
+
+
+// `.error-messages`: what the form's service refused, as a list.
+
+class ErrorList [ width = 100%, padding = [0, 0, 16, 40], fontWeight = bold,
+    form: Form? = null,
+    messages: string[] = { [...(classroot.form?.problems ?? []).map((p) => p.message),
+        ...(classroot.form == null || classroot.form.error == "" ? [] : [classroot.form.error])] },
+    visible = { classroot.messages.length > 0 },
+    accessibilityRole = status, accessibilityLive = assertive,
+    textColor = { provided("theme").danger },
+    layout: SimpleLayout [ axis = y ],
+    shown: Dataset [ contents = { { items: classroot.messages } } ],
+    lines: View [ width = 100%, datapath = { classroot.shown.value },
+        layout: SimpleLayout [ axis = y ],
+        Text [ datapath = :items[], width = 100%, text = { "•  " + :@ } ]
+        ]
+    ]
+
+
+// A `.form-control` text field: `large` is `.form-control-lg`.
+
+class Entry extends TextInput [ width = 100%, cornerRadius = 8, padding = [8, 12, 8, 12],
+    large: boolean = false,
+    fontSize = { classroot.large ? 20 : 16 },
+    fill = { provided("theme").background },
+    stroke = { stroke(1, focused ? provided("theme").brand : provided("theme").border) },
+    textColor = { provided("theme").inputText },
+    State [ applied = { classroot.large }, cornerRadius = 10, padding = [12, 24, 12, 24] ]
+    ]
+
+
+// ── Articles ────────────────────────────────────────────────────────────────
+
+// `.article-meta`'s picture and `.info`: who wrote it, and when. It reads the
+// article it stands on.
+
+class Byline [ fontWeight = light,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Avatar [ url = { :author.image ?? "" }, link = { "#/profile/" + encodeURIComponent(:author.username) },
+        accessibilityLabel = { :author.username } ],
+    info: View [ padding = [0, 24, 0, 0],
+        layout: SimpleLayout [ axis = y ],
+        TextLink [ fontWeight = medium, lineHeight = 1, to = { "/profile/" + encodeURIComponent(:author.username) },
+            text = { :author.username } ],
+        Text [ fontSize = 12.8, textColor = { provided("theme").textLight }, text = { longDate(:createdAt) } ]
+        ]
+    ]
+
+
+// `.article-preview`: one article in a feed. The heading, description and
+// tags are one link to the article.
+
+class ArticlePreview [ width = 100%, padding = [24, 0, 24, 0],
+    stroke = { [stroke(1, provided("theme").border), null, null, null] },
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    meta: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = center ],
+        Byline [ ],
+        Spacer [ ],
+        FavoriteButton [ slug = :slug, on = :favorited, label = { "" + :favoritesCount },
+            accessibilityLabel = { (:favorited ? "Unfavorite " : "Favorite ") + :title + ", " + :favoritesCount },
+            changed(a: Article) { :favorited = a.favorited; :favoritesCount = a.favoritesCount }
+            ]
+        ],
+    preview: View [ width = 100%, link = { "#/article/" + encodeURIComponent(:slug) },
+        layout: SimpleLayout [ axis = y ],
+        Text [ width = 100%, fontSize = 24, fontWeight = semibold, lineHeight = 1.1, textColor = { provided("theme").text },
+            accessibilityRole = heading, text = :title ],
+        Text [ width = 100%, padding = [3, 0, 15, 0], fontWeight = light, lineHeight = 1.3,
+            textColor = { provided("theme").textMuted }, text = :description ],
+        foot: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, align = start ],
+            Text [ fontSize = 12.8, fontWeight = light, textColor = { provided("theme").textLight }, text = "Read more..." ],
+            Spacer [ ],
+            tags: View [ width = { parent.width * 0.5 },
+                layout: WrappingLayout [ spacing = 4, rowSpacing = 4, justify = end ],
+                TagPill [ datapath = :tagList[], outline = true, label = :@ ]
+                ]
+            ]
+        ]
+    ]
+
+
+// A feed of articles: one page of them from `endpoint` (any of the API's
+// article lists, with its filters), the previews, and the page links. A new
+// endpoint starts again at page 1.
+
+class ArticleFeed [ width = 100%,
+    endpoint: string = "/articles",
+    pageSize: number = 10,
+    page: number = 1,
+    trackChanges = ["endpoint"],
+    onChange() { page = 1 },
+
+    src: DataSource [ autoFetch = true, schema = ArticleList, headers = { app.authHeaders },
+        url = { app.api + classroot.endpoint + (classroot.endpoint.includes("?") ? "&" : "?")
+            + "limit=" + classroot.pageSize + "&offset=" + (classroot.page - 1) * classroot.pageSize } ],
+    count: number = { classroot.src.value?.articlesCount ?? 0 },
+    pages: number[] = { Array.from({ length: Math.ceil(classroot.count / classroot.pageSize) }, (_, i) => i + 1) },
+    showing: boolean = { classroot.src.loaded && !classroot.src.loading },
+    pageList: Dataset [ contents = { { items: classroot.pages } } ],
+
+    layout: SimpleLayout [ axis = y ],
+    note: Text [ width = 100%, padding = [24, 0, 24, 0], stroke = { [stroke(1, provided("theme").border), null, null, null] },
+        visible = { !classroot.showing || classroot.count == 0 },
+        text = { classroot.src.failed ? "Could not load articles." : !classroot.showing ? "Loading articles..." : "No articles are here... yet." } ],
+    list: View [ width = 100%, visible = { classroot.showing }, datapath = { classroot.src.value },
+        layout: SimpleLayout [ axis = y ],
+        ArticlePreview [ datapath = :articles[], identityKey = :slug ]
+        ],
+
+    // `.pagination`: a link per page, the current one grey. Paging is not an
+    // address the spec gives, so it is the feed's own state.
+
+    pager: View [ visible = { classroot.showing && classroot.pages.length > 1 }, width = 100%, padding = [16, 0, 16, 0],
+        datapath = { classroot.pageList.value },
+        layout: WrappingLayout [ spacing = -1, rowSpacing = 4 ],
+        Control [ datapath = :items[], padding = [8, 12, 8, 12],
+            n: number = { :@ },
+            here: boolean = { this.n == classroot.page },
+            accessibilityLabel = { "Page " + this.n },
+            stroke = { stroke(1, provided("theme").border) },
+            fill = { this.here ? provided("theme").pageActive : hovered ? provided("theme").pageHover : provided("theme").background },
+            cornerRadius = { this.n == 1 ? [8, 0, 0, 8] : this.n == classroot.pages.length ? [0, 8, 8, 0] : 0 },
+            textColor = { this.here ? provided("theme").ink : hovered ? provided("theme").brandDark : provided("theme").brand },
+            press() { classroot.page = this.n },
+            Text [ wrap = false, text = { "" + parent.n } ]
+            ]
+        ]
+    ]

@@ -1,0 +1,24 @@
+// Markdown from someone else (an article body from a service): a self-closing tag naming one
+// of the program's classes builds it, with the author's attributes, and runs its code.
+class Unfollow extends Button [ username: string = "", label = { "Unfollow " + classroot.username },
+    onInit() { app.ran = app.ran + 1 } ]
+App [ width = 400, height = 200,
+    ran: number = 0,
+    body: string = "Nice article. <Unfollow username=\"someone\"/> More text.",   // as the service sent it
+    Markdown [ width = 380, text = { app.body } ]
+    ]
+
+/* ── script:
+export default async ({ drive, page }) => {
+  await drive.settleData();
+  console.log("onInit ran", await page.evaluate(() => window.__declare.find("app").ran), "time(s); a button the author placed:", await page.getByRole("button").count());
+};
+── against the local tree:
+onInit ran 1 time(s); a button the author placed: 1
+  R1 ✓ structure
+  R2 ✓ resolution
+  R3 ✓ analysis
+  R4 ✓ boot (18 nodes, in Chrome, real text, a laptop)
+  R5 ✓ behavior (1 steps, real input; it asserted nothing, so the pass says only that nothing threw and what the layout checks found — end a flow with an expect of what it should have done)
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/markdown-untrusted.declare — clean through R5 (46 of 48 constraints statically wired; the rest find their reads as they run — nothing to do)
+*/

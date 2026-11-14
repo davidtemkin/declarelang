@@ -1,0 +1,2 @@
+App [ xs: number[] = [1, 2, 3],
+    Text [ text = { "" + (app.xs.findLast((x) => x < 3) ?? 0) + " " + app.xs.findLastIndex((x) => x < 3) + " " + app.xs.toSorted().length } ] ]

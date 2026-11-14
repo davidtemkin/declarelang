@@ -1,0 +1,11 @@
+// A program's own record named Box, beside a layout's Box.
+schema Box [ x: number, y: number, w: number, h: number ]
+App [ width = 300, height = 200, fill = white,
+    sel: Box = { { x: 1, y: 2, w: 3, h: 4 } },
+    t: Text [ text = { "" + app.sel.w } ]
+    ]
+
+/* ── against the local tree, 2026-11-12:
+  R1 ✓ structure
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/box.declare — clean through R4 (0 of 2 constraints statically wired; the rest find their reads as they run — nothing to do)
+*/

@@ -1,0 +1,9 @@
+// An App binding for Escape and one for Ctrl+K, with a Table holding the focus.
+App [ width = 400, height = 300, esc: number = 0, k: number = 0,
+    keyBindings = { [ ({ key: "Escape", command: "escape" }), ({ key: "Ctrl+K", command: "kk" }) ] },
+    escape() { esc = esc + 1 },
+    kk() { k = k + 1 },
+    data: Dataset { { "rows": [ { "id": "a", "t": "Alpha" }, { "id": "b", "t": "Beta" } ] } },
+    t: Table [ width = 300, height = 200, accessibilityLabel = "Things", datapath = { app.data.value },
+        TableRow [ datapath = :rows[], height = 30, Text [ text = { :t } ] ] ]
+    ]

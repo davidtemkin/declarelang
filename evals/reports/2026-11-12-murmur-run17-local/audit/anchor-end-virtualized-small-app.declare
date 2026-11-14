@@ -1,0 +1,5 @@
+App [ width = 400, height = 500,
+    items: Dataset [ contents = { { rows: Array.from({ length: 400 }, (_, i) => ({ id: "p" + i })) } } ],
+    feed: View [ width = 100%, height = 100%, scrolls = y, scrollAnchor = end, datapath = { app.items.value },
+        list: View [ width = 100%, layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ datapath = :rows[], virtualize = true, height = 120, text = { :id } ] ] ] ]

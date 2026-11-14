@@ -1,0 +1,58 @@
+// Two pages, each built only after the address changes; the script visits both
+// and leaves. Which are reported "never built"?
+class First [ width = 100, height = 40, fill = 0xDDDDDD, Text [ text = "first page" ] ]
+class Second [ width = 100, height = 40, fill = 0xDDDDDD, Text [ text = "second page" ] ]
+App [ width = 300, height = 200,
+    location = "/",
+    First [ exists = { app.location == "/first" } ],
+    Second [ exists = { app.location == "/second" } ]
+    ]
+
+/* ── script coverage-set.mjs:
+export default async ({ drive, page, expect }) => {
+  await drive.set("app", "location", "/first");
+  await expect(page.getByText("first page")).toBeVisible();
+  await drive.set("app", "location", "/second");
+  await expect(page.getByText("second page")).toBeVisible();
+  await drive.set("app", "location", "/");
+};
+── result:
+  R5 ✓ behavior (3 steps, real input, 2 assertions)
+  note never built — at boot or in any state the scripts reached (1 checked) — so never checked for layout: First, Second
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/coverage-note.declare — clean through R5 (2 of 2 constraints statically wired)
+*/
+/* ── script coverage-settleData.mjs:
+export default async ({ drive, page, expect }) => {
+  await drive.set("app", "location", "/first"); await drive.settleData();
+  await expect(page.getByText("first page")).toBeVisible();
+  await drive.set("app", "location", "/second"); await drive.settleData();
+  await expect(page.getByText("second page")).toBeVisible();
+  await drive.set("app", "location", "/"); await drive.settleData();
+};
+── result:
+  R5 ✓ behavior (6 steps, real input, 2 assertions)
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/coverage-note.declare — clean through R5 (2 of 2 constraints statically wired)
+*/
+/* ── on the delivered app: after a locator click the manual clock reports settling=true, so every settleData checkpoint is deferred (tools/internal/verify-behave.mjs:551) and only the end is checked:
+export default async ({ drive, page }) => {
+  const st = () => page.evaluate(() => JSON.stringify({ settling: window.__declare.clock.settling }));
+  const bc = () => page.evaluate(() => { try { const r = window.__declare.bootCheck({ touch: false, realText: true, classes: [], skip: [] }); return r == null ? "null" : "ok, unbuilt " + (r.unbuilt ?? []).length; } catch (e) { return "THREW: " + String(e.message).slice(0, 200); } });
+  console.log("start", await st(), await bc());
+  await page.getByRole("button", { name: "security" }).click();
+  await drive.settleData();
+  console.log("after tag click", await st(), await bc());
+  await drive.set("app", "location", "/settings"); await drive.settleData();
+  console.log("after /settings", await st(), await bc());
+};
+start {"settling":false} ok, unbuilt 0
+after tag click {"settling":true} ok, unbuilt 0
+after /settings {"settling":true} ok, unbuilt 0
+  R5 ✓ behavior (4 steps, real input; it asserted nothing, so the pass says only that nothing threw and what the layout checks found — end a flow with an expect of what it should have done)
+  note never built — at boot or in any state the scripts reached (1 checked) — so never checked for layout: FollowButton, SettingsPage, Rule, EditorPage, RemovableTag, ArticlePage, Reading, ArticleMeta, CommentForm, CommentBox, CardFooter, CommentCard, …
+  verify: my-apps/conduit-run2/conduit.declare — clean through R5 (367 of 396 constraints statically wired; the rest find their reads as they run — nothing to do)
+── the agent's own tests/assert.mjs (70 steps, ~20 settleData), today:
+  R5 ✓ behavior (70 steps, real input, 39 assertions)
+  note never built — at boot or in any state the scripts reached (1 checked) — so never checked for layout: FollowButton, SettingsPage, Rule, EditorPage, RemovableTag, ArticlePage, Reading, ArticleMeta, CommentForm, CommentBox, CardFooter, CommentCard, …
+  verify: my-apps/conduit-run2/conduit.declare — clean through R5 (367 of 396 constraints statically wired; the rest find their reads as they run — nothing to do)
+(service: a fresh api/server.mjs on 8380, started and stopped for this)
+*/

@@ -1,0 +1,3 @@
+App [ marks: string[] = ["a", "b"],
+    row: View [ datapath = { ({ rows: app.marks.map((m) => ({ id: m })) }) },
+        Text [ datapath = :rows[], text = { :id } ] ] ]

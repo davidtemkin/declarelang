@@ -1,0 +1,563 @@
+/*
+# Presentify: the model
+
+What a presentation is and how it reaches the service, kept apart from how it
+looks. `presentify.declare` includes this file.
+
+- **The shape of the data** follows the service's format (task/api/API.md):
+  `Slide` and `Element`, and `DeckSummary` for the list of presentations.
+- **`Doc`** is the open presentation's working copy: its title and its slides,
+  in order. Every change the person makes is a write to it, and nothing else
+  holds a copy. `rev` counts every change; `editRev` counts the person's own
+  (the undo history watches it).
+- **`History`** keeps undo and redo as snapshots of the slides, the slide being
+  edited and the selection. One step is one thing the person did.
+- **`Sync`** keeps the service in step with `Doc`: it compares the working copy
+  with what the service last confirmed (`mirror`) and sends the one request
+  that closes the gap, then the next, until they agree. It is told of changes,
+  waits for a pause, retries what failed, and polls for slides changed in
+  another window.
+- **`Library`** is the list of presentations, with the writes made from it.
+*/
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema LineStyle [ color: string, width: number ]
+schema TextSpec [ content: string, font: string, size: number, weight: number, italic: boolean,
+    color: string, align: "left" | "center" | "right" ]
+schema Element [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    fill?: string, stroke?: LineStyle, cornerRadius?: number, keepProportions?: boolean,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    text?: TextSpec, children[]?: Element ]
+schema Slide [ id: string, background: string, elements[]: Element ]
+schema DocData [ deckId: string, title: string, slides[]: Slide ]
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number, thumbnailSlideId: string ]
+
+// One undo step: the slides as they were, and where the person was.
+
+schema Snapshot [ slides[]: Slide, current: string, selection[]: string, scope: string ]
+
+
+// ── The working copy ────────────────────────────────────────────────────────
+
+class Doc extends Dataset [ schema = DocData,
+    rev: number = 0,
+    editRev: number = 0,
+
+    slides() -> Slide[] { return this.value?.slides ?? [] },
+    indexOf(id: string) -> number { return this.slides().findIndex((s) => s.id == id) },
+    slide(id: string) -> Slide? { return this.slides().find((s) => s.id == id) ?? null },
+    order() -> string[] { return this.slides().map((s) => s.id) },
+
+    touch(edit: boolean) {
+        rev = rev + 1
+        if (edit) editRev = editRev + 1
+        },
+
+    load(deckId: string, title: string, slides: Slide[]) {
+        this.set([], ({ deckId: deckId, title: title,
+            slides: slides.map((s) => ({ id: s.id, background: s.background, elements: s.elements })) }))
+        rev = 0
+        editRev = 0
+        },
+    setTitle(t: string) { this.set(["title"], t); touch(false) },
+
+    // `edit` is false for what the person didn't do themselves: a text box's
+    // height following its lines.
+
+    setElements(id: string, els: Element[], edit: boolean) {
+        const i = indexOf(id)
+        if (i < 0) return
+        this.set(["slides", i, "elements"], els)
+        touch(edit)
+        },
+    setBackground(id: string, c: string) {
+        const i = indexOf(id)
+        if (i < 0) return
+        this.set(["slides", i, "background"], c)
+        touch(true)
+        },
+    insertSlide(at: number, s: Slide) { this.insert(["slides"], at, s); touch(true) },
+    removeSlide(id: string) { const i = indexOf(id); if (i >= 0) { this.removeAt(["slides"], i); touch(true) } },
+    moveSlide(from: number, to: number) { if (from != to) { this.move(["slides"], from, to); touch(true) } },
+    replaceSlide(s: Slide) {
+        const i = indexOf(s.id)
+        if (i >= 0) { this.set(["slides", i], ({ id: s.id, background: s.background, elements: s.elements })); touch(true) }
+        },
+    restoreSlides(slides: Slide[]) { this.set(["slides"], structuredClone(slides)); touch(true) },
+
+    // The service named a slide made here: the working copy takes its id.
+
+    renameSlide(from: string, to: string) {
+        const i = indexOf(from)
+        if (i >= 0) this.set(["slides", i, "id"], to)
+        }
+    ]
+
+
+// ── Undo and redo ───────────────────────────────────────────────────────────
+
+class History extends Node [
+    undos: Snapshot[] = [],
+    redos: Snapshot[] = [],
+    canUndo: boolean = { this.undos.length > 0 },
+    canRedo: boolean = { this.redos.length > 0 },
+
+    // A step with a key continues the one before it when it has the same key
+    // and follows closely: a run of typing, a stepper held down.
+
+    _lastKey: string = "",
+    _lastAt: number = 0,
+    _pending: Snapshot? = null,
+    _pendingRev: number = 0,
+
+    snapshot() -> Snapshot {
+        return ({ slides: structuredClone(app.doc.slides()), current: app.ed.currentId,
+            selection: [...app.ed.selection], scope: app.ed.scope })
+        },
+    _push(s: Snapshot) { undos = [...undos.slice(-199), s]; redos = [] },
+
+    // One thing the person did, made by `f`. Nothing is recorded if `f`
+    // changed nothing.
+
+    step(key: string, f: () => void) {
+        const now = Date.now()
+        const merge = key != "" && key == _lastKey && now - _lastAt < 2000
+        const before = merge ? null : snapshot()
+        const rev = app.doc.editRev
+        f()
+        if (app.doc.editRev == rev) return
+        if (before != null) _push(before)
+        _lastKey = key
+        _lastAt = now
+        },
+
+    // A drag: the state before it is kept at the press, and recorded at the
+    // release only if the drag changed something.
+
+    begin() { _pending = snapshot(); _pendingRev = app.doc.editRev; _lastKey = "" },
+    end() {
+        if (_pending != null && app.doc.editRev != _pendingRev) _push(_pending)
+        _pending = null
+        },
+    cancel() {
+        if (_pending != null && app.doc.editRev != _pendingRev) app.doc.restoreSlides(_pending.slides)
+        _pending = null
+        },
+
+    // The step just recorded is taken back without a redo: a text box made
+    // and left empty was never there.
+
+    trimTo(depth: number) { if (undos.length > depth) undos = undos.slice(0, depth) },
+    endRun() { _lastKey = "" },
+
+    undo() {
+        if (undos.length == 0) return
+        const s = undos[undos.length - 1]
+        redos = [...redos, snapshot()]
+        undos = undos.slice(0, -1)
+        _lastKey = ""
+        _restore(s)
+        },
+    redo() {
+        if (redos.length == 0) return
+        const s = redos[redos.length - 1]
+        undos = [...undos, snapshot()]
+        redos = redos.slice(0, -1)
+        _lastKey = ""
+        _restore(s)
+        },
+    _restore(s: Snapshot) {
+        app.doc.restoreSlides(s.slides)
+        app.ed.restoreView(s.current, s.selection, s.scope)
+        },
+
+    clear() { undos = []; redos = []; _lastKey = ""; _pending = null },
+
+    remapSlide(from: string, to: string) {
+        const fix = (s: Snapshot): Snapshot => ({ ...s, current: s.current == from ? to : s.current,
+            slides: s.slides.map((sl) => sl.id == from ? ({ ...sl, id: to }) : sl) })
+        undos = undos.map(fix)
+        redos = redos.map(fix)
+        }
+    ]
+
+
+// ── Saving ──────────────────────────────────────────────────────────────────
+
+// What the service last confirmed, per slide and for the deck.
+
+schema MirrorSlide [ version: number, json: string ]
+schema Mirror [ version: number, title: string, order[]: string ]
+
+class Sync extends Node [
+    api: string = "",
+    deckId: string = "",
+
+    deck: Mirror? = null,
+    slides: object = { {} },              // id → MirrorSlide
+    conflicts: object = { {} },           // id → the slide as the service now has it
+
+    loading: boolean = false,
+    loadFailed: boolean = false,
+    busy: boolean = false,            // a request is out
+    failing: boolean = false,         // the last attempt could not reach the service
+    syncedRev: number = 0,            // the working copy's rev the service has all of
+    heldDirty: boolean = false,       // unsaved work on a slide waiting on a conflict
+
+    pending: boolean = { app.doc.rev != this.syncedRev || this.busy || this.heldDirty },
+    status: "saved" | "saving" | "offline" = { this.failing ? "offline" : this.pending ? "saving" : "saved" },
+
+    // ── told of changes: wait for a pause, then send
+
+    rev: number = { app.doc.rev },
+    trackChanges = ["rev"],
+    onChange() { if (!loading) schedule(700) },
+
+    _timer: DelayHandle? = null,
+    _backoff: number = 1500,
+    schedule(ms: number) {
+        _timer?.cancel()
+        _timer = afterDelay(ms, () => { _timer = null; run() })
+        },
+    now() { _timer?.cancel(); _timer = null; run() },
+
+    // ── the request in flight
+
+    op: string = "",
+    opSlide: string = "",
+    opJson: string = "",
+    _gen: number = 0,
+    reqUrl: string = "",
+    reqMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+    reqBody: object = null,
+    req: DataSource [ url = { classroot.reqUrl }, method = { classroot.reqMethod }, body = { classroot.reqBody }, timeout = 12,
+        onLoad() { classroot.landed(this.value) },
+        onError() { classroot.refused(this.failure, this.statusCode, this.errorBody) }
+        ],
+    send(op: string, method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body: object) {
+        this.op = op
+        reqMethod = method
+        reqUrl = api + path
+        reqBody = body
+        busy = true
+        _gen = _gen + 1
+        req.fetch()
+        },
+
+    // ── opening a presentation
+
+    open(id: string) {
+        _timer?.cancel()
+        deckId = id
+        deck = null
+        slides = {}
+        conflicts = {}
+        loading = true
+        loadFailed = false
+        failing = false
+        heldDirty = false
+        send("loadDeck", "GET", "/api/decks/" + id, null)
+        },
+
+    // A presentation just made: the service handed it back whole.
+
+    adopt(d: object, list: Slide[]) {
+        _timer?.cancel()
+        deckId = (d as any).id
+        conflicts = {}
+        failing = false
+        heldDirty = false
+        _takeDeck(d)
+        _takeSlides(list)
+        app.doc.load(deckId, (d as any).title, list)
+        syncedRev = 0
+        loading = false
+        },
+    close() { _timer?.cancel(); deckId = ""; deck = null },
+
+    _takeDeck(d: object) {
+        const v = d as any
+        deck = ({ version: v.version, title: v.title, order: [...v.slideOrder] })
+        },
+    _takeSlides(list: Slide[]) {
+        const m: any = {}
+        for (const s of list) m[s.id] = ({ version: (s as any).version, json: slideJson(s) })
+        slides = m
+        },
+
+    // ── the next request: what closes the gap between the working copy and
+    //    the service. New slides first, then deleted ones, then the order and
+    //    title, then each slide's content, the one on screen first.
+
+    run() {
+        if (busy || loading || deckId == "" || deck == null) return
+        const local = app.doc.slides()
+        const known = slides as any
+        const order = local.map((s) => s.id)
+
+        // a slide made here
+        for (let i = 0; i < local.length; i++) {
+            const s = local[i]
+            if (known[s.id] != null) continue
+            let after: string? = null
+            for (let j = i - 1; j >= 0; j--) if (known[local[j].id] != null) { after = local[j].id; break }
+            opSlide = s.id
+            opJson = slideJson(s)
+            send("create", "POST", "/api/decks/" + deckId + "/slides",
+                ({ after: after, background: s.background, elements: s.elements }))
+            return
+            }
+        // a slide deleted here
+        for (const id of deck.order) {
+            if (order.includes(id)) continue
+            opSlide = id
+            send("delete", "DELETE", "/api/slides/" + id, null)
+            return
+            }
+        // the order, or the title
+        const title = app.doc.value?.title ?? ""
+        if (order.join(" ") != deck.order.join(" ") || title != deck.title) {
+            send("deck", "PATCH", "/api/decks/" + deckId, ({ version: deck.version, title: title, slideOrder: order }))
+            return
+            }
+        // a slide's content, the current one first
+        const first = app.ed.currentId
+        const byPriority = [...local].sort((a, b) => (a.id == first ? 0 : 1) - (b.id == first ? 0 : 1))
+        let held = false
+        for (const s of byPriority) {
+            const json = slideJson(s)
+            if (json == known[s.id].json) continue
+            if ((conflicts as any)[s.id] != null) { held = true; continue }
+            opSlide = s.id
+            opJson = json
+            send("put", "PUT", "/api/slides/" + s.id,
+                ({ version: known[s.id].version, background: s.background, elements: s.elements }))
+            return
+            }
+        heldDirty = held
+        failing = false
+        _backoff = 1500
+        syncedRev = app.doc.rev
+        app.synced()
+        },
+
+    landed(v: object) {
+        const r = v as any
+        busy = false
+        failing = false
+        _backoff = 1500
+        const known = { ...(slides as any) }
+        if (op == "loadDeck") {
+            _takeDeck(r)
+            send("loadSlides", "GET", "/api/decks/" + deckId + "/slides", null)
+            return
+            }
+        if (op == "loadSlides") {
+            const list = r.slides as Slide[]
+            _takeSlides(list)
+            app.doc.load(deckId, deck?.title ?? "", list)
+            syncedRev = 0
+            loading = false
+            app.deckLoaded()
+            return
+            }
+        if (op == "create") {
+            const made = r.slide
+            known[made.id] = ({ version: made.version, json: opJson })
+            slides = known
+            _takeDeck(r.deck)
+            if (made.id != opSlide) app.remapSlide(opSlide, made.id)
+            } else if (op == "delete") {
+            delete known[opSlide]
+            slides = known
+            if (r != null && r.deck != null) _takeDeck(r.deck)
+            else if (deck != null) deck = ({ ...deck, order: deck.order.filter((id) => id != opSlide) })
+            } else if (op == "deck") {
+            _takeDeck(r)
+            } else if (op == "put") {
+            known[opSlide] = ({ version: r.version, json: opJson })
+            slides = known
+            }
+        run()
+        },
+
+    refused(why: string, status: number, body: object) {
+        busy = false
+        const b = (body ?? {}) as any
+        if (op == "loadDeck" || op == "loadSlides") {
+            if (status == 404) { loading = false; loadFailed = true; app.deckMissing(); return }
+            failing = true
+            afterDelay(_backoff, () => { if (loading) send(op, "GET", op == "loadDeck" ? "/api/decks/" + deckId : "/api/decks/" + deckId + "/slides", null) })
+            _backoff = Math.min(_backoff * 2, 15000)
+            return
+            }
+        if (why == "unreadable" && op == "delete") { landed(null); return }
+        if (status == 409 && b.error == "conflict" && op == "put") {
+            conflicts = ({ ...(conflicts as any), [opSlide]: b.current })
+            run()
+            return
+            }
+        if (status == 409 && b.error == "conflict" && op == "deck") {
+            _takeDeck(b.current)
+            // Slides added or removed elsewhere stay in the order the service has.
+            const theirs = deck!.order
+            const mine = app.doc.order().filter((id) => theirs.includes(id))
+            deck = ({ ...deck!, order: theirs })
+            if (mine.length != theirs.length) app.doc.touch(false)
+            run()
+            return
+            }
+        if (status == 404 && op == "put") {
+            // Deleted elsewhere: made again from the working copy.
+            const known = { ...(slides as any) }
+            delete known[opSlide]
+            slides = known
+            if (deck != null) deck = ({ ...deck, order: deck.order.filter((id) => id != opSlide) })
+            run()
+            return
+            }
+        if (status == 404 && op == "delete") { landed(null); return }
+        if (why == "rejected") {
+            // The service refused the content itself: keep it, say so, try again later.
+            console.warn("Presentify: the service refused a write", op, status, JSON.stringify(b))
+            }
+        failing = true
+        afterDelay(_backoff, () => run())
+        _backoff = Math.min(_backoff * 2, 15000)
+        },
+
+    // ── changes made in another window
+
+    poll: DataSource [ url = { classroot.api + "/api/decks/" + classroot.deckId + "/slides" }, timeout = 10,
+        onLoad() { classroot.compare(this.value) }
+        ],
+    _pollGen: number = 0,
+    check() {
+        if (busy || loading || deckId == "" || poll.loading) return
+        _pollGen = _gen
+        poll.fetch()
+        },
+    ticker: Time [ tick = 4000, running = { classroot.deckId != "" && !classroot.loading },
+        onTick() { classroot.check() }
+        ],
+
+    compare(v: object) {
+        if (_pollGen != _gen || busy) return            // something was sent meanwhile: ask again later
+        const list = ((v as any)?.slides ?? []) as Slide[]
+        const known = { ...(slides as any) }
+        const found = { ...(conflicts as any) }
+        let changed = false
+        for (const s of list) {
+            const m = known[s.id]
+            const ver = (s as any).version as number
+            if (m == null || ver <= m.version || found[s.id] != null) continue
+            const theirs = slideJson(s)
+            const local = app.doc.slide(s.id)
+            if (local != null && slideJson(local) == theirs) { known[s.id] = ({ version: ver, json: theirs }); continue }
+            found[s.id] = s
+            changed = true
+            }
+        slides = known
+        if (changed) conflicts = found
+        },
+
+    // The person chose. Theirs: the slide becomes the service's. Mine: the
+    // working copy is sent over it, against the version the service has now.
+
+    takeTheirs(id: string) {
+        const s = (conflicts as any)[id] as Slide?
+        if (s == null) return
+        const known = { ...(slides as any) }
+        known[id] = ({ version: (s as any).version, json: slideJson(s) })
+        slides = known
+        _dropConflict(id)
+        app.history.step("", () => app.doc.replaceSlide(s))
+        },
+    keepMine(id: string) {
+        const s = (conflicts as any)[id] as Slide?
+        if (s == null) return
+        const known = { ...(slides as any) }
+        known[id] = ({ version: (s as any).version, json: slideJson(s) })
+        slides = known
+        _dropConflict(id)
+        app.doc.touch(false)
+        },
+    _dropConflict(id: string) {
+        const c = { ...(conflicts as any) }
+        delete c[id]
+        conflicts = c
+        },
+    remap(from: string, to: string) {
+        if ((conflicts as any)[from] != null) {
+            const c = { ...(conflicts as any) }
+            c[to] = c[from]
+            delete c[from]
+            conflicts = c
+            }
+        }
+    ]
+
+
+// ── The list of presentations ───────────────────────────────────────────────
+
+class Library extends DataSource [ schema = [ decks[]: DeckSummary ], timeout = 10,
+    api: string = "",
+    url = { classroot.api + "/api/decks" },
+
+    // What the person did here shows at once; the list catches up when the
+    // service answers.
+
+    gone: string[] = [],
+    renamed: object = { {} },
+    titleOf(d: DeckSummary) -> string { return (renamed as any)[d.id] ?? d.title },
+    shown: DeckSummary[] = { (this.value?.decks ?? []).filter((d) => !this.gone.includes(d.id)) },
+
+    creating: boolean = false,
+    make: DataSource [ url = { classroot.api + "/api/decks" }, method = "POST", timeout = 10,
+        body = { { title: "Untitled presentation" } },
+        onLoad() { classroot.creating = false; app.openCreated(this.value) },
+        onError() { classroot.creating = false; app.say("Couldn't start a new presentation. Is the service running?") }
+        ],
+    create() { if (!creating) { creating = true; make.fetch() } },
+
+    _renameId: string = "",
+    _renameTo: string = "",
+    getOne: DataSource [ url = { classroot.api + "/api/decks/" + classroot._renameId }, timeout = 10,
+        onLoad() { classroot.patchOne.fetch() },
+        onError() { classroot.renameFailed() }
+        ],
+    patchOne: DataSource [ url = { classroot.api + "/api/decks/" + classroot._renameId }, method = "PATCH", timeout = 10,
+        body = { { version: (classroot.getOne.value as any)?.version ?? 0, title: classroot._renameTo } },
+        onLoad() { classroot.fetch() },
+        onError() { classroot.renameFailed() }
+        ],
+    rename(id: string, title: string) {
+        renamed = ({ ...(renamed as any), [id]: title })
+        _renameId = id
+        _renameTo = title
+        getOne.fetch()
+        },
+    renameFailed() {
+        const r = { ...(renamed as any) }
+        delete r[_renameId]
+        renamed = r
+        app.say("Couldn't rename it. The service didn't answer.")
+        },
+
+    _removeId: string = "",
+    removeOne: DataSource [ url = { classroot.api + "/api/decks/" + classroot._removeId }, method = "DELETE", timeout = 10,
+        onLoad() { classroot.fetch() },
+        onError() {
+            if (this.failure == "unreadable") { classroot.fetch(); return }
+            classroot.gone = classroot.gone.filter((g) => g != classroot._removeId)
+            app.say("Couldn't delete it. The service didn't answer.")
+            }
+        ],
+    remove(id: string) {
+        gone = [...gone, id]
+        _removeId = id
+        removeOne.fetch()
+        }
+    ]

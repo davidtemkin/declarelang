@@ -1,0 +1,7 @@
+// Probe: a Spring whose target arrives after boot (as data does), no arrive().
+App [ width = 200, height = 100,
+    target: number = 0,
+    shown: number = 0,
+    onReady() { app.target = 59 },
+    Spring [ attribute = shown, to = { app.target }, stiffness = 120, damping = 20 ],
+    Text [ text = { "" + Math.round(app.shown) } ] ]

@@ -1,0 +1,122 @@
+/*
+# Presentify: a slide, drawn
+
+One class draws a slide wherever it appears: the slide being edited, every
+picture in the slide list and the presentation list, and the slide being
+presented. That is what makes a presentation look exactly as it does in the
+editor: there is only one way a slide is drawn.
+
+A `SlideArt` is always 1280 × 720 slide points; where it is shown smaller,
+its `scale` makes it so. Its elements replicate over the slide's
+`elements`, one class per kind (`classFor`), and a group draws its children
+the same way, at any depth.
+*/
+
+// Which class draws each kind of element.
+
+script {
+    function shapeClass(kind: string): string {
+        return kind == "rect" ? "RectShape" : kind == "ellipse" ? "EllipseShape" : kind == "line" ? "LineShape"
+            : kind == "text" ? "TextShape" : "GroupShape"
+    }
+    }
+
+use [ RectShape, EllipseShape, LineShape, TextShape, GroupShape ]
+
+class SlideArt [ width = 1280, height = 720, clip = true, pivotX = 0, pivotY = 0,
+    fill = { col(:background) ?? 0xFFFFFF },
+    Shape [ datapath = :elements[], classFor = { shapeClass(:kind) } ]
+    ]
+
+
+// The base of every element's view. An element's view takes no presses of
+// its own (the canvas over it decides what a press means), so it never
+// stands between the pointer and what is under it.
+
+class Shape [ pointerEvents = "none",
+    elId: string = { :id ?? "" }
+    ]
+
+
+// A rectangle. Its corner radius is a length, so a wider rectangle keeps its
+// corners; at most it rounds the ends fully.
+
+class RectShape extends Shape [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { Math.max(0, :width ?? 0) }, height = { Math.max(0, :height ?? 0) },
+    fill = { col(:fill) },
+    stroke = { :stroke == null ? null : stroke(:stroke.width, col(:stroke.color)) },
+    cornerRadius = { Math.min(:cornerRadius ?? 0, this.width / 2, this.height / 2) }
+    ]
+
+
+// An ellipse, drawn: a box with a radius can only make a stadium. The
+// outline sits inside the box, as a rectangle's does.
+
+class EllipseShape extends Shape [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { Math.max(0, :width ?? 0) }, height = { Math.max(0, :height ?? 0) },
+    paint: string = { :fill ?? "" },
+    line: Outline? = { :stroke },
+    draw(d: DrawContext) {
+        const sw = this.line == null ? 0 : this.line.width
+        const rx = Math.max(0, d.w / 2 - sw / 2), ry = Math.max(0, d.h / 2 - sw / 2)
+        d.beginPath()
+        d.ellipse(d.w / 2, d.h / 2, rx, ry, 0, 0, Math.PI * 2)
+        if (this.paint != "") { d.fillStyle = col(this.paint) ?? 0; d.fill() }
+        if (this.line != null && sw > 0) { d.strokeStyle = col(this.line.color) ?? 0; d.lineWidth = sw; d.stroke() }
+        }
+    ]
+
+
+// A straight line, drawn in a box its ends span, padded by its own width so
+// round ends and thick strokes aren't cut off.
+
+class LineShape extends Shape [
+    sw: number = { :stroke?.width ?? 2 },
+    ink: string = { :stroke?.color ?? "#1F2328" },
+    pad: number = { classroot.sw / 2 + 2 },
+    x1: number = { :x1 ?? 0 },
+    y1: number = { :y1 ?? 0 },
+    x2: number = { :x2 ?? 0 },
+    y2: number = { :y2 ?? 0 },
+    x = { Math.min(classroot.x1, classroot.x2) - classroot.pad }, y = { Math.min(classroot.y1, classroot.y2) - classroot.pad },
+    width = { Math.abs(classroot.x2 - classroot.x1) + classroot.pad * 2 },
+    height = { Math.abs(classroot.y2 - classroot.y1) + classroot.pad * 2 },
+    draw(d: DrawContext) {
+        const ox = this.x, oy = this.y
+        d.strokeStyle = col(this.ink) ?? 0
+        d.lineWidth = this.sw
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(this.x1 - ox, this.y1 - oy)
+        d.lineTo(this.x2 - ox, this.y2 - oy)
+        d.stroke()
+        }
+    ]
+
+
+// A text box: one block of text in one style, wrapping within its width and
+// as tall as its lines. On the slide being edited it reports that height back
+// to the record (`measured`), since the format keeps a text box's height as
+// last laid out.
+
+class TextShape extends Shape [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { Math.max(1, :width ?? 0) },
+    run: Text [ width = 100%, wrap = true, lineHeight = 1.2,
+        fontFamily = { app.faceFor(:text.font) }, fontSize = { :text.size ?? 24 }, fontWeight = { :text.weight ?? 400 },
+        italic = { :text.italic ?? false }, textColor = { col(:text.color) ?? 0 },
+        textAlign = { :text.align ?? "left" },
+
+        // An empty box still holds a line, so it can be seen and clicked.
+
+        text = { (:text.content ?? "") == "" ? "​" : :text.content },
+        opacity = { app.editingText == classroot.elId ? 0 : 1 } ],
+    trackChanges = ["height"],
+    onChange() { if (provided("liveSlide", false)) app.measured(this.elId, this.height) }
+    ]
+
+
+// A group draws its children, which keep their own slide coordinates.
+
+class GroupShape extends Shape [ x = 0, y = 0, width = 1280, height = 720,
+    Shape [ datapath = :children[], classFor = { shapeClass(:kind) } ]
+    ]

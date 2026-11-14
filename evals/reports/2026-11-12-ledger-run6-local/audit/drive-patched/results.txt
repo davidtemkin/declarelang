@@ -1,0 +1,5 @@
+PASS  overview_drill  8.0 s  met
+      fallbacks: this month's expense bar has no node of its own in the tree until the chart is arrowed to it ("November 2026 (so far), Expenses, $3,735.27, down 38% from October 2026, 30 transactions")
+PASS  bulk_undo  10.7 s  met
+      fallbacks: no "Clear all" (a fresh start has no filters to clear)
+2 of 2 passed in 19 s

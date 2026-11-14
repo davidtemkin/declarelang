@@ -1,0 +1,22 @@
+// A field whose onEnter says what Return does has answered it, and Return "goes no further"
+// (TextInput.keyBindings). Here onEnter puts the field away and hands focus back to the
+// grid around it; the grid's own Enter binding then runs too.
+App [ width = 400, height = 200,
+    grid: View [ width = 300, height = 120, focusable = true,
+        editing: boolean = true,
+        gridEnters: number = 0,
+        fieldEnters: number = 0,
+        keep: boolean = false,               // true: the field stays (no retire)
+        startEdit() { gridEnters = gridEnters + 1 },
+        keyBindings = { [ ({ key: "Enter", command: "startEdit" }) ] },
+        f: TextInput [ exists = { parent.editing }, width = 200, accessibilityLabel = "Formula",
+            value = "", commitOn = "end", commit(v: string) { },
+            onEnter() {
+                parent.fieldEnters = parent.fieldEnters + 1
+                if (!parent.keep) parent.editing = false
+                afterSettle(() => Focus.focus(parent))
+                },
+            onInit() { afterSettle(() => Focus.focus(this)) }
+            ]
+        ]
+    ]

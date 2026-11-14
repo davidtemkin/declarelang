@@ -1,0 +1,475 @@
+/*
+# Ledger: the charts
+
+Every chart here is handed its numbers as records and says what a choice
+means through one method its use site writes, `openPoint(i, s)`: the period
+`i` of series `s` was chosen, so open the records behind it.
+
+- **`TimeChart`** — periods across, bars and lines up: one measure, or income
+  and expenses as bars with net profit as a line, a comparison dashed beside
+  them. Pointing at (or focusing) a period reads it out; the arrows move
+  between periods and series, each announced as a sentence; Enter opens its
+  records; a drag across selects a range and offers it as the date filter. When
+  the numbers change, the marks move from the old values to the new.
+- **`Sparkline`** — the last periods of one figure, as a small line.
+- **`BarRow`** / **`BarList`** — a sorted list of shares as horizontal bars:
+  each row a control, the list one Tab stop with the arrows moving inside.
+- **`ChartFrame`** — a chart's title, its sentence, and a switch between the
+  chart and its table.
+*/
+
+// A period on a time chart: its name, and one value per series (`v`), the
+// number of transactions behind each (`n`), and the comparison period's
+// values (`pv`, empty when there is none).
+
+schema Pt [ key: string, name: string, tick: string, partial: boolean, from: string, to: string,
+    v[]: number, n[]: number, pv[]: number, pname: string ]
+schema Ser [ id: string, name: string, mark: string, tone: number, unit: string ]
+
+
+class TimeChart extends Control [ height = 260, claim = x,
+    points: Pt[] = [],
+    series: Ser[] = [],
+    running: boolean = false,        // draw the running total of the line series too
+    dashedCompare: boolean = false,  // draw the comparison period, dashed
+    partialNote: string = "so far",
+
+    // what the use site answers
+
+    openPoint(i: number, s: number) { },
+    rangePicked(from: string, to: string) { },
+
+    accessibilityRole = image,
+    accessibilityLabel = { classroot.chartLabel },
+    chartLabel: string = "Chart",
+
+    // ── geometry: room for the axis labels at the left and foot
+
+    padL: number = 52,
+    padB: number = 24,
+    padT: number = 10,
+    plotW: number = { Math.max(1, this.width - this.padL - 8) },
+    plotH: number = { Math.max(1, this.height - this.padB - this.padT) },
+    slot: number = { this.plotW / Math.max(1, this.points.length) },
+    barSeries: number[] = { this.series.map((s, i) => s.mark == "bar" ? i : -1).filter((i) => i >= 0) },
+
+    // ── the values the marks show: moving from the old numbers to the new
+
+    mix: number = 1,
+    fromVals: number[][] = [],
+    mixer: Animator [ attribute = mix, from = 0, to = 1, duration = 320, easing = easeOut ],
+    trackChanges = ["points"],
+    onChange() {
+        // the marks start from wherever they are now
+        fromVals = this.points.map((p, i) => p.v.map((x, k) => this.lerpAt(i, k)))
+        if (app.accessibilitySettings.reduceMotion) { mix = 1 } else { mixer.start() }
+        },
+    lerpAt(i: number, k: number) -> number {
+        const p = this.points[i]
+        if (p == null) return 0
+        const to = p.v[k] ?? 0
+        const from = (this.fromVals[i] ?? [])[k] ?? to
+        return from + (to - from) * this.mix
+        },
+    shownVals: number[][] = { this.points.map((p, i) => p.v.map((x, k) => this.lerpAt(i, k))) },
+
+    runningVals: number[] = {
+        this.points.reduce((acc: number[], p, i) => {
+            const k = this.series.findIndex((s) => s.mark == "line")
+            acc.push((acc[i - 1] ?? 0) + (k >= 0 ? (this.shownVals[i] ?? [])[k] ?? 0 : 0))
+            return acc
+            }, [])
+        },
+
+    // the scale: always including zero, stretched to a friendly top
+
+    dashedVals: number[] = { this.dashedCompare ? this.points.flatMap((p) => p.pv) : [] },
+    lo: number = {
+        Math.min(0, ...this.shownVals.flat(), ...this.dashedVals, ...(this.running ? this.runningVals : []))
+        },
+    hiRaw: number = {
+        Math.max(0, ...this.shownVals.flat(), ...this.dashedVals, ...(this.running ? this.runningVals : []))
+        },
+    stepV: number = { niceStep(Math.max(1, this.hiRaw - this.lo) / 4) },
+    hi: number = { Math.max(this.stepV, Math.ceil(this.hiRaw / this.stepV) * this.stepV) },
+    lof: number = { Math.floor(this.lo / this.stepV) * this.stepV },
+    yOf(v: number) -> number { return this.padT + this.plotH * (1 - (v - this.lof) / Math.max(1, this.hi - this.lof)) },
+    xOf(i: number) -> number { return this.padL + this.slot * (i + 0.5) },
+    unit: string = { this.series[0]?.unit ?? "money" },
+    axisText(v: number) -> string { return this.unit == "percent" ? Math.round(v) + "%" : this.unit == "count" ? "" + Math.round(v) : moneyCompact(v) },
+    valueText(v: number, s: number) -> string {
+        const u = this.series[s]?.unit ?? "money"
+        return u == "percent" ? pct(v) : u == "count" ? count(v) : money(v)
+        },
+
+    // ── where the person is: the pointer or the keyboard's place, and a dragged range
+
+    hoverIx: number = -1,
+    cursorIx: number = -1,
+    cursorSer: number = 0,
+    pointing: boolean = { this.hovered && this.hoverIx >= 0 },
+    activeIx: number = { this.pointing ? this.hoverIx : this.focused ? this.cursorIx : -1 },
+    dragFrom: number = -1,
+    dragTo: number = -1,
+    ranged: boolean = { this.dragFrom >= 0 && this.dragTo >= 0 && this.dragFrom != this.dragTo },
+    ixAt(x: number) -> number {
+        if (this.points.length == 0) return -1
+        return Math.max(0, Math.min(this.points.length - 1, Math.floor((x - this.padL) / this.slot)))
+        },
+    serAt(i: number, x: number, y: number) -> number {
+        // a bar series by where in the period's slot; else the line nearest the pointer
+        const bars = this.barSeries
+        if (bars.length > 0) {
+            const gx = x - (this.padL + this.slot * i + this.slot * 0.15)
+            const w = this.slot * 0.7 / bars.length
+            const b = Math.floor(gx / Math.max(1, w))
+            if (b >= 0 && b < bars.length) return bars[b]
+            }
+        let best = 0, dist = 1e9
+        this.series.forEach((s, k) => {
+            if (s.mark == "bar" && bars.length > 0) return
+            const dy = Math.abs(this.yOf((this.shownVals[i] ?? [])[k] ?? 0) - y)
+            if (dy < dist) { dist = dy; best = k }
+            })
+        return best
+        },
+
+    onPointerMove(e: PointerEvent) { hoverIx = this.ixAt(e.x) },
+    onClick(e: PointerEvent) {
+        const i = this.ixAt(e.x)
+        if (i < 0) return
+        this.dragFrom = -1
+        this.dragTo = -1
+        this.openPoint(i, this.serAt(i, e.x, e.y))
+        },
+    onDragStart(e: PointerEvent) { dragFrom = this.ixAt(e.x); dragTo = dragFrom },
+    onDrag(e: PointerEvent) { dragTo = this.ixAt(e.x); hoverIx = dragTo },
+    onDragEnd(e: DragEndEvent) { if (e.canceled) { dragFrom = -1; dragTo = -1 } },
+    pickedFrom: string = { this.ranged ? this.points[Math.min(this.dragFrom, this.dragTo)]?.from ?? "" : "" },
+    pickedTo: string = { this.ranged ? this.points[Math.max(this.dragFrom, this.dragTo)]?.to ?? "" : "" },
+    clearPick() { dragFrom = -1; dragTo = -1 },
+
+    // ── the keyboard: one stop; the arrows move between periods and series
+
+    keyBindings = { [
+        ({ key: "ArrowRight", command: "move", args: [1, 0] }),
+        ({ key: "ArrowLeft", command: "move", args: [-1, 0] }),
+        ({ key: "ArrowUp", command: "move", args: [0, -1] }),
+        ({ key: "ArrowDown", command: "move", args: [0, 1] }),
+        ({ key: "Home", command: "moveTo", args: [0] }),
+        ({ key: "End", command: "moveTo", args: [-1] }),
+        ({ key: "Enter", command: "openCursor" })
+        ] },
+    move(di: number, ds: number) {
+        if (this.points.length == 0) return
+        const i = Math.max(0, Math.min(this.points.length - 1, (cursorIx < 0 ? this.points.length - 1 : cursorIx) + di))
+        const s = Math.max(0, Math.min(this.series.length - 1, cursorSer + ds))
+        cursorIx = i
+        cursorSer = s
+        Accessibility.announce(this.sentence(i, s))
+        },
+    moveTo(i: number) { this.move(0, 0); cursorIx = i < 0 ? this.points.length - 1 : i; Accessibility.announce(this.sentence(cursorIx, cursorSer)) },
+    openCursor() { if (cursorIx >= 0) this.openPoint(cursorIx, cursorSer) },
+    press() { this.openCursor() },
+    onFocus() { if (cursorIx < 0 && this.points.length > 0) { cursorIx = this.points.length - 1; Accessibility.announce(this.sentence(cursorIx, cursorSer)) } },
+
+    // "March 2026, Expenses, $4,120.00, up 6% from February, 87 transactions"
+
+    sentence(i: number, s: number) -> string {
+        const p = this.points[i]
+        const ser = this.series[s]
+        if (p == null || ser == null) return ""
+        const v = p.v[s] ?? 0
+        let out = p.name + (p.partial ? " (" + this.partialNote + ")" : "") + ", " + ser.name + ", " + this.valueText(v, s)
+        if (p.pv.length > s && p.pname != "") out = out + ", " + changeSentence(v, p.pv[s], p.pname, ser.unit)
+        if (ser.unit != "count") out = out + ", " + plural(p.n[s] ?? 0, "transaction")
+        return out
+        },
+
+    // ── drawing
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const pts = this.points
+        // gridlines and axis labels
+        d.lineWidth = 1
+        for (let v = this.lof; v <= this.hi + 0.5; v = v + this.stepV) {
+            const y = Math.round(this.yOf(v)) + 0.5
+            d.strokeStyle = v == 0 ? t.lineStrong : t.line
+            d.beginPath(); d.moveTo(this.padL, y); d.lineTo(d.w - 8, y); d.stroke()
+            d.fillText(this.axisText(v), 0, y + 4, ({ fontSize: 11, textColor: t.textMuted }))
+            }
+        if (pts.length == 0) return
+        const every = Math.max(1, Math.ceil(pts.length / Math.max(1, Math.floor(this.plotW / 44))))
+        pts.forEach((p, i) => {
+            const x = this.xOf(i)
+            // a period not yet over is shaded, so its dip isn't misread
+            if (p.partial) { d.fillStyle = t.partial; d.fillRect(this.padL + this.slot * i, this.padT, this.slot, this.plotH) }
+            if (i % every == 0 || i == pts.length - 1) {
+                const label = p.tick + (p.partial ? "*" : "")
+                const m = measureText(label, ({ fontSize: 11 }))
+                d.fillText(label, x - m.width / 2, d.h - 6, ({ fontSize: 11, textColor: t.textMuted }))
+                }
+            })
+        // the dragged range
+        if (this.ranged) {
+            const a = Math.min(this.dragFrom, this.dragTo), b = Math.max(this.dragFrom, this.dragTo)
+            d.fillStyle = t.selection
+            d.fillRect(this.padL + this.slot * a, this.padT, this.slot * (b - a + 1), this.plotH)
+            }
+        // the hovered or focused period
+        if (this.activeIx >= 0) {
+            d.fillStyle = t.hover
+            d.fillRect(this.padL + this.slot * this.activeIx, this.padT, this.slot, this.plotH)
+            }
+        const zero = this.yOf(0)
+        const bars = this.barSeries
+        const bw = this.slot * 0.7 / Math.max(1, bars.length)
+        // the comparison, dashed: drawn first, under the marks
+        this.series.forEach((s, k) => {
+            if (!this.dashedCompare || !pts.some((p) => p.pv.length > k)) return
+            d.strokeStyle = t.compare
+            d.lineWidth = 1.6
+            d.setLineDash([4, 4])
+            d.beginPath()
+            pts.forEach((p, i) => {
+                const x = s.mark == "bar" ? this.padL + this.slot * i + this.slot * 0.15 + bw * bars.indexOf(k) + bw / 2 : this.xOf(i)
+                const y = this.yOf(p.pv[k] ?? 0)
+                if (i == 0) d.moveTo(x, y); else d.lineTo(x, y)
+                })
+            d.stroke()
+            d.setLineDash([])
+            })
+        // the bars
+        bars.forEach((k, b) => {
+            const s = this.series[k]
+            pts.forEach((p, i) => {
+                const v = (this.shownVals[i] ?? [])[k] ?? 0
+                const x = this.padL + this.slot * i + this.slot * 0.15 + bw * b
+                const y = this.yOf(v)
+                d.fillStyle = s.tone
+                d.globalAlpha = p.partial ? 0.55 : 1
+                d.beginPath()
+                d.roundRect(x + 1, Math.min(y, zero), Math.max(1, bw - 2), Math.max(1, Math.abs(zero - y)), 2)
+                d.fill()
+                d.globalAlpha = 1
+                if (this.focused && this.cursorIx == i && this.cursorSer == k) {
+                    d.strokeStyle = t.text; d.lineWidth = 2
+                    d.strokeRect(x, Math.min(y, zero) - 1, bw, Math.abs(zero - y) + 2)
+                    }
+                })
+            })
+        // the lines
+        this.series.forEach((s, k) => {
+            if (s.mark != "line") return
+            d.strokeStyle = s.tone
+            d.lineWidth = 2.2
+            d.beginPath()
+            pts.forEach((p, i) => {
+                const x = this.xOf(i), y = this.yOf((this.shownVals[i] ?? [])[k] ?? 0)
+                if (i == 0) d.moveTo(x, y); else d.lineTo(x, y)
+                })
+            d.stroke()
+            pts.forEach((p, i) => {
+                const x = this.xOf(i), y = this.yOf((this.shownVals[i] ?? [])[k] ?? 0)
+                const on = this.focused && this.cursorIx == i && this.cursorSer == k
+                d.fillStyle = on ? t.text : s.tone
+                d.beginPath(); d.arc(x, y, on ? 5 : pts.length > 40 ? 0 : 3, 0, 6.3); d.fill()
+                })
+            if (this.running) {
+                d.strokeStyle = t.accent
+                d.globalAlpha = 0.9
+                d.lineWidth = 2
+                d.setLineDash([2, 3])
+                d.beginPath()
+                pts.forEach((p, i) => {
+                    const x = this.xOf(i), y = this.yOf(this.runningVals[i] ?? 0)
+                    if (i == 0) d.moveTo(x, y); else d.lineTo(x, y)
+                    })
+                d.stroke()
+                d.setLineDash([])
+                d.globalAlpha = 1
+                }
+            })
+        },
+
+    // ── the read-out: period, series, value, change, and how many transactions
+
+    tip: View [ visible = { classroot.activeIx >= 0 && classroot.points.length > 0 }, ignoreLayout = true,
+        cornerRadius = 8, padding = [8, 10, 8, 10], pointerEvents = "none",
+        fill = { provided("theme").tooltipFill },
+        x = { Math.max(0, Math.min(classroot.width - this.width, classroot.xOf(classroot.activeIx) + 14)) },
+        y = 0,
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        head: Text [ fontSize = 12, fontWeight = semibold, wrap = false, textColor = { provided("theme").tooltipTextColor },
+            text = { classroot.tipTitle } ],
+        View [ datapath = { classroot.tipData.value },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            View [ datapath = :rows[],
+                layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+                View [ width = 8, height = 8, cornerRadius = 2, fill = :tone ],
+                Text [ fontSize = 12, wrap = false, textColor = { provided("theme").tooltipTextColor }, text = :line ]
+                ]
+            ]
+        ],
+    tipData: Dataset [ contents = { classroot.tipRows() } ],
+    tipRows() -> object {
+        return ({ rows: this.activeIx < 0 ? [] : this.series.map((s, k) => {
+            const p = this.points[this.activeIx]
+            const v = p?.v[k] ?? 0
+            let line = s.name + "  " + this.valueText(v, k)
+            if (p != null && p.pv.length > k && p.pname != "") line = line + "  ·  " + changeSentence(v, p.pv[k], p.pname, s.unit)
+            if (s.unit != "count") line = line + "  ·  " + plural(p?.n[k] ?? 0, "transaction")
+            return ({ id: s.id, tone: s.tone, line: line })
+            }) })
+        },
+    tipTitle: string = {
+        this.activeIx < 0 ? "" : (this.points[this.activeIx]?.name ?? "") + (this.points[this.activeIx]?.partial ?? false ? " — " + this.partialNote : "")
+        },
+
+    // ── a dragged range, offered as the date filter
+
+    offer: View [ visible = { classroot.ranged }, ignoreLayout = true, x = end, y = 0,
+        cornerRadius = 8, padding = [4, 4, 4, 10], fill = { provided("theme").surface },
+        stroke = { stroke(1, provided("theme").line) }, shadow = { shadow(0, 4, 14, 0x00000022) },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        TextLabel [ fontSize = 12.5, wrap = false, text = { rangeLabel(classroot.pickedFrom, classroot.pickedTo) } ],
+        Button [ height = 28, fontSize = 12.5, primary = true, label = "Set as date range",
+            onClick() { classroot.rangePicked(classroot.pickedFrom, classroot.pickedTo); classroot.clearPick() }
+            ],
+        IconButton [ width = 28, height = 28, shape = "close", tip = "Dismiss",
+            press() { classroot.clearPick() }
+            ]
+        ]
+    ]
+
+
+// The last periods of one figure, as a small line. `values` are oldest first;
+// the last is the period shown.
+
+class Sparkline [ height = 28, accessibilityHidden = true,
+    values: number[] = [],
+    tone: Color = gray,
+    draw(d: DrawContext) {
+        const v = this.values
+        if (v.length < 2) return
+        const lo = Math.min(0, ...v), hi = Math.max(1, ...v)
+        const x = (i: number) => 2 + (d.w - 4) * i / (v.length - 1)
+        const y = (n: number) => 2 + (d.h - 4) * (1 - (n - lo) / Math.max(1, hi - lo))
+        d.strokeStyle = this.tone
+        d.lineWidth = 1.6
+        d.lineJoin = "round"
+        d.beginPath()
+        v.forEach((n, i) => { if (i == 0) d.moveTo(x(i), y(n)); else d.lineTo(x(i), y(n)) })
+        d.stroke()
+        d.fillStyle = this.tone
+        d.beginPath(); d.arc(x(v.length - 1), y(v[v.length - 1]), 2.6, 0, 6.3); d.fill()
+        }
+    ]
+
+
+// One line of a bar list: a name, a bar for its share, its amount, and words
+// beside. Pressing it opens the records behind it.
+
+schema BarItem [ id: string, label: string, amount: number, share: number, tone: number, note: string, said: string, open: string ]
+
+class BarRow extends Control [ width = 100%, height = { app.touchFirst ? 48 : 34 }, cornerRadius = 6, padding = [0, 6, 0, 6],
+    noteW: number = 64,
+    accessibilityLabel = { :said ?? "" },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    name: TextLabel [ width = { Math.min(150, parent.width * 0.34) }, fontSize = 13, wrap = false, maxLines = 1, text = { :label ?? "" } ],
+    ShareBar [ flexes = true, share = { :share ?? 0 }, tone = { :tone ?? 0 } ],
+    amt: TextLabel [ width = 92, textAlign = right, fontSize = 13, numeralWidth = tabular, wrap = false, text = { money(:amount ?? 0) } ],
+    note: TextLabel [ visible = { (:note ?? "") != "" }, width = { classroot.noteW }, textAlign = right, fontSize = 12, wrap = false,
+        numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { :note ?? "" } ]
+    ]
+
+
+// The list itself: one Tab stop, the arrows moving between its rows.
+
+class BarList [ width = 100%, focusScope = stop,
+    layout: SimpleLayout [ axis = y, spacing = 0 ]
+    ]
+
+
+// A chart's frame: its title, its one-sentence reading, a switch between the
+// chart and a table holding everything the chart shows, and an honest note
+// when there is too little to draw.
+
+class ChartFrame extends Panel [ width = 100%, defaultPlacement = body,
+    title: string = "",
+    sentence: string = "",
+    asTable: boolean = false,
+    switchable: boolean = true,       // a chart that is already a table has no switch
+    tooLittle: boolean = false,
+    tooLittleText: string = "Not enough data in this range to draw this chart.",
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = start ],
+        words: View [ flexes = true,
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            Text [ width = 100%, accessibilityRole = heading, accessibilityLevel = 2, fontSize = 15, fontWeight = semibold, text = { classroot.title } ],
+            Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.sentence } ]
+            ],
+        switcher: Segmented [ width = { app.touchFirst || app.phone ? 104 : 92 }, height = { app.touchFirst || app.phone ? 44 : 28 }, visible = { !classroot.tooLittle && classroot.switchable },
+            accessibilityLabel = { "Show " + classroot.title + " as" },
+            value = { classroot.asTable ? "table" : "chart" },
+            items = { [ ({ id: "chart", icon: "ChartMark", label: "" }), ({ id: "table", icon: "TableMark", label: "" }) ] },
+            commit(v: string) { classroot.asTable = v == "table" }
+            ]
+        ],
+    empty: Text [ visible = { classroot.tooLittle }, width = 100%, padding = [24, 0, 24, 0], textAlign = center, fontSize = 13,
+        textColor = { provided("theme").textMuted }, text = { classroot.tooLittleText } ],
+    body: View [ width = 100%, visible = { !classroot.tooLittle },
+        layout: SimpleLayout [ axis = y, spacing = 8 ]
+        ]
+    ]
+
+
+class ChartMark extends Mark [ shape = "chart" ]
+
+class TableMark extends Mark [ shape = "table" ]
+
+use [ ChartMark, TableMark, SunIcon, MoonIcon, AutoIcon ]
+
+// A table version of a chart: a header row and a row per record, each money
+// cell a control that opens the records behind it.
+
+schema Cell [ text: string, open: string, said: string ]
+schema TRow [ id: string, head: string, cells[]: Cell ]
+
+class DataCell extends Control [ flexes = true, height = { app.touchFirst ? 44 : 30 }, padding = [0, 6, 0, 6], cornerRadius = 4,
+    accessibilityLabel = { :said ?? "" },
+    disabled = { (:open ?? "") == "" },
+    fill = { hovered || pressed ? provided("theme").hover : null },
+    TextLabel [ x = end, fontSize = 13, numeralWidth = tabular, wrap = false,
+        textColor = { (:open ?? "") == "" ? provided("theme").text : provided("theme").linkColor }, text = { :text ?? "" } ]
+    ]
+
+
+class TableView [ width = 100%,
+    heads: string[] = [],
+    rows: TRow[] = [],
+    headData: Dataset [ contents = { ({ h: classroot.heads.map((t, i) => ({ id: "h" + i, t: t })) }) } ],
+    rowData: Dataset [ schema = [ rows[]: TRow ], contents = { ({ rows: classroot.rows }) } ],
+    layout: SimpleLayout [ axis = y ],
+    hdr: View [ width = 100%, height = 30, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, align = center ],
+        View [ datapath = { classroot.headData.value }, width = 100%, height = 30,
+            layout: SimpleLayout [ axis = x, align = center ],
+            Text [ datapath = :h[], flexes = { rowIndex == 0 ? 1.4 : 1 }, padding = [0, 6, 0, 6], fontSize = 12, fontWeight = semibold,
+                textAlign = { rowIndex == 0 ? "left" : "right" }, textColor = { provided("theme").textMuted }, wrap = false, text = :t ]
+            ]
+        ],
+    body: View [ width = 100%, datapath = { classroot.rowData.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], width = 100%,
+            stroke = { [null, null, stroke(1, provided("theme").line), null] },
+            layout: SimpleLayout [ axis = x, align = center ],
+            Text [ flexes = 1.4, padding = [0, 6, 0, 6], fontSize = 13, wrap = false, maxLines = 1, text = :head ],
+            DataCell [ datapath = :cells[],
+                press() { app.openKey(:open ?? "") }
+                ]
+            ]
+        ]
+    ]

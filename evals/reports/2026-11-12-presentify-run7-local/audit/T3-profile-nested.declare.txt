@@ -1,0 +1,4 @@
+App [ width = 300, height = 200, fill = white,
+    n: number = 0,
+    pad: View [ width = 100, height = 100, fill = 0xDDDDDD, onClick() { app.n = app.n + 1 } ]
+    ]

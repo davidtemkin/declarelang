@@ -1,0 +1,34 @@
+// Variants: which shapes leave the class's own fill stale?
+class Chip [ height = 22, width = 120, cornerRadius = 11,
+    categoryId: string? = null,
+    missing: boolean = { classroot.categoryId == null },
+    fill = { classroot.missing ? 0xFFE7C2 : 0xE2ECFF },
+    Text [ x = 8, y = center, fontSize = 12, text = { classroot.missing ? "! missing" : (classroot.categoryId ?? "") } ]
+    ]
+// one hop: fill reads categoryId itself
+class Chip1 [ height = 22, width = 120, cornerRadius = 11,
+    categoryId: string? = null,
+    fill = { classroot.categoryId == null ? 0xFFE7C2 : 0xE2ECFF } ]
+// no classroot prefix
+class Chip2 [ height = 22, width = 120, cornerRadius = 11,
+    categoryId: string? = null,
+    missing: boolean = { categoryId == null },
+    fill = { missing ? 0xFFE7C2 : 0xE2ECFF } ]
+App [ width = 400, height = 300, fill = white,
+    v: string? = null,
+    rows: Dataset { { "rows": [ { "c": "a" }, { "c": null } ] } },
+    // R: replicated, bound by a constraint
+    r: View [ datapath = { app.rows.value }, layout: SimpleLayout [ axis = y, spacing = 6 ], x = 10, y = 10,
+        Chip [ datapath = :rows[], categoryId = { :c ?? null } ] ],
+    r1: View [ datapath = { app.rows.value }, layout: SimpleLayout [ axis = y, spacing = 6 ], x = 140, y = 10,
+        Chip1 [ datapath = :rows[], categoryId = { :c ?? null } ] ],
+    r2: View [ datapath = { app.rows.value }, layout: SimpleLayout [ axis = y, spacing = 6 ], x = 270, y = 10,
+        Chip2 [ datapath = :rows[], categoryId = { :c ?? null } ] ],
+    // B: not replicated, bound to an app attribute set later
+    b: Chip [ x = 10, y = 100, categoryId = { app.v } ],
+    // C: not replicated, bound to a constant expression at boot
+    c: Chip [ x = 140, y = 100, categoryId = { "k" } ],
+    // D: replicated, bound by a plain path
+    d: View [ datapath = { app.rows.value }, layout: SimpleLayout [ axis = y, spacing = 6 ], x = 10, y = 140,
+        Chip [ datapath = :rows[], categoryId = :c ] ]
+    ]

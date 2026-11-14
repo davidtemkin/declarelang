@@ -1,0 +1,563 @@
+/*
+# Conduit: the pages
+
+One class per page of the RealWorld spec. Each holds the requests it makes,
+as `DataSource` members that live and go with it, and derives its screen
+from them. The App (`conduit.declare`) builds the page the address names and
+hands it the part of the address it shows (an article's slug, a username).
+*/
+
+// ── Home ────────────────────────────────────────────────────────────────────
+//
+// The banner (signed out), the feed with its tabs, and the popular tags.
+
+class HomePage [ width = 100%,
+    tags: DataSource [ autoFetch = true, schema = TagList, url = { app.api + "/tags" } ],
+    layout: SimpleLayout [ axis = y ],
+
+    banner: View [ visible = { !app.signedIn }, width = 100%, padding = 32,
+        stroke = { [stroke(1, provided("theme").border), null, stroke(1, provided("theme").border), null] },
+        layout: SimpleLayout [ axis = y, align = center ],
+        Text [ fontFamily = { app.lora }, fontSize = 56, fontWeight = bold, lineHeight = 1.1, padding = [0, 0, 8, 0],
+            accessibilityRole = heading, text = "conduit" ],
+        Text [ fontWeight = light, textColor = { provided("theme").textMuted }, text = "A place to share your knowledge." ]
+        ],
+
+    body: Container [ padding = { [app.signedIn ? 24 : 56, 0, 0, 0] },
+        row: View [ width = 100%,
+            layout: SimpleLayout [ axis = { app.md ? "x" : "y" } ],
+            main: Col [ span = 9,
+                tabs: ChoiceControl [ width = 100%, accessibilityLabel = "Feeds",
+                    value = { app.feedTab },
+                    commit(v: string) { app.homeTab = v as "feed" | "global" | "tag" },
+                    layout: SimpleLayout [ axis = x, spacing = 3 ],
+                    FeedTab [ visible = { app.signedIn }, choice = "feed", label = "Your Feed" ],
+                    FeedTab [ choice = "global", label = "Global Feed" ],
+                    FeedTab [ visible = { app.feedTab == "tag" }, choice = "tag", label = { "#" + app.homeTag } ]
+                    ],
+                feed: ArticleFeed [ endpoint = { app.homeEndpoint } ]
+                ],
+            side: Col [ span = 3,
+                sidebar: View [ width = 100%, padding = { [app.md ? 0 : 24, 0, 0, 20] },
+                    stroke = { [null, null, null, stroke(1, provided("theme").border)] },
+                    layout: SimpleLayout [ axis = y, spacing = 3 ],
+                    Text [ text = "Popular Tags" ],
+                    Text [ visible = { !classroot.tags.loaded }, textColor = { provided("theme").textMuted },
+                        text = { classroot.tags.failed ? "Could not load tags." : "Loading tags..." } ],
+                    list: View [ width = 100%, datapath = { classroot.tags.value },
+                        layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+                        TagButton [ datapath = :tags[], label = :@,
+                            press() { app.homeTag = :@; app.homeTab = "tag" }
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// A popular tag: picking it opens its tab on the feed.
+
+class TagButton extends Control [ cornerRadius = 100,
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    TagPill [ label = { classroot.label }, fill = { classroot.hovered ? provided("theme").border : null } ]
+    ]
+
+
+// ── Sign in, sign up ────────────────────────────────────────────────────────
+//
+// One page in two modes. Signing in or up keeps the token and goes on: home
+// from the sign-in pages, or the page that asked for an account.
+
+class AuthPage [ width = 100%, padding = [24, 0, 0, 0],
+    mode: "login" | "register" = "login",
+    joining: boolean = { classroot.mode == "register" },
+    username: string = "",
+    email: string = "",
+    password: string = "",
+
+    send: DataSource [ method = "POST", schema = UserReply,
+        url = { app.api + (classroot.joining ? "/users" : "/users/login") },
+        body = { classroot.joining
+            ? ({ user: { username: classroot.username, email: classroot.email, password: classroot.password } })
+            : ({ user: { email: classroot.email, password: classroot.password } }) },
+        onLoad() {
+            app.signIn(this.value.user)
+            if (app.route == "login" || app.route == "register") app.go("/")
+            }
+        ],
+
+    // The form, named once here for the error list and the button.
+
+    form: ApiForm = { classroot.box.col.form },
+
+    box: Container [
+        col: Col [ span = 6,
+            Text [ width = 100%, textAlign = center, fontSize = 40, fontWeight = medium, padding = [0, 0, 8, 0],
+                accessibilityRole = heading, text = { classroot.joining ? "Sign up" : "Sign in" } ],
+            TextLink [ x = center, padding = [0, 0, 16, 0],
+                to = { classroot.joining ? "/login" : "/register" },
+                text = { classroot.joining ? "Have an account?" : "Need an account?" } ],
+            ErrorList [ form = { classroot.form } ],
+            form: ApiForm [ width = 100%, source = { classroot.send },
+                layout: SimpleLayout [ axis = y, spacing = 16 ],
+                Entry [ visible = { classroot.joining }, large = true, name = "username", purpose = username,
+                    placeholder = "Username", accessibilityLabel = "Username", value <-> classroot.username ],
+                Entry [ large = true, name = "email", purpose = email, placeholder = "Email",
+                    accessibilityLabel = "Email", value <-> classroot.email ],
+                Entry [ large = true, name = "password", purpose = { classroot.joining ? "newPassword" : "password" },
+                    placeholder = "Password", accessibilityLabel = "Password", value <-> classroot.password ],
+                Btn [ x = end, size = "lg", solid = true, label = { classroot.joining ? "Sign up" : "Sign in" },
+                    press() { classroot.form.submit() }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── Settings ────────────────────────────────────────────────────────────────
+//
+// The account, edited: each field starts from the signed-in user and is the
+// person's once they type. A new password is sent only when one is typed.
+
+class SettingsPage [ width = 100%, padding = [24, 0, 0, 0],
+    image: string = { app.user?.image ?? "" },
+    username: string = { app.user?.username ?? "" },
+    bio: string = { app.user?.bio ?? "" },
+    email: string = { app.user?.email ?? "" },
+    password: string = "",
+
+    save: DataSource [ method = "PUT", schema = UserReply, headers = { app.authHeaders },
+        url = { app.api + "/user" },
+        body = { { user: { image: classroot.image, username: classroot.username, bio: classroot.bio, email: classroot.email,
+            ...(classroot.password == "" ? ({}) : ({ password: classroot.password })) } } },
+        onLoad() {
+            app.signIn(this.value.user)
+            app.go("/profile/" + encodeURIComponent(this.value.user.username))
+            }
+        ],
+
+    // The form, named once here for the error list and the button.
+
+    form: ApiForm = { classroot.box.col.form },
+
+    box: Container [
+        col: Col [ span = 6,
+            Text [ width = 100%, textAlign = center, fontSize = 40, fontWeight = medium, padding = [0, 0, 16, 0],
+                accessibilityRole = heading, text = "Your Settings" ],
+            ErrorList [ form = { classroot.form } ],
+            form: ApiForm [ width = 100%, source = { classroot.save },
+                layout: SimpleLayout [ axis = y, spacing = 16 ],
+                Entry [ name = "image", purpose = url, placeholder = "URL of profile picture",
+                    accessibilityLabel = "URL of profile picture", value <-> classroot.image ],
+                Entry [ large = true, name = "username", purpose = username, placeholder = "Your Name",
+                    accessibilityLabel = "Username", value <-> classroot.username ],
+                Entry [ large = true, name = "bio", multiline = true, height = 200, placeholder = "Short bio about you",
+                    accessibilityLabel = "Bio", value <-> classroot.bio ],
+                Entry [ large = true, name = "email", purpose = email, placeholder = "Email",
+                    accessibilityLabel = "Email", value <-> classroot.email ],
+                Entry [ large = true, name = "password", purpose = newPassword, placeholder = "New Password",
+                    accessibilityLabel = "New Password", value <-> classroot.password ],
+                Btn [ x = end, size = "lg", solid = true, label = "Update Settings",
+                    press() { classroot.form.submit() }
+                    ]
+                ],
+            Rule [ ],
+            Btn [ tone = { provided("theme").danger }, toneHover = { provided("theme").danger },
+                label = "Or click here to logout.",
+                press() { app.signOut(); app.go("/") }
+                ]
+            ]
+        ]
+    ]
+
+
+// An `<hr>`.
+
+class Rule [ width = 100%, height = 33,
+    View [ y = 16, width = 100%, height = 1, fill = { provided("theme").border } ]
+    ]
+
+
+// ── The editor ──────────────────────────────────────────────────────────────
+//
+// A new article, or one of yours (`slug`) loaded and edited. The fields
+// follow the loaded article until the person types; a tag is added with
+// Return and removed with its ×. Publishing opens the article.
+
+class EditorPage [ width = 100%, padding = [24, 0, 0, 0],
+    slug: string = "",
+    editing: boolean = { classroot.slug != "" },
+    src: DataSource [ autoFetch = true, schema = ArticleReply, headers = { app.authHeaders },
+        url = { classroot.editing ? app.api + "/articles/" + encodeURIComponent(classroot.slug) : "" } ],
+    loaded: Article? = { classroot.src.value?.article ?? null },
+
+    title: string = { classroot.loaded?.title ?? "" },
+    description: string = { classroot.loaded?.description ?? "" },
+    body: string = { classroot.loaded?.body ?? "" },
+    tags: string[] = { classroot.loaded?.tagList ?? [] },
+    tagDraft: string = "",
+    addDraft() { tags = addTag(tags, tagDraft); tagDraft = "" },
+    tagSet: Dataset [ contents = { { items: classroot.tags } } ],
+
+    save: DataSource [ schema = ArticleReply, headers = { app.authHeaders },
+        method = { classroot.editing ? "PUT" : "POST" },
+        url = { app.api + "/articles" + (classroot.editing ? "/" + encodeURIComponent(classroot.slug) : "") },
+        body = { { article: { title: classroot.title, description: classroot.description, body: classroot.body,
+            tagList: classroot.tags } } },
+        onLoad() { app.go("/article/" + encodeURIComponent(this.value.article.slug)) }
+        ],
+
+    // The form, named once here for the error list and the button.
+
+    form: ApiForm = { classroot.box.col.form },
+
+    box: Container [
+        col: Col [ span = 10,
+            ErrorList [ form = { classroot.form } ],
+            form: ApiForm [ width = 100%, source = { classroot.save },
+                layout: SimpleLayout [ axis = y, spacing = 16 ],
+                Entry [ large = true, name = "title", placeholder = "Article Title",
+                    accessibilityLabel = "Article Title", value <-> classroot.title ],
+                Entry [ name = "description", placeholder = "What's this article about?",
+                    accessibilityLabel = "Description", value <-> classroot.description ],
+                Entry [ name = "body", multiline = true, height = 208, placeholder = "Write your article (in markdown)",
+                    accessibilityLabel = "Body", value <-> classroot.body ],
+                tagField: View [ width = 100%,
+                    layout: SimpleLayout [ axis = y, spacing = 8 ],
+                    Entry [ name = "tagList", placeholder = "Enter tags", accessibilityLabel = "Enter tags",
+                        value <-> classroot.tagDraft,
+                        onEnter() { classroot.addDraft() }
+                        ],
+                    list: View [ width = 100%, datapath = { classroot.tagSet.value },
+                        layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+                        RemovableTag [ datapath = :items[], label = :@,
+                            press() { classroot.tags = classroot.tags.filter((t) => t != this.label) }
+                            ]
+                        ]
+                    ],
+                Btn [ x = end, size = "lg", solid = true, label = "Publish Article",
+                    press() { classroot.form.submit() }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// A tag in the editor, with the × that removes it.
+
+class RemovableTag extends Control [ cornerRadius = 100, padding = [3, 12, 3, 12], fontSize = 12.8,
+    label: string = "",
+    accessibilityLabel = { "Remove tag " + classroot.label },
+    fill = { hovered ? provided("theme").border : null },
+    stroke = { stroke(1, provided("theme").border) },
+    textColor = { provided("theme").ink },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Ion [ glyph = "close-round", fontSize = 9.6 ],
+    Text [ wrap = false, text = { classroot.label } ]
+    ]
+
+
+// ── An article ──────────────────────────────────────────────────────────────
+//
+// The article, its author's line (in the banner and again after the body),
+// and the comments. The author sees Edit and Delete; anyone else, Follow and
+// Favorite.
+
+class ArticlePage [ width = 100%,
+    slug: string = "",
+    src: DataSource [ autoFetch = true, schema = ArticleReply, headers = { app.authHeaders },
+        url = { classroot.slug == "" ? "" : app.api + "/articles/" + encodeURIComponent(classroot.slug) } ],
+    comments: DataSource [ autoFetch = true, schema = CommentList, headers = { app.authHeaders },
+        url = { classroot.slug == "" ? "" : app.api + "/articles/" + encodeURIComponent(classroot.slug) + "/comments" } ],
+    remove: DataSource [ method = "DELETE", headers = { app.authHeaders },
+        url = { app.api + "/articles/" + encodeURIComponent(classroot.slug) },
+        onLoad() { app.go("/") }
+        ],
+
+    // The article on show: the one this address names, not the last one loaded.
+
+    article: Article? = { classroot.src.value?.article.slug == classroot.slug ? classroot.src.value.article : null },
+
+    // What the service answers to a favorite or a follow, written into the article.
+
+    favorited(a: Article) {
+        src.set(["article", "favorited"], a.favorited)
+        src.set(["article", "favoritesCount"], a.favoritesCount)
+        },
+    followed(p: Profile) { src.set(["article", "author", "following"], p.following) },
+    dropComment(id: number) {
+        const i = (comments.value?.comments ?? []).findIndex((c) => c.id == id)
+        if (i >= 0) comments.removeAt(["comments"], i)
+        },
+
+    layout: SimpleLayout [ axis = y ],
+    Container [ visible = { classroot.article == null }, padding = [24, 0, 0, 0],
+        Text [ textColor = { provided("theme").textMuted },
+            text = { classroot.src.statusCode == 404 ? "That article doesn't exist." : classroot.src.failed ? "Could not load the article." : "Loading article..." } ]
+        ],
+    page: View [ width = 100%, visible = { classroot.article != null }, datapath = { classroot.article },
+        layout: SimpleLayout [ axis = y ],
+
+        banner: View [ width = 100%, padding = [32, 0, 32, 0],
+            stroke = { [stroke(1, provided("theme").border), null, stroke(1, provided("theme").border), null] },
+            Reading [
+                Text [ width = 100%, fontSize = 44.8, fontWeight = semibold, lineHeight = 1.1, textColor = { provided("theme").ink },
+                    accessibilityRole = heading, text = :title ],
+                ArticleMeta [ padding = [32, 0, 0, 0], inBanner = true,
+                    favorited(a: Article) { classroot.favorited(a) },
+                    followed(p: Profile) { classroot.followed(p) },
+                    deleted() { classroot.remove.fetch() }
+                    ]
+                ]
+            ],
+
+        Reading [ padding = [32, 15, 0, 15],
+            Markdown [ width = 100%, fontFamily = { app.lora }, fontSize = 19.2, lineHeight = 1.5,
+                textColor = { provided("theme").text }, text = { untrustedMarkdown(:body ?? "") } ],
+            tags: View [ width = 100%, padding = [16, 0, 0, 0],
+                layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
+                TagPill [ datapath = :tagList[], outline = true, label = :@ ]
+                ],
+            Rule [ ],
+            ArticleMeta [ x = center, padding = [8, 0, 48, 0],
+                favorited(a: Article) { classroot.favorited(a) },
+                followed(p: Profile) { classroot.followed(p) },
+                deleted() { classroot.remove.fetch() }
+                ]
+            ],
+
+        Container [
+            Col [ span = 8, padding = [0, 15, 48, 15],
+                layout: SimpleLayout [ axis = y, spacing = 12 ],
+                CommentForm [ visible = { app.signedIn }, slug = { classroot.slug },
+                    posted(c: Comment) { classroot.comments.insert(["comments"], 0, c) }
+                    ],
+                signedOut: View [ visible = { !app.signedIn },
+                    layout: SimpleLayout [ axis = x, spacing = 4, align = baseline ],
+                    TextLink [ to = "/login", text = "Sign in" ],
+                    Text [ text = "or" ],
+                    TextLink [ to = "/register", text = "sign up" ],
+                    Text [ text = "to add comments on this article." ]
+                    ],
+                list: View [ width = 100%, datapath = { classroot.comments.value },
+                    layout: SimpleLayout [ axis = y, spacing = 12 ],
+                    CommentCard [ datapath = :comments[], slug = { classroot.slug },
+                        removed(id: number) { classroot.dropComment(id) }
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// The article page's reading column: 720 wide at most, centered.
+
+class Reading [ x = center, width = { Math.min(app.containerW, 720) }, padding = [0, 15, 0, 15],
+    layout: SimpleLayout [ axis = y ]
+    ]
+
+
+// `.article-meta` on the article page: the byline, then what this reader may
+// do. The page says what each action does to the article.
+
+class ArticleMeta [
+    inBanner: boolean = false,
+    mine: boolean = { app.user != null && app.user.username == :author.username },
+    favorited(a: Article) { },
+    followed(p: Profile) { },
+    deleted() { },
+    opacity = 1,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Byline [ ],
+    FollowButton [ visible = { !classroot.mine }, username = :author.username, on = :author.following,
+        opacity = { classroot.inBanner && !hovered ? 0.8 : 1 },
+        changed(p: Profile) { classroot.followed(p) }
+        ],
+    FavoriteButton [ visible = { !classroot.mine }, slug = :slug, on = :favorited,
+        label = { (:favorited ? "Unfavorite" : "Favorite") + " Article" }, detail = { "(" + :favoritesCount + ")" },
+        opacity = { classroot.inBanner && !hovered ? 0.8 : 1 },
+        changed(a: Article) { classroot.favorited(a) }
+        ],
+    Btn [ visible = { classroot.mine }, size = "sm", icon = "edit", label = "Edit Article",
+        tone = { provided("theme").secondary }, toneHover = { provided("theme").secondaryHover },
+        opacity = { classroot.inBanner && !hovered ? 0.8 : 1 },
+        press() { app.go("/editor/" + encodeURIComponent(:slug)) }
+        ],
+    Btn [ visible = { classroot.mine }, size = "sm", icon = "trash-a", label = "Delete Article",
+        tone = { provided("theme").danger }, toneHover = { provided("theme").danger },
+        opacity = { classroot.inBanner && !hovered ? 0.8 : 1 },
+        press() { classroot.deleted() }
+        ]
+    ]
+
+
+// `.card.comment-form`: write a comment and post it. What the service
+// returns is handed to `posted`, and the field empties for the next one.
+
+class CommentForm [ width = 100%,
+    slug: string = "",
+    draft: string = "",
+    posted(c: Comment) { },
+    send: DataSource [ method = "POST", schema = CommentReply, headers = { app.authHeaders },
+        url = { app.api + "/articles/" + encodeURIComponent(classroot.slug) + "/comments" },
+        body = { { comment: { body: classroot.draft } } },
+        onLoad() { classroot.posted(this.value.comment); classroot.draft = "" }
+        ],
+    layout: SimpleLayout [ axis = y ],
+    ErrorList [ form = { classroot.form } ],
+    form: ApiForm [ width = 100%, source = { classroot.send },
+        CommentBox [
+            Entry [ name = "body", multiline = true, height = 112, padding = 20, stroke = null, cornerRadius = 0,
+                fill = null, placeholder = "Write a comment...", accessibilityLabel = "Write a comment",
+                value <-> classroot.draft ],
+            CardFooter [
+                Avatar [ width = 30, height = 30, url = { app.user?.image ?? "" }, accessibilityHidden = true ],
+                Spacer [ ],
+                Btn [ size = "sm", solid = true, fontWeight = bold, label = "Post Comment",
+                    press() { classroot.form.submit() }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// `.card` (CommentBox), and its `.card-footer`.
+
+class CommentBox [ width = 100%, cornerRadius = 12, clip = true,
+    fill = { provided("theme").background },
+    stroke = { stroke(1, provided("theme").border) },
+    shadow = { shadow(0, 1, 2, 0x0000000A) },
+    layout: SimpleLayout [ axis = y ]
+    ]
+
+
+class CardFooter [ width = 100%, padding = [12, 20, 12, 20], fontSize = 12.8, fontWeight = light,
+    fill = { provided("theme").cardFooter },
+    stroke = { [stroke(1, provided("theme").border), null, null, null] },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ]
+    ]
+
+
+// A comment. Its author sees the trash, which deletes it and hands its id to
+// `removed`.
+
+class CommentCard [ width = 100%,
+    slug: string = "",
+    commentId: number = { :id },
+    mine: boolean = { app.user != null && app.user.username == :author.username },
+    removed(id: number) { },
+    del: DataSource [ method = "DELETE", headers = { app.authHeaders },
+        url = { app.api + "/articles/" + encodeURIComponent(classroot.slug) + "/comments/" + classroot.commentId },
+        onLoad() { classroot.removed(classroot.commentId) }
+        ],
+    CommentBox [
+        View [ width = 100%, padding = 20,
+            Text [ width = 100%, text = :body ]
+            ],
+        CardFooter [
+            Avatar [ width = 20, height = 20, url = { :author.image ?? "" },
+                link = { "#/profile/" + encodeURIComponent(:author.username) }, accessibilityLabel = { :author.username } ],
+            TextLink [ to = { "/profile/" + encodeURIComponent(:author.username) }, text = { :author.username } ],
+            Text [ textColor = { provided("theme").textLight }, text = { longDate(:createdAt) } ],
+            Spacer [ ],
+            Control [ visible = { classroot.mine }, accessibilityLabel = "Delete comment",
+                disabled = { classroot.del.loading },
+                opacity = { hovered ? 1 : 0.6 },
+                press() { classroot.del.fetch() },
+                Ion [ glyph = "trash-a", fontSize = 16, textColor = 0x333333 ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── A profile ───────────────────────────────────────────────────────────────
+//
+// Who they are, and their articles or the ones they favorited.
+
+class ProfilePage [ width = 100%,
+    username: string = "",
+    favorites: boolean = false,
+    src: DataSource [ autoFetch = true, schema = ProfileReply, headers = { app.authHeaders },
+        url = { classroot.username == "" ? "" : app.api + "/profiles/" + encodeURIComponent(classroot.username) } ],
+    profile: Profile? = { classroot.src.value?.profile.username == classroot.username ? classroot.src.value.profile : null },
+    mine: boolean = { app.user != null && app.user.username == classroot.username },
+    home: string = { "/profile/" + encodeURIComponent(classroot.username) },
+
+    layout: SimpleLayout [ axis = y ],
+    Container [ visible = { classroot.profile == null }, padding = [24, 0, 0, 0],
+        Text [ textColor = { provided("theme").textMuted },
+            text = { classroot.src.statusCode == 404 ? "No one goes by that name." : classroot.src.failed ? "Could not load the profile." : "Loading profile..." } ]
+        ],
+    known: View [ width = 100%, visible = { classroot.profile != null },
+        layout: SimpleLayout [ axis = y ],
+
+        userInfo: View [ width = 100%, padding = [32, 0, 16, 0], datapath = { classroot.profile },
+            stroke = { [stroke(1, provided("theme").border), null, stroke(1, provided("theme").border), null] },
+            Container [
+                Col [ span = 10,
+                    layout: SimpleLayout [ axis = y, align = center ],
+                    Avatar [ width = 100, height = 100, url = { :image ?? "" }, accessibilityHidden = true ],
+                    Text [ padding = [16, 0, 8, 0], fontSize = 24, fontWeight = bold, lineHeight = 1.1,
+                        accessibilityRole = heading, text = :username ],
+                    Text [ width = { Math.min(450, parent.contentBox("width")) }, textAlign = center, fontWeight = light,
+                        padding = [0, 0, 8, 0], textColor = { provided("theme").textLighter }, text = { :bio ?? "" } ],
+                    actions: View [ width = 100%,
+                        layout: SimpleLayout [ axis = x ],
+                        Spacer [ ],
+                        Btn [ visible = { classroot.mine }, size = "sm", icon = "gear-a", label = "Edit Profile Settings",
+                            tone = { provided("theme").textMuted }, toneHover = { provided("theme").textMuted },
+                            press() { app.go("/settings") }
+                            ],
+                        FollowButton [ visible = { !classroot.mine }, username = :username, on = :following,
+                            tone = { provided("theme").textMuted }, toneHover = { provided("theme").textMuted },
+                            changed(p: Profile) { classroot.src.set(["profile", "following"], p.following) }
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+
+        Container [
+            Col [ span = 10,
+                tabs: View [ width = 100%, padding = [24, 0, 0, 0], accessibilityRole = tabList,
+                    layout: SimpleLayout [ axis = x, spacing = 3 ],
+                    TabLink [ label = "My Articles", to = { classroot.home }, on = { !classroot.favorites } ],
+                    TabLink [ label = "Favorited Articles", to = { classroot.home + "/favorites" }, on = { classroot.favorites } ]
+                    ],
+                ArticleFeed [ endpoint = { "/articles?" + (classroot.favorites ? "favorited=" : "author=")
+                    + encodeURIComponent(classroot.username) } ]
+                ]
+            ]
+        ]
+    ]
+
+
+// A tab that is an address of its own: the profile's two lists.
+
+class TabLink [ padding = [8, 16, 8, 16],
+    label: string = "",
+    to: string = "",
+    on: boolean = false,
+    link = { "#" + classroot.to },
+    stroke = { [null, null, stroke(2, classroot.on ? provided("theme").brand : 0xFFFFFF00), null] },
+    textColor = { classroot.on ? provided("theme").brand : hovered ? provided("theme").tabHover : provided("theme").textLighter },
+    Text [ wrap = false, text = { classroot.label } ]
+    ]
+
+
+// ── Nowhere ─────────────────────────────────────────────────────────────────
+
+class NotFoundPage [ width = 100%, padding = [24, 0, 0, 0],
+    Container [
+        Text [ fontSize = 24, fontWeight = medium, accessibilityRole = heading, text = "Page not found" ],
+        TextLink [ padding = [8, 0, 0, 0], to = "/", text = "Back to the home page" ]
+        ]
+    ]

@@ -1,0 +1,521 @@
+/*
+# Ledger: recording
+
+One editor for every kind of transaction, the kind chosen at the top: an
+expense (simple first, split when it needs to be), a sale (products tapped
+in, quantities and prices adjusted, free-form items added), or a refund
+(starting from a sale, showing what is left to refund).
+
+It is a `Form`: each field says what is wrong with it as the person leaves
+it, and on save every problem shows at once with the first one focused. The
+service validates every write too; when it refuses ("Refund exceeds the
+original sale", "Category was archived"), the editor stays open with
+everything typed intact, and the message lands on the field it names — each
+control's `name` is the service's path for it (`amount`, `parts[1].amount`,
+`lines[0].quantity`).
+
+The form is built each time the editor opens, so its fields start from their
+defaults, and "Save & new" sets them back while keeping the kind, the channel
+and the date.
+*/
+
+use [ ProductTile ]
+
+// ── Pieces ──────────────────────────────────────────────────────────────────
+
+// A product to tap: once adds it, again adds one more.
+
+class ProductTile extends Control [ height = { app.phone ? 56 : 48 }, flexes = true, cornerRadius = 10, padding = [6, 10, 6, 10],
+    form: RecordForm = { provided("recordForm") as RecordForm },
+    qty: number = { classroot.form.qtyOf(:id ?? "") },
+    accessibilityLabel = { (:name ?? "") + ", " + money(:price ?? 0) + (classroot.qty > 0 ? ", " + classroot.qty + " in this sale" : "") + ". Adds one." },
+    fill = { classroot.qty > 0 ? provided("theme").controlSelected : hovered ? provided("theme").controlHovered : provided("theme").control },
+    press() { classroot.form.addProduct(:@) },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+        Text [ flexes = true, fontSize = 13, fontWeight = medium, wrap = false, maxLines = 1, text = { :name ?? "" } ],
+        badge: View [ visible = { classroot.qty > 0 }, height = 18, cornerRadius = 9, padding = [0, 6, 0, 6], fill = { provided("theme").accent },
+            TextLabel [ y = center, fontSize = 11, fontWeight = bold, textColor = { provided("theme").accentTextColor }, text = { "" + classroot.qty } ]
+            ]
+        ],
+    Text [ fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { money(:price ?? 0) } ]
+    ]
+
+
+// A line of the sale: what it is, how many, at what price, and its total.
+
+class SaleLineRow [ width = 100%,
+    form: RecordForm = { provided("recordForm") as RecordForm },
+    i: number = { rowIndex },
+    free: boolean = { (:productId ?? null) == null },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    name: View [ flexes = true,
+        Text [ visible = { !classroot.free }, y = center, width = 100%, fontSize = 13, fontWeight = medium, wrap = false, maxLines = 1, text = { :description ?? "" } ],
+        TextInput [ visible = { classroot.free }, width = 100%, height = { app.tap }, placeholder = "Item", name = { "lines[" + classroot.i + "].description" },
+            accessibilityLabel = "Item description",
+            value = { :description ?? "" },
+            commit(v: string) { classroot.form.setLine(classroot.i, "description", v) },
+            validate(v: string) -> string { return classroot.free && v.trim() == "" ? "Say what the item is." : "" }
+            ]
+        ],
+    Stepper [ width = 104, height = { app.tap }, min = 1, max = 999, name = { "lines[" + classroot.i + "].quantity" },
+        accessibilityLabel = { "Quantity of " + (:description ?? "item") },
+        value = { :quantity ?? 1 },
+        commit(v: number) { classroot.form.setLine(classroot.i, "quantity", v) }
+        ],
+    TextInput [ width = 84, height = { app.tap }, textAlign = right, numeralWidth = tabular, name = { "lines[" + classroot.i + "].unitPrice" },
+        accessibilityLabel = { "Price of " + (:description ?? "item") },
+        value = { :price ?? "" },
+        commit(v: string) { classroot.form.setLine(classroot.i, "price", v) },
+        admit(t: string) -> string | null { return /^\$?[\d,]*\.?\d{0,2}$/.test(t.trim()) ? t : null },
+        validate(v: string) -> string { const c = parseMoney(v); return c == null || c <= 0 ? "Enter a price." : "" }
+        ],
+    Money [ width = 84, textAlign = right, fontSize = 13, fontWeight = medium,
+        cents = { (parseMoney(:price ?? "") ?? 0) * (:quantity ?? 1) } ],
+    GlyphButton [ glyph = "close", accessibilityLabel = { "Remove " + (:description ?? "line") },
+        press() { classroot.form.removeLine(classroot.i) }
+        ]
+    ]
+
+
+// A part of a split: a category and an amount.
+
+class PartRowEdit [ width = 100%,
+    form: RecordForm = { provided("recordForm") as RecordForm },
+    i: number = { rowIndex },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = start ],
+    Combobox [ flexes = true, height = { app.tap }, placeholder = "Category", name = { "parts[" + classroot.i + "].categoryId" },
+        accessibilityLabel = { "Category of part " + (classroot.i + 1) },
+        items = { classroot.form.expenseCats },
+        value = { classroot.form.catItem(:categoryId ?? "") },
+        commit(v: object) { classroot.form.setPart(classroot.i, "categoryId", v == null ? "" : "" + v.id) },
+        validate(v: object) -> string { return v == null ? "Choose a category." : "" }
+        ],
+    TextInput [ width = 110, height = { app.tap }, textAlign = right, numeralWidth = tabular, placeholder = "0.00",
+        name = { "parts[" + classroot.i + "].amount" }, accessibilityLabel = { "Amount of part " + (classroot.i + 1) },
+        value = { :amount ?? "" },
+        commit(v: string) { classroot.form.setPart(classroot.i, "amount", v) },
+        admit(t: string) -> string | null { return /^\$?[\d,]*\.?\d{0,2}$/.test(t.trim()) ? t : null },
+        validate(v: string) -> string { const c = parseMoney(v); return c == null || c <= 0 ? "Enter an amount." : "" }
+        ],
+    GlyphButton [ glyph = "close", accessibilityLabel = { "Remove part " + (classroot.i + 1) }, disabled = { classroot.form.partCount <= 2 },
+        press() { classroot.form.removePart(classroot.i) }
+        ]
+    ]
+
+
+// A sale's line, to refund: how many of what is left.
+
+class RefundLineRow [ width = 100%,
+    form: RecordForm = { provided("recordForm") as RecordForm },
+    i: number = { rowIndex },
+    left: number = { :refundableQuantity ?? 0 },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, fontSize = 13, fontWeight = medium, wrap = false, maxLines = 1, text = { :description ?? "" } ],
+        Text [ width = 100%, fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+            text = { (:quantity ?? 0) + " sold at " + money(:unitPrice ?? 0) + " · " +
+                (classroot.left == 0 ? "all refunded" : classroot.left + " left to refund (" + money(:refundable ?? 0) + ")") } ]
+        ],
+    Stepper [ width = 104, height = { app.tap }, min = 0, max = { classroot.left }, disabled = { classroot.left == 0 },
+        name = { "lines[" + classroot.form.refundIndex(:id ?? "") + "].quantity" },
+        accessibilityLabel = { "Quantity of " + (:description ?? "") + " to refund" },
+        value = { classroot.form.refundQty(:id ?? "") },
+        commit(v: number) { classroot.form.setRefundQty(:id ?? "", v) }
+        ],
+    Money [ width = 84, textAlign = right, fontSize = 13, cents = { classroot.form.refundQty(:id ?? "") * (:unitPrice ?? 0) } ]
+    ]
+
+
+// ── The form ────────────────────────────────────────────────────────────────
+
+class RecordForm extends Form [ width = 100%,
+    recordForm: RecordForm? = { classroot },        // provided to the rows
+
+    // Return moves on to the next field, so choosing a vendor never saves a
+    // half-finished entry; ⌘Return saves from anywhere in the form
+
+    enterMoves = true,
+    keyBindings = { [ ({ key: "Ctrl+Enter", command: "saveNow", label: "Save" }), ({ key: "Ctrl+Shift+Enter", command: "saveAndNew", label: "Save & new" }) ] },
+    saveNow() { this.save(false) },
+    saveAndNew() { this.save(true) },
+
+    // what is being recorded
+
+    kind: string = { app.recordKind },
+    dateText: string = { dateLong(app.lastDate != "" ? app.lastDate : app.today) },
+    date: string? = { parseDate(classroot.dateText, app.today) },
+    description: string = "",
+    contact: object = null,               // { id, label }
+
+    // an expense
+
+    amountText: string = "",
+    amount: number? = { parseMoney(classroot.amountText) },
+    categoryId: string = "",
+    catChosen: boolean = false,           // the person chose it, so a vendor's usual one doesn't replace it
+    splitting: boolean = false,
+    parts: array = [],
+    partData: Dataset [ contents = { { rows: classroot.parts } } ],
+    partCount: number = { classroot.parts.length },
+    allocated: number = { classroot.parts.reduce((n, p) => n + (parseMoney(p.amount) ?? 0), 0) },
+    remaining: number = { (classroot.amount ?? 0) - classroot.allocated },
+
+    // a sale
+
+    channel: string = { app.lastChannel },
+    lines: array = [],
+    lineData: Dataset [ contents = { { rows: classroot.lines } } ],
+    saleTotal: number = { classroot.lines.reduce((n, l) => n + (parseMoney(l.price) ?? 0) * l.quantity, 0) },
+    nextKey: number = 1,
+
+    // a refund
+
+    saleId: string = { app.refundOf },
+    sale: DataSource [ autoFetch = true, schema = Detail,
+        url = { classroot.saleId == "" ? "" : app.api.base + "/api/transactions/" + classroot.saleId + "?v=" + app.api.rev } ],
+    saleRec: Detail? = { classroot.saleId == "" ? null : classroot.sale.value ?? null },
+    refundQtys: object = { {} },
+    refundLump: string = "",
+    recentSales: DataSource [ autoFetch = true, schema = TxnPage,
+        url = { classroot.kind == "refund" ? app.api.base + "/api/transactions?kind=sale&from=" + addDays(app.today, -365) + "&limit=500&v=" + app.api.rev : "" } ],
+    refundTotal: number = { (classroot.saleRec?.lines ?? []).reduce((n, l) => n + (classroot.refundQtys[l.id] ?? 0) * l.unitPrice, 0) +
+        (parseMoney(classroot.refundLump) ?? 0) },
+
+    // the lists the choosers offer
+
+    expenseCats: array = { app.books.choosable("expense").map((c) => ({ id: c.id, label: c.name })) },
+    catItem(id: string) -> object { return id == "" ? null : expenseCats.find((c) => c.id == id) ?? ({ id: id, label: app.books.catName(id) }) },
+    contactItems: array = { (classroot.kind == "expense" ? app.books.vendors() : app.books.customers()).map((c) => ({ id: c.id, label: c.name })) },
+    saleItems: array = { (classroot.recentSales.value?.rows ?? []).map((r) => ({ id: r.id,
+        label: dateShort(r.date, app.today) + " · " + (r.description == "" ? "Sale" : r.description) + (r.contactName != null ? " · " + r.contactName : "") + " · " + money(r.amount) })) },
+
+    // ── the verbs the rows call ──
+
+    qtyOf(productId: string) -> number { return lines.filter((l) => l.productId == productId).reduce((n, l) => n + l.quantity, 0) },
+    addProduct(p: Product) {
+        const i = lines.findIndex((l) => l.productId == p.id)
+        if (i >= 0) { this.setLine(i, "quantity", lines[i].quantity + 1); return }
+        lines = [...lines, ({ id: "l" + nextKey, productId: p.id, description: p.name, quantity: 1, price: moneyPlain(p.price) })]
+        nextKey = nextKey + 1
+        },
+    addFree() {
+        lines = [...lines, ({ id: "l" + nextKey, productId: null, description: "", quantity: 1, price: "" })]
+        nextKey = nextKey + 1
+        },
+    setLine(i: number, field: string, v: object) { lines = lines.map((l, k) => k == i ? ({ ...l, [field]: v }) : l) },
+    removeLine(i: number) { lines = lines.filter((l, k) => k != i) },
+
+    startSplit() {
+        const first = amount != null && amount > 0 ? moneyPlain(amount) : ""
+        parts = [({ id: "p" + nextKey, categoryId: categoryId, amount: first }), ({ id: "p" + (nextKey + 1), categoryId: "", amount: "" })]
+        nextKey = nextKey + 2
+        splitting = true
+        },
+    stopSplit() { splitting = false; if (parts.length > 0 && categoryId == "") categoryId = parts[0].categoryId; parts = [] },
+    addPart() {
+        // a new part starts with what is left to allocate
+        parts = [...parts, ({ id: "p" + nextKey, categoryId: "", amount: remaining > 0 ? moneyPlain(remaining) : "" })]
+        nextKey = nextKey + 1
+        },
+    setPart(i: number, field: string, v: string) { parts = parts.map((p, k) => k == i ? ({ ...p, [field]: v }) : p) },
+    removePart(i: number) { parts = parts.filter((p, k) => k != i) },
+
+    refundQty(lineId: string) -> number { return refundQtys[lineId] ?? 0 },
+    setRefundQty(lineId: string, v: number) { refundQtys = ({ ...refundQtys, [lineId]: v }) },
+    refundIndex(lineId: string) -> number { return this.refundLines().findIndex((l) => l.saleLineId == lineId) },
+    refundLines() -> array {
+        return (saleRec?.lines ?? []).filter((l) => (refundQtys[l.id] ?? 0) > 0).map((l) => ({ saleLineId: l.id, quantity: refundQtys[l.id] }))
+        },
+
+    // a vendor chosen: its usual category comes with it, unless the person chose one
+
+    pickContact(v: object) {
+        contact = v
+        if (v == null || kind != "expense" || catChosen) return
+        const usual = app.books.contact("" + v.id)?.usualCategoryId ?? null
+        if (usual != null && !app.books.cat(usual)?.archived) categoryId = usual
+        },
+
+    // ── judging what belongs to no one field ──
+
+    validate() -> string {
+        if (kind == "expense" && splitting && remaining != 0)
+            return remaining > 0 ? "Remaining to allocate: " + money(remaining) + ". Saving waits until the parts add up to the total."
+                : "The parts are " + money(-remaining) + " more than the total."
+        if (kind == "sale" && lines.length == 0) return "Add a product or an item to the sale."
+        if (kind == "refund" && saleRec == null) return "Choose the sale this refunds."
+        if (kind == "refund" && refundTotal <= 0) return "Choose what to refund."
+        return ""
+        },
+
+    // what the foot shows as the total
+
+    total: number = { classroot.kind == "expense" ? classroot.amount ?? 0 : classroot.kind == "sale" ? classroot.saleTotal : classroot.refundTotal },
+
+    // ── sending ──
+
+    andNew: boolean = false,
+    body() -> object {
+        const base: any = ({ kind: kind, date: date, description: description.trim(), contactId: contact == null ? null : "" + contact.id })
+        if (kind == "expense") {
+            base.amount = amount
+            if (splitting) base.parts = parts.map((p) => ({ categoryId: p.categoryId, amount: parseMoney(p.amount) ?? 0 }))
+            else base.categoryId = categoryId == "" ? null : categoryId
+        } else if (kind == "sale") {
+            base.channel = channel
+            base.lines = lines.map((l) => l.productId != null
+                ? ({ productId: l.productId, quantity: l.quantity, unitPrice: parseMoney(l.price) ?? 0 })
+                : ({ description: l.description.trim(), quantity: l.quantity, unitPrice: parseMoney(l.price) ?? 0 }))
+            base.amount = saleTotal
+        } else {
+            base.refundOf = saleId
+            delete base.contactId
+            const ls = this.refundLines()
+            if (ls.length > 0) base.lines = ls
+            const lump = parseMoney(refundLump) ?? 0
+            if (lump > 0 && ls.length == 0) base.amount = lump
+        }
+        return base
+        },
+    send() {
+        pending = true
+        const k = kind
+        app.api.send("POST", "/api/transactions", this.body(),
+            (r: any) => {
+                classroot.pending = false
+                const t = r.transaction as Detail
+                app.lastDate = t.date
+                if (k == "sale") app.lastChannel = classroot.channel
+                app.recorded(t)
+                app.remember(r.changeId, "Saved " + (k == "sale" ? "sale" : k == "refund" ? "refund" : "expense") + " of " + money(t.amount))
+                if (classroot.andNew) classroot.startOver()
+                else app.recording = false
+                },
+            (e: Refusal | null, f: string) => {
+                classroot.pending = false
+                if (e == null) {
+                    classroot.refuse([({ name: "", message: "Not saved: the service didn't answer. Your entry is still here; try Save again." })])
+                    classroot.showProblems()
+                    return
+                    }
+                const ps = e.problems ?? [({ field: null, message: e.message })]
+                classroot.refuse(ps.map((p) => ({ name: p.field ?? "", message: p.message +
+                    (p.remaining != null && p.field != null && p.field.endsWith("quantity") ? " (" + p.remaining + " left)" :
+                     p.remaining != null ? " (" + money(p.remaining) + " left)" : "") })))
+                classroot.showProblems()          // the first one it names takes the focus
+                })
+        },
+    save(next: boolean) { andNew = next; this.submit() },
+    startOver() {
+        if (date != null) dateText = dateLong(date)       // the next one is on the same day, said plainly
+        description = ""; contact = null; amountText = ""; categoryId = ""; catChosen = false
+        splitting = false; parts = []; lines = []; refundQtys = ({}); refundLump = ""
+        afterSettle(() => Focus.focus(kind == "expense" ? classroot.fields.expense.amountRow.amountField : classroot))
+        },
+
+    onInit() { afterSettle(() => { if (classroot.kind == "expense") Focus.focus(classroot.fields.expense.amountRow.amountField) }) },
+
+    // The form fills the sheet: its fields scroll in their own pane, and the
+    // total and the buttons stay beneath them, in view and in a thumb's reach.
+
+    height = { app.phone ? app.hostHeight - 110 : parent.contentBox("height") },
+    layout: SimpleLayout [ axis = y, spacing = 0 ],
+
+    fields: View [ width = 100%, flexes = true, scrolls = y, padding = [0, 2, 16, 2],
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+        Text [ fontSize = 20, fontWeight = semibold, accessibilityRole = heading, text = "Record" ],
+        kindPick: Segmented [ width = 100%, height = { app.tap }, accessibilityLabel = "Kind",
+            items = { [ ({ id: "expense", label: "Expense" }), ({ id: "sale", label: "Sale" }), ({ id: "refund", label: "Refund" }) ] },
+            value = { classroot.kind },
+            commit(v: string) { classroot.kind = v }
+            ],
+
+        // ── an expense ──
+
+        expense: View [ width = 100%, visible = { classroot.kind == "expense" },
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            amountRow: Field [ width = 100%, label = "Amount", stacked = true,
+                amountField: TextInput [ width = 100%, height = 44, fontSize = 20, numeralWidth = tabular, name = { classroot.kind == "expense" ? "amount" : "" }, placeholder = "$0.00",
+                    accessibilityLabel = "Amount",
+                    value = { classroot.amountText },
+                    commit(v: string) { classroot.amountText = v },
+                    admit(t: string) -> string | null { return /^\$?[\d,]*\.?\d{0,2}$/.test(t.trim()) ? t : null },
+                    validate(v: string) -> string { const c = parseMoney(v); return c == null || c <= 0 ? "Enter what it cost." : "" }
+                    ]
+                ],
+            Field [ width = 100%, label = "Vendor", stacked = true,
+                Combobox [ width = 100%, height = { app.tap }, name = { classroot.kind == "expense" ? "contactId" : "" }, placeholder = "Who was paid", creates = true,
+                    accessibilityLabel = "Vendor",
+                    items = { classroot.contactItems }, value = { classroot.contact },
+                    commit(v: object) { classroot.pickContact(v) },
+                    createRequested(text: string) {
+                        app.createContact(text, "vendor", classroot.categoryId == "" ? null : classroot.categoryId,
+                            (c: Contact) => { classroot.pickContact(({ id: c.id, label: c.name })) })
+                        }
+                    ]
+                ],
+            catRow: View [ width = 100%, visible = { !classroot.splitting },
+                layout: SimpleLayout [ axis = x, spacing = 8, align = end ],
+                Field [ flexes = true, label = "Category", stacked = true,
+                    Combobox [ width = 100%, height = { app.tap }, name = "categoryId", placeholder = "Type to choose",
+                        accessibilityLabel = "Category",
+                        items = { classroot.expenseCats }, value = { classroot.catItem(classroot.categoryId) },
+                        commit(v: object) { classroot.categoryId = v == null ? "" : "" + v.id; classroot.catChosen = true }
+                        ]
+                    ],
+                Button [ height = { app.tap }, label = "Split", accessibilityLabel = "Split across categories",
+                    onClick() { classroot.startSplit() }
+                    ]
+                ],
+            split: View [ width = 100%, visible = { classroot.splitting },
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                View [ width = 100%,
+                    layout: SimpleLayout [ axis = x, align = center ],
+                    Caption [ flexes = true, text = "Split across categories" ],
+                    Button [ height = 30, label = "Don't split",
+                        onClick() { classroot.stopSplit() }
+                        ]
+                    ],
+                parts: View [ width = 100%, datapath = { classroot.partData.value },
+                    layout: SimpleLayout [ axis = y, spacing = 8 ],
+                    PartRowEdit [ datapath = :rows[] ]
+                    ],
+                View [ width = 100%,
+                    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+                    Button [ label = "Add a part", iconLeft = "PlusIcon",
+                        onClick() { classroot.addPart() }
+                        ],
+                    Spacer [ ],
+                    remaining: Text [ fontSize = 13, fontWeight = semibold, numeralWidth = tabular, accessibilityLive = polite,
+                        textColor = { classroot.remaining == 0 ? provided("theme").good : provided("theme").warn },
+                        text = { classroot.remaining == 0 ? "All allocated" : classroot.remaining > 0 ? "Remaining to allocate: " + money(classroot.remaining)
+                            : "Over by " + money(-classroot.remaining) } ]
+                    ]
+                ]
+            ],
+
+        // ── a sale ──
+
+        saleBox: View [ width = 100%, visible = { classroot.kind == "sale" },
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            Field [ width = 100%, label = "Channel", stacked = true,
+                Segmented [ width = 100%, height = { app.tap }, name = "channel", accessibilityLabel = "Channel",
+                    items = { app.books.channels().map((c) => ({ id: c.id, label: c.name })) },
+                    value = { classroot.channel },
+                    commit(v: string) { classroot.channel = v }
+                    ]
+                ],
+            Field [ width = 100%, label = "Customer (optional)", stacked = true,
+                Combobox [ width = 100%, height = { app.tap }, name = { classroot.kind == "sale" ? "contactId" : "" }, placeholder = "Who bought", creates = true,
+                    accessibilityLabel = "Customer",
+                    items = { classroot.contactItems }, value = { classroot.contact },
+                    commit(v: object) { classroot.contact = v },
+                    createRequested(text: string) {
+                        app.createContact(text, "customer", null, (c: Contact) => { classroot.contact = ({ id: c.id, label: c.name }) })
+                        }
+                    ]
+                ],
+            Caption [ text = "Products — tap to add, again for one more" ],
+            tiles: View [ width = 100%, datapath = { app.productData.value },
+                layout: WrappingLayout [ columns = { app.phone ? 2 : 3 }, spacing = 6, rowSpacing = 6 ],
+                ProductTile [ datapath = :rows[] ]
+                ],
+            lineList: View [ width = 100%, datapath = { classroot.lineData.value },
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                SaleLineRow [ datapath = :rows[] ]
+                ],
+            Button [ label = "Add an item", iconLeft = "PlusIcon",
+                onClick() { classroot.addFree() }
+                ]
+            ],
+
+        // ── a refund ──
+
+        refundBox: View [ width = 100%, visible = { classroot.kind == "refund" },
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            Field [ width = 100%, label = "The sale", stacked = true,
+                Combobox [ width = 100%, height = { app.tap }, name = "refundOf", placeholder = "Type an order, a customer or an amount",
+                    accessibilityLabel = "The sale being refunded",
+                    items = { classroot.saleItems },
+                    value = { classroot.saleId == "" ? null : classroot.saleItems.find((s) => s.id == classroot.saleId) ?? ({ id: classroot.saleId, label: classroot.saleRec?.description ?? classroot.saleId }) },
+                    commit(v: object) { classroot.saleId = v == null ? "" : "" + v.id; classroot.refundQtys = ({}) }
+                    ]
+                ],
+            saleLines: View [ width = 100%, visible = { classroot.saleRec != null },
+                layout: SimpleLayout [ axis = y, spacing = 10 ],
+                Text [ fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                    text = { classroot.saleRec == null ? "" : "Sold " + dateLong(classroot.saleRec.date) + " for " + money(classroot.saleRec.amount) +
+                        " · " + money(classroot.saleRec.refundable ?? 0) + " left to refund" } ],
+                list: View [ width = 100%, datapath = { classroot.sale.value ?? null },
+                    layout: SimpleLayout [ axis = y, spacing = 8 ],
+                    RefundLineRow [ datapath = :lines[] ]
+                    ],
+                Field [ width = 100%, label = "Or refund an amount", stacked = true,
+                    TextInput [ width = 160, height = { app.tap }, textAlign = right, numeralWidth = tabular, name = { classroot.kind == "refund" ? "amount" : "" }, placeholder = "0.00",
+                        accessibilityLabel = "Refund an amount",
+                        value = { classroot.refundLump },
+                        commit(v: string) { classroot.refundLump = v },
+                        admit(t: string) -> string | null { return /^\$?[\d,]*\.?\d{0,2}$/.test(t.trim()) ? t : null }
+                        ]
+                    ]
+                ]
+            ],
+
+        // ── what every kind has ──
+
+        common: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            Field [ width = 100%, label = "Date", stacked = true,
+                dateRow: View [ width = 100%,
+                    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+                    TextInput [ flexes = true, height = { app.tap }, name = "date", accessibilityLabel = "Date",
+                        placeholder = "today, yesterday, 3 nov",
+                        value = { classroot.dateText },
+                        commit(v: string) { classroot.dateText = v },
+                        validate(v: string) -> string { return parseDate(v, app.today) == null ? "Type a date like “3 Nov” or “yesterday”." : "" }
+                        ],
+                    Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted },
+                        text = { classroot.date == null ? "" : weekday(classroot.date) + " " + dateLong(classroot.date) } ]
+                    ]
+                ],
+            Field [ width = 100%, label = "Description (optional)", stacked = true,
+                TextInput [ width = 100%, height = { app.tap }, name = "description", accessibilityLabel = "Description",
+                    value = { classroot.description },
+                    commit(v: string) { classroot.description = v }
+                    ]
+                ]
+            ],
+
+        errorText: Text [ visible = { classroot.error != "" }, width = 100%, fontSize = 13, wrap = true, accessibilityLive = polite,
+            textColor = { provided("theme").bad }, text = { classroot.error } ]
+        ],
+
+    foot: EditorFoot [ form = { classroot } ]
+    ]
+
+
+// The total and the buttons, under the form's fields: in view (and in a
+// thumb's reach) however long the form grows.
+
+class EditorFoot [ width = 100%,
+    form: RecordForm? = null,
+    padding = { app.phone ? [10, 0, 6 + app.safeBottom, 0] : [12, 0, 0, 0] },
+    fill = { provided("theme").surface },
+    stroke = { [stroke(1, provided("theme").line), null, null, null] },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    total: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        Caption [ text = "Total" ],
+        Money [ fontSize = 20, fontWeight = semibold, accessibilityLive = polite, cents = { classroot.form?.total ?? 0 } ]
+        ],
+    Button [ label = "Save & new", accessibilityLabel = "Save and start another",
+        onClick() { classroot.form?.save(true) }
+        ],
+    Button [ label = { (classroot.form?.pending ?? false) ? "Saving…" : "Save" }, primary = true, tooltipLabel = "⌘↵",
+        onClick() { classroot.form?.save(false) }
+        ]
+    ]

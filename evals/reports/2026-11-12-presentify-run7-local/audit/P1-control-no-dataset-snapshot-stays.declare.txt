@@ -1,0 +1,39 @@
+// A snapshot taken at drag start and kept in an attribute; the drag then
+// replaces the live slides immutably on every move. Does the kept snapshot
+// stay as it was?
+schema El [ id: string, x?: number ]
+schema Sl [ id: string, elements[]: El ]
+schema Snap [ slides[]: Sl, current: string ]
+
+class Doc extends Node [
+    slides: Sl[] = [],
+    current: string = "",
+    before: Snap? = null,
+    slide: Sl? = { this.slides[0] ?? null },
+    els: El[] = { this.slide?.elements ?? [] },
+    snap() -> Snap { return ({ slides: slides, current: current }) },
+    moveTo(start: El[], dx: number) {
+        const s = slide
+        if (s == null) return
+        const list = start.map((e) => ({ ...e, x: (e.x ?? 0) + dx }))
+        slides = slides.map((x) => x.id == s.id ? ({ ...s, elements: list }) : x)
+        }
+    ]
+
+App [ width = 300, height = 200, fill = white,
+    doc: Doc [ ],
+    startEls: El[] = [],
+    onInit() {
+        doc.slides = [ ({ id: "s1", elements: [ ({ id: "e1", x: 100 }) ] }) ]
+        doc.current = "s1"
+        },
+    pad: View [ width = 300, height = 200, fill = 0xEEEEEE,
+        onDragStart(e: PointerEvent) { app.doc.before = app.doc.snap(); app.startEls = app.doc.els },
+        onDrag(e: PointerEvent) { app.doc.moveTo(app.startEls, e.deltaX) }
+        ]
+    ]
+
+/* ── against the local tree, 2026-11-12:
+app.doc.before = {"slides":[{"id":"s1","elements":[{"id":"e1","x":100}]}],"current":"s1"}
+app.doc.slides = [{"id":"s1","elements":[{"id":"e1","x":160}]}]
+*/

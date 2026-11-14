@@ -1,0 +1,1343 @@
+/*
+# Ledger
+
+The books of a small business that makes and sells things: what came in, what
+went out, and how the business is doing. Every record lives behind the Ledger
+service (port 8370); this program never computes a total the service can
+give it, so every figure on screen is the service's, to the cent.
+
+How it is put together:
+
+- **One filter.** `app.f` is one record — the date range, the search, the
+  amount range, kinds, categories, contacts, products — and `app.setF` is the
+  only way it changes. Every read is a `DataSource` whose address is built
+  from it, so changing the filter anywhere changes every list, chart and
+  total at once, and moving between screens keeps it. A source keeps its last
+  answer while the next is on its way, so the screen never goes blank, and a
+  newer request replaces an older one, so an answer for a filter since
+  replaced is never shown.
+- **Every number opens its records.** A figure, a bar, a point, a table cell
+  holds a drill: the filter that gives exactly its records. `app.drill`
+  applies it and goes to Transactions, remembering where it came from, so
+  Back returns there as it was.
+- **Writes are requests.** Each kind of change is a `Write` on the App. One
+  that lands bumps `rev`, which every read carries in its address, so
+  everything refetches; its change id goes on the undo stack, for the toast's
+  Undo and ⌘Z.
+- **Where the user is** — the screen (in the URL), the filter, the open
+  transaction, the selection, what is being recorded — is a handful of
+  attributes on the App. The screens are the tree, derived from them.
+
+Checks live in `tests/`: one script per flow of the brief's "what done looks like",
+a phone flow, the states, and a tour of every screen at laptop and phone size. Run
+one against the dev server and the live service with
+`npx declare-verify my-apps/ledger/ledger.declare --url <served address> --assert my-apps/ledger/tests/<name>.mjs`.
+They write to the service, which keeps what they made until it restarts.
+
+Files: `ledger.ts` (money, dates, the query string), `ledger-model.declare`
+(what the service holds), `ledger-look.declare` (palettes, marks, small
+controls), `ledger-filters.declare`, `ledger-charts.declare`, and one file per
+screen.
+*/
+
+include [ "ledger-look.declare" ]
+
+include [ "ledger-model.declare" ]
+
+include [ "ledger-filters.declare" ]
+
+include [ "ledger-charts.declare" ]
+
+include [ "ledger-overview.declare" ]
+
+include [ "ledger-transactions.declare" ]
+
+include [ "ledger-editor.declare" ]
+
+include [ "ledger-insights.declare" ]
+
+script [ "ledger.ts" ]
+
+script [ "ledger-browser.ts", host = browser ]
+
+// The filter: one record, replaced whole on every change.
+
+schema Filter [ preset: string, from: string, to: string, q: string, min?: number, max?: number,
+    kinds[]: string, cats[]: string, contacts[]: string, products[]: string ]
+
+// Where a drill came from, so Back can return there as it was.
+
+schema Drill [ screen: string, filter: Filter, said: string ]
+
+// A drill as data: what it opens (said in words) and the filter that gives it.
+
+schema Open [ said: string, patch: any ]
+
+schema Pick [ id: string, label: string, count: number, colour: number, on: boolean ]
+schema Chip [ id: string, label: string ]
+schema Tick [ id: string, cents: number ]
+schema Attention [ id: string, text: string, open: string ]
+schema ContactItem [ id: string, label: string ]
+schema CatItem [ id: string, label: string ]
+
+
+App [ appName = "Ledger", minWidth = 320,
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    fontFamily = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+
+    // ── appearance: the system's until the person picks one
+
+    themeMode: "auto" | "light" | "dark" = "auto",
+    isDark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
+    theme = { app.isDark ? ({ ...SanFranciscoDark, ...LedgerDark }) : ({ ...SanFrancisco, ...LedgerLight }) },
+
+    // ── sizes, following the window
+
+    wide: boolean = { app.width >= 900 },          // the sidebar beside the page
+    phone: boolean = { app.width < 640 },          // one column, a tab bar, sheets from the foot
+    tap: number = { app.touchFirst || app.phone ? 44 : 32 },
+    pad: number = { app.phone ? 14 : 28 },
+
+    // ── the service
+
+    api: string = "http://127.0.0.1:8370",
+    rev: number = 0,                                // bumped by every write that lands
+    revQ: string = { "rev=" + app.rev },
+    clock: DataSource [ url = { app.api + "/api/today" }, autoFetch = true, schema = [ today: string ] ],
+    today: string = { app.clock.value?.today ?? "" },
+    books: Lookups [ base = { app.api }, rev = { app.rev } ],
+    ready: boolean = { app.today != "" && app.books.loaded },
+    bootFailed: boolean = { app.clock.failed || app.books.failed },
+
+    // ── where the user is: the screen, in the URL
+
+    location = "overview",
+    screen: string = { app.screenOf(app.location) },
+    screenOf(loc: string) -> string {
+        const s = loc.split("/")[0]
+        if (app.phone && (s == "insights" || s == "budgets")) return s
+        return ["overview", "transactions", "insights", "budgets"].includes(s) ? s : "overview"
+        },
+    screenTitle: string = { ({ overview: "Overview", transactions: "Transactions", insights: "Insights", budgets: "Budgets" } as Record<string, string>)[app.screen] ?? "Overview" },
+
+    // ── the filter
+
+    f: Filter = { app.startFilter() },
+    compare: "previous" | "year" | "none" = "previous",
+
+    startFilter() -> Filter {
+        const r = presetRange("this-month", app.today, "")
+        return ({ preset: "this-month", from: r.from, to: r.to, q: "", min: null, max: null, kinds: [], cats: [], contacts: [], products: [] })
+        },
+    setF(patch: object) { f = ({ ...f, ...patch }) as Filter },
+    clearAll() { f = app.startFilter() },
+
+    rangeText: string = { app.f.preset == "all" ? "All time" : rangeLabel(app.f.from, app.f.to) },
+    choosePreset(id: string) {
+        if (id == "all") { setF(({ preset: "all", from: "", to: "" })); return }
+        const r = presetRange(id, today, "")
+        setF(({ preset: id, from: r.from, to: r.to }))
+        },
+    stepDates(dir: number) {
+        if (f.preset == "all" || f.from == "" || f.to == "") return
+        const r = stepRange(f.from, f.to, dir)
+        setF(({ preset: "custom", from: r.from, to: r.to }))
+        },
+    setDates(a: string, b: string) {
+        if (a == "" || b == "") return
+        setF(({ preset: "custom", from: a <= b ? a : b, to: a <= b ? b : a }))
+        },
+
+    // The search applies as it is typed, a moment after the last key.
+
+    searchTimer: DelayHandle? = null,
+    typeSearch(v: string) {
+        searchTimer?.cancel()
+        searchTimer = afterDelay(160, () => { app.setF(({ q: v })) })
+        },
+
+    // The amount: the slider's handles move a draft at once, and the filter
+    // follows a moment after, so a drag is answered every frame and the service
+    // is asked once it pauses.
+
+    draftAmt: object? = null,
+    amountMin: number? = { app.draftAmt != null ? (app.draftAmt as { min: number | null }).min : app.f.min ?? null },
+    amountMax: number? = { app.draftAmt != null ? (app.draftAmt as { max: number | null }).max : app.f.max ?? null },
+    amountTimer: DelayHandle? = null,
+    draftAmount(lo: number?, hi: number?) {
+        draftAmt = ({ min: lo, max: hi })
+        amountTimer?.cancel()
+        amountTimer = afterDelay(140, () => { app.setAmount(lo, hi) })
+        },
+    setAmount(lo: number?, hi: number?) {
+        amountTimer?.cancel()
+        draftAmt = null
+        const a = lo != null && hi != null && lo > hi ? hi : lo
+        const b = lo != null && hi != null && lo > hi ? lo : hi
+        setF(({ min: a, max: b }))
+        },
+    amountWords: string = { amountWordsOf(app.amountMin, app.amountMax) },
+    amountTicks: Dataset [ schema = [ rows[]: Tick ], contents = { ({ rows: AMOUNT_TICKS.map((c) => ({ id: "t" + c, cents: c })) }) } ],
+
+    // Several values of one filter: which filter the open panel is for, its rows.
+
+    pick: "kind" | "category" | "contact" | "product" = "kind",
+    pickQuery: string = "",
+    pickTitle: string = { ({ kind: "Kind", category: "Category", contact: "Contact", product: "Product" } as Record<string, string>)[app.pick] },
+    pickSelected: string[] = { app.selectedOf(app.pick) },
+    selectedOf(which: string) -> string[] {
+        return which == "kind" ? f.kinds : which == "category" ? f.cats : which == "contact" ? f.contacts : f.products
+        },
+    pickData: Dataset [ schema = [ rows[]: Pick ], contents = { ({ rows: app.pickRows() }) } ],
+    pickRows() -> Pick[] {
+        const on = app.pickSelected
+        if (pick == "kind")
+            return [["sale", "Sales"], ["refund", "Refunds"], ["expense", "Expenses"]].map((k) => ({ id: k[0], label: k[1], count: -1, colour: -1, on: on.includes(k[0]) }))
+        if (pick == "category") {
+            const counts = app.catCounts.value?.categories ?? []
+            const rows = counts.filter((c) => c.categoryId != null).map((c) => ({ id: c.categoryId ?? "", label: books.catName(c.categoryId), count: c.count, colour: books.catColour(c.categoryId), on: on.includes(c.categoryId ?? "") }))
+            const none = counts.find((c) => c.categoryId == null)
+            return [...rows, ({ id: "none", label: "Uncategorised", count: none?.count ?? 0, colour: -1, on: on.includes("none") })]
+            }
+        if (pick == "product")
+            return [...books.productList.map((p) => ({ id: p.id, label: p.name, count: -1, colour: -1, on: on.includes(p.id) })),
+                ({ id: "none", label: "Other items (free-form)", count: -1, colour: -1, on: on.includes("none") })]
+        const q = pickQuery.trim().toLowerCase()
+        const people = books.people.filter((c) => q == "" || c.name.toLowerCase().includes(q) || on.includes(c.id))
+            .sort((a, b) => b.transactionCount - a.transactionCount).slice(0, 120)
+        return [({ id: "none", label: "No contact", count: -1, colour: -1, on: on.includes("none") }),
+            ...people.map((c) => ({ id: c.id, label: c.name + (c.type == "vendor" ? " · vendor" : " · customer"), count: c.transactionCount, colour: -1, on: on.includes(c.id) }))]
+        },
+    openPick(which: string, v: View) {
+        pick = which as "kind" | "category" | "contact" | "product"
+        pickQuery = ""
+        pickPop.showFor(v)
+        },
+    togglePick(id: string) {
+        const cur = selectedOf(pick)
+        const next = cur.includes(id) ? cur.filter((x) => x != id) : [...cur, id]
+        if (pick == "kind") setF(({ kinds: next }))
+        else if (pick == "category") setF(({ cats: next }))
+        else if (pick == "contact") setF(({ contacts: next }))
+        else setF(({ products: next }))
+        },
+    clearPick() {
+        if (pick == "kind") setF(({ kinds: [] }))
+        else if (pick == "category") setF(({ cats: [] }))
+        else if (pick == "contact") setF(({ contacts: [] }))
+        else setF(({ products: [] }))
+        },
+
+    // What is on, in words: the chips, and the line that says figures are filtered.
+
+    searching: boolean = { app.f.q.trim() != "" },
+    amountSet: boolean = { app.f.min != null || app.f.max != null },
+    picksSet: boolean = { app.f.kinds.length + app.f.cats.length + app.f.contacts.length + app.f.products.length > 0 },
+    filtered: boolean = { app.searching || app.amountSet || app.picksSet },
+    chips: Dataset [ schema = [ rows[]: Chip ], contents = { ({ rows: app.chipList() }) } ],
+    chipList() -> Chip[] {
+        const out: Chip[] = []
+        if (f.preset != "this-month") out.push(({ id: "dates", label: rangeText }))
+        if (f.q.trim() != "") out.push(({ id: "q", label: "“" + f.q.trim() + "”" }))
+        if (f.min != null || f.max != null) out.push(({ id: "amount", label: amountWordsOf(f.min ?? null, f.max ?? null) }))
+        for (const k of f.kinds) out.push(({ id: "kind:" + k, label: kindWord(k) }))
+        for (const c of f.cats) out.push(({ id: "cat:" + c, label: books.catName(c == "none" ? null : c) }))
+        for (const c of f.contacts) out.push(({ id: "contact:" + c, label: c == "none" ? "No contact" : books.contactName(c) }))
+        for (const p of f.products) out.push(({ id: "product:" + p, label: books.productName(p == "none" ? null : p) }))
+        return out
+        },
+    chipCount: number = { app.chips.value?.rows.length ?? 0 },
+    filterCount: number = { (app.chips.value?.rows ?? []).filter((c) => c.id != "dates" && c.id != "q").length },
+    filtersOpen: boolean = false,
+    filterWords: string = { (app.chips.value?.rows ?? []).filter((c) => c.id != "dates").map((c) => c.label).join(" · ") },
+    removeChip(id: string) {
+        if (id == "dates") choosePreset("this-month")
+        else if (id == "q") setF(({ q: "" }))
+        else if (id == "amount") setAmount(null, null)
+        else if (id.startsWith("kind:")) setF(({ kinds: f.kinds.filter((k) => k != id.slice(5)) }))
+        else if (id.startsWith("cat:")) setF(({ cats: f.cats.filter((k) => k != id.slice(4)) }))
+        else if (id.startsWith("contact:")) setF(({ contacts: f.contacts.filter((k) => k != id.slice(8)) }))
+        else if (id.startsWith("product:")) setF(({ products: f.products.filter((k) => k != id.slice(8)) }))
+        },
+    kindWord(k: string) -> string { return k == "sale" ? "Sales" : k == "refund" ? "Refunds" : k == "expense" ? "Expenses" : k },
+
+    // ── the comparison period
+
+    cmp: Range? = { app.today == "" ? null : compareRange(app.f.from, app.f.to, app.compare, app.today) },
+    cmpName: string = { app.cmp == null ? "" : compareLabel(app.cmp.from, app.cmp.to) },
+    compareWords: string = { app.compare == "none" ? "No comparison" : app.compare == "year" ? "vs same period last year" : "vs previous period" },
+
+    // ── the reads: every one addressed by the filter
+
+    fq: string = { filterQuery(app.f) },
+    restQ: string = { filterQuery(app.f, ["dates"]) },
+    cmpQ: string = { app.cmp == null ? "" : [app.restQ, "from=" + app.cmp.from, "to=" + app.cmp.to].filter((s) => s != "").join("&") },
+    endDay: string = { app.f.to == "" ? app.today : app.f.to },
+    trendFrom: string = { monthStart(addMonths(app.endDay, -11)) },
+
+    addr(path: string, query: string, extra: string) -> string {
+        return app.ready ? apiUrl(app.api, path, query, extra == "" ? app.revQ : extra + "&" + app.revQ) : ""
+        },
+
+    totals: DataSource [ autoFetch = true, schema = Periods,
+        url = { app.addr("/api/aggregates/periods", app.fq, "by=month") } ],
+    cmpTotals: DataSource [ autoFetch = true, schema = Periods,
+        url = { app.cmp == null ? "" : app.addr("/api/aggregates/periods", app.cmpQ, "by=month") } ],
+    trend12: DataSource [ autoFetch = true, schema = Periods,
+        url = { app.addr("/api/aggregates/periods", [app.restQ, "from=" + app.trendFrom, "to=" + app.endDay].filter((s) => s != "").join("&"), "by=month") } ],
+    catTotals: DataSource [ autoFetch = true, schema = CatTotals,
+        url = { app.addr("/api/aggregates/categories", app.fq, "side=expense") } ],
+    prodTotals: DataSource [ autoFetch = true, schema = ProdTotals,
+        url = { app.addr("/api/aggregates/products", app.fq, "") } ],
+    custTotals: DataSource [ autoFetch = true, schema = ContactTotals,
+        url = { app.addr("/api/aggregates/contacts", app.fq, "side=income&limit=5") } ],
+    uncat: DataSource [ autoFetch = true, schema = Summary,
+        url = { app.f.cats.length == 0 || app.f.cats.includes("none") ? app.addr("/api/summary", filterQuery(app.f, ["category"]), "category=none") : "" } ],
+    budgetMonth: string = { monthKey(app.f.from == "" ? app.today : app.f.from) },
+    budgetsNow: DataSource [ autoFetch = true, schema = Budgets,
+        url = { app.addr("/api/budgets", app.restQ, "month=" + app.budgetMonth) } ],
+    recent: DataSource [ autoFetch = true, schema = TxnPage,
+        url = { app.addr("/api/transactions", app.fq, "limit=6") } ],
+    histogram: DataSource [ autoFetch = true, schema = Buckets,
+        url = { app.addr("/api/aggregates/amounts", app.fq, "") } ],
+    catCounts: DataSource [ autoFetch = true, schema = CatCounts,
+        url = { app.addr("/api/aggregates/category-counts", app.fq, "") } ],
+
+    // what is loading, what failed: said where it shows
+
+    overviewSources: DataSource[] = { [app.totals, app.trend12, app.catTotals, app.prodTotals, app.custTotals, app.recent, app.budgetsNow] },
+    overviewLoading: boolean = { app.overviewSources.some((s) => s.loading) },
+    overviewFailed: boolean = { app.overviewSources.some((s) => s.failed) },
+    retryOverview() { for (const s of app.overviewSources) if (s.failed) s.fetch() },
+
+    // A request that runs long says so: "Still working…", a moment in.
+
+    slow: boolean = false,
+    slowTimer: DelayHandle? = null,
+    busy: boolean = { app.overviewLoading },
+    trackChanges = ["busy", "location", "rangeKey"],
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) {
+            if (c.name == "busy") {
+                slowTimer?.cancel()
+                slow = false
+                if (busy) slowTimer = afterDelay(1500, () => { app.slow = app.busy })
+                }
+            if (c.name == "location") app.arrived(c.previousValue as string)
+            if (c.name == "rangeKey") { app.grainChoice = ""; app.relaxIx = 0 }
+            }
+        },
+
+    // ── Overview's figures
+
+    cur: PeriodTotal? = { app.totals.value?.total ?? null },
+    prev: PeriodTotal? = { app.cmp == null ? null : app.cmpTotals.value?.total ?? null },
+    changeLine(now: number, before: number?) -> string {
+        if (before == null || app.cmp == null) return ""
+        return changeWords(now, before) + " vs " + app.cmpName
+        },
+    toneOf(now: number, before: number?, goodWay: number) -> number {
+        if (before == null || now == before) return 0
+        return (now > before ? 1 : -1) * goodWay
+        },
+    marginNow: number? = { app.cur?.grossMargin.percent ?? null },
+    marginBefore: number? = { app.prev?.grossMargin.percent ?? null },
+    marginChange: string = {
+        app.marginNow == null || app.marginBefore == null ? "" : pointsWords(app.marginNow, app.marginBefore) + " vs " + app.cmpName
+        },
+    marginTone: number = { app.toneOf(app.cur?.grossMargin.percent ?? 0, app.prev?.grossMargin.percent ?? null, 1) },
+    spark(measure: string) -> number[] {
+        return (trend12.value?.periods ?? []).map((p) => measure == "revenue" ? p.revenue.amount : measure == "expenses" ? p.expenses.amount
+            : measure == "net" ? p.net.amount : (p.grossMargin.percent ?? 0))
+        },
+
+    // income vs expenses, month by month: the last twelve months to the end of the range
+
+    trendPts: Pt[] = { app.periodPoints(app.trend12.value?.periods ?? [], [], "month", ["revenue", "expenses", "net"]) },
+    iveSeries: Ser[] = { [
+        ({ id: "revenue", name: "Revenue", mark: "bar", tone: provided("theme").income, unit: "money" }),
+        ({ id: "expenses", name: "Expenses", mark: "bar", tone: provided("theme").expense, unit: "money" }),
+        ({ id: "net", name: "Net profit", mark: "line", tone: provided("theme").net, unit: "money" })
+        ] },
+    iveSentence: string = { app.extremesSentence(app.trendPts, 2, "Net profit") },
+
+    measureOf(p: Period, m: string) -> number {
+        return m == "revenue" ? p.revenue.amount : m == "expenses" ? p.expenses.amount : m == "net" ? p.net.amount
+            : m == "margin" ? (p.grossMargin.percent ?? 0) : m == "sales" ? p.sales.count : 0
+        },
+    countOf(p: Period, m: string) -> number {
+        return m == "revenue" ? p.revenue.count : m == "expenses" ? p.expenses.count : m == "net" ? p.net.count
+            : m == "margin" ? p.grossMargin.count : m == "sales" ? p.sales.count : 0
+        },
+
+    // periods that haven't started yet are left out, so the future is never drawn as zero
+    // Each point carries what it is compared with: the comparison period's value
+    // when one is given, else the period before it in the series ("up 6% from February").
+
+    periodPoints(ps: Period[], prevs: Period[], by: string, measures: string[]) -> Pt[] {
+        const shown = ps.filter((p) => app.today == "" || p.from <= app.today)
+        return shown.map((p, i) => {
+            const q = prevs.length > 0 ? prevs[i] : shown[i - 1]
+            return ({ key: p.period, name: periodName(p.period, by, true), tick: periodTick(p.period, by), partial: p.partial,
+                from: p.from, to: p.to,
+                v: measures.map((m) => app.measureOf(p, m)), n: measures.map((m) => app.countOf(p, m)),
+                pv: q == null ? [] : measures.map((m) => app.measureOf(q, m)),
+                pname: q == null ? "" : periodName(q.period, by, true) })
+            })
+        },
+    extremesSentence(pts: Pt[], k: number, name: string) -> string {
+        const full = pts.filter((p) => !p.partial)
+        if (full.length == 0) return pts.length == 0 ? "" : name + " so far: " + money(pts[pts.length - 1].v[k] ?? 0) + "."
+        let hi = full[0], lo = full[0]
+        for (const p of full) { if ((p.v[k] ?? 0) > (hi.v[k] ?? 0)) hi = p; if ((p.v[k] ?? 0) < (lo.v[k] ?? 0)) lo = p }
+        if (hi == lo) return name + " was " + money(hi.v[k] ?? 0) + " in " + hi.name + "."
+        return name + " was highest in " + hi.name + " (" + money(hi.v[k] ?? 0) + ") and lowest in " + lo.name + " (" + money(lo.v[k] ?? 0) + ")."
+        },
+
+    // the table version of a time chart: one row per period, a cell per measure
+
+    periodTable(pts: Pt[], measures: string[]) -> TRow[] {
+        return pts.map((p) => ({ id: p.key, head: p.name + (p.partial ? " (so far)" : ""),
+            cells: measures.map((m, k) => ({ text: m == "margin" ? pct(p.v[k]) : m == "sales" ? count(p.v[k] ?? 0) : money(p.v[k] ?? 0),
+                open: app.periodKey(p, m), said: p.name + ", " + m + ", " + money(p.v[k] ?? 0) + ". Open its records." })) }))
+        },
+    barTable(bars: BarItem[]) -> TRow[] {
+        return bars.map((b) => ({ id: b.id, head: b.label,
+            cells: [({ text: money(b.amount), open: b.open, said: b.said }), ({ text: b.note, open: "", said: "" })] }))
+        },
+
+    // expenses by category: the top five, the rest as Other
+
+    catBars: BarItem[] = { app.categoryBars(app.catTotals.value?.categories ?? [], app.catTotals.value?.total.amount ?? 0) },
+    categoryBars(cs: CatTotal[], total: number) -> BarItem[] {
+        if (total <= 0) return []
+        const top = cs.slice(0, 5)
+        const rest = cs.slice(5)
+        const t = provided("theme")
+        const items: BarItem[] = top.map((c) => ({ id: c.categoryId ?? "none", label: books.catName(c.categoryId), amount: c.amount,
+            share: c.amount / total, tone: books.catColour(c.categoryId) >= 0 ? t.cats[books.catColour(c.categoryId) % 12] : t.warn,
+            note: Math.round(c.amount / total * 100) + "%",
+            said: books.catName(c.categoryId) + ", " + money(c.amount) + ", " + Math.round(c.amount / total * 100) + "% of expenses. Open its records.",
+            open: app.openKeyOf(books.catName(c.categoryId) + " expenses", ({ cats: [c.categoryId ?? "none"], kinds: bothKinds(f.kinds, ["expense"]) })) }))
+        if (rest.length > 0) {
+            const amt = rest.reduce((n, c) => n + c.amount, 0)
+            items.push(({ id: "rest", label: "Other (" + rest.length + ")", amount: amt, share: amt / total, tone: t.textFaint,
+                note: Math.round(amt / total * 100) + "%",
+                said: "Other categories, " + money(amt) + ". Open their records.",
+                open: app.openKeyOf("Other categories' expenses", ({ cats: rest.map((c) => c.categoryId ?? "none"), kinds: bothKinds(f.kinds, ["expense"]) })) }))
+            }
+        return items
+        },
+    catBarData: Dataset [ schema = [ rows[]: BarItem ], contents = { ({ rows: app.catBars }) } ],
+    productBarData: Dataset [ schema = [ rows[]: BarItem ], contents = { ({ rows: app.productBars }) } ],
+    customerBarData: Dataset [ schema = [ rows[]: BarItem ], contents = { ({ rows: app.customerBars }) } ],
+    attentionData: Dataset [ schema = [ rows[]: Attention ], contents = { ({ rows: app.attention }) } ],
+    catSentence: string = {
+        app.catBars.length == 0 ? "" : app.catBars[0].label + " was the largest expense: " + money(app.catBars[0].amount) + ", " + app.catBars[0].note + " of " + money(app.catTotals.value?.total.amount ?? 0) + "."
+        },
+
+    productBars: BarItem[] = {
+        app.topBars((app.prodTotals.value?.products ?? []).filter((p) => p.productId != null).slice(0, 5).map((p) => ({
+            id: p.productId ?? "none", label: app.books.productName(p.productId), amount: p.revenue, units: p.units,
+            open: app.openKeyOf(app.books.productName(p.productId) + " sales", ({ products: [p.productId ?? "none"] })) })), "units")
+        },
+    productSentence: string = { app.productBars.length == 0 ? "" : app.productBars[0].label + " brought in the most: " + money(app.productBars[0].amount) + "." },
+    customerBars: BarItem[] = {
+        app.topBars((app.custTotals.value?.contacts ?? []).map((c) => ({
+            id: c.contactId ?? "none", label: c.contactId == null ? "No customer named" : c.contactName ?? "", amount: c.amount, units: c.count,
+            open: app.openKeyOf((c.contactId == null ? "Sales with no customer" : (c.contactName ?? "") + "'s purchases"),
+                ({ contacts: [c.contactId ?? "none"], kinds: bothKinds(app.f.kinds, ["sale", "refund"]) })) })), "orders")
+        },
+    customerSentence: string = {
+        app.customerBars.length == 0 ? "" : app.customerBars[0].label + " is the top customer: " + money(app.customerBars[0].amount) + "."
+        },
+    topBars(rows: array, word: string) -> BarItem[] {
+        const peak = Math.max(1, ...rows.map((r) => r.amount))
+        const t = provided("theme")
+        return rows.map((r) => ({ id: r.id, label: r.label, amount: r.amount, share: r.amount / peak, tone: t.income,
+            note: count(r.units) + " " + word, said: r.label + ", " + money(r.amount) + ", " + count(r.units) + " " + word + ". Open the records.", open: r.open }))
+        },
+
+    // needs attention: the uncategorised, and budgets over or near their limit
+
+    attention: Attention[] = { app.attentionItems() },
+    attentionItems() -> Attention[] {
+        const out: Attention[] = []
+        const n = uncat.value?.count ?? 0
+        if (n > 0 && uncat.url != "") out.push(({ id: "uncat", text: plural(n, "uncategorised transaction") + " to sort",
+            open: openKeyOf("Uncategorised", ({ cats: ["none"] })) }))
+        for (const b of budgetsNow.value?.budgets ?? []) {
+            const name = books.catName(b.categoryId)
+            const range = ({ from: budgetsNow.value?.from ?? "", to: budgetsNow.value?.to ?? "", preset: "custom" })
+            const drill = ({ ...range, cats: [b.categoryId], kinds: ["expense"] })
+            if (b.remaining < 0) out.push(({ id: "b:" + b.categoryId, text: name + " is over budget by " + money(-b.remaining), open: openKeyOf(name + " spending this month", drill) }))
+            else if (b.spent >= b.amount * 0.9) out.push(({ id: "b:" + b.categoryId, text: name + " is near its budget: " + money(b.remaining) + " left", open: openKeyOf(name + " spending this month", drill) }))
+            }
+        return out
+        },
+
+    // ── opening the records behind a number
+
+    drillBack: Drill? = null,
+    drillSaid: string = "",
+    openKeyOf(said: string, patch: object) -> string { return JSON.stringify(({ said: said, patch: patch })) },
+    openKey(key: string) {
+        if (key == "") return
+        const o = JSON.parse(key) as Open
+        drill(o.said, o.patch)
+        },
+    drill(said: string, patch: object) {
+        drillBack = ({ screen: location, filter: f, said: said })
+        drillSaid = said
+        setF(patch)
+        location = "transactions"
+        },
+    drillPeriod(p: Pt?, measure: string) {
+        if (p == null) return
+        const kinds = measure == "expenses" ? ["expense"] : measure == "net" ? [] : measure == "sales" ? ["sale"] : ["sale", "refund"]
+        const name = ({ revenue: "Revenue", expenses: "Expenses", net: "Net profit", margin: "Gross margin", sales: "Sales" } as Record<string, string>)[measure] ?? measure
+        drill(p.name + " · " + name, ({ preset: "custom", from: p.from, to: p.to, kinds: measure == "net" ? f.kinds : bothKinds(f.kinds, kinds) }))
+        },
+    periodKey(p: Pt, measure: string) -> string {
+        const kinds = measure == "expenses" ? ["expense"] : measure == "net" ? [] : measure == "sales" ? ["sale"] : ["sale", "refund"]
+        return openKeyOf(p.name + " · " + measure, ({ preset: "custom", from: p.from, to: p.to, kinds: measure == "net" ? f.kinds : bothKinds(f.kinds, kinds) }))
+        },
+    drillFigure(which: string) {
+        const name = ({ revenue: "Revenue", expenses: "Expenses", net: "Net profit", margin: "Gross margin" } as Record<string, string>)[which] ?? which
+        const kinds = which == "expenses" ? ["expense"] : which == "net" ? [] : ["sale", "refund"]
+        drill(name + " · " + rangeText, ({ kinds: which == "net" ? f.kinds : bothKinds(f.kinds, kinds) }))
+        },
+    goBack() {
+        const d = drillBack
+        if (d == null) return
+        drillBack = null
+        f = d.filter
+        location = d.screen
+        },
+
+    // Back in the browser to where a drill came from puts its filter back too;
+    // going anywhere else lets the drill go.
+
+    arrived(was: string) {
+        const d = drillBack
+        if (d == null) return
+        if (screen == screenOf(d.screen) && screenOf(was) == "transactions") { drillBack = null; f = d.filter }
+        else if (screen != "transactions") drillBack = null
+        },
+
+    // ── Transactions: every row the filter matches, in the order asked for
+
+    sortCol: string = "date",
+    sortDir: string = "desc",
+    sortParam: string = { ({ date: "date", description: "description", categoryId: "category", channel: "channel", amount: "amount" } as Record<string, string>)[app.sortCol] ?? "date" },
+    sortBy(column: string, direction: string) { sortCol = column; sortDir = direction },
+    list: DataSource [ autoFetch = true, schema = TxnPage, timeout = 30,
+        onLoad() { app.listArrived() },
+        url = { app.addr("/api/transactions", app.fq, "sort=" + app.sortParam + "&dir=" + app.sortDir + "&limit=10000") }
+        ],
+    listRows: Txn[] = { app.list.value?.rows ?? [] },
+    listTotal: number = { app.list.value?.total ?? 0 },
+    listSum: Summary? = { app.list.value?.summary ?? null },
+    listSlow: boolean = false,
+    hitWords: string[] = { searchWords(app.f.q) },
+    everSrc: DataSource [ autoFetch = true, schema = Summary, url = { app.addr("/api/summary", "", "") } ],
+    everCount: number = { app.everSrc.value?.count ?? -1 },
+
+    fallbackName(kind: string, contact: string?, channel: string?) -> string {
+        if (contact != null && contact != "") return contact
+        if (channel != null) return books.channelName(channel) + " " + kindWord1(kind).toLowerCase()
+        return kindWord1(kind)
+        },
+    kindWord1(k: string) -> string { return k == "sale" ? "Sale" : k == "refund" ? "Refund" : k == "expense" ? "Expense" : k },
+    catLabel(id: string?, parts: number) -> string { return parts > 0 ? "Split (" + parts + ")" : books.catName(id) },
+    titleOf(loc: string) -> string { return ({ overview: "Overview", transactions: "Transactions", insights: "Insights", budgets: "Budgets" } as Record<string, string>)[screenOf(loc)] ?? "Overview" },
+
+    // the columns: which are shown, and how wide; the description takes what is left
+
+    hiddenCols: string[] = [],
+    gridColumns: array = { [
+        ({ id: "date", title: "Date", width: 92, cell: "DateCell", editor: "DateEditor" }),
+        ({ id: "description", title: "Description", width: 320, cell: "DescCell", editor: "DescEditor" }),
+        ({ id: "categoryId", title: "Category", width: 190, cell: "CatCell", editor: "CatEditor" }),
+        ({ id: "channel", title: "Channel", width: 120, cell: "ChannelCell" }),
+        ({ id: "amount", title: "Amount", width: 130, cell: "AmountCell", editor: "AmountEditor" })
+        ] },
+    gridWidth: number = { app.main.txScreen.body.grid.width },
+    gridWidths: object = { app.widthsFor(app.gridWidth, app.hiddenCols) },
+    channelSqueezed: boolean = { !app.hiddenCols.includes("channel") && (app.gridWidths as Record<string, number>)["channel"] == 0 },
+
+    // The description takes what the others leave. When the room runs short (a
+    // narrow window, the detail open beside it), Channel goes first: priority,
+    // not squish, so the amount always stays in view.
+
+    widthsFor(total: number, hidden: string[]) -> object {
+        const base = ({ date: 92, categoryId: 180, channel: 116, amount: 124 } as Record<string, number>)
+        const room = total - 20                                  // the vertical scrollbar takes its own
+        const fixed = (drop: string[]) => Object.keys(base).filter((k) => !hidden.includes(k) && !drop.includes(k)).reduce((n, k) => n + base[k], 0)
+        const drop = room - fixed([]) >= 240 ? [] : ["channel"]
+        const out = ({} as Record<string, number>)
+        for (const k of Object.keys(base)) out[k] = hidden.includes(k) || drop.includes(k) ? 0 : base[k]
+        out["description"] = Math.max(200, room - fixed(drop))
+        return out
+        },
+    columnsMenu: Menu [
+        items = { [
+            ({ id: "date", label: "Date", checked: !app.hiddenCols.includes("date") }),
+            ({ id: "categoryId", label: "Category", checked: !app.hiddenCols.includes("categoryId") }),
+            ({ id: "channel", label: app.channelSqueezed ? "Channel (no room beside the detail)" : "Channel", checked: !app.hiddenCols.includes("channel") && !app.channelSqueezed }),
+            ({ id: "amount", label: "Amount", checked: !app.hiddenCols.includes("amount") })
+            ] },
+        picked(id: string) { app.hiddenCols = app.hiddenCols.includes(id) ? app.hiddenCols.filter((c) => c != id) : [...app.hiddenCols, id] }
+        ],
+
+    // ── the selection, held as records
+
+    selRows: Txn[] = [],
+    allSelected: boolean = false,
+    selCount: number = { app.selRows.length },
+    takeSelection(sel: Txn[]?) {
+        const rows = sel ?? []
+        selRows = rows
+        allSelected = rows.length > 0 && rows.length == listTotal
+        peekId = ""
+        },
+    selectAll() {
+        if (listTotal == 0) return
+        selRows = [...listRows]
+        allSelected = true
+        Accessibility.announce("All " + plural(listTotal, "matching transaction") + " selected")
+        },
+    selSum: Summary = { app.sumOf(app.selRows) },
+    sumOf(rows: Txn[]) -> Summary {
+        let inn = 0, out = 0
+        for (const r of rows) { if (r.kind == "sale") inn = inn + r.inFilter; else out = out - r.inFilter }
+        return ({ count: rows.length, in: inn, out: out, net: inn - out })
+        },
+    summaryLine: string = { app.summaryWords() },
+    summaryWords() -> string {
+        if (selCount > 0) {
+            const s = allSelected ? listSum ?? selSum : selSum
+            const head = allSelected ? "All " + plural(s.count, "matching transaction") + " selected" : count(s.count) + " selected"
+            return head + " · In " + money(s.in) + " · Out " + money(s.out) + " · Net " + money(s.net)
+            }
+        const t = listSum
+        if (t == null) return list.failed ? "" : "Loading…"
+        return plural(t.count, "transaction") + " · In " + money(t.in) + " · Out " + money(t.out) + " · Net " + money(t.net)
+        },
+
+    // the detail: the one selected row, or a linked transaction peeked at from it
+
+    peekId: string = "",
+    detailId: string = { app.peekId != "" ? app.peekId : app.selCount == 1 ? app.selRows[0].id : "" },
+    detail: DataSource [ autoFetch = true, schema = TxDetail,
+        url = { app.detailId == "" ? "" : app.addr("/api/transactions/" + app.detailId, "", "") } ],
+    peek(id: string) { peekId = id },
+    closeDetail() { peekId = ""; takeSelection(null); phoneDetail = false },
+    marginLine(d: TxDetail?) -> string {
+        if (d == null || d.cost == null) return ""
+        const m = d.margin ?? 0
+        return "Cost " + money(d.cost) + " · Margin " + money(m) + (d.amount > 0 ? " (" + Math.round(m / d.amount * 100) + "%)" : "")
+        },
+    openTxn(id: string) {
+        location = "transactions"
+        const row = listRows.find((r) => r.id == id)
+        if (row != null) takeSelection([row]); else peekId = id
+        if (phone) phoneDetail = true
+        },
+    openPhoneTxn(id: string) { peekId = id; phoneDetail = true },
+    phoneDetail: boolean = false,
+
+    // the phone's list: the rows grouped by day, a heading over each
+
+    dayLines: Dataset [ schema = [ rows[]: DayLine ], contents = { ({ rows: app.byDay(app.listRows) }) } ],
+    byDay(rows: Txn[]) -> DayLine[] {
+        const out: DayLine[] = []
+        let day = ""
+        let head: DayLine | null = null
+        for (const r of rows) {
+            if (r.date != day) {
+                day = r.date
+                head = ({ id: "d" + r.date, heading: dayHeading(r.date, today), total: 0 })
+                out.push(head)
+                }
+            if (head != null) head.total = (head.total ?? 0) + r.inFilter
+            out.push(({ id: r.id, txn: r }))
+            }
+        return out
+        },
+
+    // ── nothing matches: find the one filter whose removal brings results back
+
+    relaxCands: Chip[] = { (app.chips.value?.rows ?? []).filter((c) => c.id != "dates").concat(app.f.preset == "all" ? [] : [({ id: "dates", label: app.rangeText })]) },
+    relaxIx: number = 0,
+    relaxSrc: DataSource [ autoFetch = true, schema = Summary,
+        url = { app.listTotal == 0 && app.list.loaded && app.relaxIx < app.relaxCands.length ? app.addr("/api/summary", app.relaxQuery(app.relaxCands[app.relaxIx].id), "") : "" },
+        onLoad() { if ((this.value?.count ?? 0) == 0) app.relaxIx = app.relaxIx + 1 }
+        ],
+    relaxQuery(id: string) -> string {
+        if (id == "dates") return filterQuery(f, ["dates"])
+        if (id == "q") return filterQuery(({ ...f, q: "" }))
+        if (id == "amount") return filterQuery(f, ["amount"])
+        if (id.startsWith("kind:")) return filterQuery(({ ...f, kinds: f.kinds.filter((k) => k != id.slice(5)) }))
+        if (id.startsWith("cat:")) return filterQuery(({ ...f, cats: f.cats.filter((k) => k != id.slice(4)) }))
+        if (id.startsWith("contact:")) return filterQuery(({ ...f, contacts: f.contacts.filter((k) => k != id.slice(8)) }))
+        if (id.startsWith("product:")) return filterQuery(({ ...f, products: f.products.filter((k) => k != id.slice(8)) }))
+        return fq
+        },
+    relax: Chip = { app.relaxOffer() },
+    relaxOffer() -> Chip {
+        const c = relaxCands[relaxIx]
+        const n = relaxSrc.value?.count ?? 0
+        if (c == null || n == 0 || relaxSrc.loading) return ({ id: "", label: "" })
+        const named = c.label.startsWith("“") ? c.label : "‘" + c.label + "’"
+        return ({ id: c.id, label: (c.id == "dates" ? "Search all dates" : "Remove " + named) + " to see " + plural(n, "transaction") })
+        },
+    applyRelax() { if (relax.id == "dates") choosePreset("all"); else removeChip(relax.id) },
+    trackRelax: string = { app.fq },
+    emptyTitle: string = { app.everCount == 0 ? "Nothing recorded yet" : "No transactions match" },
+    emptyLine: string = {
+        app.everCount == 0 ? "Start with your first sale or expense — it takes a few seconds."
+            : "Filtered by " + [app.f.preset == "all" ? "" : app.rangeText, app.filterWords].filter((s) => s != "").join(" · ") + "."
+        },
+
+    // ── changing the books: in place, in bulk, and taking it back
+
+    cellTx: Write [ onLoad() { app.cellSaved() },
+        onError() { app.cellFailed() }
+        ],
+    pendingEdit: object? = null,
+    failedEdit: object? = null,
+    failedWords: string = { app.failedEdit == null ? "" : (app.failedEdit as { said: string }).said + " — " + app.cellTx.refusal },
+
+    // what a cell shows while its edit is out, or after the service refused it
+
+    unsavedText(id: string, field: string) -> string? {
+        const e = (failedEdit ?? pendingEdit) as { id: string, field: string, shown: string } | null
+        return e != null && e.id == id && e.field == field ? e.shown : null
+        },
+    patchCell(id: string, changes: object, field: string, shown: string) {
+        failedEdit = null
+        pendingEdit = ({ id: id, changes: changes, field: field, shown: shown, said: "the " + field + " change" })
+        cellTx.send("PATCH", api + "/api/transactions/" + id, changes)
+        },
+    cellSaved() {
+        const id = (cellTx.value as { changeId: string }).changeId
+        const e = pendingEdit as { field: string } | null
+        pendingEdit = null
+        if (id != null) noteChange(id, "Changed the " + (e?.field ?? "transaction"), false)
+        rev = rev + 1
+        },
+    cellFailed() { failedEdit = pendingEdit; pendingEdit = null },
+    retryEdit() {
+        const e = failedEdit as { id: string, changes: object, field: string, shown: string } | null
+        if (e != null) patchCell(e.id, e.changes, e.field, e.shown)
+        },
+
+    bulkTx: Write [ onLoad() { app.bulkDone() },
+        onError() { app.toast.say(this.refusal, null) }
+        ],
+    bulkSaid: string = "",
+    bulkWhere() -> object {
+        if (allSelected) return fq == "" ? ({ from: "1900-01-01" }) : fq
+        return ({ ids: selRows.map((r) => r.id) })
+        },
+    bulkCategorise(categoryId: string?) {
+        const name = categoryId == null ? "Uncategorised" : books.catName(categoryId)
+        bulkSaid = "Categorised # as " + name
+        bulkTx.send("POST", api + "/api/transactions/bulk", ({ action: "categorise", categoryId: categoryId, where: bulkWhere(), expectedCount: selCount }))
+        },
+    bulkContact(contactId: string?) {
+        bulkSaid = "Set the contact of # to " + (contactId == null ? "none" : books.contactName(contactId))
+        bulkTx.send("POST", api + "/api/transactions/bulk", ({ action: "set-contact", contactId: contactId, where: bulkWhere(), expectedCount: selCount }))
+        },
+    bulkDelete() {
+        if (selCount == 0) return
+        bulkSaid = "Deleted #"
+        bulkTx.send("POST", api + "/api/transactions/bulk", ({ action: "delete", where: bulkWhere(), expectedCount: selCount }))
+        },
+    deleteOne(d: TxDetail?) {
+        if (d == null) return
+        bulkSaid = "Deleted #"
+        bulkTx.send("POST", api + "/api/transactions/bulk", ({ action: "delete", where: ({ ids: [d.id] }) }))
+        },
+    bulkDone() {
+        const r = bulkTx.value as { count: number, changeId: string | null, skipped: { reason: string }[] }
+        const said = bulkSaid.replace("#", plural(r.count, "transaction"))
+        const skipped = (r.skipped ?? []).length
+        const tail = skipped > 0 ? " (" + skipped + " left as they were: " + app.skipWhy(r.skipped) + ")" : ""
+        if (bulkSaid.startsWith("Deleted")) { takeSelection(null); peekId = "" }
+        if (r.changeId != null) noteChange(r.changeId, said + tail, true)
+        else toast.say(r.count == 0 ? "Nothing needed changing" + tail : said + tail, null)
+        rev = rev + 1
+        },
+    skipWhy(skipped: object[]) -> string {
+        const why = skipped.map((s) => (s as { reason: string }).reason)
+        if (why.includes("kind")) return "a sale or refund can't take an expense category, nor an expense an income one"
+        if (why.includes("has-refunds")) return "a sale with refunds can't be deleted before its refunds"
+        return "they couldn't take this change"
+        },
+    bulkCatMenu: Menu [
+        items = { [
+            ...app.books.expenseCats.map((c) => ({ id: c.id, label: c.name })),
+            ({ divider: true }),
+            ...app.books.incomeCats.map((c) => ({ id: c.id, label: c.name })),
+            ({ divider: true }),
+            ({ id: "none", label: "Uncategorised" })
+            ] },
+        picked(id: string) { app.bulkCategorise(id == "none" ? null : id) }
+        ],
+    contactPop: Popover [ accessibilityLabel = "Set contact",
+        View [ width = 280,
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            Text [ fontSize = 13, fontWeight = semibold, text = { "Set the contact of " + plural(app.selCount, "transaction") } ],
+            Combobox [ width = 100%, placeholder = "Type part of a name", accessibilityLabel = "Contact",
+                items = { app.contactItems },
+                commit(v: object) {
+                    const c = v as ContactItem | null
+                    if (c == null) return
+                    app.contactPop.close()
+                    app.bulkContact(c.id == "none" ? null : c.id)
+                    }
+                ]
+            ]
+        ],
+
+    // the undo stack: each change the service made, newest last
+
+    changes: Change[] = [],
+    undoTx: Write [ onLoad() { app.undone() },
+        onError() { app.toast.say("Couldn't undo: " + this.refusal, null) }
+        ],
+    noteChange(id: string, said: string, offer: boolean) {
+        changes = [...changes, ({ id: id, said: said })]
+        if (offer) toast.say(said, ({ id: "undo", label: "Undo" }))
+        },
+    undoLast() {
+        const c = changes[changes.length - 1]
+        if (c == null) return
+        changes = changes.slice(0, -1)
+        undoSaid = c.said
+        undoTx.send("POST", api + "/api/changes/" + c.id + "/undo", null)
+        },
+    undoSaid: string = "",
+    undone() {
+        const n = (undoTx.value as { count: number }).count
+        toast.say("Undone: " + undoSaid.charAt(0).toLowerCase() + undoSaid.slice(1), null)
+        rev = rev + 1
+        },
+
+    // ── taking the data out: the filtered rows, or the selection, as CSV
+
+    exportCsv() {
+        const rows = selCount > 0 ? selRows : listRows
+        const header = ["date", "kind", "description", "contact", "category", "channel", "amount", "id"]
+        const body = rows.map((r) => [r.date, r.kind, r.description, r.contactName ?? "",
+            r.split != null ? "Split: " + r.split.categoryIds.map((c) => books.catName(c)).join("; ") : books.catName(r.categoryId),
+            books.channelName(r.channel), plainAmount(r.inFilter), r.id])
+        const name = "ledger-" + (f.from == "" ? "all" : f.from) + (f.to == "" ? "" : "-to-" + f.to) + (selCount > 0 ? "-selection" : "") + ".csv"
+        downloadText(name, csvOf(header, body))
+        toast.say("Exported " + plural(rows.length, "transaction") + " · total " + money(rows.reduce((n, r) => n + r.inFilter, 0)), null)
+        },
+
+    // the pickers' items: contacts and categories by name
+
+    contactItems: ContactItem[] = { [({ id: "none", label: "No contact" }), ...app.books.people.map((c) => ({ id: c.id, label: c.name }))] },
+    contactItem(id: string?) -> ContactItem? { return id == null ? null : contactItems.find((c) => c.id == id) ?? null },
+    catItemsFor(kind: string) -> CatItem[] {
+        const cs = kind == "expense" ? books.expenseCats : books.incomeCats
+        return [...cs.map((c) => ({ id: c.id, label: c.name })), ({ id: "none", label: "Uncategorised" })]
+        },
+    catItem(id: string?) -> CatItem? { return id == null ? ({ id: "none", label: "Uncategorised" }) : ({ id: id, label: books.catName(id) }) },
+
+    // ── recording: the editor's sheet, and what it starts from
+
+    recording: boolean = false,
+    recKind: string = "expense",
+    recDate: string = "",
+    recChannel: string = "online",
+    recRefundOf: string = "",
+    recEditing: TxDetail? = null,
+    fieldH: number = { app.touchFirst || app.phone ? 44 : 34 },
+    fieldFont: number = { app.touchFirst || app.phone ? 16 : 14 },
+    recForm: RecordForm? = { app.recSheet.form },
+    record(kind: string) {
+        recKind = kind
+        recEditing = null
+        recRefundOf = ""
+        recDate = ""
+        recording = true
+        },
+    editTxn(d: TxDetail?) {
+        if (d == null) return
+        recKind = d.kind
+        recEditing = d
+        recRefundOf = d.refundOf ?? ""
+        recording = true
+        },
+    startRefund(id: string) {
+        recKind = "refund"
+        recEditing = null
+        recRefundOf = id
+        recDate = ""
+        recording = true
+        },
+    saveTx: DataSource [ timeout = 20,
+        method = { app.recForm?.verb ?? "POST" },
+        url = { app.recForm?.url ?? "" },
+        body = { app.recForm?.payload() ?? null },
+        onLoad() { app.saved() }
+        ],
+    justSaved: string = "",
+    saved() {
+        const r = saveTx.value as TxReply
+        const t = r.transaction
+        const what = kindWord1(t.kind).toLowerCase() + " " + money(t.amount) + (t.contactName != null ? " · " + t.contactName : "")
+        if (r.changeId != null) noteChange(r.changeId, (recEditing == null ? "Saved " : "Updated ") + what, true)
+        justSaved = t.id
+        rev = rev + 1
+        if (recForm != null && recForm.saveAndNew) recForm.fresh()
+        else recording = false
+        },
+
+    // a just-saved transaction is selected when it arrives in the list, or said not to be there
+
+    listArrived() {
+        if (justSaved == "") return
+        const row = listRows.find((r) => r.id == justSaved)
+        if (row != null && !phone) takeSelection([row])
+        else if (row == null) toast.say("Saved. It isn't shown under the current filters.", null)
+        justSaved = ""
+        },
+    refundSale: DataSource [ autoFetch = true, schema = TxDetail,
+        url = { app.recRefundOf == "" ? "" : app.addr("/api/transactions/" + app.recRefundOf, "", "") } ],
+    salesSrc: DataSource [ autoFetch = true, schema = TxnPage,
+        url = { app.recKind == "refund" && app.recording ? app.addr("/api/transactions", "kind=sale", "limit=400") : "" } ],
+    saleItems: SaleItem[] = { (app.salesSrc.value?.rows ?? []).filter((r) => (r.refunded ?? 0) < r.amount).map((r) => ({ id: r.id,
+        label: r.description + (r.contactName != null ? " · " + r.contactName : "") + " · " + shortDate(r.date, app.today) + " · " + money(r.amount),
+        date: r.date, amount: r.amount })) },
+    saleItem(id: string) -> SaleItem? {
+        if (id == "") return null
+        const s = saleItems.find((x) => x.id == id)
+        if (s != null) return s
+        const d = refundSale.value as TxDetail | null
+        return d == null || d.id != id ? ({ id: id, label: id, date: "", amount: 0 }) : ({ id: id, label: d.description + " · " + shortDate(d.date, today) + " · " + money(d.amount), date: d.date, amount: d.amount })
+        },
+    contactTx: Write [ onLoad() { app.contactMade(this.value as Contact) },
+        onError() { if (this.statusCode == 409) app.contactMade((this.errorBody as { contact: Contact }).contact); else app.toast.say("Couldn't add the contact: " + this.refusal, null) }
+        ],
+    contactKind: string = "vendor",
+    createContact(name: string, type: string) {
+        if (name == "") return
+        contactKind = type
+        const usual = type == "vendor" && recForm != null && recForm.catId != null ? ({ usualCategoryId: recForm.catId }) : ({})
+        contactTx.send("POST", api + "/api/contacts", ({ name: name, type: type, ...usual }))
+        },
+    contactMade(c: Contact) {
+        rev = rev + 1
+        if (recForm == null) return
+        if (contactKind == "vendor") recForm.pickVendor(({ id: c.id, label: c.name }))
+        else recForm.customerId = c.id
+        },
+
+    // ── Insights: the charts' own reads, at the granularity chosen
+
+    insTab: string = { ["trends", "ive", "breakdown", "products"].includes(app.location.split("/")[1] ?? "") ? app.location.split("/")[1] : "trends" },
+    grainChoice: string = "",
+    grain: string = { app.grainChoice != "" ? app.grainChoice : autoGrain(app.f.from, app.f.to) },
+    rangeKey: string = { app.f.from + "/" + app.f.to },
+    insPeriods: DataSource [ autoFetch = true, schema = Periods,
+        url = { app.screen == "insights" ? app.addr("/api/aggregates/periods", app.fq, "by=" + app.grain) : "" } ],
+    insCmp: DataSource [ autoFetch = true, schema = Periods,
+        url = { app.screen == "insights" && app.cmp != null ? app.addr("/api/aggregates/periods", app.cmpQ, "by=" + app.grain) : "" } ],
+    insCmpPeriods: Period[] = { app.cmp == null ? [] : app.insCmp.value?.periods ?? [] },
+    trendMeasure: string = "revenue",
+    measureName(m: string) -> string {
+        return ({ revenue: "Revenue", expenses: "Expenses", net: "Net profit", margin: "Gross margin %", sales: "Number of sales" } as Record<string, string>)[m] ?? m
+        },
+    insPts: Pt[] = { app.periodPoints(app.insPeriods.value?.periods ?? [], app.insCmpPeriods, app.grain, [app.trendMeasure]) },
+    ivePts: Pt[] = { app.periodPoints(app.insPeriods.value?.periods ?? [], [], app.grain, ["revenue", "expenses", "net"]) },
+    unitText(v: number, m: string) -> string { return m == "margin" ? pct(v) : m == "sales" ? count(v) + " sales" : money(v) },
+    trendSentence: string = { app.peakSentence(app.insPts, app.trendMeasure) },
+    peakSentence(pts: Pt[], m: string) -> string {
+        const full = pts.filter((p) => !p.partial)
+        const use = full.length > 0 ? full : pts
+        if (use.length == 0) return ""
+        let hi = use[0]
+        for (const p of use) if ((p.v[0] ?? 0) > (hi.v[0] ?? 0)) hi = p
+        const verb = m == "expenses" || m == "sales" ? " were " : " was "
+        return measureName(m).replace(" %", "") + verb + "highest in " + hi.name + " (" + unitText(hi.v[0] ?? 0, m) + ")" +
+            (pts.some((p) => p.partial) ? "; the last period isn't over yet." : ".")
+        },
+    trendTable: TRow[] = {
+        app.insPts.map((p) => ({ id: p.key, head: p.name + (p.partial ? " (so far)" : ""),
+            cells: [({ text: app.unitText(p.v[0] ?? 0, app.trendMeasure), open: app.periodKey(p, app.trendMeasure), said: p.name + ", " + app.unitText(p.v[0] ?? 0, app.trendMeasure) + ". Open its records." }),
+                ...(app.cmp == null ? [] : [({ text: p.pv.length > 0 ? app.unitText(p.pv[0], app.trendMeasure) : "—", open: "", said: "" })])] }))
+        },
+    iveRunning: number[] = { app.ivePts.reduce((acc: number[], p, i) => { acc.push((acc[i - 1] ?? 0) + (p.v[2] ?? 0)); return acc }, []) },
+    breakEvenSentence: string = {
+        app.ivePts.length == 0 ? "" : app.breakEvenWords(app.ivePts, app.iveRunning)
+        },
+    breakEvenWords(pts: Pt[], run: number[]) -> string {
+        const total = run[run.length - 1] ?? 0
+        let from = -1
+        for (let i = run.length - 1; i >= 0; i--) { if (run[i] >= 0) from = i; else break }
+        const head = "Net profit over the range: " + money(total) + ". "
+        if (from == 0) return head + "The running total was in profit from the first period."
+        if (from > 0) return head + "The running total broke even by " + pts[from].name + " and stayed in profit."
+        return head + "The running total hasn't broken even in this range."
+        },
+    iveTable: TRow[] = {
+        app.ivePts.map((p, i) => ({ id: p.key, head: p.name + (p.partial ? " (so far)" : ""),
+            cells: [
+                ({ text: money(p.v[0] ?? 0), open: app.periodKey(p, "revenue"), said: p.name + " revenue " + money(p.v[0] ?? 0) + ". Open its records." }),
+                ({ text: money(p.v[1] ?? 0), open: app.periodKey(p, "expenses"), said: p.name + " expenses " + money(p.v[1] ?? 0) + ". Open its records." }),
+                ({ text: money(p.v[2] ?? 0), open: app.periodKey(p, "net"), said: p.name + " net profit " + money(p.v[2] ?? 0) + ". Open its records." }),
+                ({ text: money(app.iveRunning[i] ?? 0), open: "", said: "" })] }))
+        },
+
+    breakSide: string = "expense",
+    insCats: DataSource [ autoFetch = true, schema = CatTotals,
+        url = { app.screen == "insights" ? app.addr("/api/aggregates/categories", app.fq, "side=" + app.breakSide) : "" } ],
+    insCatsCmp: DataSource [ autoFetch = true, schema = CatTotals,
+        url = { app.screen == "insights" && app.cmp != null ? app.addr("/api/aggregates/categories", app.cmpQ, "side=" + app.breakSide) : "" } ],
+    breakBars: BarItem[] = { app.breakdownBars(app.insCats.value?.categories ?? [], app.insCats.value?.total.amount ?? 0, app.cmp == null ? [] : app.insCatsCmp.value?.categories ?? []) },
+    breakdownBars(cs: CatTotal[], total: number, prev: CatTotal[]) -> BarItem[] {
+        if (cs.length == 0) return []
+        const t = provided("theme")
+        const peak = Math.max(1, ...cs.map((c) => Math.abs(c.amount)))
+        const kinds = breakSide == "expense" ? ["expense"] : ["sale", "refund"]
+        return cs.map((c) => {
+            const name = books.catName(c.categoryId)
+            const was = prev.find((p) => p.categoryId == c.categoryId)?.amount ?? 0
+            const share = total != 0 ? Math.round(c.amount / total * 100) + "%" : ""
+            const chg = cmp == null ? "" : " · " + changeWords(c.amount, was)
+            return ({ id: c.categoryId ?? "none", label: name, amount: c.amount, share: Math.abs(c.amount) / peak,
+                tone: books.catColour(c.categoryId) >= 0 ? t.cats[books.catColour(c.categoryId) % 12] : t.warn,
+                note: share + chg,
+                said: name + ", " + money(c.amount) + ", " + share + " of the total" + (cmp == null ? "" : ", " + changeSentence(c.amount, was, cmpName, "money")) + ". Open its records.",
+                open: openKeyOf(name + (breakSide == "expense" ? " expenses" : " income"), ({ cats: [c.categoryId ?? "none"], kinds: bothKinds(f.kinds, kinds) })) })
+            })
+        },
+    breakData: Dataset [ schema = [ rows[]: BarItem ], contents = { ({ rows: app.breakBars }) } ],
+    breakSentence: string = {
+        app.breakBars.length == 0 ? "" : app.breakBars[0].label + " was the largest at " + money(app.breakBars[0].amount) + " of " + money(app.insCats.value?.total.amount ?? 0) + "."
+        },
+
+    prodSort: string = "revenue",
+    prodDir: string = "desc",
+    sortProducts(key: string) {
+        if (prodSort == key) prodDir = prodDir == "asc" ? "desc" : "asc"
+        else { prodSort = key; prodDir = key == "name" ? "asc" : "desc" }
+        },
+    prodRows: ProdRow[] = { app.productRows(app.prodTotals.value?.products ?? [], app.prodSort, app.prodDir) },
+    productRows(ps: ProdTotal[], key: string, dir: string) -> ProdRow[] {
+        const rows = ps.map((p) => ({ id: p.productId ?? "none", name: books.productName(p.productId), units: p.units, revenue: p.revenue,
+            cost: p.cost, margin: p.margin, marginPercent: p.marginPercent ?? null,
+            open: openKeyOf(books.productName(p.productId) + " sales", ({ products: [p.productId ?? "none"] })) }))
+        const val = (r: ProdRow) => key == "units" ? r.units : key == "revenue" ? r.revenue : key == "cost" ? r.cost : key == "margin" ? r.margin : key == "marginPercent" ? r.marginPercent ?? -1e12 : 0
+        rows.sort((a, b) => key == "name" ? a.name.localeCompare(b.name) : val(a) - val(b))
+        return dir == "desc" ? rows.reverse() : rows
+        },
+    prodData: Dataset [ schema = [ rows[]: ProdRow ], contents = { ({ rows: app.prodRows }) } ],
+    productsSentence: string = {
+        app.prodRows.length == 0 ? "" : app.bestMargin(app.prodRows)
+        },
+    bestMargin(rows: ProdRow[]) -> string {
+        const named = rows.filter((r) => r.id != "none")
+        if (named.length == 0) return ""
+        let top = named[0], best = named[0]
+        for (const r of named) { if (r.revenue > top.revenue) top = r; if ((r.marginPercent ?? 0) > (best.marginPercent ?? 0)) best = r }
+        return top.name + " brought in the most (" + money(top.revenue) + "); " + best.name + " kept the highest margin (" + pct(best.marginPercent) + ")."
+        },
+
+    // ── Budgets: the month the date range starts in
+
+    budgetRows: BudgetRow[] = { app.budgetLines(app.budgetsNow.value?.budgets ?? [], app.budgetPace) },
+    budgetPace: number = { app.paceOf(app.budgetMonth, app.today) },
+    paceOf(month: string, day: string) -> number {
+        if (day == "") return 0
+        if (monthKey(day) > month) return 1
+        if (monthKey(day) < month) return 0
+        const end = monthEnd(day)
+        return Number(day.slice(8, 10)) / Number(end.slice(8, 10))
+        },
+    budgetLines(bs: Budget[], pace: number) -> BudgetRow[] {
+        return bs.map((b) => {
+            const onPace = Math.round(b.amount * pace)
+            const over = b.spent > b.amount
+            const ahead = !over && pace > 0 && b.spent > onPace
+            const name = books.catName(b.categoryId)
+            return ({ id: b.categoryId, name: name, colour: books.catColour(b.categoryId), amount: b.amount, spent: b.spent, remaining: b.remaining,
+                pace: pace, tone: over ? "bad" : ahead ? "warn" : "good",
+                state: over ? "Over by " + money(b.spent - b.amount) : ahead ? money(b.spent - onPace) + " over pace" : "On track",
+                open: openKeyOf(name + " spending, " + monthLong(budgetMonth + "-01"),
+                    ({ preset: "custom", from: budgetMonth + "-01", to: monthEnd(budgetMonth + "-01"), cats: [b.categoryId], kinds: ["expense"] })) })
+            })
+        },
+    budgetData: Dataset [ schema = [ rows[]: BudgetRow ], contents = { ({ rows: app.budgetRows }) } ],
+    budgetNote: string = {
+        app.f.from != "" && app.f.from == monthStart(app.f.from) && app.f.to == monthEnd(app.f.from) ? ""
+            : "Budgets are monthly: this is " + monthLong(app.budgetMonth + "-01") + ", the month your date range starts in."
+        },
+    lastMonthCats: DataSource [ autoFetch = true, schema = CatTotals,
+        url = { app.screen == "budgets" ? app.addr("/api/aggregates/categories", [app.restQ, "from=" + addMonths(app.budgetMonth + "-01", -1), "to=" + monthEnd(addMonths(app.budgetMonth + "-01", -1))].filter((s) => s != "").join("&"), "side=expense") : "" } ],
+    lastMonthPlan: Budget[] = {
+        (app.lastMonthCats.value?.categories ?? []).filter((c) => c.categoryId != null && c.amount > 0
+            && app.books.category(c.categoryId)?.archived == false
+            && !(app.budgetsNow.value?.budgets ?? []).some((b) => b.categoryId == c.categoryId))
+            .map((c) => ({ categoryId: c.categoryId ?? "", amount: Math.ceil(c.amount / 100) * 100, spent: 0, remaining: 0, count: 0 }))
+        },
+    lastMonthOffer: number = { app.lastMonthPlan.length },
+    budgetQueue: Budget[] = [],
+    budgetTx: Write [ onLoad() { app.budgetSaved() }
+        ],
+    putBudget(categoryId: string, amount: number?) {
+        budgetTx.send("PUT", api + "/api/budgets/" + budgetMonth + "/" + categoryId, ({ amount: amount }))
+        },
+    budgetSaved() {
+        const next = budgetQueue[0]
+        if (next != null) { budgetQueue = budgetQueue.slice(1); putBudget(next.categoryId, next.amount); return }
+        rev = rev + 1
+        },
+    startFromLastMonth() {
+        const plan = lastMonthPlan
+        if (plan.length == 0) return
+        budgetQueue = plan.slice(1)
+        putBudget(plan[0].categoryId, plan[0].amount)
+        toast.say("Set " + plural(plan.length, "budget") + " from last month's spending", null)
+        },
+    unbudgeted: CatItem[] = {
+        app.books.expenseCats.filter((c) => !(app.budgetsNow.value?.budgets ?? []).some((b) => b.categoryId == c.id)).map((c) => ({ id: c.id, label: c.name }))
+        },
+    newBudgetCat: string = "",
+    newBudgetText: string = "",
+    addBudget() {
+        const c = parseMoney(newBudgetText)
+        if (newBudgetCat == "" || c == null || c <= 0) return
+        putBudget(newBudgetCat, c)
+        newBudgetCat = ""
+        newBudgetText = ""
+        },
+
+    // ── keys the whole program answers
+
+    shortcuts: Shortcuts [ title = "Ledger",
+        items = { [
+            ({ id: "search", key: "/", label: "Search" }),
+            ({ id: "expense", key: "n", label: "New expense" }),
+            ({ id: "sale", key: "s", label: "New sale" }),
+            ({ id: "prev", key: "[", label: "Previous period" }),
+            ({ id: "next", key: "]", label: "Next period" }),
+            ({ id: "undo", key: "Ctrl+Z", label: "Undo the last change", enabled: app.changes.length > 0 })
+            ] },
+        picked(id: string) {
+            if (id == "search") Focus.focus(app.searchField)
+            else if (id == "expense") app.record("expense")
+            else if (id == "sale") app.record("sale")
+            else if (id == "prev") app.stepDates(-1)
+            else if (id == "next") app.stepDates(1)
+            else if (id == "undo") app.undoLast()
+            }
+        ],
+
+    // views used from far away: the one line each that knows where it lives
+
+    searchField: SearchField = { app.main.bar.tools.search },
+
+    // ── the frame: the sidebar beside the page on a wide screen
+
+    layout: SimpleLayout [ axis = x ],
+
+    side: View [ visible = { app.wide }, width = 220, height = { app.height }, padding = [18, 12, 18, 12],
+        accessibilityRole = navigation, accessibilityLabel = "Ledger",
+        fill = { provided("theme").surface }, stroke = { [null, stroke(1, provided("theme").line), null, null] },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        brand: View [ height = 40, padding = [0, 10, 0, 10],
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            View [ width = 22, height = 22, cornerRadius = 6, fill = { provided("theme").accent },
+                TextLabel [ x = center, fontSize = 13, fontWeight = bold, textColor = { provided("theme").accentTextColor }, text = "L" ]
+                ],
+            TextLabel [ fontSize = 16, fontWeight = semibold, text = "Ledger" ]
+            ],
+        Spacer [ height = 8, flexes = false ],
+        newBtn: Button [ width = 100%, primary = true, label = "Record  N", iconLeft = "PlusIcon",
+            accessibilityLabel = "Record a transaction",
+            onClick() { app.record("expense") }
+            ],
+        Spacer [ height = 8, flexes = false ],
+        NavItem [ place = "overview", label = "Overview" ],
+        NavItem [ place = "transactions", label = "Transactions" ],
+        NavItem [ place = "insights", label = "Insights" ],
+        NavItem [ place = "budgets", label = "Budgets" ],
+        Spacer [ ],
+        appear: View [ padding = [0, 10, 0, 10],
+            Segmented [ width = 132, height = 28, accessibilityLabel = "Appearance", value = { app.themeMode },
+                items = { [ ({ id: "light", icon: "SunIcon" }), ({ id: "dark", icon: "MoonIcon" }), ({ id: "auto", icon: "AutoIcon" }) ] },
+                commit(v: string) { app.themeMode = v as "auto" | "light" | "dark" }
+                ]
+            ]
+        ],
+
+    main: View [ flexes = true, height = { app.height }, accessibilityRole = main,
+        layout: SimpleLayout [ axis = y ],
+
+        // ── the filter bar: always at the top of the page
+
+        bar: View [ width = 100%, padding = { [10, app.pad, 10, app.pad] },
+            fill = { provided("theme").background }, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            tools: View [ width = 100%,
+                layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = center ],
+                TextLabel [ visible = { !app.phone }, fontSize = 20, fontWeight = semibold, wrap = false, accessibilityRole = heading,
+                    padding = [0, 8, 0, 0], text = { app.screenTitle } ],
+                DateRangeBar [ ],
+                compareBtn: BarButton [ visible = { !app.phone }, label = { app.compareWords }, menu = { app.compareMenu } ],
+                filtersBtn: BarButton [ visible = { app.phone }, shape = "filter",
+                    label = { app.filterCount == 0 ? "Filters" : "Filters · " + app.filterCount }, on = { app.filterCount > 0 },
+                    press() { app.filtersOpen = true }
+                    ],
+                search: SearchField [ width = { app.phone ? app.width - 2 * app.pad : app.width >= 1400 ? 240 : 170 }, height = { app.tap },
+                    placeholder = { app.phone ? "Search" : "Search  /" }, accessibilityLabel = "Search transactions",
+                    value = { app.f.q },
+                    commit(v: string) { app.typeSearch(v) }
+                    ],
+                amountBtn: BarButton [ visible = { !app.phone }, label = { app.f.min == null && app.f.max == null ? "Amount" : app.amountWords }, shape = "filter",
+                    on = { app.f.min != null || app.f.max != null },
+                    press() { app.amountPop.showFor(this) }
+                    ],
+                kindBtn: BarButton [ visible = { !app.phone }, label = "Kind", on = { app.f.kinds.length > 0 },
+                    press() { app.openPick("kind", this) }
+                    ],
+                catBtn: BarButton [ visible = { !app.phone }, label = "Category", on = { app.f.cats.length > 0 },
+                    press() { app.openPick("category", this) }
+                    ],
+                contactBtn: BarButton [ visible = { !app.phone }, label = "Contact", on = { app.f.contacts.length > 0 },
+                    press() { app.openPick("contact", this) }
+                    ]
+                ],
+            ChipRow [ visible = { app.chipCount > 0 } ]
+            ],
+
+        // ── Transactions takes the rest of the window: the grid scrolls itself
+
+        txScreen: TransactionsScreen [ visible = { app.screen == "transactions" }, flexes = true ],
+
+        // ── the other screens scroll as a page
+
+        page: View [ width = 100%, flexes = true, scrolls = y, visible = { app.screen != "transactions" },
+            col: View [ x = center, width = { Math.min(1240, parent.width - 2 * app.pad) }, padding = [18, 0, 40, 0],
+                layout: SimpleLayout [ axis = y, spacing = 14 ],
+
+                // the figures are filtered: say so
+
+                filteredNote: View [ visible = { app.filtered }, width = 100%, cornerRadius = 8, padding = [8, 12, 8, 12],
+                    fill = { provided("theme").warnTint },
+                    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                    Mark [ iconSize = 14, weight = 1.6, shape = "filter", ink = { provided("theme").warn } ],
+                    Text [ flexes = true, fontSize = 13, text = { "Filtered figures — only " + app.filterWords + ". Totals here are not the whole business." } ]
+                    ],
+
+                state: View [ visible = { app.overviewFailed || app.slow }, width = 100%, cornerRadius = 8, padding = [8, 12, 8, 12],
+                    fill = { provided("theme").sunken },
+                    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+                    Text [ flexes = true, fontSize = 13, text = { app.overviewFailed ? "Some figures couldn't be loaded." : "Still working…" } ],
+                    Button [ visible = { app.overviewFailed }, height = 30, label = "Retry",
+                        onClick() { app.retryOverview() }
+                        ]
+                    ],
+
+                overview: OverviewScreen [ visible = { app.screen == "overview" }, opacity = { app.overviewLoading ? 0.6 : 1 } ],
+                insights: InsightsScreen [ visible = { app.screen == "insights" }, opacity = { app.insPeriods.loading || app.insCats.loading ? 0.6 : 1 } ],
+                budgets: BudgetsScreen [ visible = { app.screen == "budgets" }, opacity = { app.budgetsNow.loading ? 0.6 : 1 } ]
+                ]
+            ],
+
+        // ── below a desk's width: the places as tabs along the foot, recording in the thumb's reach
+
+        tabBar: View [ visible = { !app.wide }, width = 100%, height = { 58 + app.safeBottom }, padding = { [0, 8, app.safeBottom, 8] },
+            accessibilityRole = navigation, accessibilityLabel = "Ledger",
+            fill = { provided("theme").surface }, stroke = { [stroke(1, provided("theme").line), null, null, null] },
+            layout: SimpleLayout [ axis = x, align = center ],
+            PhoneTab [ place = "overview", label = "Overview" ],
+            PhoneTab [ visible = { !app.phone }, place = "insights", label = "Insights" ],
+            add: Control [ width = 64, height = 52, accessibilityLabel = "Record a transaction",
+                press() { app.record("expense") },
+                View [ x = center, y = center, width = 48, height = 48, cornerRadius = 24,
+                    fill = { parent.pressed ? provided("theme").accentPressed : provided("theme").accent },
+                    shadow = { shadow(0, 3, 10, 0x00000030) },
+                    Mark [ x = center, y = center, iconSize = 22, weight = 2.4, shape = "plus", ink = { provided("theme").accentTextColor } ]
+                    ]
+                ],
+            PhoneTab [ visible = { !app.phone }, place = "budgets", label = "Budgets" ],
+            PhoneTab [ place = "transactions", label = "Transactions" ]
+            ]
+        ],
+
+    // ── the layers
+
+    compareMenu: Menu [
+        items = { [
+            ({ id: "previous", label: "Previous period", group: "cmp", checked: app.compare == "previous" }),
+            ({ id: "year", label: "Same period last year", group: "cmp", checked: app.compare == "year" }),
+            ({ id: "none", label: "No comparison", group: "cmp", checked: app.compare == "none" })
+            ] },
+        picked(id: string) { app.compare = id as "previous" | "year" | "none" }
+        ],
+    rangePop: Popover [ accessibilityLabel = "Date range",
+        RangePanel [ ]
+        ],
+    amountPop: Popover [ accessibilityLabel = "Amount",
+        AmountPanel [ ]
+        ],
+    pickPop: Popover [ accessibilityLabel = { app.pickTitle },
+        PickPanel [ ]
+        ],
+
+    filterSheet: Sheet [ accessibilityLabel = "Filters", shown = { app.filtersOpen && app.phone },
+        commit(open: boolean) { app.filtersOpen = open },
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 16 ],
+            head: View [ width = 100%,
+                layout: SimpleLayout [ axis = x, align = center ],
+                Text [ flexes = true, accessibilityRole = heading, fontSize = 18, fontWeight = semibold, text = "Filters" ],
+                Button [ visible = { app.chipCount > 0 }, label = "Clear all",
+                    onClick() { app.clearAll() }
+                    ],
+                Button [ primary = true, label = "Done",
+                    onClick() { app.filtersOpen = false }
+                    ]
+                ],
+            Field [ label = "Compare with", stacked = true, width = 100%,
+                Segmented [ width = 100%, height = 44, value = { app.compare },
+                    items = { [ ({ id: "previous", label: "Previous" }), ({ id: "year", label: "Last year" }), ({ id: "none", label: "None" }) ] },
+                    commit(v: string) { app.compare = v as "previous" | "year" | "none" }
+                    ]
+                ],
+            AmountPanel [ width = 100% ],
+            Segmented [ width = 100%, height = 44, accessibilityLabel = "Filter by",
+                value = { app.pick },
+                items = { [ ({ id: "kind", label: "Kind" }), ({ id: "category", label: "Category" }), ({ id: "contact", label: "Contact" }) ] },
+                commit(v: string) { app.pick = v as "kind" | "category" | "contact" | "product"; app.pickQuery = "" }
+                ],
+            PickPanel [ width = 100% ]
+            ]
+        ],
+    detailSheet: Sheet [ edge = "end", accessibilityLabel = "Transaction",
+        shown = { !app.wide && app.screen == "transactions" && app.detailId != "" && (!app.phone || app.phoneDetail) },
+        commit(open: boolean) { if (!open) app.closeDetail() },
+        DetailPane [ ]
+        ],
+    recSheet: Sheet [ edge = "end", sheetWidth = 540, accessibilityLabel = "Record a transaction",
+        shown = { app.recording },
+        commit(open: boolean) { app.recording = open },
+        form: RecordForm [ exists = { app.recSheet.present }, editing = { app.recEditing } ]
+        ],
+
+    // the toast rises above the tab bar where there is one
+
+    toast: Toast [ duration = 6000,
+        y = { this._hostH - this.height - (app.wide ? 24 : 24 + 58 + app.safeBottom) + 16 * (1 - this.openT) },
+        picked(id: string) { if (id == "undo") app.undoLast() }
+        ]
+    ]

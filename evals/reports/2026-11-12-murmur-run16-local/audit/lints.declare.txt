@@ -1,0 +1,7 @@
+// DECLARE1002 (redundant parentheses around an object literal) and DECLARE4025
+// (a four-part condition), as at 6.7 and 14.4.
+App [ width = 200, height = 100,
+    seen: object = { ({}) },
+    a: boolean = true, b: boolean = false, c: boolean = true, d: boolean = false,
+    runEnd: boolean = { app.a || app.b != app.c || app.d || app.width > 20 }
+    ]

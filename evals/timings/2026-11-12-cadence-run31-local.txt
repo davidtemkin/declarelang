@@ -1,0 +1,42 @@
+# eval-cadence-31
+total 11.3 min · 63 turns · output 62254 tokens (thinking 19060)
+phases: reading 3.8 · writing 2.4 · checking 5.1 min
+tool time 1.8 min · model time 9.6 min
+tools:
+  verify    13×   1.19 min  (median 5.5 s)
+  look       5×   0.42 min  (median 5.9 s)
+  help      10×   0.16 min  (median 0.7 s)
+model turns, by what came before:
+  after help     10×   2.44 min  (median 4.0 s)
+  after write     2×   2.39 min  (median 71.7 s)
+  after bash     13×   2.03 min  (median 2.6 s)
+  after image    12×   1.21 min  (median 4.1 s)
+  after verify   13×   0.87 min  (median 2.8 s)
+  after look      5×   0.22 min  (median 1.5 s)
+  after read      6×   0.13 min  (median 0.8 s)
+app: 2 .declare files, 1007 non-blank lines · 16 snapshots changed them: 1277 lines added, 98 removed
+verify results mentioning accessibility: 2
+source reads: library 1 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/*.declare
+diagnostic codes, by tool results reporting them: DECLARE1002 2, DECLARE1000 1, DECLARE2000 1, DECLARE4035 1, DECLARE4032 1, DECLARE4025 1, DECLARE3005 1, DECLARE5000 1
+inside the agent's verify and look calls:
+   0.57 min    16×  R5 behavior, in all
+   0.44 min    28×  compile (R1–R3)
+   0.37 min    16×  script: the assert script, in all
+   0.16 min    26×  page: load, compile in the page and boot
+   0.13 min    16×  open: the app loaded and arrived, in all
+   0.11 min    67×  check: scrolling come to rest
+   0.11 min    46×  drive.settleMotion
+   0.09 min     9×  R4 boot, in all
+   0.09 min    21×  drive.click
+   0.08 min     3×  drive.drag
+   0.04 min    26×  page: a new page
+   0.04 min     4×  drive.pinch
+   0.03 min    16×  end: layout questions at the end of the script
+   0.03 min    25×  chrome: a browser (shared between calls)
+   0.02 min    10×  drive.wait
+   0.01 min     5×  drive.settleData
+   0.01 min    13×  screenshot: capture and write
+   0.01 min    16×  end: the network quiet after the script
+   0.00 min    65×  check: the layout questions
+   0.00 min    25×  end: the browser context released

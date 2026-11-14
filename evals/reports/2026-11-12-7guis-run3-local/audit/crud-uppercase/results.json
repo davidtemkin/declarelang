@@ -1,0 +1,37 @@
+{
+  "app": "http://127.0.0.1:8290/my-apps/7guis-run3/7guis.declare",
+  "results": [
+    {
+      "name": "crud",
+      "pass": true,
+      "reason": "met",
+      "ms": 3979,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"CRUD\"",
+        "selected": [
+          "Mustermann, Max"
+        ],
+        "layout": {
+          "filter": [
+            126,
+            90,
+            32
+          ],
+          "list": [
+            32,
+            134,
+            420,
+            682
+          ],
+          "create": [
+            32,
+            828
+          ]
+        }
+      },
+      "screenshot": "evals/reports/2026-11-12-7guis-run3-local/audit/crud-uppercase/crud.png"
+    }
+  ],
+  "notes": []
+}

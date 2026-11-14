@@ -1,0 +1,6 @@
+// The way r7 means: content placed in a frame reads the frame's state with provided(…).
+class ChartFrame [ asTable: boolean = true ]
+class Page [
+    ChartFrame [ Text [ text = { provided("asTable") ? "table" : "chart" } ] ]
+    ]
+App [ width = 200, height = 100, Page [ ] ]

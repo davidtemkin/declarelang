@@ -1,0 +1,202 @@
+/*
+# Ledger: Overview
+
+How the business is doing this period, and what needs attention, in five
+seconds. Every figure, bar and item opens the records behind it: each holds
+an `open` key, a drill the App knows how to follow (`app.openKey`).
+*/
+
+// One headline figure: its value, its change against the comparison period
+// in an arrow, a signed change and words, and a small line of the last twelve
+// periods. Pressing it opens Transactions filtered to exactly what makes it up.
+
+class FigureCard extends Control [ height = { app.phone ? 150 : 140 }, cornerRadius = 12, padding = 14,
+    title: string = "",
+    value: string = "",
+    change: string = "",          // "▲ 12% vs Oct"
+    delta: string = "",           // "+$412.00"
+    tone: number = 0,             // 1 good, −1 bad, 0 neither
+    spark: number[] = [],
+    sparkTone: Color = gray,
+    accessibilityLabel = { title + ", " + value + (change != "" ? ", " + change.replace("▲", "up").replace("▼", "down") : "") + ". Open its records." },
+    fill = { pressed ? provided("theme").sunken : hovered ? provided("theme").hover : provided("theme").card },
+    stroke = { stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    TextLabel [ fontSize = 13, fontWeight = medium, wrap = false, textColor = { provided("theme").textMuted }, text = { classroot.title } ],
+    TextLabel [ fontSize = { app.phone ? 22 : 26 }, fontWeight = semibold, wrap = false, numeralWidth = tabular, letterSpacing = -0.4,
+        text = { classroot.value } ],
+    chg: View [ width = 100%, height = 18,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        TextLabel [ fontSize = 12.5, fontWeight = semibold, wrap = false, numeralWidth = tabular,
+            textColor = { classroot.tone > 0 ? provided("theme").good : classroot.tone < 0 ? provided("theme").bad : provided("theme").textMuted },
+            text = { classroot.change } ],
+        TextLabel [ visible = { !app.phone }, flexes = true, fontSize = 12, wrap = false, maxLines = 1, numeralWidth = tabular,
+            textColor = { provided("theme").textMuted }, text = { classroot.delta } ]
+        ],
+    Sparkline [ width = 100%, height = 30, values = { classroot.spark }, tone = { classroot.sparkTone } ]
+    ]
+
+
+// A line in Needs attention: a mark, the sentence, and where it leads.
+
+class AttentionItem extends Control [ width = 100%, height = { app.touchFirst ? 52 : 40 }, cornerRadius = 8, padding = [0, 10, 0, 10],
+    accessibilityLabel = { :text ?? "" },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : provided("theme").warnTint },
+    press() { app.openKey(:open ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Mark [ iconSize = 14, weight = 1.6, shape = "warn", ink = { provided("theme").warn } ],
+    TextLabel [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { :text ?? "" } ],
+    Mark [ iconSize = 12, weight = 1.8, shape = "right", ink = { provided("theme").textMuted } ]
+    ]
+
+
+// A recent transaction: date, what it was, and the amount.
+
+class RecentRow extends Control [ width = 100%, height = { app.touchFirst ? 56 : 44 }, cornerRadius = 6, padding = [0, 8, 0, 8],
+    accessibilityLabel = { shortDate(:date ?? "") + ", " + (:description ?? "") + ", " + money(:signed ?? 0) },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    press() { app.openTxn(:id ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    TextLabel [ width = 52, fontSize = 12.5, wrap = false, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+        text = { shortDate(:date ?? "") } ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        TextLabel [ width = 100%, fontSize = 13.5, wrap = false, maxLines = 1, text = { (:description ?? "") == "" ? app.fallbackName(:kind ?? "", :contactName ?? null, :channel ?? null) : :description ?? "" } ],
+        TextLabel [ visible = { (:contactName ?? "") != "" && (:description ?? "") != "" }, width = 100%, fontSize = 12, wrap = false, maxLines = 1,
+            textColor = { provided("theme").textMuted }, text = { :contactName ?? "" } ]
+        ],
+    TextLabel [ fontSize = 13.5, fontWeight = medium, wrap = false, numeralWidth = tabular,
+        textColor = { (:signed ?? 0) < 0 ? provided("theme").text : provided("theme").good }, text = { money(:signed ?? 0) } ]
+    ]
+
+
+class OverviewScreen [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    // ── the four figures
+
+    figures: View [ width = 100%,
+        layout: WrappingLayout [ columns = { app.width < 760 ? 2 : 4 }, spacing = 12, rowSpacing = 12 ],
+        FigureCard [ flexes = true, title = "Revenue",
+            value = { money(app.cur?.revenue.amount ?? 0) },
+            change = { app.changeLine(app.cur?.revenue.amount ?? 0, app.prev?.revenue.amount ?? null) },
+            delta = { app.prev == null ? "" : moneySigned((app.cur?.revenue.amount ?? 0) - (app.prev?.revenue.amount ?? 0)) },
+            tone = { app.toneOf(app.cur?.revenue.amount ?? 0, app.prev?.revenue.amount ?? null, 1) },
+            spark = { app.spark("revenue") }, sparkTone = { provided("theme").income },
+            press() { app.drillFigure("revenue") }
+            ],
+        FigureCard [ flexes = true, title = "Expenses",
+            value = { money(app.cur?.expenses.amount ?? 0) },
+            change = { app.changeLine(app.cur?.expenses.amount ?? 0, app.prev?.expenses.amount ?? null) },
+            delta = { app.prev == null ? "" : moneySigned((app.cur?.expenses.amount ?? 0) - (app.prev?.expenses.amount ?? 0)) },
+            tone = { app.toneOf(app.cur?.expenses.amount ?? 0, app.prev?.expenses.amount ?? null, -1) },
+            spark = { app.spark("expenses") }, sparkTone = { provided("theme").expense },
+            press() { app.drillFigure("expenses") }
+            ],
+        FigureCard [ flexes = true, title = "Net profit",
+            value = { money(app.cur?.net.amount ?? 0) },
+            change = { app.changeLine(app.cur?.net.amount ?? 0, app.prev?.net.amount ?? null) },
+            delta = { app.prev == null ? "" : moneySigned((app.cur?.net.amount ?? 0) - (app.prev?.net.amount ?? 0)) },
+            tone = { app.toneOf(app.cur?.net.amount ?? 0, app.prev?.net.amount ?? null, 1) },
+            spark = { app.spark("net") }, sparkTone = { provided("theme").net },
+            press() { app.drillFigure("net") }
+            ],
+        FigureCard [ flexes = true, title = "Gross margin",
+            value = { pct(app.cur?.grossMargin.percent ?? null) },
+            change = { app.marginChange },
+            delta = { app.cur == null ? "" : money(app.cur.grossMargin.amount) + " margin" },
+            tone = { app.marginTone },
+            spark = { app.spark("margin") }, sparkTone = { provided("theme").accent },
+            press() { app.drillFigure("margin") }
+            ]
+        ],
+
+    // ── income vs expenses, month by month
+
+    ive: ChartFrame [ title = "Income vs expenses",
+        sentence = { app.iveSentence },
+        tooLittle = { app.trendPts.length == 0 },
+        chart: TimeChart [ width = 100%, height = { app.phone ? 200 : 240 }, visible = { !parent.parent.asTable },
+            chartLabel = "Income vs expenses, by month. Use the arrow keys to read each month.",
+            points = { app.trendPts },
+            series = { app.iveSeries },
+            openPoint(i: number, s: number) { app.drillPeriod(app.trendPts[i], ["revenue", "expenses", "net"][s] ?? "net") },
+            rangePicked(from: string, to: string) { app.setDates(from, to) }
+            ],
+        TableView [ visible = { parent.parent.asTable }, heads = ["Month", "Revenue", "Expenses", "Net profit"],
+            rows = { app.periodTable(app.trendPts, ["revenue", "expenses", "net"]) } ]
+        ],
+
+    // ── two by two: where the money went, what needs attention, what sold, who bought
+
+    grid: View [ width = 100%,
+        layout: WrappingLayout [ columns = { app.width < 1000 ? 1 : 2 }, spacing = 16, rowSpacing = 16 ],
+
+        cats: ChartFrame [ flexes = true, title = "Expenses by category",
+            sentence = { app.catSentence },
+            tooLittle = { app.catBars.length == 0 }, tooLittleText = "No expenses in this range.",
+            BarList [ visible = { !parent.parent.asTable }, datapath = { app.catBarData.value },
+                BarRow [ datapath = :rows[],
+                    press() { app.openKey(:open ?? "") }
+                    ]
+                ],
+            TableView [ visible = { parent.parent.asTable }, heads = ["Category", "Amount", "Share"],
+                rows = { app.barTable(app.catBars) } ]
+            ],
+
+        attention: Panel [ flexes = true,
+            SectionHead [ title = "Needs attention" ],
+            items: View [ width = 100%, datapath = { app.attentionData.value },
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                AttentionItem [ datapath = :rows[] ]
+                ],
+            caught: View [ visible = { app.attention.length == 0 }, width = 100%, padding = [6, 0, 6, 0],
+                layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                Mark [ iconSize = 16, weight = 2, shape = "check", ink = { provided("theme").good } ],
+                Text [ fontSize = 14, fontWeight = medium, text = "All caught up." ]
+                ]
+            ],
+
+        products: ChartFrame [ flexes = true, title = "Top products",
+            sentence = { app.productSentence },
+            tooLittle = { app.productBars.length == 0 }, tooLittleText = "No sales in this range.",
+            BarList [ visible = { !parent.parent.asTable }, datapath = { app.productBarData.value },
+                BarRow [ datapath = :rows[],
+                    press() { app.openKey(:open ?? "") }
+                    ]
+                ],
+            TableView [ visible = { parent.parent.asTable }, heads = ["Product", "Revenue", "Units"],
+                rows = { app.barTable(app.productBars) } ]
+            ],
+
+        customers: ChartFrame [ flexes = true, title = "Top customers",
+            sentence = { app.customerSentence },
+            tooLittle = { app.customerBars.length == 0 }, tooLittleText = "No sales in this range.",
+            BarList [ visible = { !parent.parent.asTable }, datapath = { app.customerBarData.value },
+                BarRow [ datapath = :rows[],
+                    press() { app.openKey(:open ?? "") }
+                    ]
+                ],
+            TableView [ visible = { parent.parent.asTable }, heads = ["Customer", "Revenue", "Orders"],
+                rows = { app.barTable(app.customerBars) } ]
+            ]
+        ],
+
+    // ── the latest records
+
+    recent: Panel [ width = 100%,
+        SectionHead [ title = "Recent transactions",
+            Control [ height = { app.tap }, padding = [0, 8, 0, 8], cornerRadius = 6,
+                fill = { hovered ? provided("theme").hover : null },
+                press() { app.location = "transactions" },
+                TextLabel [ fontSize = 12.5, fontWeight = semibold, textColor = { provided("theme").accent }, text = "See all" ]
+                ]
+            ],
+        list: View [ width = 100%, datapath = { app.recent.value },
+            layout: SimpleLayout [ axis = y ],
+            RecentRow [ datapath = :rows[] ]
+            ],
+        none: Text [ visible = { (app.recent.value?.rows ?? []).length == 0 && app.recent.loaded }, fontSize = 13,
+            textColor = { provided("theme").textMuted }, text = "Nothing recorded in this range." ]
+        ]
+    ]

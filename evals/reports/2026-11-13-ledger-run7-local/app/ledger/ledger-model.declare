@@ -1,0 +1,160 @@
+/*
+# Ledger: the model
+
+What the service holds, as schemas, and the two kinds of node that talk to
+it:
+
+- **`Lookups`** — the business's own vocabulary, fetched once: categories,
+  channels, products and contacts, with the questions every screen asks of
+  them (a category's name and colour, a vendor's usual category).
+- **`Write`** — one request that changes the books. Each kind of change the
+  app makes is an instance on the App. A write that lands bumps the App's
+  `rev`, which every read carries in its address, so every list, chart and
+  total refetches at once and nothing has to be told.
+
+The reads themselves are `DataSource`s on the App, each addressed by the
+filter (see `ledger.declare`): change the filter, and every address changes.
+*/
+
+// ── what the service holds ──────────────────────────────────────────────────
+
+schema Category [ id: string, name: string, kind: string, colour: number, archived: boolean ]
+schema Channel [ id: string, name: string ]
+schema Product [ id: string, name: string, price: number, unitCost: number, archived: boolean ]
+schema Contact [ id: string, name: string, type: string, usualCategoryId?: string,
+    transactionCount: number, lastDate?: string ]
+
+schema SplitInfo [ parts: number, categoryIds[]: string ]
+
+// One row of the list, as the service sends it.
+
+schema Txn [ id: string, kind: string, date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, split?: SplitInfo,
+    channel?: string, amount: number, signed: number, inFilter: number,
+    lineCount: number, refundOf?: string, refunded?: number ]
+
+schema Summary [ count: number, in: number, out: number, net: number ]
+schema TxnPage [ total: number, summary: Summary, rows[]: Txn ]
+
+// One transaction, opened.
+
+schema Part [ categoryId: string, amount: number ]
+schema TxLine [ id: string, productId?: string, description: string, quantity: number,
+    unitPrice: number, amount: number, unitCost?: number,
+    refunded?: number, refundedQuantity?: number, refundable?: number, refundableQuantity?: number,
+    saleLineId?: string ]
+schema TxRef [ id: string, date: string, description: string, amount: number, channel?: string ]
+schema TxDetail [ id: string, kind: string, date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, split?: SplitInfo,
+    channel?: string, amount: number, signed: number, lineCount: number,
+    refundOf?: string, refunded?: number,
+    parts[]?: Part, lines[]: TxLine, refunds[]?: TxRef, sale?: TxRef,
+    refundable?: number, cost?: number, margin?: number ]
+schema TxReply [ transaction: TxDetail, changeId?: string ]
+
+// Totals over periods: one measure is an amount and how many transactions
+// are behind it.
+
+schema Measure [ amount: number, count: number ]
+schema Margin [ amount: number, percent?: number, count: number ]
+schema Period [ period: string, start: string, end: string, from: string, to: string, partial: boolean,
+    revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema PeriodTotal [ revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema Periods [ by: string, from: string, to: string, periods[]: Period, total: PeriodTotal ]
+
+schema CatTotal [ categoryId?: string, amount: number, count: number ]
+schema CatTotals [ side: string, categories[]: CatTotal, total: Measure ]
+schema ProdTotal [ productId?: string, units: number, revenue: number, cost: number, margin: number,
+    marginPercent?: number, count: number ]
+schema ProdTotals [ products[]: ProdTotal ]
+schema ContactTotal [ contactId?: string, contactName?: string, amount: number, count: number ]
+schema ContactTotals [ side: string, contacts[]: ContactTotal, total: Measure ]
+schema Bucket [ min: number, max?: number, count: number ]
+schema Buckets [ buckets[]: Bucket, count: number, lowest?: number, highest?: number ]
+schema CatCount [ categoryId?: string, count: number ]
+schema CatCounts [ categories[]: CatCount, total: number ]
+schema Budget [ categoryId: string, amount: number, spent: number, remaining: number, count: number ]
+schema Budgets [ month: string, from: string, to: string, budgets[]: Budget ]
+
+// A refusal: the first problem's sentence, and every problem by the field it concerns.
+
+schema Problem [ field?: string, message: string, remaining?: number ]
+schema Refusal [ error: string, message: string, problems[]?: Problem ]
+
+// What the app can take back: one change the service made, and what it was.
+
+schema Change [ id: string, said: string ]
+
+
+// ── the vocabulary ──────────────────────────────────────────────────────────
+
+class Lookups extends Node [
+    base: string = "",
+    rev: number = 0,
+
+    cats: DataSource [ url = { classroot.base + "/api/categories" }, autoFetch = true,
+        schema = [ categories[]: Category ] ],
+    channelsSrc: DataSource [ url = { classroot.base + "/api/channels" }, autoFetch = true,
+        schema = [ channels[]: Channel ] ],
+    products: DataSource [ url = { classroot.base + "/api/products" }, autoFetch = true,
+        schema = [ products[]: Product ] ],
+
+    // contacts change when one is created, so this one follows `rev`
+
+    contacts: DataSource [ url = { classroot.base + "/api/contacts?rev=" + classroot.rev }, autoFetch = true,
+        schema = [ contacts[]: Contact ] ],
+
+    loaded: boolean = { this.cats.loaded && this.channelsSrc.loaded && this.products.loaded && this.contacts.loaded },
+    failed: boolean = { this.cats.failed || this.channelsSrc.failed || this.products.failed || this.contacts.failed },
+    retry() { this.cats.fetch(); this.channelsSrc.fetch(); this.products.fetch(); this.contacts.fetch() },
+
+    categories: Category[] = { this.cats.value?.categories ?? [] },
+    channels: Channel[] = { this.channelsSrc.value?.channels ?? [] },
+    productList: Product[] = { (this.products.value?.products ?? []).filter((p) => !p.archived) },
+    people: Contact[] = { this.contacts.value?.contacts ?? [] },
+    vendors: Contact[] = { this.people.filter((c) => c.type == "vendor") },
+    customers: Contact[] = { this.people.filter((c) => c.type == "customer") },
+
+    // the categories a new record may be given: not archived, of a side
+
+    expenseCats: Category[] = { this.categories.filter((c) => c.kind == "expense" && !c.archived) },
+    incomeCats: Category[] = { this.categories.filter((c) => c.kind == "income" && !c.archived) },
+
+    category(id: string?) -> Category? { return this.categories.find((c) => c.id == id) ?? null },
+    catName(id: string?) -> string { return id == null ? "Uncategorised" : this.category(id)?.name ?? id },
+    catColour(id: string?) -> number { return this.category(id)?.colour ?? -1 },
+    channelName(id: string?) -> string { return id == null ? "" : this.channels.find((c) => c.id == id)?.name ?? id },
+    product(id: string?) -> Product? { return (this.products.value?.products ?? []).find((p) => p.id == id) ?? null },
+    productName(id: string?) -> string { return id == null ? "Other items" : this.product(id)?.name ?? id },
+    contact(id: string?) -> Contact? { return this.people.find((c) => c.id == id) ?? null },
+    contactName(id: string?) -> string { return id == null ? "No contact" : this.contact(id)?.name ?? id }
+    ]
+
+
+// ── a change to the books ───────────────────────────────────────────────────
+//
+// `send` aims the request and sends it in one step: `fetch()` settles
+// first, so the request carries what the handler just set. `onDone` on the
+// instance says what follows success; a failure is read from `failed`,
+// `error` and `errorBody` where it is shown.
+
+class Write extends DataSource [ method = "POST", timeout = 20,
+    send(how: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", address: string, payload: object?) {
+        this.method = how
+        this.url = address
+        this.body = payload
+        this.fetch()
+        },
+
+    // the sentence the service gave, or why there was none
+
+    refusal: string = { this.failed ? this.reason() : "" },
+    reason() -> string {
+        const b = this.errorBody as Refusal | null
+        if (b != null && b.message != null) return b.message
+        if (this.failure == "rejected") return "The service refused this change."
+        return "Couldn't reach the books. Nothing may have been saved — check, then try again."
+        }
+    ]

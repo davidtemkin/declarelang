@@ -1,0 +1,4 @@
+// Message check: a Segmented in a form given the form address `name`, as every ValueControl has.
+App [ width = 300, height = 100, ch: string = "a",
+    Segmented [ name = "channel", value = { app.ch }, items = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ]
+    ]

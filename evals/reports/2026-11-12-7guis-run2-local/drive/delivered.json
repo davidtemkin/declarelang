@@ -1,0 +1,168 @@
+{
+  "app": "http://127.0.0.1:8290/evals/_score-7guis2/7guis.declare",
+  "results": [
+    {
+      "name": "counter",
+      "pass": true,
+      "reason": "met",
+      "ms": 2713,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Counter\"",
+        "field": "textbox \"Count\" value 0"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/g2-drive/counter.png"
+    },
+    {
+      "name": "temperature",
+      "pass": true,
+      "reason": "met",
+      "ms": 15860,
+      "fallbacks": [
+        "went to Temperature Converter by \"Temperature\" (tab), a looser name"
+      ],
+      "observed": {
+        "via": "tab \"Temperature\"",
+        "C→F": "100 → 212",
+        "C→F (negative)": "-40 → -40",
+        "C→F (decimal)": "37 → 98.6",
+        "F→C": "212 → 100",
+        "F→C (2)": "50 → 10",
+        "notANumber": "C \"abc\" left F \"50\"; F \"x12\" left C \"20\""
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/g2-drive/temperature.png"
+    },
+    {
+      "name": "flight",
+      "pass": true,
+      "reason": "met",
+      "ms": 12192,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Flight Booker\"",
+        "start": {
+          "kind": "one-way",
+          "startDate": "12.11.2026",
+          "returnDate": "12.11.2026"
+        },
+        "format": "DD.MM.YYYY",
+        "booked one-way": "You have booked a one-way flight on 12.11.2026. OK",
+        "kindControl": "button \"Flight type\" showing \"Flight type return flight return flight\"",
+        "booked return": "You have booked a return flight on 18.11.2026, returning on 25.11.2026. OK",
+        "start \"not a date\"": "aria-invalid yes; red pixels 0 → 588",
+        "return \"not a date\"": "aria-invalid yes; red pixels 0 → 588",
+        "booked one-way (again)": "You have booked a one-way flight on 18.11.2026. OK"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/g2-drive/flight.png"
+    },
+    {
+      "name": "timer",
+      "pass": true,
+      "reason": "met",
+      "ms": 9983,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Timer\"",
+        "gauge": "progressbar \"Elapsed time\"",
+        "label": "0.8s",
+        "realTime": "0.8 → 2.3 over 1.50 s",
+        "d1": 4,
+        "stopped": "4 s, gauge 1.00",
+        "resumed": "to 5.5 s at d 5.5",
+        "drag": "d 3 → 31, gauge 1.00 → 0.19 while the button is down",
+        "reset": "0 then 0.8"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/g2-drive/timer.png"
+    },
+    {
+      "name": "crud",
+      "pass": true,
+      "reason": "met",
+      "ms": 3881,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"CRUD\"",
+        "selected": [
+          "Mustermann, Max"
+        ],
+        "layout": {
+          "filter": [
+            108,
+            82,
+            32
+          ],
+          "list": [
+            24,
+            126,
+            1096,
+            698
+          ],
+          "create": [
+            24,
+            836
+          ]
+        }
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/g2-drive/crud.png"
+    },
+    {
+      "name": "circles_select",
+      "pass": true,
+      "reason": "met",
+      "ms": 6261,
+      "fallbacks": [
+        "no canvas named in the tree; used the largest area below Undo"
+      ],
+      "observed": {
+        "via": "tab \"Circle Drawer\"",
+        "canvas": [
+          24,
+          134,
+          1392,
+          742
+        ],
+        "diameter": 43
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/g2-drive/circles_select.png"
+    },
+    {
+      "name": "circles_history",
+      "pass": true,
+      "reason": "met",
+      "ms": 11326,
+      "fallbacks": [
+        "no canvas named in the tree; used the largest area below Undo"
+      ],
+      "observed": {
+        "via": "tab \"Circle Drawer\"",
+        "canvas": [
+          24,
+          134,
+          1392,
+          742
+        ],
+        "menuItem": "menuitem \"Adjust diameter…\"",
+        "slider": "\"Diameter\" 40",
+        "live": "thumb dragged 48 px: slider 40 → 71, radius 21.5 → 37.5 before the button was up",
+        "closedBy": "Close",
+        "history": "radius 21.5 → adjusted 37.5 → undo 21.5 → redo 37.5"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/g2-drive/circles_history.png"
+    },
+    {
+      "name": "cells",
+      "pass": false,
+      "reason": "no sheet with column \"A\" and row \"0\" visible (last seen: \"0 column letters, 0 row numbers\")",
+      "ms": 8116,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Cells\""
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/g2-drive/cells.png"
+    }
+  ],
+  "notes": [
+    "flight: the kind-of-flight control is named \"Flight type\"; the choice it shows is in its text, not its name",
+    "circles: Tab never reaches the adjust window's slider (30 presses) — keyboard users can't adjust a diameter"
+  ]
+}

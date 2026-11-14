@@ -1,0 +1,6 @@
+// Account (g)5: can a subclass set attributes on its base's named child? Two spellings.
+class Base [ width = 100, height = 40, pick: View [ width = 10, height = 10 ] ]
+class SubA extends Base [ pick [ width = 20 ] ]
+class SubB extends Base [ pick: View [ width = 30 ] ]
+App [ width = 300, height = 100, a: SubA [ ], b: SubB [ y = 50 ],
+    Text [ x = 150, text = { "a " + app.a.pick.width + " · b " + app.b.pick.width + " · b children " + app.b.childViews.length } ] ]

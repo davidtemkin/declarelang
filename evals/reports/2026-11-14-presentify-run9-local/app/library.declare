@@ -1,0 +1,196 @@
+/*
+# Presentify: the presentations
+
+Every presentation as a card: a picture of its first slide, its title, when it
+was last changed. A card opens its presentation (which grows out of the card),
+and its menu renames or deletes it. The screen has a state for each thing the
+service can be doing: loading, unreachable, empty, or answering.
+*/
+
+// As many columns as fit at a comfortable card width, the cards sharing the row.
+
+class CardGrid extends Layout [
+    minW: number = 236,
+    gap: number = 24,
+    place() {
+        const w = this.contentExtent("width")
+        const kids = this.laid()
+        const cols = Math.max(1, Math.floor((w + gap) / (minW + gap)))
+        const cw = (w - gap * (cols - 1)) / cols
+        const rows: number[] = []
+        kids.forEach((c, i) => { const r = Math.floor(i / cols); rows[r] = Math.max(rows[r] ?? 0, c.height) })
+        let y = 0
+        const ys: number[] = []
+        rows.forEach((h, r) => { ys[r] = y; y = y + h + gap + 4 })
+        return kids.map((c, i) => ({ x: (i % cols) * (cw + gap), y: ys[Math.floor(i / cols)], w: cw }))
+        }
+    ]
+
+
+// A card is the presentation's picture and words, which open it, and beside
+// them a menu button; the two are siblings, so each is its own control.
+
+class DeckCard [
+    did: string = { :id ?? "" },
+    title: string = { app.library.titleOf(:@) },
+    pic: View = { this.opener.pic },
+
+    // the first slide, fetched again whenever the presentation changes
+
+    thumb: DataSource [ autoFetch = true, timeout = 10,
+        url = { app.api + "/api/slides/" + (:thumbnailSlideId ?? "") + "?v=" + encodeURIComponent(:updatedAt ?? "") } ],
+
+    lift: number = 0,
+    Spring [ attribute = lift, to = { classroot.hovered || classroot.opener.focused ? 1 : 0 }, stiffness = 420, damping = 30 ],
+    onContextMenu(e: PointerEvent) { app.menuDeck = did; app.deckMenu.showAt(this, e) },
+
+    opener: Control [ width = 100%, cornerRadius = 12, cursor = "pointer",
+        accessibilityLabel = { "Open " + classroot.title },
+        press() { app.openDeck(classroot.did, this.pic) },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        pic: View [ width = 100%, height = { this.width * 9 / 16 },
+            face: View [ y = { -3 * classroot.lift }, width = 100%, height = 100%, cornerRadius = 12, clip = true,
+                fill = { provided("theme").raised },
+                stroke = { stroke(1, classroot.lift > 0.5 ? provided("theme").lineStrong : provided("theme").line) },
+                shadow = { shadow(0, 6 + 10 * classroot.lift, 18 + 16 * classroot.lift, 0x00000099) },
+                SlideView [ datapath = { classroot.thumb.value }, scale = { parent.width / 1280 },
+                    visible = { classroot.thumb.loaded } ],
+                Shimmer [ width = 100%, height = 100%, visible = { !classroot.thumb.loaded }, active = { !classroot.thumb.loaded } ]
+                ]
+            ],
+        words: View [ width = 100%, padding = [0, 40, 0, 4],
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, fontSize = 14.5, fontWeight = 600, maxLines = 2, lineHeight = 1.25,
+                textColor = { provided("theme").text }, text = { classroot.title } ],
+            Text [ width = 100%, fontSize = 12, wrap = false, maxLines = 1, textColor = { provided("theme").textFaint },
+                text = { editedAgo(:updatedAt ?? "", app.clock.now) + " · " + (:slideCount ?? 0) + ((:slideCount ?? 0) == 1 ? " slide" : " slides") } ]
+            ]
+        ],
+    more: IconButton [ x = { classroot.width - 32 }, y = { classroot.opener.pic.height + 8 },
+        shape = "more", label = { "More for " + classroot.title },
+        opacity = { classroot.hovered || this.focused || app.deckMenu.shown && app.menuDeck == classroot.did ? 1 : 0 },
+        press() { app.menuDeck = classroot.did; app.deckMenu.showFor(this) }
+        ]
+    ]
+
+
+// A placeholder that breathes while a picture loads.
+
+class Shimmer [ fill = { provided("theme").raised },
+    active: boolean = true,
+    t: number = 0,
+    Time [ tick = frame, running = { classroot.active },
+        onTick(dt: number) { classroot.t = (classroot.t + dt / 1400) % 1 }
+        ],
+    View [ width = 100%, height = 100%, opacity = { 0.35 + 0.35 * Math.sin(classroot.t * Math.PI * 2) },
+        fill = { provided("theme").hover } ]
+    ]
+
+
+// The empty library: slides fanned out, waiting.
+
+class EmptyArt [ width = 220, height = 150,
+    draw(d: DrawContext) {
+        const th = provided("theme")
+        const card = (x: number, y: number, r: number, fill: number) => {
+            d.save()
+            d.translate(x, y)
+            d.rotate(r)
+            d.fillStyle = 0x00000055
+            d.beginPath(); d.roundRect(-62, -33, 128, 74, 10); d.fill()
+            d.fillStyle = fill
+            d.beginPath(); d.roundRect(-64, -36, 128, 72, 10); d.fill()
+            d.restore()
+            }
+        card(70, 88, -0.16, th.raised)
+        card(150, 84, 0.14, th.raised)
+        card(110, 70, 0, 0xFFFFFF)
+        d.fillStyle = th.accent
+        d.beginPath(); d.roundRect(62, 46, 54, 10, 5); d.fill()
+        d.fillStyle = th.brandTo
+        d.beginPath(); d.arc(140, 82, 16, 0, Math.PI * 2); d.fill()
+        d.fillStyle = 0xD9D4CC
+        d.beginPath(); d.roundRect(62, 66, 40, 6, 3); d.roundRect(62, 78, 32, 6, 3); d.fill()
+        }
+    ]
+
+
+class LibraryScreen [ fill = { provided("theme").background },
+    layout: SimpleLayout [ axis = y ],
+
+    header: View [ width = 100%, height = 84, padding = [0, 40, 0, 40], accessibilityRole = banner,
+        layout: SimpleLayout [ axis = x, align = center, spacing = 12 ],
+        Wordmark [ big = true ],
+        Spacer [ ],
+        Button [ label = { app.library.creating ? "Starting…" : "New presentation" }, primary = true, iconLeft = "AddIcon", height = 40,
+            disabled = { app.library.creating },
+            onClick() { app.library.create() }
+            ]
+        ],
+
+    body: View [ width = 100%, flexes = true, scrolls = y, padding = [6, 40, 64, 40], accessibilityRole = main,
+        layout: SimpleLayout [ axis = y, spacing = 22 ],
+        titleRow: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 28, fontWeight = 700, letterSpacing = -0.5, accessibilityRole = heading,
+                textColor = { provided("theme").text }, text = "Your presentations" ],
+            Text [ fontSize = 15, fontWeight = 500, textColor = { provided("theme").textFaint },
+                visible = { app.library.loaded }, text = { "" + app.library.shown.length } ]
+            ],
+
+        // the service is not answering
+
+        offline: View [ width = 100%, padding = [40, 0, 0, 0], visible = { app.library.failed && !app.library.loaded },
+            layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+            Glyph [ iconSize = 34, weight = 1.6, shape = "cloudOff", ink = { provided("theme").warn } ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 20, fontWeight = 700, textColor = { provided("theme").text },
+                text = "Can't reach the service" ],
+            Text [ width = 360, textAlign = center, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = "Your presentations live in the Presentify service, and it isn't answering. Presentify keeps trying." ],
+            Button [ label = "Try again now",
+                onClick() { app.library.fetch() }
+                ]
+            ],
+
+        // nothing yet
+
+        empty: View [ width = 100%, padding = [30, 0, 0, 0], visible = { app.library.loaded && app.library.shown.length == 0 },
+            layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+            EmptyArt [ ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 22, fontWeight = 700, textColor = { provided("theme").text },
+                text = "Nothing presented yet" ],
+            Text [ width = 380, textAlign = center, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = "Start a presentation and it opens straight onto its first slide." ],
+            Button [ label = "New presentation", primary = true, iconLeft = "AddIcon",
+                onClick() { app.library.create() }
+                ]
+            ],
+
+        // loading: the shape of cards to come
+
+        loading: View [ width = 100%, visible = { !app.library.loaded && !app.library.failed },
+            layout: CardGrid [ ],
+            LoadingCard [ ],
+            LoadingCard [ ],
+            LoadingCard [ ],
+            LoadingCard [ ]
+            ],
+
+        grid: View [ width = 100%, datapath = { app.library.value }, visible = { app.library.loaded },
+            layout: CardGrid [ ],
+            DeckCard [ datapath = :decks[], visible = { !app.library.gone.includes(:id ?? "") } ]
+            ]
+        ]
+    ]
+
+
+class LoadingCard [
+    waiting: boolean = { !app.library.loaded && !app.library.failed },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Shimmer [ width = 100%, height = { this.width * 9 / 16 }, cornerRadius = 12, clip = true, active = { classroot.waiting } ],
+    Shimmer [ width = 60%, height = 14, cornerRadius = 7, clip = true, active = { classroot.waiting } ],
+    Shimmer [ width = 40%, height = 10, cornerRadius = 5, clip = true, active = { classroot.waiting } ]
+    ]
+
+
+class AddIcon extends Glyph [ shape = "plus" ]

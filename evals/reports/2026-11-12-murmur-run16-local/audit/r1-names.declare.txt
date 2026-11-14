@@ -1,0 +1,13 @@
+// The four R1 refusals at 6.6 min, together: fontStyle (CSS, hinted), a child
+// named 'clip' (collision), fontFeatures (Flutter's TextStyle.fontFeatures;
+// Declare's is numeralWidth = tabular — no hint), maxLines on a TextInput
+// (Flutter's TextField.maxLines; Declare caps the height — no hint).
+class Voice [ width = 200, height = 40,
+    clip: View [ width = 100, height = 40 ]
+    ]
+App [ width = 300, height = 300,
+    Text [ text = "writing", fontStyle = italic ],
+    TextLabel [ y = 30, width = 34, text = "0:07", fontFeatures = "tnum" ],
+    TextInput [ y = 60, width = 200, multiline = true, maxLines = 6 ],
+    Voice [ y = 120 ]
+    ]

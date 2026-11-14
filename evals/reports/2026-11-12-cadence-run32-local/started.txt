@@ -1,0 +1,12 @@
+STARTED=2026-11-13T13:29:45Z
+APP=cadence
+MODEL=claude-opus-5-5
+SUBJECT=local tree at 3bc519f9 Four silent failures said: onChange that tracks nothing, a mistyped text face, a focusShape of no box, hover on a view that takes no presses + 575 changed, 27 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=none (the bare prompt, so the default of the SKILL)
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-cadence-32/work (logs outside it)
+PORT=8320 (the brief names 8320)
+SERVICE=node task/api/server.mjs --port=8320
+AGENT_PID=73102

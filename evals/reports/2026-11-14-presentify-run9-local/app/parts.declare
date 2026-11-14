@@ -1,0 +1,322 @@
+/*
+# Presentify: the parts
+
+The look, kept apart from how it works: the palette, the drawn icons and the
+wordmark, and the small controls every screen is made of. `presentify.declare`
+includes this file.
+
+The chrome is a deep, warm ink so that the slide is always the brightest thing
+on the screen. Tangerine is the brand and the one primary action on a screen;
+violet is the editor's own colour: selection, focus, guides.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+
+theme Presentify [
+    background = #121019, surface = #1A1722, raised = #221E2C, pasteboard = #0C0A10,
+    line = #2C2737, lineStrong = #3D3749, hover = #26222F,
+    text = #F4F1FA, textMuted = #A8A1B8, textFaint = #6E6780,
+
+    accent = #FF5F3A, accentHovered = #FF7650, accentPressed = #E8502D, accentTextColor = #FFFFFF,
+    brandTo = #8B6CFF,
+    select = #8B6CFF, selectSoft = #8B6CFF33, selectInk = #FFFFFF, selectHalo = #FFFFFFCC, guide = #FF4FA3,
+    warn = #FFC53D, warnSoft = #3A2E12, danger = #FF5A6E, ok = #3DD68C,
+
+    control = #262231, controlHovered = #2F2A3C, controlPressed = #383246, controlSelected = #3A2F5C,
+    controlCornerRadius = 8, buttonHeight = 34, buttonCornerRadius = 9,
+    fieldPadding = 8, comboboxHeight = 30,
+    focusRingStyle = "both",
+    tooltipFill = #F4F1FA, tooltipTextColor = #15121C, tooltipDelay = 450,
+    menuCornerRadius = 10, menuShadow = shadow(0, 14, 40, #00000088),
+    menuHighlightFill = gradient(#8B6CFF, #7556F0),
+    popoverCornerRadius = 14, popoverShadow = shadow(0, 18, 50, #00000099),
+    dialogCornerRadius = 16, dialogShadow = shadow(0, 24, 70, #000000AA), dialogTitleFontSize = 17, dialogBodyFontSize = 14,
+    scrimFill = #07060A, scrimOpacity = 0.6,
+    toastCornerRadius = 12,
+    segmentedSelectedFill = #3A2F5C, segmentedSelectedTextColor = #FFFFFF, segmentedCornerRadius = 8, segmentedHeight = 30,
+    trackFill = #2C2737, sliderThumbFill = #F4F1FA
+    ]
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// One pen draws every mark: a round-ended stroke on the 16-unit grid, the
+// same weight at every size.
+
+class Glyph extends Icon [
+    shape: string = "",
+    filled: boolean = false,
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        const s = shape
+        if (s == "select") {
+            d.moveTo(4, 2.5); d.lineTo(4, 13); d.lineTo(6.8, 10.4); d.lineTo(8.8, 14.2); d.lineTo(10.4, 13.4)
+            d.lineTo(8.5, 9.7); d.lineTo(12.2, 9.4); d.closePath()
+            if (filled) d.fill()
+            d.stroke()
+        } else if (s == "rect") { d.roundRect(2.5, 3.5, 11, 9, 1.6); d.stroke()
+        } else if (s == "ellipse") { d.arc(8, 8, 5.6, 0, 6.3); d.stroke()
+        } else if (s == "line") { d.moveTo(3, 13); d.lineTo(13, 3); d.stroke()
+        } else if (s == "text") { d.moveTo(3.5, 4); d.lineTo(3.5, 3); d.lineTo(12.5, 3); d.lineTo(12.5, 4); d.moveTo(8, 3); d.lineTo(8, 13)
+            d.moveTo(6.2, 13); d.lineTo(9.8, 13); d.stroke()
+        } else if (s == "undo") { d.moveTo(5.5, 3.5); d.lineTo(2.5, 6.5); d.lineTo(5.5, 9.5); d.moveTo(2.5, 6.5); d.lineTo(9.5, 6.5)
+            d.bezierCurveTo(14.2, 6.5, 14.2, 13, 9.5, 13); d.lineTo(6.5, 13); d.stroke()
+        } else if (s == "redo") { d.moveTo(10.5, 3.5); d.lineTo(13.5, 6.5); d.lineTo(10.5, 9.5); d.moveTo(13.5, 6.5); d.lineTo(6.5, 6.5)
+            d.bezierCurveTo(1.8, 6.5, 1.8, 13, 6.5, 13); d.lineTo(9.5, 13); d.stroke()
+        } else if (s == "plus") { d.moveTo(8, 3); d.lineTo(8, 13); d.moveTo(3, 8); d.lineTo(13, 8); d.stroke()
+        } else if (s == "minus") { d.moveTo(3.5, 8); d.lineTo(12.5, 8); d.stroke()
+        } else if (s == "duplicate") { d.roundRect(5.5, 5.5, 8, 8, 1.5); d.moveTo(3.5, 10.5); d.lineTo(3, 10.5); d.arcTo(2.5, 10.5, 2.5, 3, 0.5)
+            d.lineTo(2.5, 3.5); d.arcTo(2.5, 2.5, 3.5, 2.5, 1); d.lineTo(10, 2.5); d.arcTo(10.5, 2.5, 10.5, 3, 0.5); d.lineTo(10.5, 3.5); d.stroke()
+        } else if (s == "trash") { d.moveTo(2.5, 4.2); d.lineTo(13.5, 4.2); d.moveTo(6, 4.2); d.lineTo(6.5, 2.2); d.lineTo(9.5, 2.2); d.lineTo(10, 4.2)
+            d.moveTo(3.8, 4.2); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4.2); d.stroke()
+        } else if (s == "play") { d.moveTo(4.5, 2.8); d.lineTo(13, 8); d.lineTo(4.5, 13.2); d.closePath(); if (filled) d.fill(); d.stroke()
+        } else if (s == "back") { d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (s == "more") { for (const x of [3.5, 8, 12.5]) { d.moveTo(x + 1, 8); d.arc(x, 8, 1, 0, 6.3) }; d.fill()
+        } else if (s == "check") { d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (s == "cloudOff") { d.moveTo(4.5, 12.5); d.bezierCurveTo(1.5, 12.5, 1.5, 7.5, 4.8, 7.6); d.bezierCurveTo(5.5, 3.5, 11, 3.5, 11.6, 7.4)
+            d.bezierCurveTo(14.8, 7.6, 14.8, 12.5, 11.5, 12.5); d.closePath(); d.moveTo(2.5, 2.5); d.lineTo(13.5, 13.5); d.stroke()
+        } else if (s == "sync") { d.arc(8, 8, 5, -2.6, 1.0); d.moveTo(12.6, 6); d.lineTo(13.1, 9.3); d.lineTo(10.1, 8.1); d.stroke()
+        } else if (s == "warn") { d.moveTo(8, 2.5); d.lineTo(14, 13); d.lineTo(2, 13); d.closePath(); d.moveTo(8, 6.5); d.lineTo(8, 9.2); d.stroke()
+            d.beginPath(); d.arc(8, 11.2, 0.8, 0, 6.3); d.fill()
+        } else if (s == "fill") { d.roundRect(3, 3, 10, 10, 2.5); d.fill()
+        } else if (s == "outline") { d.roundRect(3, 3, 10, 10, 2.5); d.stroke()
+        } else if (s == "keep") {            // a chain: proportions held together
+            d.roundRect(1.8, 5.6, 7, 4.8, 2.4); d.roundRect(7.2, 5.6, 7, 4.8, 2.4); d.stroke()
+        } else if (s == "italic") { d.moveTo(7, 3); d.lineTo(12, 3); d.moveTo(4, 13); d.lineTo(9, 13); d.moveTo(9.5, 3); d.lineTo(6.5, 13); d.stroke()
+        } else if (s == "textLeft" || s == "textCenter" || s == "textRight") {
+            const ws = [11, 7, 10, 6]
+            ws.forEach((w, i) => {
+                const y = 3.5 + i * 3
+                const x = s == "textLeft" ? 2.5 : s == "textRight" ? 13.5 - w : 8 - w / 2
+                d.moveTo(x, y); d.lineTo(x + w, y)
+                })
+            d.stroke()
+        } else if (s.startsWith("align")) {   // two bars against a rule
+            const k = s.slice(5)
+            if (k == "Left" || k == "Center" || k == "Right") {
+                const rx = k == "Left" ? 2.5 : k == "Right" ? 13.5 : 8
+                d.moveTo(rx, 1.5); d.lineTo(rx, 14.5); d.stroke(); d.beginPath()
+                const a = k == "Left" ? 4 : k == "Right" ? 12 - 8 : 8 - 4.5
+                const b = k == "Left" ? 4 : k == "Right" ? 12 - 5 : 8 - 2.75
+                d.roundRect(a, 3.5, k == "Center" ? 9 : 8, 3.5, 1); d.roundRect(b, 9, k == "Center" ? 5.5 : 5, 3.5, 1); d.fill()
+            } else {
+                const ry = k == "Top" ? 2.5 : k == "Bottom" ? 13.5 : 8
+                d.moveTo(1.5, ry); d.lineTo(14.5, ry); d.stroke(); d.beginPath()
+                const a = k == "Top" ? 4 : k == "Bottom" ? 12 - 8 : 8 - 4.5
+                const b = k == "Top" ? 4 : k == "Bottom" ? 12 - 5 : 8 - 2.75
+                d.roundRect(3.5, a, 3.5, k == "Middle" ? 9 : 8, 1); d.roundRect(9, b, 3.5, k == "Middle" ? 5.5 : 5, 1); d.fill()
+            }
+        } else if (s == "distX") { d.moveTo(1.5, 2); d.lineTo(1.5, 14); d.moveTo(14.5, 2); d.lineTo(14.5, 14); d.stroke(); d.beginPath()
+            d.roundRect(6.2, 4, 3.6, 8, 1); d.fill()
+        } else if (s == "distY") { d.moveTo(2, 1.5); d.lineTo(14, 1.5); d.moveTo(2, 14.5); d.lineTo(14, 14.5); d.stroke(); d.beginPath()
+            d.roundRect(4, 6.2, 8, 3.6, 1); d.fill()
+        } else if (s == "front" || s == "back2" || s == "forward" || s == "backward") {
+            // two sheets; the one moving is filled
+            const top = s == "front" || s == "forward"
+            d.roundRect(2.5, 2.5, 7.5, 7.5, 1.4); d.stroke(); d.beginPath(); d.roundRect(6, 6, 7.5, 7.5, 1.4)
+            if (top) { d.fill() } else { d.stroke(); d.beginPath(); d.roundRect(2.5, 2.5, 7.5, 7.5, 1.4); d.fill() }
+            if (s == "front" || s == "back2") { d.beginPath(); d.moveTo(1, 15); d.lineTo(15, 15); d.stroke() }
+        } else if (s == "group") { d.setLineDash([1.6, 1.8]); d.roundRect(1.5, 1.5, 13, 13, 2); d.stroke(); d.setLineDash([]); d.beginPath()
+            d.roundRect(4, 4, 4.5, 4.5, 1); d.roundRect(8, 8, 4, 4, 2); d.fill()
+        } else if (s == "ungroup") { d.roundRect(2, 2, 5.5, 5.5, 1.2); d.roundRect(8.5, 8.5, 5.5, 5.5, 2.75); d.stroke()
+        } else if (s == "slides") { d.roundRect(2, 3.5, 12, 7.5, 1.4); d.moveTo(4.5, 13.5); d.lineTo(11.5, 13.5); d.stroke()
+        } else if (s == "none") { d.arc(8, 8, 5.5, 0, 6.3); d.moveTo(4.1, 11.9); d.lineTo(11.9, 4.1); d.stroke()
+        } else if (s == "chevron") { d.moveTo(4.5, 6.5); d.lineTo(8, 10); d.lineTo(11.5, 6.5); d.stroke()
+        } else if (s == "rename") { d.moveTo(10.5, 2.8); d.lineTo(13.2, 5.5); d.lineTo(6, 12.7); d.lineTo(2.8, 13.2); d.lineTo(3.3, 10); d.closePath(); d.stroke()
+        } else if (s == "close") { d.moveTo(4, 4); d.lineTo(12, 12); d.moveTo(12, 4); d.lineTo(4, 12); d.stroke()
+        } else { d.roundRect(3, 3, 10, 10, 2); d.stroke() }
+        }
+    ]
+
+
+// The mark: a slide with a play notch cut into a tangerine-to-violet sheet.
+
+class LogoMark [ width = 28, height = 28,
+    draw(d: DrawContext) {
+        const w = d.w, h = d.h
+        const g = d.createLinearGradient(0, 0, w, h)
+        g.addColorStop(0, provided("theme").accent)
+        g.addColorStop(1, provided("theme").brandTo)
+        d.fillStyle = g
+        d.beginPath()
+        d.roundRect(0, h * 0.12, w, h * 0.76, w * 0.2)
+        d.fill()
+        d.fillStyle = 0xFFFFFF
+        d.beginPath()
+        d.moveTo(w * 0.40, h * 0.32)
+        d.lineTo(w * 0.70, h * 0.50)
+        d.lineTo(w * 0.40, h * 0.68)
+        d.closePath()
+        d.fill()
+        }
+    ]
+
+
+// The wordmark: the mark and "presentify" in the brand face.
+
+class Wordmark [ height = 32,
+    big: boolean = false,
+    layout: SimpleLayout [ axis = x, spacing = { classroot.big ? 12 : 8 }, align = center ],
+    LogoMark [ width = { classroot.big ? 38 : 26 }, height = { this.width } ],
+    TextLabel [ fontFamily = { app.brandFace }, fontWeight = 800, letterSpacing = { classroot.big ? -1.2 : -0.6 },
+        fontSize = { classroot.big ? 34 : 21 }, textColor = { provided("theme").text }, text = "presentify" ]
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A round-cornered icon button: says what it does on hover and to a screen
+// reader. `on` lights it as a toggle.
+
+class IconButton extends Control [ width = 32, height = 32, cornerRadius = 8,
+    shape: string = "",
+    label: string = "",
+    tooltipLabel = { classroot.label },
+    accessibilityLabel = { classroot.label },
+    cursor = "pointer",
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    opacity = { disabled ? 0.35 : 1 },
+    lit: boolean = false,
+    glyph: Glyph [ x = center, y = center, iconSize = 16, weight = 1.6, shape = { classroot.shape },
+        ink = { classroot.lit ? provided("theme").text : provided("theme").textMuted } ]
+    ]
+
+
+// An icon button that stays in or out: italic, say.
+
+class ToggleIcon extends IconButton [ accessibilityRole = toggle,
+    on: boolean = false,
+    accessibilityPressed = { classroot.on },
+    lit = { classroot.on },
+    State [ applied = { classroot.on }, fill = { provided("theme").controlSelected } ]
+    ]
+
+
+// One of a few icons, one of which is chosen: a text box's alignment.
+
+class IconChoice extends ChoiceItem [ width = 32, height = 32, cornerRadius = 8,
+    shape: string = "",
+    label: string = "",
+    tooltipLabel = { classroot.label },
+    accessibilityLabel = { classroot.label },
+    cursor = "pointer",
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").controlSelected } ],
+    Glyph [ x = center, y = center, iconSize = 16, weight = 1.6, shape = { classroot.shape },
+        ink = { classroot.on ? provided("theme").text : provided("theme").textMuted } ]
+    ]
+
+
+// A tool: its icon over its name. The tool in hand is lit in violet.
+
+class ToolChip extends Control [ width = 58, height = 46, cornerRadius = 10,
+    tool: "select" | "rect" | "ellipse" | "line" | "text" = "select",
+    label: string = "",
+    key: string = "",
+    here: boolean = { app.ed.tool == classroot.tool },
+    accessibilityRole = toggle,
+    accessibilityPressed = { classroot.here },
+    accessibilityLabel = { classroot.label },
+    tooltipLabel = { classroot.label + "  " + classroot.key },
+    cursor = "pointer",
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    State [ applied = { classroot.here }, fill = { provided("theme").controlSelected } ],
+    press() { app.ed.setTool(classroot.tool) },
+    Glyph [ x = center, y = 7, iconSize = 18, weight = 1.6, shape = { classroot.tool }, filled = { classroot.here },
+        ink = { classroot.here ? provided("theme").text : provided("theme").textMuted } ],
+    Text [ x = center, y = 29, fontSize = 10.5, fontWeight = 500, wrap = false,
+        textColor = { classroot.here ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// A quiet text button for a toolbar: a word and, when it opens a menu, a chevron.
+
+class BarButton extends Control [ height = 32, cornerRadius = 8, padding = [0, 10, 0, 10],
+    label: string = "",
+    cursor = "pointer",
+    accessibilityLabel = { classroot.label },
+    fill = { pressed || menuOpen ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    TextLabel [ fontSize = 13, fontWeight = 500, textColor = { provided("theme").text }, text = { classroot.label } ],
+    Glyph [ visible = { classroot.menu != null }, iconSize = 12, weight = 1.6, shape = "chevron", ink = { provided("theme").textMuted } ]
+    ]
+
+
+// A colour well: what is set (a colour, none, or several), opening the
+// palette. `mixed` says the selection's colours differ.
+
+class Swatch extends Control [ width = 34, height = 26, cornerRadius = 7,
+    color: string? = null,
+    mixed: boolean = false,
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    tooltipLabel = { classroot.label },
+    cursor = "pointer",
+    stroke = { stroke(1, hovered ? provided("theme").textFaint : provided("theme").lineStrong) },
+    fill = { classroot.mixed || classroot.color == null ? provided("theme").raised : hexColor(classroot.color) },
+    opacity = { disabled ? 0.35 : 1 },
+    noneMark: Glyph [ x = center, y = center, visible = { !classroot.mixed && classroot.color == null }, iconSize = 14,
+        shape = "none", ink = { provided("theme").textMuted } ],
+    mixedMark: View [ x = center, y = center, visible = { classroot.mixed },
+        layout: SimpleLayout [ axis = x, spacing = 2 ],
+        View [ width = 7, height = 7, cornerRadius = 4, fill = { provided("theme").accent } ],
+        View [ width = 7, height = 7, cornerRadius = 4, fill = { provided("theme").brandTo } ],
+        View [ width = 7, height = 7, cornerRadius = 4, fill = { provided("theme").ok } ]
+        ]
+    ]
+
+
+// A number typed in: the value, or empty with "Mixed" when the selection's
+// values differ. Arrow keys step it; Return or leaving the field sets it.
+
+class NumField extends TextInput [ width = 64, height = 28, fontSize = 13, numeralWidth = tabular,
+    num: number = 0,
+    mixed: boolean = false,
+    known: boolean = true,              // false: nothing selected has this value
+    step: number = 1,
+    min: number = 0,
+    max: number = 9999,
+    commitOn = "end",
+    placeholder = { classroot.mixed ? "Mixed" : "" },
+    value = { classroot.mixed || !classroot.known ? "" : "" + (Math.round(classroot.num * 10) / 10) },
+    admit(t: string) -> string? { return /^[0-9]*\.?[0-9]*$/.test(t) ? t : null },
+    commit(t: string) {
+        const v = parseFloat(t)
+        if (!isNaN(v)) takeNumber(Math.max(min, Math.min(max, v)))
+        },
+    takeNumber(v: number) { },
+    stepBy(d: number) {
+        const v = Math.max(min, Math.min(max, (mixed ? min : num) + d * step))
+        takeNumber(v)
+        },
+    keyBindings = { [ ({ key: "ArrowUp", command: "stepBy", args: [1] }), ({ key: "ArrowDown", command: "stepBy", args: [-1] }),
+        ({ key: "Shift+ArrowUp", command: "stepBy", args: [10] }), ({ key: "Shift+ArrowDown", command: "stepBy", args: [-10] }) ] }
+    ]
+
+
+// A label above a group of controls in the inspector.
+
+class SectionHead [ width = 100%, height = 20,
+    label: string = "",
+    TextLabel [ y = center, fontSize = 11, fontWeight = 600, letterSpacing = 0.6, textTransform = uppercase,
+        textColor = { provided("theme").textFaint }, text = { classroot.label } ]
+    ]
+
+
+// A row in the inspector: a word on the left, its controls on the right.
+
+class PropRow [ width = 100%, height = 32,
+    label: string = "",
+    gap: number = 6,
+    defaultPlacement = tools,
+    TextLabel [ y = center, fontSize = 12.5, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    tools: View [ x = end, y = center,
+        layout: SimpleLayout [ axis = x, spacing = { classroot.gap }, align = center ]
+        ]
+    ]

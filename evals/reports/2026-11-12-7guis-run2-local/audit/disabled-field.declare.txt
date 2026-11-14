@@ -1,0 +1,6 @@
+App [ width = 320, height = 140, fill = { provided("theme").background },
+    layout: SimpleLayout [ axis = y, spacing = 12 ], padding = 16,
+    TextInput [ width = 200, value = "Enabled", commit(t: string) { } ],
+    TextInput [ width = 200, value = "Disabled", disabled = true, commit(t: string) { } ],
+    Button [ label = "Disabled button", disabled = true ]
+    ]

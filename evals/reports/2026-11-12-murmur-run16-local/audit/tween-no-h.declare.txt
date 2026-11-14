@@ -1,0 +1,23 @@
+// A TweenLayout whose boxes name only x, y and w, over children that state
+// their own height (76). Guide 17: "A box names only the attributes the layout
+// owns ... so sizes stay the children's."
+class Stack extends TweenLayout [ duration = 380,
+    place() {
+        const w = this.contentExtent("width")
+        let y = 0
+        return this.laid().map((c) => {
+            const box = ({ x: 0, y: y, w: w })
+            y = y + c.height
+            return box
+            })
+        }
+    ]
+
+App [ width = 400, height = 400,
+    list: View [ width = 100%, height = 100%,
+        layout: Stack [ ],
+        View [ height = 76, fill = #ddd ],
+        View [ height = 76, fill = #bbb ],
+        View [ height = 76, fill = #999 ]
+        ]
+    ]

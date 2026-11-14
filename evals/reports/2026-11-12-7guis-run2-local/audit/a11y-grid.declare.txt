@@ -1,0 +1,26 @@
+// A sheet whose structure a screen reader can walk: grid, rows, header cells, cells,
+// and the active cell named while the focus stays on the grid.
+schema C [ id: string, v: string ]
+schema Row [ id: number, cells[]: C ]
+App [ width = 500, height = 300,
+    data: Dataset { { "rows": [
+        { "id": 0, "cells": [ { "id": "A0", "v": "5" }, { "id": "B0", "v": "10" } ] },
+        { "id": 1, "cells": [ { "id": "A1", "v": "x" }, { "id": "B1", "v": "" } ] } ] } },
+    selected: string = "A0",
+    active: View? = null,
+    sheet: View [ width = 400, height = 200, scrolls = both, focusable = true,
+        accessibilityRole = grid, accessibilityLabel = "Spreadsheet",
+        accessibilityActiveItem = { app.active },
+        layout: SimpleLayout [ axis = y ],
+        head: View [ accessibilityRole = row, layout: SimpleLayout [ axis = x ],
+            Text [ width = 40, text = "" ],
+            Text [ width = 80, accessibilityRole = columnHeader, text = "A" ],
+            Text [ width = 80, accessibilityRole = columnHeader, text = "B" ] ],
+        View [ datapath = { app.data.value }, layout: SimpleLayout [ axis = y ],
+            View [ datapath = :rows[], virtualize = true, accessibilityRole = row, layout: SimpleLayout [ axis = x ],
+                Text [ width = 40, accessibilityRole = cell, text = { "" + :id } ],
+                View [ datapath = :cells[], width = 80, height = 22, accessibilityRole = cell,
+                    accessibilitySelected = { app.selected == :id },
+                    onInit() { if (app.selected == :id) app.active = this },
+                    Text [ text = { :v ?? "" } ] ] ] ] ]
+    ]

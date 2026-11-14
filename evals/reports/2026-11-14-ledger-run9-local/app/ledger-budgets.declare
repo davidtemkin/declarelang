@@ -1,0 +1,194 @@
+/*
+# Ledger: Budgets
+
+A monthly amount for any expense category. For the month in the date filter,
+each category's budget, what has been spent, and what remains, with a bar and
+a marker for where spending should be by today, and its state in words: "On
+track", "$40 over pace", "Over by $120". Amounts are edited in place: Return
+saves and moves down the list, as do the arrow keys. A month can start from
+last month's spending.
+
+A budget set for a month holds for every later month until another is set,
+so the service answers what holds for this month.
+*/
+
+class BudgetRow [ width = 100%, padding = [10, 0, 10, 0],
+    screen: BudgetsScreen = { provided("budgetScreen") as BudgetsScreen },
+    catId: string = { :id ?? "" },
+    budget: number = { :budget ?? -1 },             // cents; -1 is none
+    spent: number = { :spent ?? 0 },
+    pace: number = { classroot.screen.pace },       // how far through the month, 0–1
+    expected: number = { Math.round(classroot.budget * classroot.pace) },
+    has: boolean = { classroot.budget >= 0 },
+    over: boolean = { classroot.has && classroot.spent > classroot.budget },
+
+    // ahead of where spending should be by today (only while the month is running)
+
+    ahead: boolean = { classroot.has && !classroot.over && classroot.pace < 1 && classroot.spent > classroot.expected },
+    state: string = { classroot.words(classroot.has, classroot.over, classroot.ahead) },
+    words(has: boolean, over: boolean, ahead: boolean) -> string {
+        if (!has) return "No budget"
+        if (over) return "Over by " + money(spent - budget)
+        return ahead ? money(spent - expected) + " over pace" : "On track"
+        },
+    tone: string = { classroot.toneFor(classroot.has, classroot.over, classroot.ahead) },
+    toneFor(has: boolean, over: boolean, ahead: boolean) -> string {
+        if (!has) return ""
+        return over ? "bad" : ahead ? "warn" : "good"
+        },
+    toneColour: Color = { ({ bad: provided("theme").bad, warn: provided("theme").warn, good: provided("theme").good })[classroot.tone] ?? provided("theme").textMuted },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = { app.phone ? "y" : "x" }, spacing = { app.phone ? 8 : 16 }, align = { app.phone ? "start" : "center" } ],
+
+    name: View [ width = { app.phone ? 260 : 190 },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Swatch [ colour = { provided("theme").cats[app.books.catColour(classroot.catId)] ?? provided("theme").textFaint } ],
+        Text [ fontSize = 14, fontWeight = medium, wrap = false, text = { :label ?? "" } ]
+        ],
+
+    amountBox: View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        field: TextInput [ width = 110, height = { app.tap }, textAlign = right, numeralWidth = tabular, commitOn = "end",
+            placeholder = "No budget", accessibilityLabel = { "Monthly budget for " + (:label ?? "") },
+            value = { classroot.budget < 0 ? "" : moneyPlain(classroot.budget) },
+            admit(t: string) -> string | null { return /^\$?[\d,]*\.?\d{0,2}$/.test(t.trim()) ? t : null },
+            commit(v: string) { classroot.screen.setBudget(classroot.catId, v) },
+            keyBindings = { [ ({ key: "ArrowDown", command: "down" }), ({ key: "ArrowUp", command: "up" }) ] },
+            down() { this.endEdit(); classroot.screen.focusRow(classroot.rowIndex + 1) },
+            up() { this.endEdit(); classroot.screen.focusRow(classroot.rowIndex - 1) },
+            onEnter() { classroot.screen.focusRow(classroot.rowIndex + 1) }
+            ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "/ month" ]
+        ],
+
+    meter: View [ flexes = true,
+        State [ applied = { app.phone }, width = 100%, flexes = false ],
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+
+        // the bar, and the marker for where spending should be by today
+
+        track: View [ width = 100%, height = 10, cornerRadius = 5, fill = { provided("theme").control },
+            accessibilityRole = meter, accessibilityLabel = { (:label ?? "") + " spending" },
+            accessibilityValue = { classroot.spent }, accessibilityMin = 0, accessibilityMax = { Math.max(classroot.budget, classroot.spent, 1) },
+            accessibilityValueText = { money(classroot.spent) + (classroot.budget < 0 ? "" : " of " + money(classroot.budget)) + ", " + classroot.state },
+            bar: View [ height = 10, cornerRadius = 5,
+                width = { classroot.budget <= 0 ? 0 : parent.width * Math.min(1, classroot.spent / classroot.budget) },
+                fill = { classroot.toneColour } ],
+            marker: View [ visible = { classroot.budget > 0 && classroot.pace > 0 && classroot.pace < 1 }, y = -3, width = 2, height = 16, cornerRadius = 1,
+                x = { parent.width * classroot.pace - 1 }, fill = { provided("theme").text },
+                tooltipLabel = "Where spending would be by today, on pace" ]
+            ],
+        line: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            spentLink: Control [ height = 20, accessibilityLabel = { "Spent " + money(classroot.spent) + ". Opens the records." },
+                press() { classroot.screen.openSpent(classroot.catId) },
+                TextLabel [ fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").accent },
+                    text = { "Spent " + money(classroot.spent) } ]
+                ],
+            Text [ visible = { classroot.budget >= 0 }, fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                text = { classroot.budget < 0 ? "" : classroot.spent > classroot.budget ? "" : money(classroot.budget - classroot.spent) + " remains" } ],
+            Spacer [ ],
+            stateText: Text [ fontSize = 13, fontWeight = semibold, wrap = false,
+                textColor = { classroot.toneColour },
+                text = { classroot.state } ]
+            ]
+        ]
+    ]
+
+
+class BudgetsScreen [ scrolls = y,
+    on: boolean = { app.screen == "budgets" && app.ready },
+    base: string = { app.api.base },
+    v: string = { "&v=" + app.api.rev },
+    budgetScreen: BudgetsScreen? = { classroot },        // provided to the rows
+
+    month: string = { monthKey(app.range.to == "" ? app.today : app.range.to) },
+    first: string = { classroot.month + "-01" },
+    pace: number = { classroot.first > app.today ? 0 : monthEnd(classroot.first) <= app.today ? 1
+        : (daysBetween(classroot.first, app.today) + 1) / (daysBetween(classroot.first, monthEnd(classroot.first)) + 1) },
+
+    budgets: DataSource [ autoFetch = true, schema = Budgets,
+        url = { classroot.on ? classroot.base + "/api/budgets?month=" + classroot.month + "&" + app.whereNoDate + classroot.v : "" } ],
+    spent: DataSource [ autoFetch = true, schema = CatAmounts,
+        url = { classroot.on ? classroot.base + "/api/aggregates/categories?side=expense&" +
+            qs(app.filterQuery(({ from: classroot.first, to: monthEnd(classroot.first) }))) + classroot.v : "" } ],
+    lastMonth: DataSource [ autoFetch = true, schema = CatAmounts,
+        url = { classroot.on ? classroot.base + "/api/aggregates/categories?side=expense&" +
+            qs(app.filterQuery(({ from: addMonths(classroot.first, -1), to: monthEnd(addMonths(classroot.first, -1)) }))) + classroot.v : "" } ],
+
+    // every expense category that can be budgeted: those with a budget first
+
+    rows: Dataset [ contents = { { rows: classroot.rowsFor(classroot.budgets.value, classroot.spent.value) } } ],
+    rowsFor(b: Budgets?, s: CatAmounts?) -> array {
+        const list = app.books.choosable("expense").map((c) => {
+            const bud = (b?.budgets ?? []).find((x) => x.categoryId == c.id)
+            const sp = bud != null ? bud.spent : (s?.categories ?? []).find((x) => x.categoryId == c.id)?.amount ?? 0
+            return ({ id: c.id, label: c.name, budget: bud?.amount ?? -1, spent: sp })
+            })
+        return [...list.filter((r) => r.budget >= 0), ...list.filter((r) => r.budget < 0)]
+        },
+    budgeted: number = { (classroot.budgets.value?.budgets ?? []).length },
+    totals: object = { { budget: (classroot.budgets.value?.budgets ?? []).reduce((n, x) => n + x.amount, 0),
+        spent: (classroot.budgets.value?.budgets ?? []).reduce((n, x) => n + x.spent, 0) } },
+
+    setBudget(catId: string, text: string) {
+        const t = text.trim()
+        const cents = t == "" ? null : parseMoney(t)
+        if (t != "" && (cents == null || cents <= 0)) { app.toast.say("A budget is an amount more than $0.00"); return }
+        const was = (budgets.value?.budgets ?? []).find((x) => x.categoryId == catId)?.amount ?? null
+        if (cents == was) return
+        app.api.send("PUT", "/api/budgets/" + month + "/" + catId, ({ amount: cents }),
+            (r: any) => { app.toast.say(cents == null ? "Stopped budgeting " + app.books.catName(catId) : app.books.catName(catId) + ": " + money(cents) + " a month from " + monthLong(classroot.first)) },
+            (e: Refusal | null, f: string) => { app.toast.say("Budget not saved: " + (e?.message ?? "the service didn't answer")) })
+        },
+
+    // every category with no budget this month starts from what it spent last month
+
+    startFromLastMonth() {
+        const have = (budgets.value?.budgets ?? []).map((x) => x.categoryId)
+        const todo = (lastMonth.value?.categories ?? []).filter((c) => c.categoryId != null && !have.includes(c.categoryId) && c.amount > 0 &&
+            app.books.choosable("expense").some((k) => k.id == c.categoryId))
+        if (todo.length == 0) { app.toast.say("Every category that spent last month already has a budget"); return }
+        for (const c of todo) {
+            app.api.send("PUT", "/api/budgets/" + month + "/" + c.categoryId, ({ amount: Math.ceil(c.amount / 100) * 100 }), (r: any) => { }, (e: Refusal | null, f: string) => { })
+            }
+        app.toast.say("Started " + todo.length + (todo.length == 1 ? " budget" : " budgets") + " from " + monthLong(addMonths(first, -1)) + "'s spending")
+        },
+    focusRow(i: number) {
+        const rowsView = this.page.card.list
+        const row = rowsView.children.find((c) => (c as BudgetRow).rowIndex == i) as BudgetRow | undefined
+        if (row != null) Focus.focus(row.amountBox.field)
+        },
+    openSpent(catId: string) {
+        app.openRecords(({ from: first, to: monthEnd(first), kinds: ["expense"], cats: [catId] }), "Budgets")
+        },
+
+    page: View [ width = 100%, padding = { app.phone ? [8, 12, 24, 12] : [20, 24, 32, 24] },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        head: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 12, rowSpacing = 8, align = center ],
+            Text [ visible = { !app.phone }, fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = "Budgets" ],
+            Text [ fontSize = 14, textColor = { provided("theme").textMuted }, text = { monthLong(classroot.first) +
+                (classroot.pace > 0 && classroot.pace < 1 ? " · " + Math.round(classroot.pace * 100) + "% of the month gone" : "") } ],
+            Spacer [ ],
+            Button [ height = 34, label = "Start from last month's spending",
+                onClick() { classroot.startFromLastMonth() }
+                ]
+            ],
+        filteredNote: Text [ visible = { app.filtered }, width = 100%, fontSize = 13, wrap = true, textColor = { provided("theme").warn },
+            text = "Spending here is filtered: it counts only the transactions matching the filters above." ],
+        summary: Text [ visible = { classroot.budgeted > 0 }, fontSize = 14, numeralWidth = tabular,
+            text = { "Spent " + money(classroot.totals.spent) + " of " + money(classroot.totals.budget) + " budgeted across " +
+                classroot.budgeted + (classroot.budgeted == 1 ? " category" : " categories") + "." } ],
+        card: Panel [ width = 100%, opacity = { classroot.budgets.loading ? 0.6 : 1 },
+            Text [ width = 100%, fontSize = 13, wrap = true, textColor = { provided("theme").textMuted },
+                text = "Type a monthly amount beside a category; Return saves it and moves down. The mark on each bar is where spending would be by today, on pace." ],
+            list: View [ width = 100%, datapath = { classroot.rows.value },
+                layout: SimpleLayout [ axis = y ],
+                BudgetRow [ datapath = :rows[] ]
+                ],
+            LoadState [ visible = { classroot.budgets.failed || !classroot.budgets.loaded }, failed = { classroot.budgets.failed },
+                retry() { classroot.budgets.fetch(); classroot.spent.fetch() }
+                ]
+            ]
+        ]
+    ]

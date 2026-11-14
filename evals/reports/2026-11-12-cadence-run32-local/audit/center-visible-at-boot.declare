@@ -1,0 +1,5 @@
+// A pill sized by its content, its label placed by x = center: shown from the start.
+App [ width = 400, height = 200,
+    pill: View [ x = 20, y = 20, height = 40, padding = [0, 10, 0, 10], fill = 0xDDDDDD,
+        TextLabel [ x = center, text = "Season" ] ]
+    ]

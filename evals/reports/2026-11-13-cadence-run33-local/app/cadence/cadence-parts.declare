@@ -1,0 +1,223 @@
+/*
+# Cadence: the parts
+
+The look of Cadence and the small pieces it is built from, kept apart from how
+it works: the palette, the date and duration arithmetic, and the controls the
+log form and the lists are made of. `cadence.declare` includes this file.
+
+The palette is ink on paper with one accent. The accent means one thing,
+**effort**: everywhere a session is drawn, its colour is the accent at a
+strength set by how hard it was (`app.effortInk`). Nothing else is coloured.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's `SanFrancisco` preset, so library controls (the
+// sheet, the date picker, the segmented control) read the same paper and ink.
+
+theme CadencePaper [
+    background = #F2EEE6, surface = #FBF9F5, card = #FBF9F5,
+    line = #DCD5C9, quiet = #E6E0D5,
+    text = #15130F, textMuted = #6B655C, textFaint = #8F887C,
+    accent = #F2380F, accentHovered = #DB300A, accentPressed = #C22A08, accentTextColor = #FFFFFF,
+    linkColor = #15130F,
+    control = #E6E0D5, controlHovered = #DDD6CA, controlPressed = #D2CABD, controlSelected = #15130F,
+    segmentedSelectedFill = #15130F, segmentedSelectedTextColor = #FBF9F5,
+    tooltipFill = #15130F, tooltipTextColor = #FBF9F5,
+    controlCornerRadius = 10
+    ]
+
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments: dates as "YYYY-MM-DD" strings and day numbers
+// (days since 1970-01-01), and the formats the brief fixes — `3h 40m`, `45m`,
+// `12.4 km`, `148 bpm`. A constraint that calls one depends on what it passes.
+
+script {
+    const DAY_MS = 86400000
+    const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+    function dayNum(iso: string): number {
+        if (iso.length < 10) return 0
+        const p = iso.split("-").map(Number)
+        return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / DAY_MS)
+    }
+    function isoOf(n: number): string {
+        const d = new Date(Math.floor(n) * DAY_MS)
+        return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate())
+    }
+    function addDays(iso: string, n: number): string { return isoOf(dayNum(iso) + n) }
+    // 0 is Monday, 6 is Sunday
+    function weekdayOf(iso: string): number { return (new Date(dayNum(iso) * DAY_MS).getUTCDay() + 6) % 7 }
+    function monthOf(iso: string): number { return Number(iso.slice(5, 7)) - 1 }
+
+    function fmtDur(min: number): string {
+        const m = Math.max(0, Math.round(min))
+        if (m < 60) return m + "m"
+        const h = Math.floor(m / 60)
+        return m % 60 == 0 ? h + "h" : h + "h " + (m % 60) + "m"
+    }
+    function fmtKm(km: number): string { return km.toFixed(1) + " km" }
+    function fmtBpm(b: number): string { return Math.round(b) + " bpm" }
+    function fmtClock(sec: number): string {
+        const s = Math.max(0, Math.floor(sec))
+        const h = Math.floor(s / 3600)
+        const mm = Math.floor((s % 3600) / 60)
+        return (h > 0 ? h + ":" + pad2(mm) : "" + mm) + ":" + pad2(s % 60)
+    }
+    function plural(n: number, one: string, many: string): string { return n + " " + (n == 1 ? one : many) }
+
+    function shortDate(iso: string): string {
+        if (iso.length < 10) return ""
+        return WEEKDAYS[weekdayOf(iso)].slice(0, 3) + " " + Number(iso.slice(8, 10)) + " " + MONTHS[monthOf(iso)].slice(0, 3)
+    }
+    function longDate(iso: string): string {
+        if (iso.length < 10) return ""
+        return WEEKDAYS[weekdayOf(iso)] + " " + Number(iso.slice(8, 10)) + " " + MONTHS[monthOf(iso)] + " " + iso.slice(0, 4)
+    }
+    // "today", "yesterday", "3 days ago", then the date itself
+    function whenSaid(iso: string, today: string): string {
+        const n = dayNum(today) - dayNum(iso)
+        if (n == 0) return "Today"
+        if (n == 1) return "Yesterday"
+        if (n > 1 && n < 7) return n + " days ago"
+        return shortDate(iso)
+    }
+    // a period of days, said as briefly as it can be
+    function periodSaid(from: string, to: string): string {
+        if (from.length < 10 || to.length < 10) return ""
+        const sameYear = from.slice(0, 4) == to.slice(0, 4)
+        const span = dayNum(to) - dayNum(from)
+        if (span > 75) {
+            const a = MONTHS[monthOf(from)].slice(0, 3) + (sameYear ? "" : " " + from.slice(0, 4))
+            return a + " – " + MONTHS[monthOf(to)].slice(0, 3) + " " + to.slice(0, 4)
+        }
+        const a = Number(from.slice(8, 10)) + " " + MONTHS[monthOf(from)].slice(0, 3) + (sameYear ? "" : " " + from.slice(0, 4))
+        return a + " – " + Number(to.slice(8, 10)) + " " + MONTHS[monthOf(to)].slice(0, 3) + " " + to.slice(0, 4)
+    }
+    function monthShort(m: number): string { return MONTHS[m].slice(0, 3) }
+
+    function median(xs: number[]): number {
+        if (xs.length == 0) return 0
+        const s = [...xs].sort((a, b) => a - b)
+        const mid = Math.floor(s.length / 2)
+        return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
+    }
+    function sportName(s: string): string {
+        return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "swim" ? "Swim" : s == "lift" ? "Lift" : s
+    }
+    function kmStep(sport: string): number { return sport == "swim" ? 0.1 : 0.5 }
+    }
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+//
+// Each is a `Control`, so it brings focus, Space and Enter, and pressed and
+// hovered states; each use site says what pressing does by writing `press()`.
+
+// One of a few choices — a date — inside a ChoiceControl. Chosen, it is ink.
+
+class Choice extends ChoiceItem [ height = { app.tap }, cornerRadius = { this.height / 2 }, padding = [0, 16, 0, 16],
+    label: string = "",
+    accessibilityLabel = { label },
+    fill = { pressed ? provided("theme").controlPressed : provided("theme").control },
+    State [ applied = { classroot.on }, fill = { provided("theme").text } ],
+    TextLabel [ y = center, fontSize = 15, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").surface : provided("theme").text },
+        text = { classroot.label } ]
+    ]
+
+
+// A round − or + that nudges a number: big enough for a thumb.
+
+class Nudge extends Control [ width = 56, height = 56, cornerRadius = 28,
+    sign: string = "+",
+    fill = { pressed ? provided("theme").controlPressed : provided("theme").control },
+    TextLabel [ x = center, y = center, fontSize = 28, fontWeight = medium, text = { classroot.sign } ]
+    ]
+
+
+// A number set by nudging: − [ 45m ] +, with its name above. The figure is the
+// largest thing in the form. Like a library control, it shows the `value` it
+// is given and hands a change to `commit`, which the use site writes.
+
+class Nudger [ width = 100%,
+    caption: string = "",
+    value: number = 0,
+    step: number = 1,
+    min: number = 0,
+    max: number = 1000,
+    shown: string = "",
+    commit(v: number) { value = v },
+    nudge(by: number) { commit(Math.round(Math.min(max, Math.max(min, value + by)) * 100) / 100) },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    Caption [ text = { classroot.caption } ],
+    row: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Nudge [ sign = "−", accessibilityLabel = { "Less " + classroot.caption.toLowerCase() },
+            disabled = { classroot.value <= classroot.min },
+            press() { classroot.nudge(-classroot.step) }
+            ],
+        Text [ flexes = true, textAlign = center, fontSize = { app.wide ? 64 : 56 }, fontWeight = 800,
+            letterSpacing = -2, wrap = false, text = { classroot.shown } ],
+        Nudge [ sign = "+", accessibilityLabel = { "More " + classroot.caption.toLowerCase() },
+            disabled = { classroot.value >= classroot.max },
+            press() { classroot.nudge(classroot.step) }
+            ]
+        ]
+    ]
+
+
+// A small label over a group: the smallest type on any screen.
+
+class Caption extends Text [ fontSize = 12, fontWeight = bold, letterSpacing = 1.4, textTransform = uppercase,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+// One effort, 1 to 10, as a square to press: its own colour is that effort's.
+
+class EffortCell extends ChoiceItem [ height = 52, flexes = true, cornerRadius = 10,
+    level: number = { Number(choice) },
+    accessibilityLabel = { "Effort " + level },
+    fill = { app.effortInk(classroot.level) },
+    stroke = { classroot.on ? stroke(3, provided("theme").text) : null },
+    scale = { classroot.on ? 1 : pressed ? 0.94 : 0.9 }, pivotX = { this.width / 2 }, pivotY = 26,
+    TextLabel [ x = center, y = center, fontSize = 18, fontWeight = 800,
+        textColor = { classroot.level >= 6 ? 0xFFFFFF : provided("theme").text },
+        text = { classroot.choice } ]
+    ]
+
+
+// A labelled fact: a figure over its name. The figure is large.
+
+class Fact [
+    figure: string = "",
+    name: string = "",
+    big: number = 40,
+    baseline: number = { fig.y + fig.baseline },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    fig: Text [ fontSize = { classroot.big }, fontWeight = 800, letterSpacing = -1, wrap = false, text = { classroot.figure } ],
+    Caption [ text = { classroot.name } ]
+    ]
+
+
+// A pressable pill: Today, Season, All on the year; Edit, Delete on a session.
+
+class Pill extends Control [ height = { app.tap }, cornerRadius = { this.height / 2 }, padding = [0, 14, 0, 14],
+    label: string = "",
+    on: boolean = false,
+    danger: boolean = false,
+    accessibilityLabel = { label },
+    accessibilityPressed = { on },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    stroke = { stroke(1, provided("theme").line) },
+    State [ applied = { classroot.on }, fill = { provided("theme").text }, stroke = null ],
+    TextLabel [ y = center, fontSize = 14, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").surface : classroot.danger ? provided("theme").accent : provided("theme").text },
+        text = { classroot.label } ]
+    ]

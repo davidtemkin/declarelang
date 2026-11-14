@@ -1,0 +1,410 @@
+/*
+# The Venue: the house
+
+The seat map as a dataset class (`House`), and the hall drawn as a room: a
+stage everything faces, four sections front to back, each row an arc of seats
+with two aisles. `venue.declare` includes this file.
+
+The hall is laid out once, in its own units, at the size a finger needs (a
+seat is a 44-point cell). What a person sees is that surface scaled: the whole
+house fitted to the room at a desk, and on a phone the whole house first, then
+a tap zooms into where the person wants to sit, and a drag pans. One `scale`
+and two offsets, each on a Spring, are the whole camera.
+*/
+
+// ── The seats ───────────────────────────────────────────────────────────────
+//
+// The seat map for one performance. It loads when the performance changes, and
+// the App keeps it current from the event stream (`markSold`); nothing refetches
+// it while the person looks.
+
+class House extends DataSource [ credentials = include, autoFetch = true, schema = SeatMap,
+    perf: string = "",
+    url = { classroot.perf == "" ? "" : api("/api/performances/" + classroot.perf + "/seats") },
+
+    sections() -> Section[] { return this.value?.sections ?? [] },
+    ready: boolean = { classroot.loaded && classroot.value?.performanceId == classroot.perf },
+
+    // A seat id says where it is: "ORCH-C-14" is Orchestra, row C, seat 14.
+
+    sectionOf(id: string) -> Section? {
+        const key = id.split("-")[0]
+        return this.sections().find((s) => s.key == key) ?? null
+        },
+    label(id: string) -> string {
+        const p = id.split("-")
+        return (this.sectionOf(id)?.name ?? p[0]) + ", row " + p[1] + ", seat " + p[2]
+        },
+    priceOf(id: string) -> number { return this.sectionOf(id)?.priceCents ?? 0 },
+    feeOf(id: string) -> number { return this.sectionOf(id)?.feeCents ?? 0 },
+    line(id: string) -> Line {
+        return ({ id: id, label: this.label(id), priceCents: this.priceOf(id), feeCents: this.feeOf(id) })
+        },
+
+    // Where a seat sits in the data, as [section, row, seat], or [] when it is not here.
+
+    where(id: string) -> number[] {
+        const p = id.split("-")
+        const si = this.sections().findIndex((s) => s.key == p[0])
+        if (si < 0) return []
+        const ri = this.sections()[si].rows.findIndex((r) => r.name == p[1])
+        if (ri < 0) return []
+        const ki = this.sections()[si].rows[ri].seats.findIndex((s) => s.id == id)
+        return ki < 0 ? [] : [si, ri, ki]
+        },
+    isFree(id: string) -> boolean {
+        const w = this.where(id)
+        return w.length == 3 && this.sections()[w[0]].rows[w[1]].seats[w[2]].status == "available"
+        },
+    markSold(id: string) {
+        const w = this.where(id)
+        if (w.length == 3) this.set(["sections", w[0], "rows", w[1], "seats", w[2], "status"], "sold")
+        },
+
+    freeCount: number = { classroot.sections().reduce((n, s) =>
+        n + s.rows.reduce((m, r) => m + r.seats.filter((x) => x.status == "available").length, 0), 0) },
+    totalSeats: number = { classroot.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.length, 0), 0) }
+    ]
+
+
+// ── A seat ──────────────────────────────────────────────────────────────────
+//
+// Three states that differ in shape and size as well as color, so they read
+// with any legend covered and without telling two colors apart: a free seat is
+// a full seat in its section's tone; yours is larger, in the accent, with a
+// tick; a taken seat shrinks to a small faint dot.
+
+class SeatSpot extends Control [ width = { app.hall.P }, height = { app.hall.rowP },
+    seatId: string = { :id ?? "" },
+    num: number = { :number ?? 0 },
+    status: string = { :status ?? "sold" },
+    secName: string = "",
+    rowName: string = "",
+    price: number = 0,
+    fee: number = 0,
+    tone: Color = gray,
+
+    mine: boolean = { app.chosen.includes(classroot.seatId) },
+    gone: boolean = { classroot.status != "available" && !classroot.mine },
+    disabled = { classroot.gone },
+    pointerEvents = { app.hall.pickable ? "auto" : "none" },
+
+    accessibilityRole = toggle,
+    accessibilityLabel = { classroot.secName + ", row " + classroot.rowName + ", seat " + classroot.num },
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { classroot.gone ? "Taken"
+        : money(classroot.price) + " plus " + money(classroot.fee) + " booking fee" + (classroot.mine ? ", chosen" : ", free") },
+
+    press() { app.toggleSeat(classroot.seatId) },
+
+    // What a person points at or tabs to is described beside the hall.
+
+    trackChanges = ["hovered", "focused"],
+    onChange() { if (hovered || focused) app.inspected = seatId },
+
+    // The seat's size springs, so choosing one registers in the seat itself.
+
+    target: number = { classroot.mine ? 38 : classroot.gone ? 11 : 30 },
+    size: number = { classroot.target },
+    Spring [ attribute = size, to = { classroot.target }, stiffness = 520,
+        damping = { app.calm ? 60 : 17 } ],
+
+    shape: View [ x = center, y = center, width = { classroot.size }, height = { classroot.size },
+        cornerRadius = { classroot.gone ? classroot.size / 2 : [classroot.size * 0.38, classroot.size * 0.38, classroot.size * 0.16, classroot.size * 0.16] },
+        fill = { classroot.mine ? provided("theme").accent : classroot.gone ? provided("theme").gone : classroot.tone },
+        stroke = { classroot.focused ? stroke(3, provided("theme").text) : null },
+        tick: CheckIcon [ visible = { classroot.mine }, x = center, y = center, iconSize = 22, weight = 2.6,
+            ink = { provided("theme").accentTextColor } ]
+        ]
+    ]
+
+
+// ── A row: an arc of seats, two aisles, its letter at both ends ─────────────
+
+class HallRow [ x = 0, width = { app.hall.HW }, height = { app.hall.rowP },
+    y = { app.hall.bandH + rowIndex * app.hall.rowP },
+    rowName: string = { :name ?? "" },
+    n: number = { (:seats ?? []).length },
+    secName: string = "",
+    price: number = 0,
+    fee: number = 0,
+    tone: Color = gray,
+
+    // the row's letter, left and right of it
+
+    Text [ x = { app.hall.seatX(0, classroot.n) - app.hall.P - this.width / 2 },
+        y = { app.hall.rowP / 2 - this.height / 2 - app.hall.rise(app.hall.seatX(0, classroot.n)) },
+        fontSize = 15, fontWeight = semibold, textColor = { provided("theme").textFaint },
+        accessibilityHidden = true, text = { classroot.rowName } ],
+    Text [ x = { app.hall.seatX(classroot.n - 1, classroot.n) + app.hall.P - this.width / 2 },
+        y = { app.hall.rowP / 2 - this.height / 2 - app.hall.rise(app.hall.seatX(0, classroot.n)) },
+        fontSize = 15, fontWeight = semibold, textColor = { provided("theme").textFaint },
+        accessibilityHidden = true, text = { classroot.rowName } ],
+
+    SeatSpot [ datapath = :seats[],
+        secName = { classroot.secName }, rowName = { classroot.rowName },
+        price = { classroot.price }, fee = { classroot.fee }, tone = { classroot.tone },
+        cx: number = { app.hall.seatX(rowIndex, classroot.n) },
+        x = { this.cx - app.hall.P / 2 },
+        y = { -app.hall.rise(this.cx) },
+        rotation = { app.hall.turn(this.cx) },
+        pivotX = { app.hall.P / 2 }, pivotY = { app.hall.rowP / 2 }
+        ]
+    ]
+
+
+// ── A section: its band (name, price, the front of the tier), then its rows ──
+
+class HallSection [ x = 0, width = { app.hall.HW },
+    y = { app.hall.tops[rowIndex] ?? 0 },
+    height = { app.hall.bandH + (:rows ?? []).length * app.hall.rowP },
+    secName: string = { :name ?? "" },
+    price: number = { :priceCents ?? 0 },
+    fee: number = { :feeCents ?? 0 },
+    tone: Color = { provided("theme").tones[Math.min(rowIndex, 3)] },
+    upper: boolean = { rowIndex > 0 },
+
+    // The front of each raised tier: a rail along the curve of its first row.
+    // The Orchestra sits on the floor and has none.
+
+    rail: View [ width = 100%, height = { app.hall.bandH }, visible = { classroot.upper },
+        accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const h = app.hall
+            const half = (h.maxSeats * h.P) / 2 + h.aisleW + 20
+            d.strokeStyle = provided("theme").lineStrong
+            d.lineWidth = 4
+            d.lineCap = "round"
+            d.beginPath()
+            for (let i = 0; i <= 40; i++) {
+                const x = h.HW / 2 - half + (2 * half * i) / 40
+                const y = h.bandH - 16 - h.rise(x)
+                if (i == 0) d.moveTo(x, y)
+                else d.lineTo(x, y)
+                }
+            d.stroke()
+            }
+        ],
+
+    // Its name and price, kept the same size on screen however far the
+    // camera is zoomed out (`1 / s`).
+
+    label: View [ x = center, y = { app.hall.bandH * 0.42 - this.height / 2 },
+        scale = { 1 / app.hall.s }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+        accessibilityHidden = true,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ fontSize = 12, fontWeight = bold, letterSpacing = 1.4, textColor = { provided("theme").text },
+            text = { classroot.secName.toUpperCase() } ],
+        Text [ fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+            text = { money(classroot.price) } ]
+        ],
+
+    HallRow [ datapath = :rows[], secName = { classroot.secName }, price = { classroot.price },
+        fee = { classroot.fee }, tone = { classroot.tone } ]
+    ]
+
+
+// ── The hall, and the camera on it ──────────────────────────────────────────
+
+class HallView [ clip = true,
+    accessibilityRole = group,
+    accessibilityLabel = "Seats in the Grand Hall",
+
+    // The geometry, in the hall's own units.
+
+    P: number = 44,                 // one seat's cell: a finger's width at full size
+    rowP: number = 44,
+    aisleW: number = 34,
+    margin: number = 90,            // room for the row letters
+    stageH: number = 160,
+    bandH: number = 100,            // the band before each section: its name, the tier's front
+    sections: Section[] = { app.house.sections() },
+    maxSeats: number = { Math.max(1, ...classroot.sections.map((s) => Math.max(1, ...s.rows.map((r) => r.seats.length)))) },
+    HW: number = { classroot.maxSeats * classroot.P + 2 * classroot.aisleW + 2 * classroot.margin },
+    tops: number[] = { classroot.sections.reduce((acc: number[], s, i) =>
+        [...acc, i == 0 ? classroot.stageH : acc[i - 1] + classroot.bandH + classroot.sections[i - 1].rows.length * classroot.rowP], []) },
+    HH: number = { (classroot.tops[classroot.tops.length - 1] ?? classroot.stageH)
+        + classroot.bandH + (classroot.sections[classroot.sections.length - 1]?.rows.length ?? 0) * classroot.rowP + 50 },
+
+    // Rows are arcs about the stage: a seat rises toward the stage the
+    // further it is from the middle, and turns to face it.
+
+    curve: number = { 80 / Math.pow((classroot.maxSeats * classroot.P) / 2, 2) },
+    rise(x: number) -> number { const dx = x - this.HW / 2; return this.curve * dx * dx },
+    turn(x: number) -> number { return (Math.atan(-2 * this.curve * (x - this.HW / 2)) * 180) / Math.PI },
+
+    // The middle of seat k (from 0) in a row of n: the row centred, with an
+    // aisle a quarter of the way in from each end.
+
+    seatX(k: number, n: number) -> number {
+        const a = Math.round(n / 4)
+        const shift = (k < a ? -this.aisleW : 0) + (k >= n - a ? this.aisleW : 0)
+        return this.HW / 2 + (k - (n - 1) / 2) * this.P + shift
+        },
+
+    // The camera. At a desk the whole house is fitted; on a phone the whole
+    // house first, then a tap zooms into that place at full size.
+
+    compact: boolean = { app.compact },
+    zoomed: boolean = false,
+    pickable: boolean = { !classroot.compact || classroot.zoomed },
+    fitS: number = { Math.min(1, classroot.width / classroot.HW, classroot.height / classroot.HH) },
+    fitX: number = { (classroot.width - classroot.HW * classroot.fitS) / 2 },
+    fitY: number = { classroot.compact ? (classroot.height - classroot.HH * classroot.fitS) / 2 : 0 },
+    panX: number = 0,
+    panY: number = 0,
+    s: number = { classroot.fitS },
+    tx: number = { classroot.fitX },
+    ty: number = { classroot.fitY },
+    sTo: number = { classroot.zoomed ? 1 : classroot.fitS },
+    txTo: number = { classroot.zoomed ? classroot.panX : classroot.fitX },
+    tyTo: number = { classroot.zoomed ? classroot.panY : classroot.fitY },
+    Spring [ attribute = s, to = { classroot.sTo }, stiffness = 210, damping = 27 ],
+    Spring [ attribute = tx, to = { classroot.txTo }, stiffness = 210, damping = 27 ],
+    Spring [ attribute = ty, to = { classroot.tyTo }, stiffness = 210, damping = 27 ],
+
+    clampX(v: number) -> number { return Math.min(0, Math.max(this.width - this.HW, v)) },
+    clampY(v: number) -> number { return Math.min(0, Math.max(this.height - this.HH, v)) },
+
+    // Zoom so the point under the finger comes to the middle.
+
+    zoomAt(px: number, py: number) {
+        const hx = (px - tx) / s
+        const hy = (py - ty) / s
+        panX = clampX(width / 2 - hx)
+        panY = clampY(height / 2 - hy)
+        zoomed = true
+        },
+    zoomOut() { zoomed = false },
+
+    onClick(e: PointerEvent) { if (compact && !zoomed) zoomAt(e.x, e.y) },
+
+    // A drag pans the zoomed house. The hand writes the place and its target
+    // together, so nothing trails the finger; a tap that never travels still
+    // reaches the seat under it.
+
+    grabX: number = 0,
+    grabY: number = 0,
+    onDragStart(e: PointerEvent) { grabX = tx; grabY = ty },
+    onDrag(e: PointerEvent) {
+        if (!zoomed) return
+        panX = clampX(grabX + e.deltaX)
+        panY = clampY(grabY + e.deltaY)
+        tx = panX
+        ty = panY
+        },
+
+    // Up and Down move to the nearest seat in the row in front or behind;
+    // Left and Right walk along the row (the focus scope's own movement).
+
+    seatViews() -> SeatSpot[] {
+        const out: SeatSpot[] = []
+        for (const sec of this.surface.childViews) {
+            for (const row of sec.childViews) {
+                for (const v of row.childViews) { if (v instanceof SeatSpot) out.push(v) }
+                }
+            }
+        return out
+        },
+    rowStep(dir: number) -> boolean {
+        const here = Focus.getFocus()
+        if (!(here instanceof SeatSpot)) return false
+        const seats = seatViews()
+        const rows: SeatSpot[][] = []
+        let at = -1
+        for (const v of seats) {
+            const last = rows[rows.length - 1]
+            if (last != null && last[0].parent == v.parent) last.push(v)
+            else rows.push([v])
+            if (v == here) at = rows.length - 1
+            }
+        for (let r = at + dir; r >= 0 && r < rows.length; r = r + dir) {
+            const open = rows[r].filter((v) => !v.disabled)
+            if (open.length == 0) continue
+            const hx = here.x + here.width / 2
+            open.sort((a, b) => Math.abs(a.x + a.width / 2 - hx) - Math.abs(b.x + b.width / 2 - hx))
+            Focus.focus(open[0])
+            return true
+            }
+        return true
+        },
+
+    // Tab reaches the way out of a zoom before the seats.
+
+    tabOrder() -> View[] { return [this.wholeHouse, this.surface] },
+
+    // Zoomed in, which section is in the middle of the view, so the person
+    // knows where they are without zooming out.
+
+    middleY: number = { (classroot.height / 2 - classroot.ty) / Math.max(0.01, classroot.s) },
+    here: Section? = { classroot.sections.filter((x, i) => (classroot.tops[i] ?? 0) + classroot.bandH <= classroot.middleY + 1).pop() ?? classroot.sections[0] ?? null },
+
+    surface: View [ width = { classroot.HW }, height = { classroot.HH },
+        pivotX = 0, pivotY = 0, scale = { classroot.s }, x = { classroot.tx }, y = { classroot.ty },
+        focusScope = stop,
+        keyBindings = { [ ({ key: "ArrowUp", command: "rowStep", args: [-1] }),
+            ({ key: "ArrowDown", command: "rowStep", args: [1] }) ] },
+        rowStep(dir: number) -> boolean { return classroot.rowStep(dir) },
+
+        // the stage, which everything faces
+
+        stage: View [ x = center, y = 24, width = { classroot.HW * 0.56 }, height = 100,
+            accessibilityHidden = true,
+            draw(d: DrawContext) {
+                const w = this.width
+                const h = this.height
+                d.fillStyle = provided("theme").stage
+                d.beginPath()
+                d.moveTo(0, 0)
+                d.lineTo(w, 0)
+                d.lineTo(w, h * 0.55)
+                d.quadraticCurveTo(w / 2, h * 1.25, 0, h * 0.55)
+                d.closePath()
+                d.fill()
+                },
+            View [ x = center, y = 34, scale = { 1 / classroot.s }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+                Text [ fontSize = 11, fontWeight = bold, letterSpacing = 3, textColor = { provided("theme").stageText }, text = "STAGE" ]
+                ]
+            ],
+
+        datapath = { app.house.value },
+        HallSection [ datapath = :sections[] ]
+        ],
+
+    // On a phone: what to do first, and the way back out.
+
+    hint: View [ x = center, y = { parent.height - this.height - 14 }, visible = { classroot.compact && !classroot.zoomed },
+        padding = [8, 14, 8, 14], cornerRadius = 16, fill = { provided("theme").chip },
+        pointerEvents = "none",
+        Text [ fontSize = 14, fontWeight = medium, textColor = { provided("theme").chipText }, text = "Tap where you'd like to sit" ]
+        ],
+    wholeHouse: Control [ x = 12, y = 12, height = 44, visible = { classroot.zoomed },
+        padding = [0, 14, 0, 12], cornerRadius = 22, fill = { provided("theme").chip },
+        shadow = { shadow(0, 2, 8, 0x00000030) },
+        press() { classroot.zoomOut() },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        MinusIcon [ iconSize = 14, ink = { provided("theme").chipText } ],
+        TextLabel [ fontSize = 15, fontWeight = semibold, textColor = { provided("theme").chipText }, text = "Whole house" ]
+        ],
+    whereLabel: View [ x = { parent.width - this.width - 12 }, y = 16, visible = { classroot.zoomed && classroot.here != null },
+        padding = [7, 12, 7, 12], cornerRadius = 16, fill = { provided("theme").card },
+        stroke = { stroke(1, provided("theme").line) }, pointerEvents = "none", accessibilityHidden = true,
+        Text [ fontSize = 14, fontWeight = semibold, numeralWidth = tabular,
+            text = { (classroot.here?.name ?? "") + " · " + money(classroot.here?.priceCents ?? 0) } ]
+        ]
+    ]
+
+
+// ── The legend's samples: the same three shapes, at a size for reading ─────
+
+class SeatSample [ width = 22, height = 22,
+    kind: string = "free",
+    tone: Color = gray,
+    View [ x = center, y = center,
+        width = { classroot.kind == "mine" ? 20 : classroot.kind == "gone" ? 7 : 16 }, height = { this.width },
+        cornerRadius = { classroot.kind == "gone" ? 4 : [6, 6, 3, 3] },
+        fill = { classroot.kind == "mine" ? provided("theme").accent : classroot.kind == "gone" ? provided("theme").gone : classroot.tone },
+        CheckIcon [ visible = { classroot.kind == "mine" }, x = center, y = center, iconSize = 13, weight = 2.2,
+            ink = { provided("theme").accentTextColor } ]
+        ]
+    ]

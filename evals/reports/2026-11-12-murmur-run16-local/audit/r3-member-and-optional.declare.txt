@@ -1,0 +1,12 @@
+// DECLARE6001 x2 at 6.8: a grandchild reached as if it were a child, and a
+// child with 'exists' read without a check.
+class Pane [ width = 300, height = 200,
+    atEnd: boolean = { this.feed.lastVisibleRow >= 0 },
+    scroller: View [ width = 100%, height = 100%, scrolls = y, feed: View [ width = 100% ] ]
+    ]
+class Face [ width = 36, height = 36,
+    picture: string = "",
+    initials: TextLabel [ visible = { !classroot.face.loaded }, text = "DR" ],
+    face: Image [ exists = { classroot.picture != "" }, source = { classroot.picture } ]
+    ]
+App [ width = 400, height = 300, Pane [ ], Face [ y = 220 ] ]

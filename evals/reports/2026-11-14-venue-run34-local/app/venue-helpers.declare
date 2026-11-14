@@ -1,0 +1,192 @@
+/*
+# The Venue: helpers and the shape of the data
+
+Plain functions of their arguments (money, dates, cards, postcodes, the
+barcode), and the schemas of everything the service sends. `venue.declare`
+includes this file.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+script {
+    const API = "http://127.0.0.1:8350"
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    function api(path: string): string { return API + path }
+
+    // Amounts are integer cents: `$240.00`.
+    function money(cents: number): string {
+        return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    }
+
+    // "2026-11-13T19:30" is the hall's own local time, as printed on a ticket.
+    function dayLabel(iso: string): string {
+        const p = iso.split("T")[0].split("-").map(Number)
+        if (p.length < 3) return ""
+        return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] + " " + p[2] + " " + MONTHS[p[1] - 1]
+    }
+    function timeLabel(iso: string): string {
+        const t = (iso.split("T")[1] ?? "").split(":").map(Number)
+        if (t.length < 2) return ""
+        const h = t[0] % 12 == 0 ? 12 : t[0] % 12
+        return h + ":" + (t[1] < 10 ? "0" : "") + t[1] + (t[0] >= 12 ? "pm" : "am")
+    }
+    function monthName(iso: string): string {
+        const m = Number(iso.slice(5, 7))
+        return ["January", "February", "March", "April", "May", "June", "July", "August",
+            "September", "October", "November", "December"][m - 1] ?? ""
+    }
+    function seatCount(n: number): string { return n + (n == 1 ? " seat" : " seats") }
+
+    // ── cards
+
+    function digitsOf(s: string): string { return s.replace(/\D/g, "") }
+
+    function brandOf(digits: string): string {
+        if (/^3[47]/.test(digits)) return "amex"
+        if (/^4/.test(digits)) return "visa"
+        if (/^(5[1-5]|2(2[2-9]|[3-6]\d|7[01]|720))/.test(digits)) return "mastercard"
+        if (/^(6011|65|64[4-9]|622)/.test(digits)) return "discover"
+        return ""
+    }
+    function brandName(brand: string): string {
+        return ({ visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover" } as Record<string, string>)[brand] ?? ""
+    }
+    function brandShort(brand: string): string {
+        return ({ visa: "VISA", mastercard: "MC", amex: "AMEX", discover: "DISC" } as Record<string, string>)[brand] ?? ""
+    }
+    function cardLengths(brand: string): number[] {
+        if (brand == "amex") return [15]
+        if (brand == "visa") return [13, 16, 19]
+        if (brand == "mastercard") return [16]
+        if (brand == "discover") return [16, 17, 18, 19]
+        return [16]
+    }
+    function cardMax(brand: string): number { return Math.max(...cardLengths(brand)) }
+    function codeLength(brand: string): number { return brand == "amex" ? 4 : 3 }
+
+    // Grouped as printed on the card: 4-6-5 for American Express, fours otherwise.
+    function groupCard(digits: string): string {
+        const brand = brandOf(digits)
+        const d = digits.slice(0, cardMax(brand))
+        const sizes = brand == "amex" ? [4, 6, 5] : [4, 4, 4, 4, 3]
+        const out: string[] = []
+        let i = 0
+        for (const n of sizes) {
+            if (i >= d.length) break
+            out.push(d.slice(i, i + n))
+            i = i + n
+        }
+        return out.join(" ")
+    }
+    function luhn(digits: string): boolean {
+        let sum = 0
+        for (let i = 0; i < digits.length; i++) {
+            let n = Number(digits[digits.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum = sum + n
+        }
+        return digits.length > 0 && sum % 10 == 0
+    }
+
+    // Expiry is typed "MM / YY"; the slash appears by itself.
+    function groupExpiry(t: string, previous: string): string {
+        let d = digitsOf(t).slice(0, 4)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        // deleting back through the slash takes the month's last digit with it
+        if (previous.endsWith(" / ") && t.length < previous.length && d.length == 2) d = d.slice(0, 1)
+        if (d.length >= 2) return d.slice(0, 2) + " / " + d.slice(2)
+        return d
+    }
+    function expiryParts(t: string): number[] {
+        const d = digitsOf(t)
+        if (d.length != 4) return []
+        return [Number(d.slice(0, 2)), 2000 + Number(d.slice(2))]
+    }
+
+    // ── postcodes
+
+    function postalPattern(country: string): RegExp {
+        if (country == "US") return /^\d{5}(-\d{4})?$/
+        if (country == "CA") return /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z] ?\d[ABCEGHJ-NPRSTV-Z]\d$/i
+        if (country == "GB") return /^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/i
+        return /^.+$/
+    }
+    function postalOk(p: string, country: string): boolean { return postalPattern(country).test(p.trim()) }
+    function tidyPostal(p: string, country: string): string {
+        const t = p.trim().toUpperCase().replace(/\s+/g, "")
+        if ((country == "CA" || country == "GB") && t.length > 3) return t.slice(0, t.length - 3) + " " + t.slice(t.length - 3)
+        return p.trim()
+    }
+    // The one country whose format a postcode fits, or "" when it fits none or several.
+    function countryOfPostal(p: string): string {
+        const fits = ["US", "CA", "GB"].filter((c) => postalOk(p, c))
+        return fits.length == 1 ? fits[0] : ""
+    }
+
+    // ── Code 39: each character is nine elements, bar and space by turns, three
+    //    of them wide. `*` starts and stops every code.
+
+    const CODE39: Record<string, string> = {
+        "0": "000110100", "1": "100100001", "2": "001100001", "3": "101100000", "4": "000110001",
+        "5": "100110000", "6": "001110000", "7": "000100101", "8": "100100100", "9": "001100100",
+        "A": "100001001", "B": "001001001", "C": "101001000", "D": "000011001", "E": "100011000",
+        "F": "001011000", "G": "000001101", "H": "100001100", "I": "001001100", "J": "000011100",
+        "K": "100000011", "L": "001000011", "M": "101000010", "N": "000010011", "O": "100010010",
+        "P": "001010010", "Q": "000000111", "R": "100000110", "S": "001000110", "T": "000010110",
+        "U": "110000001", "V": "011000001", "W": "111000000", "X": "010010001", "Y": "110010000",
+        "Z": "011010000", "-": "010000101", ".": "110000100", " ": "011000100", "*": "010010100"
+    }
+    // The bars as [start, width] pairs in narrow units, and the whole width.
+    function code39Bars(text: string): number[][] {
+        const wide = 2.5
+        const bars: number[][] = []
+        let x = 0
+        for (const ch of ("*" + text.toUpperCase() + "*").split("")) {
+            const pat = CODE39[ch] ?? CODE39["-"]
+            for (let i = 0; i < 9; i++) {
+                const w = pat[i] == "1" ? wide : 1
+                if (i % 2 == 0) bars.push([x, w])
+                x = x + w
+            }
+            x = x + 1
+        }
+        bars.push([x - 1, 0])
+        return bars
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number,
+    seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema Seat [ id: string, number: number, status: string ]
+schema Row [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: Row ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing?: Billing, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Receipt [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+// Every refusal: an `error` code and a sentence for the person; some name a
+// field, a 409 names the seats that went.
+
+schema Refusal [ error?: string, message?: string, field?: string, conflicts[]?: string ]
+
+// The performances grouped by month, as the first screen lists them.
+
+schema Month [ name: string, perfs[]: Performance ]
+schema Months [ months[]: Month ]
+
+// One chosen seat, as checkout lists it.
+
+schema Line [ id: string, label: string, priceCents: number, feeCents: number ]

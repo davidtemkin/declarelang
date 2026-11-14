@@ -1,0 +1,6 @@
+// Message check: `array` is a member type (fromV: array = []) and a parameter type
+// (f(x: array)), but `as array` in a body is refused as TypeScript's "Did you mean 'Array'?".
+App [ width = 200, height = 100,
+    picked: array = [],
+    take(sel: object) { picked = sel as array }
+    ]

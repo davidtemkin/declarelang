@@ -1,0 +1,14 @@
+// A schema-typed attribute whose { } default looks a record up by another
+// attribute. When the key changes, do the attribute's readers follow?
+schema M [ id: string ]
+schema T [ id: string, msgs[]: M ]
+class Box extends View [
+    tid: string = "a",
+    t: T? = { app.thread(classroot.tid) },
+    n: number = { classroot.t?.msgs.length ?? -1 },
+    label: Text [ text = { classroot.tid + " n=" + classroot.n } ] ]
+App [ width = 300, height = 100,
+    s: Dataset { { "threads": [ { "id": "a", "msgs": [ { "id": "a1" } ] },
+                                { "id": "b", "msgs": [ { "id": "b1" }, { "id": "b2" } ] } ] } },
+    thread(id: string) -> T? { return (app.s.value?.threads ?? []).find((t) => t.id == id) ?? null },
+    box: Box [ ] ]

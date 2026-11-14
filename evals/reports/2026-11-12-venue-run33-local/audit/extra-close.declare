@@ -1,0 +1,6 @@
+// #48: one `]` too many in the middle of the App's body.
+App [
+    a: View [ width = 10 ],
+        ],
+    b: View [ width = 20 ]
+    ]

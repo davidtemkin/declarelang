@@ -1,0 +1,2 @@
+App [ width = 200, height = 100,
+    scale: Dataset { { "levels": [1, 2, 3] } } ]

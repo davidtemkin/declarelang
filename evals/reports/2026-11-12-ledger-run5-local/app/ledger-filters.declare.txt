@@ -1,0 +1,172 @@
+/*
+# Ledger: the filter panels
+
+What opens from the filter bar: two dates, the amount range, the
+categories (each with its count under the other filters) and the
+contacts. Each writes the App's filter as it changes, so every screen
+follows at once.
+*/
+
+// Two dates, typed the way people say them ("3 nov", "yesterday")
+
+class DateRangeForm [ width = 300, padding = 4,
+    a: string = { fmtDate(app.from) },
+    b: string = { fmtDate(app.to) },
+    fromIso: string = { parseDate(classroot.a, app.today) },
+    toIso: string = { parseDate(classroot.b, app.today) },
+    apply() {
+        if (fromIso == "" || toIso == "") return
+        app.setDates(fromIso, toIso)
+        app.datesPop.close()
+        },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Form [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        send() { classroot.apply() },
+        Field [ width = 100%, label = "From", stacked = true,
+            TextInput [ width = 100%, name = "from", value <-> classroot.a, required = "Type a date",
+                validate(v: string) -> string { return parseDate(v, app.today) == "" ? "Try “1 oct” or “2026-10-01”" : "" }
+                ]
+            ],
+        Field [ width = 100%, label = "To", stacked = true,
+            TextInput [ width = 100%, name = "to", value <-> classroot.b, required = "Type a date",
+                validate(v: string) -> string { return parseDate(v, app.today) == "" ? "Try “31 oct” or “today”" : "" }
+                ]
+            ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { classroot.fromIso != "" && classroot.toIso != "" ? rangeLabel(classroot.fromIso <= classroot.toIso ? classroot.fromIso : classroot.toIso, classroot.fromIso <= classroot.toIso ? classroot.toIso : classroot.fromIso) : " " } ],
+        Button [ label = "Apply", primary = true,
+            onClick() { parent.submit() }
+            ]
+        ]
+    ]
+
+
+// The amount range: a histogram of the transactions the other filters
+// match, a two-handled slider on a friendly, uneven scale, and two fields
+// for exact cents. Handles snap to the scale's stops; the fields take any
+// amount.
+
+class AmountFilter [ padding = 4,
+    hist: Read [ schema = Buckets, path = { "/api/aggregates/amounts?" + app.fq } ],
+    buckets: Bucket[] = { this.hist.value?.buckets ?? [] },
+    peak: number = { Math.max(1, ...classroot.buckets.map((b) => b.count)) },
+    top: number = { AMOUNT_STOPS.length - 1 },
+    lo: number = { stopIndex(app.fMin, false) },
+    hi: number = { stopIndex(app.fMax, true) },
+
+    // a stop as words: "$20", and the last stop means no top
+
+    say(i: number) -> string { return i >= this.top ? moneyWhole(AMOUNT_STOPS[this.top]) + "+" : moneyWhole(AMOUNT_STOPS[i]) },
+    setFromSlider(lo: number, hi: number) {
+        app.fMin = lo <= 0 ? -1 : AMOUNT_STOPS[lo]
+        app.fMax = hi >= this.top ? -1 : AMOUNT_STOPS[hi]
+        },
+
+    // where a bucket sits on the slider's scale
+
+    posOf(cents: number) -> number {
+        for (let i = 1; i < AMOUNT_STOPS.length; i++) if (cents < AMOUNT_STOPS[i]) return (i - 1) + (cents - AMOUNT_STOPS[i - 1]) / (AMOUNT_STOPS[i] - AMOUNT_STOPS[i - 1])
+        return this.top
+        },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 13, fontWeight = semibold, text = "Amount" ],
+    Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { count(classroot.hist.value?.count ?? 0) + " transactions match the other filters" } ],
+
+    // the histogram, its chosen range highlighted
+
+    histo: View [ width = 100%, height = 48, accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const w = this.width, h = this.height
+            const top = classroot.top
+            for (const b of classroot.buckets) {
+                const x0 = w * classroot.posOf(b.min) / top
+                const x1 = w * (b.max == null ? 1 : classroot.posOf(b.max) / top)
+                const bh = (h - 2) * b.count / classroot.peak
+                const mid = (classroot.posOf(b.min) + (b.max == null ? top : classroot.posOf(b.max))) / 2
+                const inRange = mid >= classroot.lo && mid <= classroot.hi
+                d.fillStyle = inRange ? provided("theme").accent : provided("theme").lineStrong
+                d.fillRect(x0 + 0.5, h - bh, Math.max(1, x1 - x0 - 1), bh)
+                }
+            }
+        ],
+    slider: RangeSlider [ width = 100%, min = 0, max = { classroot.top }, step = 1,
+        accessibilityLabel = "amount",
+        lowLabel = "Minimum amount", highLabel = "Maximum amount",
+        low = { classroot.lo }, high = { classroot.hi },
+        valueText(v: number) -> string { return classroot.say(v) },
+        commit(low: number, high: number) { classroot.setFromSlider(low, high) }
+        ],
+    labels: View [ width = 100%, height = 14,
+        Text [ x = 0, fontSize = 11, textColor = { provided("theme").textMuted }, text = "$0" ],
+        Text [ x = { parent.width * classroot.posOf(1000) / classroot.top - this.width / 2 }, fontSize = 11, textColor = { provided("theme").textMuted }, text = "$10" ],
+        Text [ x = { parent.width * classroot.posOf(5000) / classroot.top - this.width / 2 }, fontSize = 11, textColor = { provided("theme").textMuted }, text = "$50" ],
+        Text [ x = { parent.width * classroot.posOf(10000) / classroot.top - this.width / 2 }, fontSize = 11, textColor = { provided("theme").textMuted }, text = "$100" ],
+        Text [ x = { parent.width * classroot.posOf(50000) / classroot.top - this.width / 2 }, fontSize = 11, textColor = { provided("theme").textMuted }, text = "$500" ],
+        Text [ x = { parent.width * classroot.posOf(100000) / classroot.top - this.width / 2 }, fontSize = 11, textColor = { provided("theme").textMuted }, text = "$1k" ],
+        Text [ x = end, fontSize = 11, textColor = { provided("theme").textMuted }, text = "$5k+" ]
+        ],
+    fields: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        TextInput [ flexes = true, height = 30, placeholder = "No minimum", accessibilityLabel = "Minimum amount, exact", purpose = decimal, commitOn = "end",
+            value = { app.fMin < 0 ? "" : plainAmount(app.fMin) },
+            commit(v: string) { const c = parseMoney(v); app.fMin = v.trim() == "" || !(c >= 0) ? -1 : c }
+            ],
+        Text [ fontSize = 13, text = "to" ],
+        TextInput [ flexes = true, height = 30, placeholder = "No maximum", accessibilityLabel = "Maximum amount, exact", purpose = decimal, commitOn = "end",
+            value = { app.fMax < 0 ? "" : plainAmount(app.fMax) },
+            commit(v: string) { const c = parseMoney(v); app.fMax = v.trim() == "" || !(c >= 0) ? -1 : c }
+            ]
+        ],
+    QuietButton [ visible = { app.fMin >= 0 || app.fMax >= 0 }, label = "Any amount", tone = { provided("theme").accent },
+        press() { app.fMin = -1; app.fMax = -1 }
+        ]
+    ]
+
+
+// The categories, several at once, each with how many transactions it
+// would have under the other filters
+
+class CategoryFilter [ padding = 4,
+    counts: Read [ schema = CategoryCounts, path = { "/api/aggregates/category-counts?" + app.fq } ],
+    countOf(id: string?) -> number { return (this.counts.value?.categories ?? []).find((c) => (c.categoryId ?? null) == id)?.count ?? 0 },
+    rowsData: Dataset [ contents = { { rows: [
+        ({ id: "none", name: "Uncategorised", colour: -1 }),
+        ...app.books.categories().filter((c) => !c.archived || classroot.countOf(c.id) > 0).map((c) => ({ id: c.id, name: c.name + (c.archived ? " (archived)" : ""), colour: c.colour })) ] } } ],
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    Text [ fontSize = 13, fontWeight = semibold, text = "Categories" ],
+    list: View [ width = 100%, datapath = { classroot.rowsData.value }, accessibilityRole = group, accessibilityLabel = "Categories",
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        View [ datapath = :rows[], width = 100%, height = 30,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Checkbox [ flexes = true, label = { "" + :name }, checked = { app.fCats.includes("" + :id) },
+                commit(v: boolean) { app.fCats = app.toggleIn(app.fCats, "" + :id) }
+                ],
+            Text [ fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { count(classroot.countOf(:id == "none" ? null : "" + :id)) } ]
+            ]
+        ],
+    QuietButton [ visible = { app.fCats.length > 0 }, label = "Any category", tone = { provided("theme").accent },
+        press() { app.fCats = [] }
+        ]
+    ]
+
+
+// The contacts: type part of a name to add one
+
+class ContactFilter [ padding = 4,
+    chosen: Dataset [ contents = { { rows: app.fContacts.map((id) => ({ id: id, name: id == "none" ? "No contact" : app.books.contactName(id) })) } } ],
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Text [ fontSize = 13, fontWeight = semibold, text = "Contacts" ],
+    Combobox [ width = 100%, placeholder = "Type a name", accessibilityLabel = "Add a contact to the filter",
+        items = { [({ id: "none", label: "No contact" }), ...app.books.contacts().filter((c) => !app.fContacts.includes(c.id)).map((c) => ({ id: c.id, label: c.name }))] },
+        onInit() { afterSettle(() => this.focusField()) },
+        commit(v: object) { const id = "" + ((v as any)?.id ?? ""); if (id != "" && !app.fContacts.includes(id)) app.fContacts = [...app.fContacts, id] }
+        ],
+    View [ width = 100%, datapath = { classroot.chosen.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        FilterChip [ datapath = :rows[], label = { "" + :name },
+            remove() { app.fContacts = app.fContacts.filter((c) => c != :id) }
+            ]
+        ]
+    ]

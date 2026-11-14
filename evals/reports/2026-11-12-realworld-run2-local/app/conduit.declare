@@ -1,0 +1,179 @@
+/*
+# Conduit
+
+The RealWorld example app: a place to publish articles, read them, comment on
+them, favorite them, follow their authors and filter them by tag. Every record
+lives behind the RealWorld API (`api` below); this program is only the client.
+
+How it is put together:
+
+- **The session** is the token (kept in the browser between visits) and the
+  signed-in user, on the App. Every request reads `authHeaders`, so signing in
+  or out is one assignment and every source follows.
+- **Where the reader is** is the address: `location` is the URL's fragment,
+  in the spec's own paths — `#/article/<slug>`, `#/profile/<name>/favorites`,
+  `#/editor`. `page` is derived from it, and the App builds the page it names.
+  Settings and the editor need an account: signed out, the sign-in page shows
+  at their address, and signing in lands there.
+- **Each page holds its own requests** (`conduit-pages.declare`) as
+  `DataSource` members, and its screen derives from their state. Nothing is
+  copied out of a reply except into the page's own source, where a favorite or
+  a follow updates the article it changed.
+- **The look** is the shared Conduit theme translated into a theme record and
+  a few classes (`conduit-parts.declare`): its colors, its type, its icons.
+*/
+
+include [ "conduit-parts.declare" ]
+
+include [ "conduit-pages.declare" ]
+
+defaultFlags [ devices = desktop ]
+
+App [ appName = "Conduit", minWidth = 320,
+    theme = { { ...SanFrancisco, ...Conduit } },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    // ── type: the theme's faces, from Google Fonts, and its icon font.
+
+    sourceSans: Font [
+        FontFace [ weight = light, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwlxdu3cOWxw.woff2" ],
+        FontFace [ weight = regular, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xK3dSBYKcSV-LCoeQqfX1RYOo3qOK7lujVj9w.woff2" ],
+        FontFace [ weight = semibold, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xKydSBYKcSV-LCoeQqfX1RYOo3i54rwlxdu3cOWxw.woff2" ],
+        FontFace [ weight = bold, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwlxdu3cOWxw.woff2" ]
+        ],
+    lora: Font [
+        FontFace [ weight = regular, src = "https://fonts.gstatic.com/s/lora/v37/0QI6MX1D_JOuGQbT0gvTJPa787weuxJBkq18ndeY9Z4.woff2" ],
+        FontFace [ weight = bold, src = "https://fonts.gstatic.com/s/lora/v37/0QI6MX1D_JOuGQbT0gvTJPa787z5vBJBkq18ndeY9Z4.woff2" ]
+        ],
+    ionicons: Font [ FontFace [ src = "https://cdnjs.cloudflare.com/ajax/libs/ionicons/2.0.1/fonts/ionicons.woff" ]
+        ],
+    fontFamily = { [app.sourceSans, "sans-serif"] },
+    fontSize = 16,
+
+    // ── sizes: the theme's breakpoints
+
+    md: boolean = { app.width >= 768 },
+    containerW: number = { containerWidth(app.width) },
+
+    // ── the service
+
+    api: string = "http://127.0.0.1:8380/api",
+
+    // ── the session. The token outlives the page; the user is fetched again
+    //    for a returning visitor, and a token the service no longer takes
+    //    signs them out.
+
+    token: string = { savedToken() },
+    signedIn: boolean = { app.token != "" },
+    authHeaders: object = { { Authorization: app.token == "" ? "" : "Token " + app.token } },
+    account: Dataset [ schema = [ user?: User ] ] { { } },
+    user: User? = { app.signedIn ? app.account.value?.user ?? null : null },
+
+    whoami: DataSource [ schema = UserReply, headers = { app.authHeaders }, url = { app.api + "/user" },
+        onLoad() { app.account.set(["user"], this.value.user) },
+        onError() { if (this.statusCode == 401) app.signOut() }
+        ],
+    onInit() { if (app.signedIn) app.whoami.fetch() },
+
+    signIn(u: User) {
+        token = u.token
+        keepToken(u.token)
+        account.set(["user"], u)
+        },
+    signOut() {
+        token = ""
+        keepToken("")
+        account.set([], ({}))
+        },
+
+    // ── where the reader is: "/", "/login", "/article/<slug>", …
+
+    location = "/",
+    path: string[] = { app.location.split("/").filter((s) => s != "").map((s) => decodeSegment(s)) },
+    route: string = { app.path[0] ?? "" },
+    arg: string = { app.path[1] ?? "" },
+    needsAccount: boolean = { app.route == "settings" || app.route == "editor" },
+    page: string = { app.needsAccount && !app.signedIn ? "login" : app.route },
+    known: boolean = { ["", "login", "register", "settings", "editor", "article", "profile"].includes(app.page) },
+    go(to: string) { app.location = to },
+
+    // The home feed's tab: not an address in the spec, so the App keeps it.
+    // Signed out, "Your Feed" falls back to the global one.
+
+    homeTab: "feed" | "global" | "tag" = "global",
+    homeTag: string = "",
+    feedTab: string = { app.homeTab == "feed" && !app.signedIn ? "global" : app.homeTab },
+    homeEndpoint: string = { app.feedTab == "feed" ? "/articles/feed"
+        : app.feedTab == "tag" ? "/articles?tag=" + encodeURIComponent(app.homeTag) : "/articles" },
+
+    // ── the screen: the header, the page, the footer at the foot
+
+    layout: SimpleLayout [ axis = y ],
+
+    header: NavBar [ ],
+
+    home: HomePage [ exists = { app.page == "" } ],
+    login: AuthPage [ exists = { app.page == "login" }, mode = "login" ],
+    register: AuthPage [ exists = { app.page == "register" }, mode = "register" ],
+    settings: SettingsPage [ exists = { app.page == "settings" } ],
+    newArticle: EditorPage [ exists = { app.page == "editor" && app.arg == "" } ],
+    editArticle: EditorPage [ exists = { app.page == "editor" && app.arg != "" }, slug = { app.arg } ],
+    article: ArticlePage [ exists = { app.page == "article" }, slug = { app.arg } ],
+    profile: ProfilePage [ exists = { app.page == "profile" }, username = { app.arg }, favorites = { app.path[2] == "favorites" } ],
+    notFound: NotFoundPage [ exists = { !app.known } ],
+
+    Spacer [ ],
+    footer: Footer [ ]
+    ]
+
+
+// ── The header ──────────────────────────────────────────────────────────────
+//
+// `.navbar`: the brand, and the links for a visitor or for a member. The
+// link to where the reader is now is darker (`.active`).
+
+class NavBar [ width = 100%, padding = [8, 16, 8, 16], accessibilityRole = navigation,
+    Container [ layout: SimpleLayout [ axis = x, align = center ],
+        Text [ fontFamily = { app.lora }, fontSize = 24, padding = [0, 32, 4, 0], textColor = { provided("theme").ink },
+            link = "#/", text = "conduit" ],
+        links: View [ flexes = true,
+            layout: WrappingLayout [ spacing = 16, rowSpacing = 0, justify = end, align = center ],
+            NavLink [ to = "/", label = "Home" ],
+            NavLink [ visible = { !app.signedIn }, to = "/login", label = "Sign in" ],
+            NavLink [ visible = { !app.signedIn }, to = "/register", label = "Sign up" ],
+            NavLink [ visible = { app.signedIn }, to = "/editor", icon = "compose", label = "New Article" ],
+            NavLink [ visible = { app.signedIn }, to = "/settings", icon = "gear-a", label = "Settings" ],
+            NavLink [ visible = { app.signedIn }, to = { "/profile/" + encodeURIComponent(app.user?.username ?? "") },
+                label = { app.user?.username ?? "" },
+                Avatar [ width = 26, height = 26, url = { app.user?.image ?? "" }, accessibilityHidden = true ]
+                ]
+            ]
+        ]
+    ]
+
+
+class NavLink [ padding = [7, 0, 7, 0],
+    to: string = "/",
+    label: string = "",
+    icon: string = "",
+    here: boolean = { app.location == classroot.to || (classroot.to == "/" && app.location == "") },
+    link = { "#" + classroot.to },
+    textColor = { classroot.here ? provided("theme").navLinkActive : hovered ? provided("theme").navLinkHover : provided("theme").navLink },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Ion [ visible = { classroot.icon != "" }, glyph = { classroot.icon } ],
+    Text [ wrap = false, text = { classroot.label } ]
+    ]
+
+
+// ── The footer ──────────────────────────────────────────────────────────────
+
+class Footer [ width = 100%, padding = [16, 0, 16, 0],
+    stroke = { [stroke(1, provided("theme").border), null, null, null] },
+    View [ x = center, width = { Math.min(app.containerW, 720) }, padding = [0, 15, 0, 15],
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ fontFamily = { app.lora }, textColor = { provided("theme").ink }, link = "#/", text = "conduit" ],
+        Text [ shrinks = true, fontSize = 12.8, fontWeight = light, textColor = { provided("theme").textLight },
+            text = "An interactive learning project. Code & design licensed under MIT." ]
+        ]
+    ]

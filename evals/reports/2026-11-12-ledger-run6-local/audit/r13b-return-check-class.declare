@@ -1,0 +1,3 @@
+// Same, on a class of the program, called from a constraint.
+class Meter [ a() -> number { return "x" }, t: string = { "" + this.a() } ]
+App [ width = 300, height = 100, Meter [ ] ]

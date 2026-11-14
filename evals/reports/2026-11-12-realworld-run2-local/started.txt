@@ -1,0 +1,12 @@
+STARTED=2026-11-13T07:19:41Z
+APP=realworld
+MODEL=claude-opus-5-5
+SUBJECT=local tree at 3bc519f9 Four silent failures said: onChange that tracks nothing, a mistyped text face, a focusShape of no box, hover on a view that takes no presses + 559 changed, 18 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=none (the bare prompt, so the default of the SKILL)
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-realworld-2/work (logs outside it)
+PORT=8380 (the brief names 8380)
+SERVICE=node task/api/server.mjs --port=8380
+AGENT_PID=43229

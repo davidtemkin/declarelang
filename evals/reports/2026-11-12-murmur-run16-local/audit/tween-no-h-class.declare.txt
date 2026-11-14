@@ -1,0 +1,22 @@
+// As the run wrote it: the row's height is in its class, not at the use site.
+// R1 lets it through; at boot the layout writes height = undefined over it.
+class Stack extends TweenLayout [ duration = 380,
+    place() {
+        const w = this.contentExtent("width")
+        let y = 0
+        return this.laid().map((c) => {
+            const box = ({ x: 0, y: y, w: w })
+            y = y + c.height
+            return box
+            })
+        }
+    ]
+
+class Row [ width = 100%, height = 76, fill = #ccc ]
+
+App [ width = 400, height = 400,
+    list: View [ width = 100%, height = 100%,
+        layout: Stack [ ],
+        Row [ ], Row [ ], Row [ ]
+        ]
+    ]

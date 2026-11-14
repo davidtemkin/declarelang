@@ -1,0 +1,44 @@
+# eval-cadence-34
+total 23.2 min · 99 turns · output 118259 tokens (thinking 51912)
+phases: reading 7.0 · writing 3.7 · checking 12.5 min
+tool time 4.9 min · model time 18.4 min
+tools:
+  verify    26×   3.68 min  (median 4.6 s)
+  look      14×   0.80 min  (median 3.5 s)
+  help       8×   0.25 min  (median 1.2 s)
+  bash      26×   0.13 min  (median 0.0 s)
+model turns, by what came before:
+  after help      8×   4.74 min  (median 16.0 s)
+  after write     3×   3.74 min  (median 2.6 s)
+  after bash     25×   3.52 min  (median 2.6 s)
+  after verify   26×   2.76 min  (median 5.0 s)
+  after image    10×   1.61 min  (median 10.3 s)
+  after look     14×   1.27 min  (median 5.3 s)
+  after read     11×   0.39 min  (median 1.6 s)
+app: 2 .declare files, 1089 non-blank lines · 19 snapshots changed them: 1386 lines added, 111 removed
+verify results mentioning accessibility: 2
+source reads: library 0 file(s), runtime/compiler 2 — each to be audited: never a stand-in for the docs
+            runtime  runtime/src/
+            runtime  runtime/src/html.ts
+diagnostic codes, by tool results reporting them: DECLARE1002 2, DECLARE2000 1, DECLARE4035 1, DECLARE4026 1, DECLARE4032 1, DECLARE4022 1, DECLARE4005 1, DECLARE4025 1
+inside the agent's verify and look calls:
+   3.46 min    39×  R5 behavior, in all
+   2.85 min    39×  script: the assert script, in all
+   0.99 min   172×  locator.click
+   0.62 min   244×  drive.settleMotion
+   0.55 min   332×  check: scrolling come to rest
+   0.50 min    39×  open: the app loaded and arrived, in all
+   0.50 min    46×  page: load, compile in the page and boot
+   0.37 min   701×  locator: wait a tick for it
+   0.27 min    15×  drive.drag
+   0.25 min    17×  compile (R1–R3)
+   0.24 min    62×  drive.settleData
+   0.22 min    54×  drive.click
+   0.18 min    15×  drive.pinch
+   0.07 min     4×  R4 boot, in all
+   0.07 min    43×  drive.wait
+   0.06 min    46×  page: a new page
+   0.06 min   932×  locator: query the page
+   0.05 min    27×  end: layout questions at the end of the script
+   0.05 min     1×  drive.wheel
+   0.04 min     2×  drive.waitReal

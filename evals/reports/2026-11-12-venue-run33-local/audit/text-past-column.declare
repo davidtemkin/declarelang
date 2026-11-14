@@ -1,0 +1,10 @@
+// Account item 17: content-sized text (wrap = false) wider than its fixed-width column runs
+// into the next column; no layout finding names it. Compare: a Text given the column's width
+// ("needs N wide and has M") is named.
+App [ width = 390, height = 200,
+    View [ width = 100%, layout: SimpleLayout [ axis = x, spacing = 14 ],
+        when: View [ width = 104, layout: SimpleLayout [ axis = y ],
+            Text [ fontSize = 20, fontWeight = semibold, wrap = false, text = "Wed 18 November" ] ],
+        Text [ fontSize = 14, text = "213 seats left" ]
+        ]
+    ]

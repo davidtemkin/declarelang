@@ -1,0 +1,15 @@
+// Photo rows in a virtualized list: each Image reports `loaded` through onChange.
+// Does onChange fire for an Image in a row the list recycled while scrolling?
+class Pic extends View [ width = 300, height = 120,
+    src: string = { :src ?? "" },
+    rid: string = { :id ?? "" },
+    img: Image [ width = 100%, height = 100%, fit = cover, source = { "http://localhost:8330/" + classroot.src },
+        trackChanges = ["loaded"],
+        onChange() { if (this.loaded) app.heard = app.heard + 1, app.seen = ({ ...app.seen, [classroot.rid]: true }) } ] ]
+App [
+    heard: number = 0,
+    seen: Record<string, boolean> = { {} },
+    photos: Dataset [ contents = { { rows: Array.from({ length: 400 }, (_, i) => ({ id: "p" + i, src: "photos/" + (1 + i % 10) + ".jpg" })) } } ],
+    feed: View [ width = 100%, height = 100%, scrolls = y, scrollAnchor = end, datapath = { app.photos.value },
+        list: View [ width = 100%, layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Pic [ datapath = :rows[], virtualize = true ] ] ] ]

@@ -1,0 +1,12 @@
+// Run 32 audit: what a script's locator dblclick() delivers to a Control.
+App [ width = 600, height = 400,
+    presses: number = 0,
+    doubles: number = 0,
+    stamps: string = "",
+    send: DataSource [ url = "http://127.0.0.1:8472/api/orders", method = "POST", autoFetch = false, format = "text", body = { { x: 1 } } ],
+    layout: SimpleLayout [ axis = y, spacing = 20 ],
+    Button [ label = "Plain", onClick() { app.presses = app.presses + 1 } ],
+    Button [ label = "Sender", onClick() { app.presses = app.presses + 1; app.stamps = app.stamps + (app.send.loading ? "in-flight" : "answered:" + app.send.statusCode) + " "; app.send.fetch() } ],
+    View [ width = 120, height = 40, fill = #DDDDDD, accessibilityRole = group, accessibilityLabel = "Pair",
+        onClick() { app.presses = app.presses + 1 }, onDoubleClick() { app.doubles = app.doubles + 1 } ]
+    ]

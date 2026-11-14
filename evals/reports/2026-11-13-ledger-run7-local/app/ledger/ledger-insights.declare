@@ -1,0 +1,260 @@
+/*
+# Ledger: Insights and Budgets
+
+Insights is charts of the filtered data, as tabs; each chart has its title,
+one plain sentence of what it shows, the chart, and its table. Budgets is a
+monthly amount per expense category, against what has been spent, said in
+words.
+
+The numbers come from the App's reads (`insPeriods`, `insCmp`, `insCats`,
+`prodTotals`, `budgetsNow`); the screens only arrange them and say which
+records each opens.
+*/
+
+schema ProdRow [ id: string, name: string, units: number, revenue: number, cost: number, margin: number,
+    marginPercent?: number, open: string ]
+schema BudgetRow [ id: string, name: string, colour: number, amount: number, spent: number, remaining: number,
+    pace: number, state: string, tone: string, open: string ]
+
+
+// ── Products: a sortable table ──────────────────────────────────────────────
+
+class SortHead extends Control [ flexes = true, height = 32, padding = [0, 6, 0, 6], cornerRadius = 4,
+    key: string = "",
+    label: string = "",
+    first: boolean = false,
+    on: boolean = { app.prodSort == classroot.key },
+    accessibilitySort = { classroot.on ? (app.prodDir == "asc" ? "ascending" : "descending") : "none" },
+    accessibilityPressed = { classroot.on },
+    accessibilityLabel = { "Sort by " + classroot.label },
+    fill = { hovered || pressed ? provided("theme").hover : null },
+    press() { app.sortProducts(key) },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    Spacer [ visible = { !classroot.first } ],
+    TextLabel [ fontSize = 12, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
+    ArrowIcon [ visible = { classroot.on }, iconSize = 10, dir = { app.prodDir == "asc" ? "up" : "down" }, ink = { provided("theme").textMuted } ]
+    ]
+
+
+class ProductRow extends Control [ width = 100%, height = { app.touchFirst ? 44 : 34 }, cornerRadius = 4,
+    accessibilityLabel = { (:name ?? "") + ": " + count(:units ?? 0) + " units, revenue " + money(:revenue ?? 0) + ", margin " + money(:margin ?? 0) + ". Open its sales." },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    press() { app.openKey(:open ?? "") },
+    layout: SimpleLayout [ axis = x, align = center ],
+    TextLabel [ flexes = true, padding = [0, 6, 0, 6], fontSize = 13, wrap = false, maxLines = 1, text = { :name ?? "" } ],
+    TextLabel [ flexes = true, padding = [0, 6, 0, 6], textAlign = right, fontSize = 13, numeralWidth = tabular, wrap = false, text = { count(:units ?? 0) } ],
+    TextLabel [ flexes = true, padding = [0, 6, 0, 6], textAlign = right, fontSize = 13, numeralWidth = tabular, wrap = false, text = { money(:revenue ?? 0) } ],
+    TextLabel [ flexes = true, padding = [0, 6, 0, 6], textAlign = right, fontSize = 13, numeralWidth = tabular, wrap = false, text = { money(:cost ?? 0) } ],
+    TextLabel [ flexes = true, padding = [0, 6, 0, 6], textAlign = right, fontSize = 13, numeralWidth = tabular, wrap = false, text = { money(:margin ?? 0) } ],
+    TextLabel [ flexes = true, padding = [0, 6, 0, 6], textAlign = right, fontSize = 13, numeralWidth = tabular, wrap = false, text = { pct(:marginPercent ?? null) } ]
+    ]
+
+
+class InsightsScreen [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+
+    tabs: TabBar [ width = { Math.min(560, parent.width) }, accessibilityLabel = "Insights",
+        value = { app.insTab },
+        items = { [ ({ id: "trends", label: "Trends" }), ({ id: "ive", label: "Income vs expenses" }),
+            ({ id: "breakdown", label: "Breakdown" }), ({ id: "products", label: "Products" }) ] },
+        commit(v: string) { app.location = "insights/" + v }
+        ],
+
+    // ── one measure over time
+
+    trends: ChartFrame [ visible = { app.insTab == "trends" }, title = { app.measureName(app.trendMeasure) + " over time" },
+        sentence = { app.trendSentence },
+        tooLittle = { app.insPts.length < 2 }, tooLittleText = "Too little data in this range to show a trend — widen the date range.",
+        controls: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 10, rowSpacing = 8, align = center ],
+            Segmented [ width = { Math.min(560, parent.width) }, accessibilityLabel = "Measure",
+                value = { app.trendMeasure },
+                items = { [ ({ id: "revenue", label: "Revenue" }), ({ id: "expenses", label: "Expenses" }), ({ id: "net", label: "Net profit" }),
+                    ({ id: "margin", label: "Gross margin %" }), ({ id: "sales", label: "Sales" }) ] },
+                commit(v: string) { app.trendMeasure = v }
+                ],
+            Segmented [ width = 280, accessibilityLabel = "Granularity",
+                value = { app.grain },
+                items = { [ ({ id: "day", label: "Days" }), ({ id: "week", label: "Weeks" }), ({ id: "month", label: "Months" }), ({ id: "quarter", label: "Quarters" }) ] },
+                commit(v: string) { app.grainChoice = v }
+                ]
+            ],
+        TimeChart [ visible = { !parent.parent.asTable }, width = 100%, height = 300, dashedCompare = { app.cmp != null },
+            chartLabel = { app.measureName(app.trendMeasure) + " by " + app.grain + ". Use the arrow keys to read each period." },
+            points = { app.insPts },
+            series = { [ ({ id: app.trendMeasure, name: app.measureName(app.trendMeasure), mark: "line", tone: provided("theme").accent,
+                unit: app.trendMeasure == "margin" ? "percent" : app.trendMeasure == "sales" ? "count" : "money" }) ] },
+            openPoint(i: number, s: number) { app.drillPeriod(app.insPts[i], app.trendMeasure) },
+            rangePicked(from: string, to: string) { app.setDates(from, to) }
+            ],
+        Text [ visible = { app.cmp != null && !parent.parent.asTable }, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { "Dashed: " + app.compareWords.replace("vs ", "the ") + " (" + app.cmpName + ")." } ],
+        TableView [ visible = { parent.parent.asTable },
+            heads = { ["Period", app.measureName(app.trendMeasure), ...(app.cmp == null ? [] : ["Comparison"])] },
+            rows = { app.trendTable } ]
+        ],
+
+    // ── income vs expenses, with a running total of net profit
+
+    ive: ChartFrame [ visible = { app.insTab == "ive" }, title = "Income vs expenses",
+        sentence = { app.breakEvenSentence },
+        tooLittle = { app.ivePts.length == 0 },
+        TimeChart [ visible = { !parent.parent.asTable }, width = 100%, height = 320, running = true,
+            chartLabel = "Revenue and expenses by period, with net profit as a line and its running total dotted.",
+            points = { app.ivePts },
+            series = { app.iveSeries },
+            openPoint(i: number, s: number) { app.drillPeriod(app.ivePts[i], ["revenue", "expenses", "net"][s] ?? "net") },
+            rangePicked(from: string, to: string) { app.setDates(from, to) }
+            ],
+        Text [ visible = { !parent.parent.asTable }, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = "Bars: revenue and expenses. Solid line: net profit. Dotted line, in green: net profit added up from the start of the range." ],
+        TableView [ visible = { parent.parent.asTable }, heads = ["Period", "Revenue", "Expenses", "Net profit", "Running total"],
+            rows = { app.iveTable } ]
+        ],
+
+    // ── categories as sorted bars
+
+    breakdown: ChartFrame [ visible = { app.insTab == "breakdown" }, title = { app.breakSide == "expense" ? "Expenses by category" : "Income by category" },
+        sentence = { app.breakSentence },
+        tooLittle = { app.breakBars.length == 0 }, tooLittleText = "Nothing in this range.",
+        Segmented [ width = 220, accessibilityLabel = "Side", value = { app.breakSide },
+            items = { [ ({ id: "expense", label: "Expenses" }), ({ id: "income", label: "Income" }) ] },
+            commit(v: string) { app.breakSide = v }
+            ],
+        BarList [ visible = { !parent.parent.asTable }, datapath = { app.breakData.value },
+            BarRow [ datapath = :rows[], noteW = { app.phone ? 96 : 130 },
+                press() { app.openKey(:open ?? "") }
+                ]
+            ],
+        TableView [ visible = { parent.parent.asTable }, heads = ["Category", "Amount", "Share and change"],
+            rows = { app.barTable(app.breakBars) } ]
+        ],
+
+    // ── products, sortable
+
+    products: ChartFrame [ visible = { app.insTab == "products" }, title = "Products", switchable = false,
+        sentence = { app.productsSentence },
+        tooLittle = { app.prodRows.length == 0 }, tooLittleText = "No sales in this range.",
+        sortHeads: View [ width = 100%, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+            layout: SimpleLayout [ axis = x, align = center ],
+            SortHead [ key = "name", label = "Product", first = true ],
+            SortHead [ key = "units", label = "Units sold" ],
+            SortHead [ key = "revenue", label = "Revenue" ],
+            SortHead [ key = "cost", label = "Cost" ],
+            SortHead [ key = "margin", label = "Margin" ],
+            SortHead [ key = "marginPercent", label = "Margin %" ]
+            ],
+        rows: View [ width = 100%, datapath = { app.prodData.value }, focusScope = stop,
+            layout: SimpleLayout [ axis = y ],
+            ProductRow [ datapath = :rows[] ]
+            ]
+        ]
+    ]
+
+
+// ── Budgets ─────────────────────────────────────────────────────────────────
+
+class BudgetLine [ width = 100%, padding = [10, 0, 10, 0],
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    top: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 10, rowSpacing = 6, align = center ],
+        CategoryChip [ name = { :name ?? "" }, colour = { :colour ?? -1 } ],
+        state: TextLabel [ fontSize = 13, fontWeight = semibold, wrap = false,
+            textColor = { (:tone ?? "") == "bad" ? provided("theme").bad : (:tone ?? "") == "warn" ? provided("theme").warn : provided("theme").good },
+            text = { :state ?? "" } ],
+        Spacer [ ],
+        spent: Control [ height = { app.tap }, padding = [0, 8, 0, 8], cornerRadius = 6,
+            accessibilityLabel = { "Spent " + money(:spent ?? 0) + " on " + (:name ?? "") + ". Open the records." },
+            fill = { hovered || pressed ? provided("theme").hover : null },
+            press() { app.openKey(:open ?? "") },
+            TextLabel [ y = center, fontSize = 13, numeralWidth = tabular, wrap = false, textColor = { provided("theme").linkColor },
+                text = { money(:spent ?? 0) + " spent" } ]
+            ],
+        TextLabel [ fontSize = 13, wrap = false, textColor = { provided("theme").textMuted }, text = "of" ],
+        amount: TextInput [ width = 110, height = { app.tap }, textAlign = end, purpose = decimal, commitOn = "end",
+            fontSize = { app.fieldFont },
+            accessibilityLabel = { (:name ?? "") + " monthly budget, in dollars" },
+            admit(t: string) -> string? { return /^[0-9.,$]*$/.test(t) ? t : null },
+            validate(v: string) -> string { const c = parseMoney(v); return v.trim() == "" || (c != null && c > 0) ? "" : "Type an amount above zero." },
+            value = { moneyInput(:amount ?? 0) },
+            commit(v: string) {
+                const c = parseMoney(v)
+                if (v.trim() == "") { app.putBudget(:id ?? "", null); return }
+                if (c != null && c > 0 && c != (:amount ?? 0)) app.putBudget(:id ?? "", c)
+                }
+            ],
+        IconButton [ shape = "close", tip = { "Stop budgeting " + (:name ?? "") },
+            press() { app.putBudget(:id ?? "", null) }
+            ]
+        ],
+
+    // spending against the budget, and a marker for where it should be by today
+
+    bar: View [ width = 100%, height = 10, cornerRadius = 5, fill = { provided("theme").sunken }, accessibilityHidden = true,
+        View [ height = 10, cornerRadius = 5,
+            width = { parent.width * Math.min(1, (:spent ?? 0) / Math.max(1, :amount ?? 1)) },
+            fill = { (:tone ?? "") == "bad" ? provided("theme").bad : (:tone ?? "") == "warn" ? provided("theme").warn : provided("theme").good } ],
+        View [ visible = { (:pace ?? 0) > 0 && (:pace ?? 0) < 1 }, x = { parent.width * (:pace ?? 0) - 1 }, y = -3, width = 2, height = 16,
+            fill = { provided("theme").text } ]
+        ],
+    Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { ((:remaining ?? 0) >= 0 ? money(:remaining ?? 0) + " left" : money(-(:remaining ?? 0)) + " over")
+            + ((:pace ?? 0) > 0 && (:pace ?? 0) < 1 ? " · by today about " + money(Math.round((:amount ?? 0) * (:pace ?? 0))) + " would be on pace" : "") } ]
+    ]
+
+
+class BudgetsScreen [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    Panel [ width = 100%,
+        head: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 10, rowSpacing = 8, align = center ],
+            Text [ accessibilityRole = heading, accessibilityLevel = 2, fontSize = 16, fontWeight = semibold,
+                text = { "Budgets for " + monthLong(app.budgetMonth + "-01") } ],
+            Spacer [ ],
+            BarButton [ visible = { app.lastMonthOffer > 0 }, label = { "Start from last month's spending (" + app.lastMonthOffer + ")" },
+                press() { app.startFromLastMonth() }
+                ]
+            ],
+        Text [ visible = { app.budgetNote != "" }, width = 100%, fontSize = 12.5, textColor = { provided("theme").textMuted }, text = { app.budgetNote } ],
+        state: View [ visible = { app.budgetsNow.failed || app.budgetTx.failed }, width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Text [ flexes = true, fontSize = 13, textColor = { provided("theme").bad },
+                text = { app.budgetTx.failed ? "Not saved: " + app.budgetTx.refusal : "Budgets couldn't be loaded." } ],
+            Button [ height = 30, label = "Retry",
+                onClick() { if (app.budgetTx.failed) app.budgetTx.fetch(); else app.budgetsNow.fetch() }
+                ]
+            ],
+        list: Form [ width = 100%, enterMoves = true, datapath = { app.budgetData.value },
+            send() { },
+            layout: SimpleLayout [ axis = y ],
+            BudgetLine [ datapath = :rows[] ]
+            ],
+        none: Text [ visible = { app.budgetRows.length == 0 && app.budgetsNow.loaded }, fontSize = 13.5, textColor = { provided("theme").textMuted },
+            text = "No budgets this month yet. Add one below, or start from last month's spending." ],
+        add: View [ width = 100%, padding = [6, 0, 0, 0],
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = end ],
+            Field [ label = "Add a budget", stacked = true,
+                newCat: Combobox [ width = 220, height = { app.tap }, placeholder = "Category",
+                    items = { app.unbudgeted },
+                    value = { app.newBudgetCat == "" ? null : app.catItem(app.newBudgetCat) },
+                    commit(v: object) { const c = v as CatItem | null; app.newBudgetCat = c == null ? "" : c.id }
+                    ]
+                ],
+            Field [ label = "Monthly amount", stacked = true,
+                TextInput [ width = 130, height = { app.tap }, textAlign = end, purpose = decimal, placeholder = "0.00",
+                    fontSize = { app.fieldFont },
+                    admit(t: string) -> string? { return /^[0-9.,$]*$/.test(t) ? t : null },
+                    value = { app.newBudgetText },
+                    commit(v: string) { app.newBudgetText = v },
+                    onEnter() { app.addBudget() }
+                    ]
+                ],
+            Button [ primary = true, label = "Add budget", disabled = { app.newBudgetCat == "" || (parseMoney(app.newBudgetText) ?? 0) <= 0 },
+                onClick() { app.addBudget() }
+                ]
+            ]
+        ]
+    ]

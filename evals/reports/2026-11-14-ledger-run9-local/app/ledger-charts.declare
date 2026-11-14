@@ -1,0 +1,479 @@
+/*
+# Ledger: charts
+
+Three kinds of chart, each fed records and each opening its records:
+
+- **`TimeChart`** — periods across, bars and lines up: income vs expenses
+  with net profit, one measure with its comparison dashed, a running total.
+  One keyboard stop: the arrows move between periods and series, each point
+  is announced in a sentence, Enter opens its records. Pointing shows the
+  same sentence in a tip; dragging across selects a range and offers it as
+  the date filter. A period that isn't over yet is shaded as partial.
+- **`BarList`** — sorted horizontal bars, one a row: categories, products,
+  customers. Each row is a control; the list is one keyboard stop.
+- **`Spark`** — a small line of the last periods, for a headline figure.
+
+Every chart draws its marks and keeps its words in `Text` views, and has a
+table that holds everything it shows (`ChartTable`). When the data changes,
+marks move from the old values to the new, unless the person has asked for
+less motion.
+*/
+
+use [ ChartCell ]
+
+// ── Shared: the y scale ─────────────────────────────────────────────────────
+
+script {
+    // a scale from zero (or below, when values are negative) to a round top,
+    // and the ticks to label it with
+    function niceScale(lo: number, hi: number): { lo: number, hi: number, ticks: number[] } {
+        const a = Math.min(0, lo), b = Math.max(0, hi)
+        const span = b - a || 1
+        const raw = span / 4
+        const mag = Math.pow(10, Math.floor(Math.log10(raw)))
+        const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? raw
+        const lo2 = Math.floor(a / step) * step, hi2 = Math.ceil(b / step) * step
+        const ticks: number[] = []
+        for (let v = lo2; v <= hi2 + step / 2; v = v + step) ticks.push(Math.round(v * 1000) / 1000)
+        return { lo: lo2, hi: hi2 == lo2 ? lo2 + step : hi2, ticks: ticks }
+    }
+    function fmtValue(v: number, unit: string): string {
+        if (unit == "percent") return pct(v)
+        if (unit == "count") return Math.round(v).toLocaleString("en-US")
+        return money(v)
+    }
+    function fmtAxis(v: number, unit: string): string {
+        if (unit == "percent") return Math.round(v) + "%"
+        if (unit == "count") return "" + Math.round(v)
+        return moneyCompact(v)
+    }
+    // "up 6% from February", "down $120.00 from last year", "" with nothing to compare
+    function changeWords(now: number, before: number | null, unit: string, beforeName: string): string {
+        if (before == null) return ""
+        if (unit == "percent") {
+            const d = Math.round((now - before) * 10) / 10
+            return d == 0 ? "no change from " + beforeName : (d > 0 ? "up " : "down ") + Math.abs(d).toFixed(1) + " points from " + beforeName
+        }
+        if (before == 0) return now == 0 ? "no change from " + beforeName : "new since " + beforeName
+        const p = Math.round(100 * (now - before) / Math.abs(before))
+        return p == 0 ? "about the same as " + beforeName : (p > 0 ? "up " : "down ") + Math.abs(p) + "% from " + beforeName
+    }
+    function lerp(a: number, b: number, t: number): number { return a + (b - a) * t }
+    }
+
+
+// ── TimeChart ───────────────────────────────────────────────────────────────
+//
+// `periods`: `{ key, short, long, from, to, partial }` each.
+// `series`: `{ id, label, style: "bar" | "line" | "dash", colour, values[],
+// counts[], before[]? }` each — `before` is the comparison's value for each
+// period, for the change a point reports; `beforeName(i)` names it.
+// `opened(pi, si)` is what choosing a point does; the use site says.
+
+class TimeChart extends Control [ height = 260, focusable = true, claim = x,
+    periods: array = [],
+    series: array = [],
+    unit: string = "money",
+    title: string = "",
+    active: number = -1,                // the period the pointer or keys are on
+    activeSeries: number = 0,
+    beforeNames: string[] = [],         // the comparison's name per period: "February", "Nov 2025"
+
+    opened(pi: number, si: number) { },
+    brushed(a: number, b: number) { },
+
+    accessibilityRole = image,
+    accessibilityLabel = { title + ". " + (periods.length == 0 ? "No data." : "Use the arrow keys to move between periods and series; Enter opens the records.") },
+    accessibilityValueText = { classroot.sentence },
+
+    // ── the geometry: the plot is what the axes leave ──
+
+    axisW: number = 56,
+    axisH: number = 22,
+    plotW: number = { Math.max(1, this.width - this.axisW - 8) },
+    plotH: number = { Math.max(1, this.height - this.axisH - 10) },
+    bandW: number = { this.plotW / Math.max(1, this.periods.length) },
+    xOf(i: number) -> number { return axisW + bandW * (i + 0.5) },
+    indexAt(x: number) -> number { return Math.max(0, Math.min(periods.length - 1, Math.floor((x - axisW) / bandW))) },
+
+    // ── the motion: values travel from what was drawn to what is now true ──
+
+    t: number = 1,
+    from: array = [],                   // what each series showed when the data last changed
+    tween: Animator [ attribute = t, from = 0, to = 1, duration = 420, easing = quadOut ],
+    sig: string = { JSON.stringify(this.series.map((s) => s.values)) },
+    trackChanges = ["sig"],
+    onChange() {
+        from = this.series.map((s, si) => s.values.map((v, i) => this.shownAt(si, i)))
+        if (app.accessibilitySettings.reduceMotion || this.periods.length == 0) { t = 1; return }
+        t = 0
+        tween.stop()
+        tween.start()
+        },
+
+    // a value as drawn now: on its way from what it was, when it was there before
+
+    shownAt(si: number, i: number) -> number {
+        const now = series[si]?.values?.[i] ?? 0
+        const was = from[si]?.[i]
+        return was == null || t >= 1 ? now : lerp(was, now, t)
+        },
+
+    // the scale holds both old and new, so nothing leaves the plot mid-move
+
+    yScale: object = { niceScale(
+        Math.min(0, ...this.series.flatMap((s) => s.values), ...this.from.flat()),
+        Math.max(0, ...this.series.flatMap((s) => s.values), ...this.from.flat())) },
+    yOf(v: number) -> number { return 6 + plotH * (1 - (v - yScale.lo) / ((yScale.hi - yScale.lo) || 1)) },
+
+    draw(d: DrawContext) {
+        const th = provided("theme")
+        const n = periods.length
+        if (n == 0) return
+        // partial periods, shaded
+        for (let i = 0; i < n; i++) if (periods[i].partial) {
+            d.fillStyle = th.partial
+            d.fillRect(axisW + bandW * i, 6, bandW, plotH)
+            }
+        // the brush
+        if (brushA >= 0 && brushB >= 0) {
+            const a = Math.min(brushA, brushB), b = Math.max(brushA, brushB)
+            d.fillStyle = th.controlSelected
+            d.fillRect(axisW + bandW * a, 6, bandW * (b - a + 1), plotH)
+            }
+        // gridlines and their labels
+        d.lineWidth = 1
+        for (const v of yScale.ticks) {
+            const y = Math.round(yOf(v)) + 0.5
+            d.strokeStyle = v == 0 ? th.lineStrong : th.line
+            d.beginPath(); d.moveTo(axisW, y); d.lineTo(axisW + plotW, y); d.stroke()
+            const label = fmtAxis(v, unit)
+            const m = measureText(label, { fontSize: 11 })
+            d.fillText(label, axisW - 8 - m.width, y + 4, { fontSize: 11, textColor: th.textMuted })
+            }
+        // the period labels: as many as fit
+        const every = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(plotW / 44))))
+        for (let i = 0; i < n; i = i + every) {
+            const label = periods[i].short
+            const m = measureText(label, { fontSize: 11 })
+            d.fillText(label, xOf(i) - m.width / 2, 6 + plotH + 16, { fontSize: 11, textColor: i == active ? th.text : th.textMuted })
+            }
+        // bars, side by side within a period
+        const bars = series.map((s, si) => si).filter((si) => series[si].style == "bar")
+        const gap = Math.min(10, bandW * 0.18)
+        const bw = Math.max(2, Math.min(26, (bandW - gap * 2) / Math.max(1, bars.length)))
+        const y0 = yOf(0)
+        bars.forEach((si, k) => {
+            const s = series[si]
+            for (let i = 0; i < n; i++) {
+                const v = shownAt(si, i)
+                const x = xOf(i) - bw * bars.length / 2 + bw * k
+                const y = yOf(v)
+                const on = i == active && si == activeSeries
+                d.fillStyle = s.colour
+                d.globalAlpha = (active < 0 || i == active ? 1 : 0.55) * (periods[i].partial ? 0.7 : 1)
+                d.beginPath()
+                d.roundRect(x + 1, Math.min(y, y0), bw - 2, Math.max(1, Math.abs(y0 - y)), v >= 0 ? [3, 3, 0, 0] : [0, 0, 3, 3])
+                d.fill()
+                if (on) { d.globalAlpha = 1; d.strokeStyle = th.text; d.lineWidth = 2; d.stroke() }
+                }
+            })
+        d.globalAlpha = 1
+        // lines: solid, or dashed for a comparison
+        series.forEach((s, si) => {
+            if (s.style == "bar") return
+            d.strokeStyle = s.colour
+            d.lineWidth = s.style == "dash" ? 1.6 : 2.2
+            d.setLineDash(s.style == "dash" ? [5, 4] : [])
+            d.beginPath()
+            for (let i = 0; i < n; i++) {
+                const x = xOf(i), y = yOf(shownAt(si, i))
+                if (i == 0) d.moveTo(x, y); else d.lineTo(x, y)
+                }
+            d.stroke()
+            d.setLineDash([])
+            for (let i = 0; i < n; i++) {
+                const on = i == active && si == activeSeries
+                d.fillStyle = on ? s.colour : th.surface
+                d.strokeStyle = s.colour
+                d.lineWidth = 1.6
+                d.beginPath(); d.arc(xOf(i), yOf(shownAt(si, i)), on ? 4.5 : (n > 40 ? 0 : 2.5), 0, 6.3); d.fill(); d.stroke()
+                }
+            })
+        },
+
+    // ── what the active point says ──
+
+    point: object = { this.pointAt(this.active, this.activeSeries) },
+    pointAt(pi: number, si: number) -> object {
+        const p = periods[pi], s = series[si]
+        if (p == null || s == null) return null
+        const v = s.values[pi] ?? 0
+        const before = s.before == null ? null : (s.before[pi] ?? null)
+        const count = s.counts == null ? null : (s.counts[pi] ?? 0)
+        return ({ period: p.long + (p.partial ? " (so far)" : ""), series: s.label, value: fmtValue(v, unit),
+            change: changeWords(v, before, unit, beforeNames[pi] ?? "before"),
+            count: count == null ? "" : count.toLocaleString("en-US") + (count == 1 ? " transaction" : " transactions") })
+        },
+    sentence: string = { this.point == null ? "" : [this.point.period, this.point.series, this.point.value, this.point.change, this.point.count].filter((x) => x != "").join(", ") },
+    say() { if (sentence != "") Accessibility.announce(sentence) },
+
+    // ── the pointer ──
+
+    onPointerMove(e: PointerEvent) {
+        if (periods.length == 0) return
+        active = this.indexAt(e.x)
+        // within a period, the bar under the pointer, or the line nearest it
+        const bars = series.map((s, si) => si).filter((si) => series[si].style == "bar")
+        const lines = series.map((s, si) => si).filter((si) => series[si].style != "bar")
+        let best = -1, dist = 14
+        for (const si of lines) { const dy = Math.abs(yOf(series[si].values[active] ?? 0) - e.y); if (dy < dist) { dist = dy; best = si } }
+        if (best >= 0) { activeSeries = best; return }
+        if (bars.length > 0) {
+            const gap = Math.min(10, bandW * 0.18)
+            const bw = Math.max(2, Math.min(26, (bandW - gap * 2) / bars.length))
+            const k = Math.floor((e.x - (xOf(active) - bw * bars.length / 2)) / bw)
+            activeSeries = bars[Math.max(0, Math.min(bars.length - 1, k))]
+            }
+        },
+
+    // a click opens the point's records; on a touch screen the first tap shows
+    // the point (there is no pointing), and a second tap on it opens it
+
+    tapped: string = "",
+    onClick(e: PointerEvent) {
+        if (periods.length == 0) return
+        this.onPointerMove(e)
+        brushA = -1; brushB = -1
+        const key = active + ":" + activeSeries
+        if (app.lastPointerType == "touch" && tapped != key) { tapped = key; this.say(); return }
+        tapped = ""
+        this.opened(active, activeSeries)
+        },
+    touchTip: boolean = { this.tapped != "" },
+
+    // ── a drag across selects a range ──
+
+    brushA: number = -1,
+    brushB: number = -1,
+    onDragStart(e: PointerEvent) { brushA = this.indexAt(e.x); brushB = brushA },
+    onDrag(e: PointerEvent) { brushB = this.indexAt(e.x); active = brushB },
+    onDragEnd(e: DragEndEvent) {
+        if (e.canceled || brushA == brushB) { brushA = -1; brushB = -1; return }
+        },
+    brushing: boolean = { this.brushA >= 0 && this.brushB >= 0 && this.brushA != this.brushB },
+
+    // ── the keys ──
+
+    keyBindings = { [ ({ key: "ArrowRight", command: "step", args: [1] }), ({ key: "ArrowLeft", command: "step", args: [-1] }),
+        ({ key: "ArrowUp", command: "stepSeries", args: [-1] }), ({ key: "ArrowDown", command: "stepSeries", args: [1] }),
+        ({ key: "Home", command: "jump", args: [0] }), ({ key: "End", command: "jump", args: [-1] }),
+        ({ key: "Escape", command: "unbrush", when: "isBrushing" }) ] },
+    step(dir: number) {
+        if (periods.length == 0) return
+        active = active < 0 ? (dir > 0 ? 0 : periods.length - 1) : Math.max(0, Math.min(periods.length - 1, active + dir))
+        this.say()
+        },
+    stepSeries(dir: number) {
+        if (series.length == 0) return
+        if (active < 0) active = periods.length - 1
+        activeSeries = (activeSeries + dir + series.length) % series.length
+        this.say()
+        },
+    jump(to: number) { active = to < 0 ? periods.length - 1 : to; this.say() },
+    isBrushing() -> boolean { return brushing },
+    unbrush() { brushA = -1; brushB = -1 },
+    press() { if (active >= 0) this.opened(active, activeSeries) },
+    onFocus() { super.onFocus(); if (active < 0) active = periods.length - 1; this.say() },
+
+    focusShape() -> object { return null },
+    stroke = { focused ? stroke(2, provided("theme").accent) : null },
+    cornerRadius = 8,
+
+    // the tip: what the active point is, beside it
+
+    tip: View [ visible = { (classroot.hovered || classroot.focused || classroot.touchTip) && classroot.point != null && !classroot.brushing },
+        ignoreLayout = true, padding = [8, 10, 8, 10], cornerRadius = 8, pointerEvents = "none",
+        fill = { provided("theme").tooltipFill },
+        x = { Math.max(0, Math.min(classroot.width - this.width, classroot.xOf(classroot.active) + 14)) },
+        y = 4,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 12, fontWeight = semibold, wrap = false, textColor = { provided("theme").tooltipTextColor },
+            text = { classroot.point?.period ?? "" } ],
+        Text [ fontSize = 12, wrap = false, numeralWidth = tabular, textColor = { provided("theme").tooltipTextColor },
+            text = { (classroot.point?.series ?? "") + "  " + (classroot.point?.value ?? "") } ],
+        Text [ visible = { (classroot.point?.change ?? "") != "" }, fontSize = 11, wrap = false,
+            textColor = { provided("theme").tooltipTextColor }, opacity = 0.8, text = { classroot.point?.change ?? "" } ],
+        Text [ visible = { (classroot.point?.count ?? "") != "" }, fontSize = 11, wrap = false,
+            textColor = { provided("theme").tooltipTextColor }, opacity = 0.8, text = { classroot.point?.count ?? "" } ],
+        Text [ visible = { classroot.touchTip }, fontSize = 11, fontWeight = semibold, wrap = false,
+            textColor = { provided("theme").tooltipTextColor }, text = "Tap again to see the transactions" ]
+        ],
+
+    // the brush's offer
+
+    offer: Button [ visible = { classroot.brushing }, ignoreLayout = true, x = center, y = 8, height = 30, primary = true,
+        label = { classroot.brushing ? "Use " + rangeLabel(({ from: classroot.periods[Math.min(classroot.brushA, classroot.brushB)].from,
+            to: classroot.periods[Math.max(classroot.brushA, classroot.brushB)].to })) + " as the date range" : "" },
+        onClick() {
+            classroot.brushed(Math.min(classroot.brushA, classroot.brushB), Math.max(classroot.brushA, classroot.brushB))
+            classroot.unbrush()
+            }
+        ]
+    ]
+
+
+// A legend: each series' swatch and name. A dashed series says so in words
+// too, so colour is never the only thing that tells them apart.
+
+class Legend [
+    items: array = [],
+    layout: WrappingLayout [ spacing = 14, rowSpacing = 6, align = center ],
+    data: Dataset [ contents = { { rows: classroot.items.map((s) => ({ id: s.id, label: s.label + (s.style == "dash" ? " (dashed)" : ""), colour: s.colour, style: s.style })) } } ],
+    View [ datapath = { classroot.data.value },
+        layout: WrappingLayout [ spacing = 14, rowSpacing = 6, align = center ],
+        LegendItem [ datapath = :rows[], label = :label, colour = { :colour }, style = :style ]
+        ]
+    ]
+
+
+class LegendItem [ height = 18,
+    label: string = "",
+    colour: Color = gray,
+    style: string = "bar",
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    View [ width = { classroot.style == "bar" ? 10 : 16 }, height = { classroot.style == "bar" ? 10 : 2.5 }, cornerRadius = 2,
+        fill = { classroot.colour }, opacity = { classroot.style == "dash" ? 0.8 : 1 } ],
+    Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// ── BarList ─────────────────────────────────────────────────────────────────
+//
+// Rows of `{ id, label, colour, amount, count, share?, change?, spec }`,
+// largest first. Each bar is as long as its amount against the largest; a
+// row opens its records.
+
+class BarList [ width = 100%,
+    items: array = [],
+    rows: Dataset [ contents = { { rows: classroot.items } } ],
+    unit: string = "money",
+    showShare: boolean = false,
+    showChange: boolean = false,
+    peak: number = { Math.max(1, ...(this.rows.value?.rows ?? []).map((r) => Math.abs(r.amount))) },
+    opened(row: object) { },
+    barList: BarList? = { classroot },          // provided to the rows
+    accessibilityRole = list,
+    focusScope = stop,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    list: View [ width = 100%, datapath = { classroot.rows.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        BarRow [ datapath = :rows[], width = 100% ]
+        ]
+    ]
+
+
+class BarRow extends Control [ height = { app.phone ? 48 : 40 }, cornerRadius = 8, padding = [0, 8, 0, 8],
+    list: BarList = { provided("barList") as BarList },
+    frac: number = { Math.abs(:amount ?? 0) / Math.max(1, classroot.list.peak) },
+    shownFrac: number = 0,
+    Spring [ attribute = shownFrac, to = { classroot.frac }, stiffness = 200, damping = 26 ],
+    onInit() { if (app.accessibilitySettings.reduceMotion) shownFrac = frac },
+    sentence: string = { (:label ?? "") + ", " + fmtValue(:amount ?? 0, classroot.list.unit) +
+        ((:share ?? null) != null && classroot.list.showShare ? ", " + pct(:share) + " of the total" : "") +
+        ((:changeText ?? "") != "" ? ", " + :changeText : "") + ", " + (:count ?? 0) + ((:count ?? 0) == 1 ? " transaction" : " transactions") },
+    accessibilityRole = listItem,
+    accessibilityLabel = { classroot.sentence + ". Opens the records." },
+    tooltipLabel = { classroot.sentence },
+    fill = { hovered || focused ? provided("theme").hover : null },
+    press() { classroot.list.opened(:@) },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    name: View [ width = { app.phone ? 110 : 150 },
+        layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+        Swatch [ colour = { :colour } ],
+        Text [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { :label ?? "" } ]
+        ],
+    track: View [ flexes = true, height = 10,
+        bar: View [ height = 10, cornerRadius = 3, fill = { :colour }, width = { Math.max(2, parent.width * classroot.shownFrac) } ]
+        ],
+    amount: Text [ fontSize = 13, fontWeight = medium, numeralWidth = tabular, wrap = false, textAlign = right, width = { app.phone ? 84 : 96 },
+        text = { fmtValue(:amount ?? 0, classroot.list.unit) } ],
+    share: Text [ visible = { classroot.list.showShare && !app.phone }, width = 46, fontSize = 12, numeralWidth = tabular, textAlign = right,
+        textColor = { provided("theme").textMuted }, text = { pct(:share ?? 0) } ],
+    change: Text [ visible = { classroot.list.showChange && !app.phone }, width = 70, fontSize = 12, numeralWidth = tabular, textAlign = right,
+        textColor = { (:changeTone ?? "") == "good" ? provided("theme").good : (:changeTone ?? "") == "bad" ? provided("theme").bad : provided("theme").textMuted },
+        text = { :changeShort ?? "" } ]
+    ]
+
+
+// ── Spark ───────────────────────────────────────────────────────────────────
+
+class Spark [ height = 28, accessibilityHidden = true,
+    values: number[] = [],
+    colour: Color = gray,
+    draw(d: DrawContext) {
+        const n = values.length
+        if (n < 2) return
+        const lo = Math.min(...values), hi = Math.max(...values)
+        const span = hi - lo || 1
+        d.strokeStyle = colour
+        d.lineWidth = 1.6
+        d.lineJoin = "round"
+        d.beginPath()
+        for (let i = 0; i < n; i++) {
+            const x = 1 + (d.w - 2) * i / (n - 1)
+            const y = 2 + (d.h - 4) * (1 - (values[i] - lo) / span)
+            if (i == 0) d.moveTo(x, y); else d.lineTo(x, y)
+            }
+        d.stroke()
+        d.fillStyle = colour
+        d.beginPath(); d.arc(d.w - 1.5, 2 + (d.h - 4) * (1 - (values[n - 1] - lo) / span), 2.4, 0, 6.3); d.fill()
+        }
+    ]
+
+
+// ── ChartTable: a chart as a table ──────────────────────────────────────────
+//
+// `columns`: the headings. `rows` dataset: `{ id, cells: [{ id, text, spec? }] }`;
+// a cell with a `spec` opens its records.
+
+class ChartTable [ width = 100%,
+    columns: string[] = [],
+    items: array = [],
+    rows: Dataset [ contents = { { rows: classroot.items } } ],
+    opened(spec: object) { },
+    chartTable: ChartTable? = { classroot },    // provided to the cells
+    headRows: Dataset [ contents = { { rows: classroot.columns.map((c, i) => ({ id: "h" + i, t: c })) } } ],
+    accessibilityRole = grid,
+    layout: SimpleLayout [ axis = y ],
+    head: View [ width = 100%, height = 30, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        datapath = { classroot.headRows.value },
+        layout: SimpleLayout [ axis = x ],
+        View [ datapath = :rows[], flexes = { rowIndex == 0 ? 1.6 : 1 }, height = 30, accessibilityRole = columnHeader, accessibilityLabel = { :t },
+            TextLabel [ x = { parent.rowIndex == 0 ? 8 : parent.width - this.width - 8 }, y = center, fontSize = 12, fontWeight = semibold,
+                textColor = { provided("theme").textMuted }, text = { :t } ]
+            ]
+        ],
+    body: View [ width = 100%, datapath = { classroot.rows.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], width = 100%, height = 34, accessibilityRole = row,
+            stroke = { [null, null, stroke(1, provided("theme").line), null] },
+            layout: SimpleLayout [ axis = x ],
+            ChartCell [ datapath = :cells[] ]
+            ]
+        ]
+    ]
+
+
+class ChartCell extends Control [ height = 34, flexes = { rowIndex == 0 ? 1.6 : 1 }, padding = [0, 8, 0, 8],
+    table: ChartTable = { provided("chartTable") as ChartTable },
+    opens: boolean = { (:spec ?? null) != null },
+    disabled = { !classroot.opens },
+    accessibilityRole = cell,
+    accessibilityLabel = { (:text ?? "") + (classroot.opens ? ", opens the records" : "") },
+    fill = { classroot.opens && (hovered || focused) ? provided("theme").hover : null },
+    press() { if (opens) classroot.table.opened(:spec) },
+    TextLabel [ x = { classroot.rowIndex == 0 ? 0 : parent.contentBox("width") - this.width }, y = center, fontSize = 13, numeralWidth = tabular, wrap = false,
+        fontWeight = { classroot.rowIndex == 0 ? "medium" : "normal" },
+        textColor = { classroot.opens ? provided("theme").text : provided("theme").textMuted }, text = { :text ?? "" } ]
+    ]

@@ -1,0 +1,170 @@
+/*
+# Cadence: the parts
+
+The look of Cadence, kept apart from how it works: the two themes, the type
+roles, and the small pieces the screens are made of. `cadence.declare`
+includes this file; read that one first.
+
+The design in one paragraph: paper and ink, one family, and one colour that
+means something. The colour is **effort** — `hot` in the theme — so a hard
+session is the only thing on a screen that shouts. Everything else is weight,
+size and spacing: the figures are huge and heavy, the words beside them are
+small, spaced capitals or quiet lowercase.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// Laid over a library preset, so the library's controls (the date picker, the
+// segmented control, the sheets) read the same paper and ink. The library's
+// `accent` is set to ink on purpose: the one colour is kept for effort.
+
+theme CadenceLight [
+    background = #F3F0E8, surface = #FBFAF6, line = #DDD8CC,
+    text = #141412, textMuted = #5E5A52, textFaint = #8F897D,
+    accent = #141412, accentHovered = #2A2925, accentPressed = #000000, accentTextColor = #F3F0E8,
+    linkColor = #141412,
+    control = #E7E2D6, controlHovered = #DDD8CC, controlPressed = #D2CCBE, controlSelected = #DDD8CC,
+    ink = #141412, paper = #F3F0E8, rule = #DDD8CC, wash = #E7E2D6,
+    hot = #FF4A1C, hotInk = #D93A10
+    ]
+
+
+theme CadenceDark [
+    background = #121211, surface = #1C1B19, line = #34322D,
+    text = #F2EFE7, textMuted = #A8A398, textFaint = #78736A,
+    accent = #F2EFE7, accentHovered = #E2DED4, accentPressed = #FFFFFF, accentTextColor = #121211,
+    linkColor = #F2EFE7,
+    control = #2A2926, controlHovered = #34322D, controlPressed = #3E3C36, controlSelected = #34322D,
+    ink = #F2EFE7, paper = #121211, rule = #34322D, wash = #2A2926,
+    hot = #FF5A2E, hotInk = #FF7A55
+    ]
+
+
+// ── Type ────────────────────────────────────────────────────────────────────
+//
+// Two roles of one family. A `Caps` is the smallest text on any screen: a
+// spaced capital label, 12px. A `Figure` is a number set heavy and tight,
+// with tabular digits so a counting number doesn't jitter as it travels.
+
+class Caps extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.4,
+    textTransform = uppercase, wrap = false, textColor = { provided("theme").textFaint }
+    ]
+
+
+class Figure extends Text [ fontWeight = 800, letterSpacing = -1.5, numeralWidth = tabular, wrap = false,
+    lineHeight = 0.95
+    ]
+
+
+// A figure and its words in one line of rich text: the figures large, the
+// words small, the copy exactly as written ("4 sessions · 3h 40m"), and free
+// to break onto a second line at a phone's width.
+
+class Headline extends HTMLText [
+    figSize: number = 72,
+    wordSize: number = 20,
+    figColor: Color = { provided("theme").ink },
+    fontSize = { classroot.wordSize },
+    fontWeight = semibold,
+    lineHeight = 1.05,
+    textColor = { provided("theme").textMuted },
+    textStyles = { { Fig: { fontSize: classroot.figSize, fontWeight: 800, letterSpacing: -2,
+        textColor: classroot.figColor } } }
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A pill a thumb can hit: a choice among a few (a sport, a day, a range).
+// Chosen, it turns to ink.
+
+class Choice extends ChoiceItem [ height = { app.tap }, cornerRadius = { this.height / 2 },
+    padding = [0, 16, 0, 16],
+    label: string = "",
+    accessibilityLabel = { label },
+    fill = { hovered ? provided("theme").controlHovered : provided("theme").wash },
+    State [ applied = { classroot.on }, fill = { provided("theme").ink } ],
+    layout: SimpleLayout [ axis = x, align = center ],
+    Spacer [ ],
+    TextLabel [ fontSize = 15, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").paper : provided("theme").text },
+        text = { classroot.label } ],
+    Spacer [ ]
+    ]
+
+
+// A round − or + that nudges a value by a step: the keyboard's replacement.
+
+class Nudge extends Control [ width = { app.tap + 8 }, height = { this.width }, cornerRadius = { this.width / 2 },
+    sign: string = "+",
+    accessibilityLabel = { sign == "+" ? "More" : "Less" },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").wash },
+    draw(d: DrawContext) {
+        const c = this.width / 2
+        d.strokeStyle = provided("theme").ink
+        d.lineWidth = 2.4
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(c - 9, c)
+        d.lineTo(c + 9, c)
+        if (sign == "+") { d.moveTo(c, c - 9); d.lineTo(c, c + 9) }
+        d.stroke()
+        }
+    ]
+
+
+// The one big button: ink on paper, full width on a phone.
+
+class InkButton extends Control [ height = { app.tap + 12 }, cornerRadius = { this.height / 2 },
+    padding = [0, 24, 0, 24],
+    label: string = "",
+    accessibilityLabel = { label },
+    fill = { provided("theme").ink },
+    opacity = { disabled ? 0.3 : pressed ? 0.85 : 1 },
+    layout: SimpleLayout [ axis = x, align = center ],
+    Spacer [ ],
+    TextLabel [ fontSize = 17, fontWeight = bold, wrap = false,
+        textColor = { provided("theme").paper }, text = { classroot.label } ],
+    Spacer [ ]
+    ]
+
+
+// A quiet text button: Cancel, Edit, Delete.
+
+class Quiet extends Control [ height = { app.tap }, cornerRadius = 10, padding = [0, 12, 0, 12],
+    label: string = "",
+    tone: Color = { provided("theme").text },
+    accessibilityLabel = { label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").wash : null },
+    TextLabel [ fontSize = 15, fontWeight = semibold, wrap = false,
+        textColor = { classroot.tone }, text = { classroot.label } ]
+    ]
+
+
+// ── Effort ──────────────────────────────────────────────────────────────────
+//
+// Effort is the one colour. Up to 6 it is ink, darker as it rises; from 7 it
+// is the hot colour. `EffortMark` is that rule as a view.
+
+class EffortMark [
+    effort: number = 5,
+    fill = { classroot.effort >= 7 ? provided("theme").hot : provided("theme").ink },
+    opacity = { classroot.effort >= 7 ? 1 : 0.16 + classroot.effort * 0.1 }
+    ]
+
+
+// The ten levels of effort as a picker: ten cells, each a full-height target.
+
+class EffortCell extends ChoiceItem [ flexes = true, height = { app.tap + 12 }, cornerRadius = 8,
+    level: number = 1,
+    chosen: number = 5,
+    choice = { "" + level },
+    upTo: boolean = { classroot.level <= classroot.chosen },
+    accessibilityLabel = { "Effort " + level },
+    fill = { provided("theme").wash },
+    bar: EffortMark [ width = 100%, y = end, cornerRadius = 8, effort = { classroot.level },
+        height = 100%, visible = { classroot.upTo } ],
+    TextLabel [ x = center, fontSize = 15, fontWeight = 800, numeralWidth = tabular,
+        textColor = { classroot.upTo && classroot.level >= 4 ? provided("theme").paper : provided("theme").text },
+        text = { "" + classroot.level } ]
+    ]

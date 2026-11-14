@@ -1,0 +1,301 @@
+/*
+# Presentify: saving and history
+
+Two classes with no view.
+
+- **`Sync`** keeps the service in step with the open presentation. It does
+  not queue operations: it compares what the editor holds with what it knows
+  the service holds, and sends the one request that closes the first
+  difference it finds — create a slide, delete one, save one, put them in
+  order, rename the deck — then looks again. So a change made while a
+  request is out, a request that failed, an undo that brings a deleted slide
+  back: each is just a new difference, and nothing is lost by any of them.
+
+  The editor names slides with ids of its own. A slide the service already
+  had keeps the service's id; a new one gets a local id, and `serverIds` maps
+  it to the service's once the service has made it. An undo that restores a
+  deleted slide restores its local id, and the slide is simply made again.
+
+- **`History`** is the undo and redo stacks: one `Step` per thing the person
+  did, each the presentation before and after.
+*/
+
+class Sync extends Node [
+
+    // Set by the App: the service, the open deck, and what the editor holds.
+
+    api: string = "",
+    deckId: string = "",
+    slides: Slide[] = [],
+    title: string = "",
+
+    // What the service holds, as far as we know.
+
+    serverIds: Record<string, string> = { {} },     // local slide id → the service's
+    versions: Record<string, number> = { {} },      // local slide id → its version there
+    sent: Record<string, string> = { {} },          // local slide id → the content last saved
+    serverOrder: string[] = [],                 // the service's slide ids, in its order
+    deckVersion: number = 0,
+    serverTitle: string = "",
+
+    // Slides someone else saved since we read them: local id → their copy.
+    // A slide in here is not saved until the person chooses (see `resolve`).
+
+    conflicts: Record<string, ServerSlide> = { {} },
+
+    busy: boolean = false,        // a request is out
+    offline: boolean = false,     // the last request didn't reach the service
+    retryIn: number = 1000,       // how long before trying again; doubles to 15 s
+
+    // ── what is left to do ──────────────────────────────────────────────
+
+    content(s: Slide) -> string { return JSON.stringify({ background: s.background, elements: s.elements.map(wireEl) }) },
+
+    serverOf(local: string) -> string { return this.serverIds[local] ?? "" },
+
+    // The first difference between the editor and the service, as the
+    // request that closes it; `kind` "" when there is none.
+
+    nextOp() -> SyncOp {
+        if (deckId == "") return ({ kind: "", local: "", server: "" })
+        for (let i = 0; i < slides.length; i++) {
+            const s = slides[i]
+            if (this.serverOf(s.id) == "") {
+                let after = ""
+                for (let j = i - 1; j >= 0 && after == ""; j--) after = this.serverOf(slides[j].id)
+                return ({ kind: "create", local: s.id, server: after })
+            }
+        }
+        const used = slides.map((s) => this.serverOf(s.id))
+        const gone = serverOrder.find((id) => !used.includes(id))
+        if (gone != null) return ({ kind: "delete", local: "", server: gone })
+        const dirty = slides.find((s) => conflicts[s.id] == null && sent[s.id] != this.content(s))
+        if (dirty != null) return ({ kind: "put", local: dirty.id, server: this.serverOf(dirty.id) })
+        if (used.join(" ") != serverOrder.join(" ")) return ({ kind: "order", local: "", server: "" })
+        if (title.trim() != "" && title != serverTitle) return ({ kind: "title", local: "", server: "" })
+        return ({ kind: "", local: "", server: "" })
+        },
+
+    hasWork: boolean = { this.nextOp().kind != "" },
+    conflictCount: number = { Object.keys(this.conflicts).length },
+
+    // What the window says, exactly one of three.
+
+    status: "saved" | "saving" | "offline" = { this.offline ? "offline" : this.busy || this.hasWork ? "saving" : "saved" },
+
+    // ── starting ────────────────────────────────────────────────────────
+    //
+    // A freshly read deck: every slide is as the service has it.
+
+    seed(deck: Deck, list: ServerSlide[]) {
+        const ids: Record<string, string> = {}
+        const vs: Record<string, number> = {}
+        const sentNow: Record<string, string> = {}
+        for (const s of list) {
+            ids[s.id] = s.id
+            vs[s.id] = s.version
+            sentNow[s.id] = this.content(({ id: s.id, background: s.background, elements: s.elements }))
+            }
+        serverIds = ids
+        versions = vs
+        sent = sentNow
+        serverOrder = [...deck.slideOrder]
+        deckVersion = deck.version
+        serverTitle = deck.title
+        conflicts = {}
+        offline = false
+        retryIn = 1000
+        },
+
+    // ── sending ─────────────────────────────────────────────────────────
+    //
+    // Changes go a moment after the last edit (`trackChanges`), so a run of
+    // typing is one save, not one per key; Command-S sends at once.
+
+    trackChanges = ["slides", "title"],
+    onChange() { this.soon() },
+    timer: DelayHandle? = null,
+    soon() {
+        timer?.cancel()
+        timer = afterDelay(800, () => this.pump())
+        },
+    saveNow() {
+        timer?.cancel()
+        if (offline) retryIn = 1000
+        this.pump()
+        },
+
+    op: SyncOp = { { kind: "", local: "", server: "" } },
+    opContent: string = "",
+    reqUrl: string = "",
+    reqMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+    reqBody: object? = null,
+
+    pump() {
+        if (busy) return
+        const next = this.nextOp()
+        if (next.kind == "") return
+        const s = slides.find((x) => x.id == next.local)
+        op = next
+        opContent = s != null ? this.content(s) : ""
+        if (next.kind == "create" && s != null) {
+            reqUrl = api + "/api/decks/" + deckId + "/slides"
+            reqMethod = "POST"
+            reqBody = ({ after: next.server == "" ? null : next.server, background: s.background, elements: s.elements.map(wireEl) })
+        } else if (next.kind == "delete") {
+            reqUrl = api + "/api/slides/" + next.server
+            reqMethod = "DELETE"
+            reqBody = null
+        } else if (next.kind == "put" && s != null) {
+            reqUrl = api + "/api/slides/" + next.server
+            reqMethod = "PUT"
+            reqBody = ({ version: versions[next.local] ?? 1, background: s.background, elements: s.elements.map(wireEl) })
+        } else if (next.kind == "order") {
+            reqUrl = api + "/api/decks/" + deckId
+            reqMethod = "PATCH"
+            reqBody = ({ version: deckVersion, slideOrder: slides.map((x) => this.serverOf(x.id)) })
+        } else {
+            reqUrl = api + "/api/decks/" + deckId
+            reqMethod = "PATCH"
+            reqBody = ({ version: deckVersion, title: title })
+        }
+        busy = true
+        req.fetch()
+        },
+
+    req: DataSource [ url = { classroot.reqUrl }, method = { classroot.reqMethod }, body = { classroot.reqBody },
+        timeout = 15,
+        onLoad() { classroot.landed(this.value) },
+        onError() { classroot.refused(this.statusCode, this.failure, this.errorBody) }
+        ],
+
+    takeDeck(d: Deck) {
+        serverOrder = [...d.slideOrder]
+        deckVersion = d.version
+        serverTitle = d.title
+        },
+
+    landed(v: any) {
+        const o = op
+        if (o.kind == "create") {
+            const made = v.slide as ServerSlide
+            serverIds = ({ ...serverIds, [o.local]: made.id })
+            versions = ({ ...versions, [o.local]: made.version })
+            sent = ({ ...sent, [o.local]: opContent })
+            this.takeDeck(v.deck as Deck)
+        } else if (o.kind == "delete") {
+            this.takeDeck(v.deck as Deck)
+        } else if (o.kind == "put") {
+            versions = ({ ...versions, [o.local]: (v as ServerSlide).version })
+            sent = ({ ...sent, [o.local]: opContent })
+        } else {
+            this.takeDeck(v as Deck)
+        }
+        busy = false
+        offline = false
+        retryIn = 1000
+        this.pump()
+        },
+
+    refused(code: number, failure: string, body: any) {
+        busy = false
+        const o = op
+        const why = body?.error ?? ""
+        if (code == 409 && why == "conflict" && o.kind == "put") {
+            // Someone else saved this slide. Keep both; the person chooses.
+            conflicts = ({ ...conflicts, [o.local]: body.current as ServerSlide })
+        } else if (code == 409 && why == "conflict") {
+            // The deck moved on (another window reordered or renamed it):
+            // read its version and send ours again.
+            this.takeDeck(body.current as Deck)
+        } else if (code == 404 && o.kind == "put") {
+            // Deleted elsewhere: it is still here, so it is made again.
+            const rest = ({ ...serverIds })
+            delete rest[o.local]
+            serverIds = rest
+        } else if (code == 404 && o.kind == "delete") {
+            serverOrder = serverOrder.filter((id) => id != o.server)
+        } else if (code == 422) {
+            // The format refused it: a fault of ours. Saving it again would be
+            // refused again, so it is set aside and said in the console.
+            console.warn("Presentify: the service refused a save", body)
+            if (o.local != "") sent = ({ ...sent, [o.local]: opContent })
+            else if (o.kind == "title") serverTitle = title
+        } else {
+            // Not reached, or not taken (503): nothing was saved. Try again.
+            offline = true
+            afterDelay(retryIn, () => this.pump())
+            retryIn = Math.min(15000, retryIn * 2)
+            return
+        }
+        this.pump()
+        },
+
+    // ── someone else's changes ──────────────────────────────────────────
+    //
+    // The open slide is read again when the person turns to it and every
+    // twenty seconds while it stays open. A newer copy than ours, that we
+    // didn't save, is a conflict.
+
+    checking: string = "",
+    check(local: string) {
+        const server = this.serverOf(local)
+        if (server == "" || conflicts[local] != null) return
+        checking = local
+        probe.fetch()
+        },
+    probe: DataSource [ url = { classroot.api + "/api/slides/" + classroot.serverOf(classroot.checking) },
+        onLoad() { classroot.compare(this.value as ServerSlide) }
+        ],
+    compare(theirs: ServerSlide) {
+        const local = checking
+        const mine = versions[local] ?? 0
+        if (theirs.version <= mine || conflicts[local] != null) return
+        if (busy && op.local == local) return          // our own save, on its way back
+        const same = this.content(({ id: local, background: theirs.background, elements: theirs.elements }))
+        if (same == sent[local]) { versions = ({ ...versions, [local]: theirs.version }); return }
+        conflicts = ({ ...conflicts, [local]: theirs })
+        },
+
+    // The person chose. Theirs: the editor now holds their copy, and it is
+    // already saved. Mine: ours is saved over theirs.
+
+    resolve(local: string, keepMine: boolean) {
+        const theirs = conflicts[local]
+        if (theirs == null) return
+        versions = ({ ...versions, [local]: theirs.version })
+        sent = ({ ...sent, [local]: keepMine ? "" : this.content(({ id: local, background: theirs.background, elements: theirs.elements })) })
+        const rest = ({ ...conflicts })
+        delete rest[local]
+        conflicts = rest
+        this.pump()
+        }
+    ]
+
+
+// What `nextOp` hands `pump`.
+
+schema SyncOp [ kind: "" | "create" | "delete" | "put" | "order" | "title", local: string, server: string ]
+
+
+class History extends Node [
+    undos: Step[] = [],
+    redos: Step[] = [],
+    canUndo: boolean = { this.undos.length > 0 },
+    canRedo: boolean = { this.redos.length > 0 },
+    push(s: Step) {
+        undos = [...undos.slice(-199), s]
+        redos = []
+        },
+    takeUndo() -> Step? {
+        const s = undos[undos.length - 1] ?? null
+        if (s != null) { undos = undos.slice(0, -1); redos = [...redos, s] }
+        return s
+        },
+    takeRedo() -> Step? {
+        const s = redos[redos.length - 1] ?? null
+        if (s != null) { redos = redos.slice(0, -1); undos = [...undos, s] }
+        return s
+        },
+    clear() { undos = []; redos = [] }
+    ]

@@ -1,0 +1,409 @@
+/*
+# Ledger: finding
+
+The one set of filters every page shares, and the frame around the pages:
+the navigation rail (a desk), the tab bar (a phone), the filter bar, and the
+row of chips that says what is filtered. Every control here writes a filter
+on the App and nothing else; the pages follow.
+*/
+
+// ── The frame ───────────────────────────────────────────────────────────────
+
+// One place in the app, in the rail or the phone's tab bar.
+
+class NavItem extends Control [ width = 100%, height = 36, cornerRadius = 8, padding = [0, 10, 0, 10],
+    id: string = "",
+    label: string = "",
+    glyph: string = "",
+    here: boolean = { app.page == classroot.id },
+    accessibilityLabel = { classroot.label },
+    accessibilitySelected = { classroot.here },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    State [ applied = { classroot.here }, fill = { provided("theme").controlSelected } ],
+    press() { app.go(id) },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Glyph [ shape = { classroot.glyph }, iconSize = 16, ink = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ],
+    Text [ flexes = true, fontSize = 14, wrap = false, fontWeight = { classroot.here ? "semibold" : "normal" }, text = { classroot.label } ]
+    ]
+
+
+class NavRail [ width = 216, padding = [18, 12, 16, 12], accessibilityRole = navigation, accessibilityLabel = "Ledger",
+    fill = { provided("theme").surface }, stroke = { [null, stroke(1, provided("theme").line), null, null] },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    brand: View [ width = 100%, padding = [0, 10, 18, 10],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        View [ width = 22, height = 22, cornerRadius = 6, fill = { provided("theme").accent },
+            Glyph [ x = center, y = center, iconSize = 14, weight = 2, shape = "list", ink = white ]
+            ],
+        Text [ fontSize = 17, fontWeight = bold, letterSpacing = -0.3, text = "Ledger" ]
+        ],
+    NavItem [ id = "overview", label = "Overview", glyph = "overview" ],
+    NavItem [ id = "transactions", label = "Transactions", glyph = "list" ],
+    NavItem [ id = "insights", label = "Insights", glyph = "insights" ],
+    NavItem [ id = "budgets", label = "Budgets", glyph = "budgets" ],
+    View [ height = 18 ],
+    Button [ width = 100%, label = "New expense", primary = true,
+        onClick() { app.record("expense") }
+        ],
+    View [ height = 6 ],
+    Button [ width = 100%, label = "New sale",
+        onClick() { app.record("sale") }
+        ],
+    Spacer [ ],
+    keys: View [ width = 100%, padding = [0, 10, 12, 10],
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        KeyHint [ k = "E", what = "New expense" ],
+        KeyHint [ k = "S", what = "New sale" ],
+        KeyHint [ k = "/", what = "Search" ],
+        KeyHint [ k = "[ ]", what = "Step the dates" ],
+        KeyHint [ k = "⌘Z", what = "Undo" ]
+        ],
+    appear: View [ padding = [0, 10, 0, 10],
+        Segmented [ width = 120, height = 28, value = { app.themeMode },
+            accessibilityLabel = "Appearance",
+            items = { [ ({ id: "light", icon: "SunIcon" }), ({ id: "dark", icon: "MoonIcon" }), ({ id: "auto", icon: "AutoIcon" }) ] },
+            commit(v: string) { app.themeMode = v as "auto" | "light" | "dark" }
+            ]
+        ]
+    ]
+
+
+class KeyHint [ width = 100%,
+    k: string = "",
+    what: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+    Text [ width = 34, fontSize = 11.5, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = { classroot.k } ],
+    Text [ fontSize = 12, textColor = { provided("theme").textFaint }, text = { classroot.what } ]
+    ]
+
+
+// A phone's places, and recording, under the thumb.
+
+class PhoneTabs [ height = { 58 + app.safeBottom }, padding = { [4, 8, app.safeBottom, 8] }, accessibilityRole = navigation,
+    accessibilityLabel = "Places",
+    fill = { provided("theme").surface }, stroke = { [stroke(1, provided("theme").line), null, null, null] },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    PhoneTab [ id = "overview", label = "Overview", glyph = "overview" ],
+    PhoneTab [ id = "transactions", label = "Transactions", glyph = "list" ],
+    PhoneTab [ id = "insights", label = "Insights", glyph = "insights" ],
+    add: Control [ width = 52, height = 44, cornerRadius = 22, accessibilityLabel = "Record",
+        fill = { provided("theme").accent },
+        menu = { app.recordMenu },
+        Glyph [ x = center, y = center, iconSize = 20, weight = 2.2, shape = "plus", ink = white ]
+        ]
+    ]
+
+
+class PhoneTab extends Control [ flexes = true, height = 50, cornerRadius = 10,
+    id: string = "",
+    label: string = "",
+    glyph: string = "",
+    here: boolean = { app.page == classroot.id },
+    accessibilityLabel = { classroot.label },
+    accessibilitySelected = { classroot.here },
+    press() { app.go(id) },
+    col: View [ x = center, y = center,
+        layout: SimpleLayout [ axis = y, spacing = 3, align = center ],
+        Glyph [ shape = { classroot.glyph }, iconSize = 20, ink = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ],
+        Text [ fontSize = 11, fontWeight = medium, wrap = false,
+            textColor = { classroot.here ? provided("theme").accent : provided("theme").textMuted }, text = { classroot.label } ]
+        ]
+    ]
+
+
+// Before the books have arrived: what is happening, or what went wrong.
+
+class EntryState [
+    col: View [ x = center, y = { parent.height * 0.32 }, width = 280,
+        layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+        Text [ fontSize = 20, fontWeight = semibold, text = "Ledger" ],
+        Text [ width = 280, textAlign = center, fontSize = 13.5, textColor = { provided("theme").textMuted },
+            text = { app.books.failed ? "Couldn't reach your books. Check the connection and try again." : "Opening your books…" } ],
+        Button [ visible = { app.books.failed }, label = "Retry",
+            onClick() { app.books.retry() }
+            ]
+        ]
+    ]
+
+
+// ── The filter bar ──────────────────────────────────────────────────────────
+
+class FilterBar [ padding = { app.phone ? [8, 10, 6, 10] : [12, 20, 8, 20] }, accessibilityRole = search, accessibilityLabel = "Filters",
+    fill = { provided("theme").background },
+    layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = center ],
+
+    // the date range: step back, the range, step on
+
+    dates: View [
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        prev: IconButton [ shape = "left", accessibilityLabel = "Previous range", disabled = { app.from == "" },
+            tooltipLabel = "Previous range  [",
+            press() { app.stepDates(-1) }
+            ],
+        range: DropButton [ label = { app.rangeName }, menu = { app.rangeMenu }, accessibilityLabel = { "Date range, " + app.rangeName } ],
+        next: IconButton [ shape = "right", accessibilityLabel = "Next range", disabled = { app.to == "" },
+            tooltipLabel = "Next range  ]",
+            press() { app.stepDates(1) }
+            ]
+        ],
+    compare: DropButton [ visible = { !app.phone }, label = { app.comparing ? app.cmpName : "No comparison" },
+        accessibilityLabel = { "Compare " + (app.comparing ? app.cmpName : "with nothing") }, menu = { app.compareMenu } ],
+
+    search: SearchField [ width = { app.phone ? app.width - 20 : 260 }, height = { app.tap },
+        placeholder = "Search", accessibilityLabel = "Search transactions",
+        value = { app.query },
+        commit(v: string) { app.query = v },
+        onKeyDown(e: KeyEvent) {
+            if (e.key == "Escape" && app.query != "") { app.query = ""; return }
+            super.onKeyDown(e)
+            }
+        ],
+    amount: DropButton [ visible = { !app.phone }, on = { app.hasAmount },
+        label = { app.hasAmount ? amountChip(app.minAmt, app.maxAmt) : "Amount" },
+        accessibilityLabel = "Amount filter",
+        press() { app.amountPop.showFor(this) }
+        ],
+    kind: DropButton [ visible = { !app.phone }, on = { app.kinds.length > 0 },
+        label = { app.kinds.length == 0 ? "Kind" : app.kinds.map((k) => app.kindName(k)).join(", ") },
+        accessibilityLabel = "Kind filter", menu = { app.kindMenu } ],
+    category: DropButton [ visible = { !app.phone }, on = { app.cats.length > 0 },
+        label = { app.manyLabel(app.cats.map((c) => app.catLabel(c)), "Category", "categories") },
+        accessibilityLabel = "Category filter",
+        press() { app.catPop.showFor(this) }
+        ],
+    contact: DropButton [ visible = { !app.phone }, on = { app.contacts.length > 0 },
+        label = { app.manyLabel(app.contacts.map((c) => c == "none" ? "No contact" : app.books.contactName(c)), "Contact", "contacts") },
+        accessibilityLabel = "Contact filter",
+        press() { app.contactPop.showFor(this) }
+        ],
+    working: Text [ visible = { app.slow }, fontSize = 12.5, accessibilityLive = polite,
+        textColor = { provided("theme").textMuted }, text = "Still working…" ]
+    ]
+
+
+// The active filters, each a chip that removes itself, and the one way back
+// to "this month and nothing else". While anything but the dates is on, the
+// row says so: a filtered total is never read as the whole.
+
+class ChipRow [ padding = { app.phone ? [0, 10, 6, 10] : [0, 20, 8, 20] },
+    visible = { app.filtered || app.preset != "this-month" },
+    layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+    note: View [ visible = { app.filtered }, height = 26, padding = [0, 8, 0, 6], cornerRadius = 13,
+        fill = { provided("theme").attentionTint },
+        layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+        Glyph [ shape = "attention", iconSize = 12, ink = { provided("theme").attention } ],
+        Text [ fontSize = 12, fontWeight = semibold, wrap = false, textColor = { provided("theme").attention }, text = "Filtered" ]
+        ],
+    FilterChip [ visible = { app.query.trim() != "" }, label = { "“" + app.query.trim() + "”" },
+        press() { app.query = "" }
+        ],
+    FilterChip [ visible = { app.hasAmount }, label = { "Amount " + amountChip(app.minAmt, app.maxAmt) },
+        press() { app.minAmt = 0; app.maxAmt = -1 }
+        ],
+    kinds: View [ rowsData: Dataset [ contents = { { items: app.kinds.map((k) => ({ id: k })) } } ],
+        datapath = { this.rowsData.value },
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
+        FilterChip [ datapath = :items[], label = { app.kindName(:id) },
+            press() { app.kinds = app.toggleIn(app.kinds, :id) }
+            ]
+        ],
+    cats: View [ rowsData: Dataset [ contents = { { items: app.cats.map((k) => ({ id: k })) } } ],
+        datapath = { this.rowsData.value },
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
+        FilterChip [ datapath = :items[], label = { app.catLabel(:id) },
+            press() { app.cats = app.toggleIn(app.cats, :id) }
+            ]
+        ],
+    people: View [ rowsData: Dataset [ contents = { { items: app.contacts.map((k) => ({ id: k })) } } ],
+        datapath = { this.rowsData.value },
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
+        FilterChip [ datapath = :items[], label = { :id == "none" ? "No contact" : app.books.contactName(:id) },
+            press() { app.contacts = app.toggleIn(app.contacts, :id) }
+            ]
+        ],
+    prods: View [ rowsData: Dataset [ contents = { { items: app.products.map((k) => ({ id: k })) } } ],
+        datapath = { this.rowsData.value },
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
+        FilterChip [ datapath = :items[], label = { :id == "none" ? "Other items" : app.books.productName(:id) },
+            press() { app.products = app.toggleIn(app.products, :id) }
+            ]
+        ],
+    clear: LinkButton [ label = "Clear all",
+        press() { app.clearAll() }
+        ]
+    ]
+
+
+// ── The amount picker ───────────────────────────────────────────────────────
+//
+// Amounts are skewed — most between $5 and $200, a few rents in the thousands
+// — so the slider's steps are the service's histogram edges, not dollars: each
+// step is one bar of the histogram above it. The handles snap to those steps;
+// the two fields take exact cents. The last step is "no maximum".
+
+class AmountPicker [ width = 360,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 14, fontWeight = semibold, text = "Amount" ],
+    Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { count(app.amounts.value?.count ?? 0) + " transactions match the other filters" } ],
+
+    // how the transactions matching the other filters spread by amount
+
+    hist: View [ width = 100%, height = 56, accessibilityHidden = true,
+        lowStep: number = { stepOf(app.minAmt) },
+        highStep: number = { stepOf(app.maxAmt) },
+        counts: number[] = { (app.amounts.value?.buckets ?? []).map((b) => b.count) },
+        draw(d: DrawContext) {
+            const th = provided("theme")
+            const n = amountTop()
+            const peak = Math.max(1, ...counts.map((c) => Math.sqrt(c)))
+            const w = (d.w - 16) / n
+            for (let i = 0; i < counts.length && i < n; i++) {
+                const h = counts[i] == 0 ? 0 : Math.max(2, Math.sqrt(counts[i]) / peak * (d.h - 2))
+                d.fillStyle = i >= lowStep && i < highStep ? th.accent : th.lineStrong
+                d.beginPath(); d.roundRect(8 + i * w + 1, d.h - h, w - 2, h, [2, 2, 0, 0]); d.fill()
+                }
+            }
+        ],
+    slider: RangeSlider [ width = 100%, min = 0, max = { amountTop() }, step = 1,
+        accessibilityLabel = "amount",
+        low = { stepOf(app.minAmt) }, high = { stepOf(app.maxAmt) },
+        valueText(v: number) -> string { return v >= amountTop() ? "no maximum" : dollars(edgeCents(v)) },
+        commit(lo: number, hi: number) {
+            app.minAmt = edgeCents(lo)
+            app.maxAmt = hi >= amountTop() ? -1 : edgeCents(hi)
+            }
+        ],
+
+    // friendly labels where their steps fall
+
+    ticks: View [ width = 100%, height = 16, accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const marks = [[0, "$0"], [1000, "$10"], [5000, "$50"], [10000, "$100"], [50000, "$500"], [100000, "$1k"], [500000, "$5k"]]
+            for (const m of marks) {
+                const x = 8 + amountFrac(m[0] as number) * (d.w - 16)
+                const label = m[1] as string
+                const t = measureText(label, AxisText)
+                d.fillText(label, Math.max(0, Math.min(d.w - t.width, x - t.width / 2)), 12, AxisText)
+                }
+            }
+        ],
+    fields: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Field [ label = "Minimum", stacked = true, flexes = true,
+            TextInput [ width = 100%, height = 32, placeholder = "0.00", commitOn = "end", purpose = decimal,
+                value = { app.minAmt > 0 ? moneyInput(app.minAmt) : "" },
+                validate(v: string) -> string { return v.trim() == "" || parseMoney(v) != null ? "" : "Enter an amount like 20 or 42.50." },
+                commit(v: string) {
+                    const c = v.trim() == "" ? 0 : parseMoney(v)
+                    if (c != null) { app.minAmt = c; if (app.maxAmt >= 0 && app.maxAmt < c) app.maxAmt = c }
+                    }
+                ]
+            ],
+        Text [ text = "–", textColor = { provided("theme").textMuted } ],
+        Field [ label = "Maximum", stacked = true, flexes = true,
+            TextInput [ width = 100%, height = 32, placeholder = "No maximum", commitOn = "end", purpose = decimal,
+                value = { app.maxAmt >= 0 ? moneyInput(app.maxAmt) : "" },
+                validate(v: string) -> string { return v.trim() == "" || parseMoney(v) != null ? "" : "Enter an amount like 200 or 42.50." },
+                commit(v: string) {
+                    const c = v.trim() == "" ? -1 : parseMoney(v)
+                    if (c != null) { app.maxAmt = c; if (c >= 0 && app.minAmt > c) app.minAmt = c }
+                    }
+                ]
+            ]
+        ],
+    foot: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = center ],
+        Spacer [ ],
+        LinkButton [ label = "Any amount", visible = { app.hasAmount },
+            press() { app.minAmt = 0; app.maxAmt = -1 }
+            ]
+        ]
+    ]
+
+
+// ── The category picker ─────────────────────────────────────────────────────
+//
+// Several at once; each with how many transactions it would have under the
+// other filters.
+
+class CategoryPicker [ width = 300,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ padding = [0, 0, 8, 0], fontSize = 14, fontWeight = semibold, text = "Category" ],
+    CatOption [ catId = "none", label = "Uncategorised" ],
+    list: View [ width = 100%,
+        rowsData: Dataset [ contents = { { items: app.books.categories().filter((c) => !c.archived || app.catCount(c.id) > 0) } } ],
+        datapath = { this.rowsData.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        CatOption [ datapath = :items[], catId = :id, label = { :name + (:archived ? " (archived)" : "") } ]
+        ],
+    foot: View [ width = 100%, padding = [8, 0, 0, 0],
+        layout: SimpleLayout [ axis = x, align = center ],
+        Spacer [ ],
+        LinkButton [ label = "Any category", visible = { app.cats.length > 0 },
+            press() { app.cats = [] }
+            ]
+        ]
+    ]
+
+
+class CatOption [ width = 100%, height = 30,
+    catId: string = "",
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Checkbox [ flexes = true, label = { classroot.label },
+        checked = { app.cats.includes(classroot.catId) },
+        commit(v: boolean) { app.cats = app.toggleIn(app.cats, classroot.catId) }
+        ],
+    View [ width = 8, height = 8, cornerRadius = 4, visible = { classroot.catId != "none" },
+        fill = { provided("theme").cats[Math.max(0, app.books.colourOf(classroot.catId))] } ],
+    Text [ width = 44, textAlign = right, fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+        text = { count(app.catCount(classroot.catId)) } ]
+    ]
+
+
+// ── The contact picker ──────────────────────────────────────────────────────
+
+class ContactPicker [ width = 300,
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Text [ fontSize = 14, fontWeight = semibold, text = "Contact" ],
+    Combobox [ width = 100%, placeholder = "Type a name", accessibilityLabel = "Add a contact to the filter",
+        items = { app.books.contacts().map((c) => ({ id: c.id, label: c.name })) },
+        value = null,
+        commit(v: object) { if (v != null && !app.contacts.includes(v.id)) app.contacts = [...app.contacts, v.id] }
+        ],
+    Checkbox [ label = "No contact", checked = { app.contacts.includes("none") },
+        commit(v: boolean) { app.contacts = app.toggleIn(app.contacts, "none") }
+        ],
+    chosen: View [ width = 100%,
+        rowsData: Dataset [ contents = { { items: app.contacts.filter((c) => c != "none").map((c) => ({ id: c })) } } ],
+        datapath = { this.rowsData.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        FilterChip [ datapath = :items[], label = { app.books.contactName(:id) },
+            press() { app.contacts = app.toggleIn(app.contacts, :id) }
+            ]
+        ]
+    ]
+
+
+// ── A custom date range ─────────────────────────────────────────────────────
+
+class RangePicker [ width = 300,
+    f: string = { app.from },
+    t: string = { app.to },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 14, fontWeight = semibold, text = "Custom range" ],
+    Field [ label = "From", stacked = true,
+        DatePicker [ width = 260, value = { classroot.f },
+            commit(v: string) { classroot.f = v }
+            ]
+        ],
+    Field [ label = "To", stacked = true,
+        DatePicker [ width = 260, value = { classroot.t }, min = { classroot.f },
+            commit(v: string) { classroot.t = v }
+            ]
+        ],
+    Button [ label = "Apply", primary = true, disabled = { classroot.f == "" || classroot.t == "" || classroot.t < classroot.f },
+        onClick() { app.setRange(classroot.f, classroot.t); app.rangePop.close() }
+        ]
+    ]

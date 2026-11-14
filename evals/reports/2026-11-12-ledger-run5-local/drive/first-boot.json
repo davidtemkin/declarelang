@@ -1,0 +1,90 @@
+{
+  "app": "http://127.0.0.1:8290/evals/_score-ledger5/boot/ledger.declare",
+  "results": [
+    {
+      "name": "overview_drill",
+      "pass": false,
+      "reason": "Overview shows no \"Revenue\" figure with a value",
+      "ms": 12486,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-boot/overview_drill.png"
+    },
+    {
+      "name": "split_expense",
+      "pass": false,
+      "reason": "not found: a field named /^(total )?amount\\b/i",
+      "ms": 14040,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-boot/split_expense.png"
+    },
+    {
+      "name": "sale_refund",
+      "pass": false,
+      "reason": "not found: a field named /channel/i",
+      "ms": 16628,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-boot/sale_refund.png"
+    },
+    {
+      "name": "filters_keyboard",
+      "pass": false,
+      "reason": "no two-handled amount slider (found 0 slider(s))",
+      "ms": 13410,
+      "fallbacks": [
+        "found \"Transactions 2\" by the looser name /\\bTransactions\\b/i (nothing named /^Transactions$/i)"
+      ],
+      "observed": {},
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-boot/filters_keyboard.png"
+    },
+    {
+      "name": "bulk_undo",
+      "pass": false,
+      "reason": "not found: a choice named /^uncategori[sz]ed\\b/i",
+      "ms": 24172,
+      "fallbacks": [
+        "found \"Transactions 2\" by the looser name /\\bTransactions\\b/i (nothing named /^Transactions$/i)",
+        "no \"Clear all\" (a fresh start has no filters to clear)"
+      ],
+      "observed": {},
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-boot/bulk_undo.png"
+    },
+    {
+      "name": "export_csv",
+      "pass": true,
+      "reason": "met",
+      "ms": 9884,
+      "fallbacks": [
+        "found \"Transactions 2\" by the looser name /\\bTransactions\\b/i (nothing named /^Transactions$/i)"
+      ],
+      "observed": {
+        "file": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-boot/export_csv-download/ledger-2026-11-01-to-2026-11-30.csv",
+        "header": "id,date,kind,description,contact,category,channel,amount"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-boot/export_csv.png"
+    },
+    {
+      "name": "budget_words",
+      "pass": false,
+      "reason": "not found: a field named /amount|budget/i",
+      "ms": 44866,
+      "fallbacks": [
+        "found \"Budgets 4\" by the looser name /\\bBudgets\\b/i (nothing named /^Budgets$/i)"
+      ],
+      "observed": {},
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-boot/budget_words.png"
+    },
+    {
+      "name": "phone",
+      "pass": false,
+      "reason": "Overview on a phone shows no Revenue figure",
+      "ms": 9451,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-boot/phone.png"
+    }
+  ],
+  "notes": []
+}

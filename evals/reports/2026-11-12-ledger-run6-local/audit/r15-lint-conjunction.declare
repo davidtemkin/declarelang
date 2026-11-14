@@ -1,0 +1,5 @@
+// DECLARE4025 on a conjunction whose five parts are already named facts (each a member read).
+App [ width = 200, height = 100,
+    a: boolean = true, b: boolean = true, c: boolean = true, d: boolean = true, e: boolean = true,
+    ready: boolean = { app.a && app.b && app.c && app.d && app.e },
+    Text [ text = { app.ready ? "ready" : "" } ] ]

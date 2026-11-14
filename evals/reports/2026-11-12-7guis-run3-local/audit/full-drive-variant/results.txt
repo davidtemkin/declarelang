@@ -1,0 +1,14 @@
+PASS  counter  1.6 s  met
+PASS  temperature  16.0 s  met
+      fallbacks: went to Temperature Converter by "Temperature" (tab), a looser name
+PASS  flight  12.7 s  met
+PASS  timer  9.9 s  met
+PASS  crud  4.0 s  met
+PASS  circles_select  3.7 s  met
+PASS  circles_history  8.9 s  met
+PASS  cells  16.0 s  met
+note  counter: the count is exposed as StaticText, not a read-only text field
+note  flight: the kind-of-flight control is named "Flight type"; the choice it shows is in its text, not its name
+note  flight: the bad start date is marked only in colour, not exposed as invalid (aria-invalid)
+note  flight: the bad return date is marked only in colour, not exposed as invalid (aria-invalid)
+8 of 8 passed in 73 s

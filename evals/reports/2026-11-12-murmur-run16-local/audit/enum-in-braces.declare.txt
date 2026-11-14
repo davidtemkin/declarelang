@@ -1,0 +1,5 @@
+// DECLARE4005 at 6.7: bare enum words inside a { } choice.
+App [ width = 200, height = 100,
+    unread: number = 1,
+    TextLabel [ text = "Dana", fontWeight = { app.unread > 0 ? semibold : medium } ]
+    ]

@@ -1,0 +1,25 @@
+export default async ({ drive, expect, page }) => {
+  await drive.settleData();
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await drive.settleMotion();
+  const dlg = page.getByRole("dialog");
+  await dlg.getByLabel("Email").fill("ada@example.com");
+  await dlg.getByLabel("Password").fill("correct horse battery");
+  await expect(dlg.getByLabel("Password")).toHaveAttribute("type", "password");
+  await dlg.getByRole("checkbox", { name: "Show password" }).click();
+  await expect(dlg.getByLabel("Password")).toHaveAttribute("type", "text");
+  await dlg.getByRole("button", { name: "Sign in" }).click();
+  await drive.settleData();
+  await drive.settleMotion();
+  console.log(JSON.stringify(await page.evaluate(() => { const a = window.__declare.find("app"); return { signing: a.signingIn, me: a.me.loaded, failed: a.me.failed, st: a.session.statusCode }; })), JSON.stringify((await drive.requests()).map(r => r.method + " " + r.path + " " + r.status)));
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await page.reload();
+  await drive.settleData();
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await drive.settleData();
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+  await page.reload();
+  await drive.settleData();
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+};

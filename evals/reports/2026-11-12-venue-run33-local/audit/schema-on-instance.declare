@@ -1,0 +1,9 @@
+// Control for schema-in-class.declare: schema on the instance — the typo is refused at R1.
+schema Section [ name: string, priceCents: number ]
+schema Plan [ sections[]: Section ]
+App [ width = 400, height = 300,
+    plan: Dataset [ schema = Plan, contents = { { sections: [ { name: "Orchestra", priceCents: 8000 } ] } } ],
+    View [ datapath = { app.plan.value }, layout: SimpleLayout [ axis = y ],
+        Text [ datapath = :sections[], text = { :nmae ?? "" } ]
+        ]
+    ]

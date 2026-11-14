@@ -1,0 +1,29 @@
+// The agent's shape: an enum token in braces inside a class, read through classroot.
+class TagPill [ outline: boolean = false,
+    fontWeight = { classroot.outline ? light : regular },
+    Text [ text = "a" ]
+    ]
+App [ width = 200, height = 100, TagPill [ ] ]
+
+/* ── in a class body: generic 4001, no hint
+  R1 ✓ structure
+  R2 ✗ resolution
+       cannot resolve 'light' — not a member of TagPill, a parameter, or one of the globals a body may use (Math, JSON, Date, URL, console, …) [DECLARE4001] (line 3, col 40)
+       cannot resolve 'regular' — not a member of TagPill, a parameter, or one of the globals a body may use (Math, JSON, Date, URL, console, …) [DECLARE4001] (line 3, col 48)
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/enum-class.declare — FAILED at R2: DECLARE4001 at line 3, col 40
+── the same tokens on an instance (enum-in-braces.declare): 4005 with the rewrite
+// An enum token inside braces: fontWeight (4001, no hint) beside purpose (4005, hinted).
+App [ width = 200, height = 100,
+    quiet: boolean = false,
+    Text [ fontWeight = { app.quiet ? light : regular }, text = "a" ],
+    TextInput [ y = 40, purpose = { app.quiet ? newPassword : password } ]
+    ]
+  R1 ✓ structure
+  R2 ✗ resolution
+       'light' is one of fontWeight's values — bare only as the whole value (fontWeight = light); inside { } write it as a string: "light" [DECLARE4005] (line 4, col 39)
+       'regular' is one of fontWeight's values — bare only as the whole value (fontWeight = regular); inside { } write it as a string: "regular" [DECLARE4005] (line 4, col 47)
+       'newPassword' is one of purpose's values — bare only as the whole value (purpose = newPassword); inside { } write it as a string: "newPassword" [DECLARE4005] (line 5, col 49)
+       'password' is one of purpose's values — bare only as the whole value (purpose = password); inside { } write it as a string: "password" [DECLARE4005] (line 5, col 63)
+  warn accessibility: warning: TextInput is a textField with no name: it sets no accessibilityLabel, so a screen reader announces only "textField". Set accessibilityLabel to what it is called ("Volume", "Close") [DECLARE4017] (line 5, col 5)
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/enum-in-braces.declare — FAILED at R2: DECLARE4005 at line 4, col 39
+*/

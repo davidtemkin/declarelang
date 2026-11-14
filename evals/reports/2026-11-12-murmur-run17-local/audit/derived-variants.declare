@@ -1,0 +1,18 @@
+schema M [ id: string, from: string ]
+schema T [ id: string, seen: string, msgs[]: M ]
+class Row extends View [ height = 20, layout: SimpleLayout [ axis = y ],
+    t: T = { :@ },
+    // a: the record through :@ , then JS
+    a: Text [ text = { "a " + classroot.t.msgs.length } ],
+    // b: a deep path read through the derived dataset
+    b: Text [ text = { "b " + (:msgs as any).length } ],
+    // c: the derived dataset's tracked value, then JS
+    c: Text [ text = { "c " + app.inbox.value.rows[0].msgs.length } ],
+    // d: the whole row record via :@ inline
+    d: Text [ text = { "d " + (:@ as any).msgs.length } ] ]
+App [ width = 400, height = 300,
+    s: Dataset { { "threads": [ { "id": "t1", "seen": "m1", "msgs": [ { "id": "m1", "from": "a" } ] } ] } },
+    inbox: Dataset [ contents = { { rows: [...(app.s.value?.threads ?? [])] } } ],
+    add() { app.s.insert(["threads", 0, "msgs"], 1, { id: "m2", from: "b" }) },
+    list: View [ layout: SimpleLayout [ axis = y ], datapath = { app.inbox.value },
+        Row [ datapath = :rows[] ] ] ]

@@ -1,0 +1,364 @@
+/*
+# Presentify: the look
+
+The palette, the wordmark, the icon set, and the small controls the screens
+are built from. `presentify.declare` includes this file.
+
+The identity in one line: warm paper around the work, one electric violet
+for everything the person is acting on (the selection, the current slide,
+the primary action), and a tangerine spark that is the brand's own (the
+wordmark, the Present button). The slide is always the brightest thing on
+screen: nothing around it is pure white.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's SanFrancisco preset, so library controls (buttons,
+// menus, dialogs, fields) wear the same palette.
+
+theme Presentify [
+    background = #EDEAE4, surface = #F7F5F1, raised = #FBFAF7, stage = #E3DFD7,
+    line = #E0DBD2, lineStrong = #CBC4B8, quiet = #EFEBE4, hover = #EAE6DF,
+    text = #1B1830, textMuted = #625D71, textFaint = #8E899B,
+    accent = #5B3CF5, accentHovered = #4F31E8, accentPressed = #4227CF, accentTextColor = #FFFFFF,
+    accentTint = #ECE8FE, accentLine = #C9BEFC,
+    spark = #FF6A3D, sparkHovered = #F25A2C, sparkPressed = #DB4C20, sparkTint = #FFEDE5,
+    sel = #5B3CF5, guide = #FF2E7E,
+    danger = #D7263D, dangerTint = #FDE8EA, ok = #1F9D6B, warn = #B86A00, warnTint = #FFF3DC,
+    control = #EFEBE4, controlHovered = #E6E1D9, controlPressed = #DCD6CB, controlSelected = #E4DEFB,
+    tooltipFill = #1B1830, tooltipTextColor = #FFFFFF,
+    linkColor = #5B3CF5,
+
+    // Depth, from resting to lifted: all in the brand's ink, never grey.
+
+    shadowRest = shadow(0, 2, 6, #1B183014),
+    shadowFloat = shadow(0, 6, 20, #1B18301F),
+    shadowBanner = shadow(0, 8, 28, #1B183033),
+    shadowSlide = shadow(0, 10, 40, #1B183026),
+    shadowLift = shadow(0, 14, 34, #1B183030),
+    shadowDrag = shadow(0, 12, 30, #1B183040),
+    shadowGrip = shadow(0, 1, 3, #1B183040),
+    shadowOpen = shadow(0, 20, 60, #1B183040),
+
+    // The colours offered for a slide's fills, outlines and text: neutrals,
+    // then eight hues in a deep and a light row.
+
+    palette = ["#FFFFFF", "#F6F4EF", "#D9D6CF", "#9B97A3", "#5E5A69", "#2E2B38", "#1B1830", "#000000",
+        "#5B3CF5", "#2F6FEB", "#0EA5B7", "#1F9D6B", "#E6B422", "#FF6A3D", "#E0475B", "#B4428C",
+        "#DCD3FE", "#CFE0FC", "#C8EEF2", "#CDEFDF", "#FBEFC4", "#FFDCCD", "#FAD3D9", "#F0D4E6"]
+    ]
+
+
+// ── The wordmark ────────────────────────────────────────────────────────────
+//
+// The mark is a slide, tilted forward, with a spark in its corner: a
+// presentation about to begin. The name is set in Bricolage Grotesque.
+
+class Mark [ width = 28, height = 28,
+    draw(d: DrawContext) {
+        const s = d.w / 28
+        d.scale(s, s)
+        d.fillStyle = provided("theme").accent
+        d.beginPath()
+        d.roundRect(2, 5, 22, 17, 5)
+        d.fill()
+        d.fillStyle = 0xFFFFFF
+        d.beginPath()
+        d.moveTo(10.5, 9.5); d.lineTo(17, 13.5); d.lineTo(10.5, 17.5); d.closePath()
+        d.fill()
+        d.fillStyle = provided("theme").spark
+        d.beginPath()
+        d.arc(23.5, 6, 4.2, 0, Math.PI * 2)
+        d.fill()
+        }
+    ]
+
+
+class Wordmark [
+    big: boolean = false,
+    layout: SimpleLayout [ axis = x, spacing = { classroot.big ? 10 : 8 }, align = center ],
+    accessibilityRole = heading, accessibilityLabel = "Presentify",
+    Mark [ width = { classroot.big ? 34 : 26 }, height = { this.width } ],
+    TextLabel [ fontFamily = { app.brandFace }, fontSize = { classroot.big ? 27 : 19 }, fontWeight = 800,
+        letterSpacing = -0.5, textColor = { provided("theme").text }, text = "Presentify" ]
+    ]
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// One pen for every icon: a 1.5px round-ended stroke on a 16-unit grid,
+// fills only where a shape is the point (the tools' shapes, the play mark).
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        const k = shape
+        if (k == "select") {
+            d.moveTo(4, 2); d.lineTo(4, 13); d.lineTo(6.8, 10.4); d.lineTo(8.9, 14.5); d.lineTo(10.6, 13.7)
+            d.lineTo(8.6, 9.7); d.lineTo(12.3, 9.4); d.closePath(); d.stroke()
+        } else if (k == "rect") {
+            d.roundRect(2, 3.5, 12, 9, 1.5); d.stroke()
+        } else if (k == "ellipse") {
+            d.ellipse(8, 8, 6, 4.8, 0, 0, Math.PI * 2); d.stroke()
+        } else if (k == "line") {
+            d.moveTo(3, 13); d.lineTo(13, 3); d.stroke()
+        } else if (k == "text") {
+            d.moveTo(3, 3.5); d.lineTo(13, 3.5); d.moveTo(8, 3.5); d.lineTo(8, 13.5); d.moveTo(6, 13.5); d.lineTo(10, 13.5); d.stroke()
+        } else if (k == "undo" || k == "redo") {
+            if (k == "redo") { d.translate(16, 0); d.scale(-1, 1) }
+            d.moveTo(5.5, 3); d.lineTo(2.5, 6); d.lineTo(5.5, 9)
+            d.moveTo(2.5, 6); d.lineTo(10, 6); d.bezierCurveTo(12.8, 6, 14, 8, 14, 9.8); d.bezierCurveTo(14, 11.8, 12.6, 13.5, 10, 13.5)
+            d.lineTo(6.5, 13.5); d.stroke()
+        } else if (k == "play") {
+            d.moveTo(5, 3); d.lineTo(13, 8); d.lineTo(5, 13); d.closePath(); d.fill()
+        } else if (k == "plus") {
+            d.moveTo(8, 3); d.lineTo(8, 13); d.moveTo(3, 8); d.lineTo(13, 8); d.stroke()
+        } else if (k == "duplicate") {
+            d.roundRect(5.5, 5.5, 8, 8, 1.5); d.moveTo(3, 10.5); d.lineTo(2.5, 10.5); d.lineTo(2.5, 3.5)
+            d.arcTo(2.5, 2.5, 3.5, 2.5, 1); d.lineTo(10.5, 2.5); d.lineTo(10.5, 3); d.stroke()
+        } else if (k == "trash") {
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke()
+        } else if (k == "group") {
+            d.setLineDash([1.6, 2]); d.roundRect(1.5, 1.5, 13, 13, 2); d.stroke(); d.setLineDash([])
+            d.beginPath(); d.roundRect(4, 4, 5, 4, 0.8); d.roundRect(7, 8, 5, 4, 0.8); d.stroke()
+        } else if (k == "ungroup") {
+            d.roundRect(2, 2, 6, 5, 1); d.roundRect(8, 9, 6, 5, 1); d.stroke()
+            d.beginPath(); d.setLineDash([1.4, 1.8]); d.moveTo(10, 3); d.lineTo(13, 3); d.lineTo(13, 6); d.moveTo(3, 10); d.lineTo(3, 13); d.lineTo(6, 13); d.stroke(); d.setLineDash([])
+        } else if (k == "alignLeft" || k == "alignCenter" || k == "alignRight") {
+            const ax = k == "alignLeft" ? 2.5 : k == "alignCenter" ? 8 : 13.5
+            d.moveTo(ax, 1.5); d.lineTo(ax, 14.5); d.stroke(); d.beginPath()
+            const w1 = 8, w2 = 5
+            const x1 = k == "alignLeft" ? 4.5 : k == "alignCenter" ? 8 - w1 / 2 : 11.5 - w1
+            const x2 = k == "alignLeft" ? 4.5 : k == "alignCenter" ? 8 - w2 / 2 : 11.5 - w2
+            d.fillRect(x1, 3.5, w1, 3.5); d.fillRect(x2, 9, w2, 3.5)
+        } else if (k == "alignTop" || k == "alignMiddle" || k == "alignBottom") {
+            const ay = k == "alignTop" ? 2.5 : k == "alignMiddle" ? 8 : 13.5
+            d.moveTo(1.5, ay); d.lineTo(14.5, ay); d.stroke(); d.beginPath()
+            const h1 = 8, h2 = 5
+            const y1 = k == "alignTop" ? 4.5 : k == "alignMiddle" ? 8 - h1 / 2 : 11.5 - h1
+            const y2 = k == "alignTop" ? 4.5 : k == "alignMiddle" ? 8 - h2 / 2 : 11.5 - h2
+            d.fillRect(3.5, y1, 3.5, h1); d.fillRect(9, y2, 3.5, h2)
+        } else if (k == "distAcross") {
+            d.moveTo(1.5, 2); d.lineTo(1.5, 14); d.moveTo(14.5, 2); d.lineTo(14.5, 14); d.stroke()
+            d.beginPath(); d.fillRect(3.5, 5, 2.5, 6); d.fillRect(6.75, 4, 2.5, 8); d.fillRect(10, 5.5, 2.5, 5)
+        } else if (k == "distDown") {
+            d.moveTo(2, 1.5); d.lineTo(14, 1.5); d.moveTo(2, 14.5); d.lineTo(14, 14.5); d.stroke()
+            d.beginPath(); d.fillRect(5, 3.5, 6, 2.5); d.fillRect(4, 6.75, 8, 2.5); d.fillRect(5.5, 10, 5, 2.5)
+        } else if (k == "front" || k == "back" || k == "forward" || k == "backward") {
+            const up = k == "front" || k == "forward"
+            d.globalAlpha = 0.45; d.roundRect(2, up ? 6.5 : 2, 8.5, 7.5, 1.2); d.fill(); d.globalAlpha = 1
+            d.beginPath(); d.roundRect(5.5, up ? 2 : 6.5, 8.5, 7.5, 1.2)
+            if (up) d.fill()
+            d.stroke()
+            if (k == "front" || k == "back") {
+                d.beginPath(); d.globalAlpha = 0.45; d.roundRect(up ? 1 : 7, up ? 11 : 1, 4, 4, 1); d.fill(); d.globalAlpha = 1
+            }
+        } else if (k == "back-arrow") {
+            d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (k == "chevron") {
+            d.moveTo(4, 6); d.lineTo(8, 10); d.lineTo(12, 6); d.stroke()
+        } else if (k == "more") {
+            for (const x of [3.5, 8, 12.5]) { d.moveTo(x + 1.2, 8); d.arc(x, 8, 1.2, 0, Math.PI * 2) }
+            d.fill()
+        } else if (k == "check") {
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (k == "cloud" || k == "cloudOff" || k == "cloudSync") {
+            d.moveTo(4.5, 12.5); d.bezierCurveTo(2.5, 12.5, 1.5, 11, 1.5, 9.6); d.bezierCurveTo(1.5, 8, 2.8, 6.8, 4.3, 6.9)
+            d.bezierCurveTo(4.8, 4.6, 6.6, 3.2, 8.6, 3.2); d.bezierCurveTo(11.2, 3.2, 12.9, 5.2, 12.9, 7.4)
+            d.bezierCurveTo(14.3, 7.6, 15, 8.8, 15, 10); d.bezierCurveTo(15, 11.4, 13.9, 12.5, 12.4, 12.5); d.closePath(); d.stroke()
+            d.beginPath()
+            if (k == "cloud") { d.moveTo(5.8, 8.6); d.lineTo(7.6, 10.3); d.lineTo(10.6, 7); d.stroke() }
+            if (k == "cloudOff") { d.moveTo(2, 2); d.lineTo(14.5, 14.5); d.stroke() }
+            if (k == "cloudSync") { d.arc(8.3, 8.6, 2, 0.3, 5.2); d.stroke() }
+        } else if (k == "alert") {
+            d.moveTo(8, 2); d.lineTo(14.5, 13.5); d.lineTo(1.5, 13.5); d.closePath(); d.stroke()
+            d.beginPath(); d.moveTo(8, 6.2); d.lineTo(8, 9.4); d.stroke(); d.beginPath(); d.arc(8, 11.6, 0.9, 0, Math.PI * 2); d.fill()
+        } else if (k == "link") {
+            d.roundRect(1.5, 5.5, 7, 5, 2.5); d.roundRect(7.5, 5.5, 7, 5, 2.5); d.stroke()
+        } else if (k == "bold") {
+            d.lineWidth = 2.1 / unit
+            d.moveTo(4.5, 2.5); d.lineTo(4.5, 13.5); d.lineTo(9.6, 13.5); d.bezierCurveTo(13.4, 13.5, 13.4, 7.8, 9.6, 7.8); d.lineTo(4.5, 7.8)
+            d.moveTo(9, 7.8); d.bezierCurveTo(12.2, 7.8, 12.2, 2.5, 9, 2.5); d.lineTo(4.5, 2.5); d.stroke()
+        } else if (k == "italic") {
+            d.moveTo(7, 2.5); d.lineTo(12.5, 2.5); d.moveTo(3.5, 13.5); d.lineTo(9, 13.5); d.moveTo(9.8, 2.5); d.lineTo(6.2, 13.5); d.stroke()
+        } else if (k == "textLeft" || k == "textCenter" || k == "textRight") {
+            const rows = [[2, 12], [2, 8], [2, 12], [2, 6]]
+            rows.forEach((r, i) => {
+                const w = i % 2 == 0 ? 12 : (i == 1 ? 8 : 6)
+                const x = k == "textLeft" ? 2 : k == "textCenter" ? 8 - w / 2 : 14 - w
+                d.moveTo(x, 3 + i * 3.3); d.lineTo(x + w, 3 + i * 3.3)
+                })
+            d.stroke()
+        } else if (k == "slides") {
+            d.roundRect(4.5, 2, 10, 7, 1.2); d.moveTo(2, 5.5); d.lineTo(2, 11); d.arcTo(2, 12, 3, 12, 1); d.lineTo(11, 12); d.stroke()
+        } else if (k == "grid") {
+            d.roundRect(2, 2, 5, 5, 1); d.roundRect(9, 2, 5, 5, 1); d.roundRect(2, 9, 5, 5, 1); d.roundRect(9, 9, 5, 5, 1); d.stroke()
+        } else if (k == "close") {
+            d.moveTo(4, 4); d.lineTo(12, 12); d.moveTo(12, 4); d.lineTo(4, 12); d.stroke()
+        } else if (k == "pencil") {
+            d.moveTo(2.5, 13.5); d.lineTo(3.2, 10.6); d.lineTo(11, 2.8); d.lineTo(13.2, 5); d.lineTo(5.4, 12.8); d.closePath(); d.stroke()
+        } else {
+            d.arc(8, 8, 5, 0, Math.PI * 2); d.stroke()
+        }
+        }
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+//
+// Each is a `Control`: focus, Space and Enter, `disabled` and the hover and
+// press states come with it. The use site says what pressing does in its own
+// `press()`. Every one carries a label, shown as a tooltip and read by a
+// screen reader.
+
+// A square button with an icon: the tools, the arrange commands.
+
+class IconBtn extends Control [ width = 32, height = 32, cornerRadius = 8,
+    shape: string = "",
+    label: string = "",
+    on: boolean = false,
+    tone: Color = { provided("theme").text },
+    accessibilityLabel = { classroot.label },
+    accessibilityPressed = { classroot.on },
+    tooltipLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").accentTint } ],
+    opacity = { disabled ? 0.38 : 1 },
+    Glyph [ x = center, y = center, iconSize = 16, weight = 1.5, shape = { classroot.shape },
+        ink = { classroot.on ? provided("theme").accent : classroot.tone } ]
+    ]
+
+
+// A pill with an icon and a word: the editor bar's main commands.
+
+class PillBtn extends Control [ height = 32, cornerRadius = 9, padding = [0, 12, 0, 10],
+    shape: string = "",
+    label: string = "",
+    tone: "quiet" | "accent" | "spark" = "quiet",
+    accessibilityLabel = { classroot.label },
+    lit: Color = { classroot.tone == "spark" ? provided("theme").spark : classroot.tone == "accent" ? provided("theme").accent : provided("theme").control },
+    fill = { classroot.lit },
+    State [ applied = { hovered && classroot.tone == "quiet" }, fill = { provided("theme").controlHovered } ],
+    State [ applied = { hovered && classroot.tone == "spark" }, fill = { provided("theme").sparkHovered } ],
+    State [ applied = { hovered && classroot.tone == "accent" }, fill = { provided("theme").accentHovered } ],
+    scale = { pressed ? 0.97 : 1 }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+    opacity = { disabled ? 0.4 : 1 },
+    ink: Color = { classroot.tone == "quiet" ? provided("theme").text : 0xFFFFFF },
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+    Glyph [ visible = { classroot.shape != "" }, iconSize = 15, weight = 1.6, shape = { classroot.shape }, ink = { classroot.ink } ],
+    TextLabel [ fontSize = 13.5, fontWeight = 600, textColor = { classroot.ink }, text = { classroot.label } ]
+    ]
+
+
+// A section of the inspector: a small heading over its rows.
+
+class Section [ width = 100%, padding = [14, 16, 16, 16],
+    title: string = "",
+    off: boolean = false,
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    opacity = { classroot.off ? 0.45 : 1 },
+    head: Text [ fontSize = 11, fontWeight = 700, letterSpacing = 0.6, textTransform = uppercase,
+        textColor = { provided("theme").textFaint }, text = { classroot.title } ]
+    ]
+
+
+// A row in a section: a label on the left, controls on the right.
+
+class Row [ width = 100%, height = 30,
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ width = 60, fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// A colour, as the inspector shows it: a swatch and its hex. Pressing it
+// opens the colour popover for this property. `value` is a colour, "" for
+// none, or "mixed" when the selected things differ.
+
+class ColorWell extends Control [ height = 30, flexes = true, cornerRadius = 8, padding = [0, 10, 0, 5],
+    value: string = "",
+    target: string = "",            // which property the popover changes
+    allowNone: boolean = true,
+    accessibilityLabel = { classroot.target.charAt(0).toUpperCase() + classroot.target.slice(1) + " colour: " + classroot.words },
+    words: string = { classroot.value == "mixed" ? "Mixed" : classroot.value == "" ? "None" : classroot.value.slice(0, 7) },
+    fill = { hovered ? provided("theme").controlHovered : provided("theme").control },
+    stroke = { app.colorTarget == classroot.target && app.colorPop.shown ? stroke(1.5, provided("theme").accent) : null },
+    press() { app.pickColor(this, classroot.target, classroot.value, classroot.allowNone) },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Chip [ width = 20, height = 20, color = { classroot.value } ],
+    Text [ flexes = true, fontSize = 13, wrap = false, numeralWidth = tabular,
+        textColor = { classroot.value == "mixed" ? provided("theme").textMuted : provided("theme").text },
+        text = { classroot.words } ],
+    Glyph [ iconSize = 12, shape = "chevron", ink = { provided("theme").textFaint } ]
+    ]
+
+
+// A colour chip: the colour on a checkerboard (so a translucent one shows
+// as such), a red stroke for none, a split for mixed.
+
+class Chip [ cornerRadius = 5,
+    color: string = "",
+    stroke = { stroke(1, 0x00000022) },
+    clip = true,
+    draw(d: DrawContext) {
+        const c = classroot.color
+        const w = d.w, h = d.h
+        d.fillStyle = 0xFFFFFF
+        d.fillRect(0, 0, w, h)
+        if (c == "mixed") {
+            d.fillStyle = 0xCBC4B8
+            d.beginPath(); d.moveTo(0, 0); d.lineTo(w, 0); d.lineTo(0, h); d.closePath(); d.fill()
+            d.fillStyle = 0x625D71
+            d.beginPath(); d.moveTo(w, 0); d.lineTo(w, h); d.lineTo(0, h); d.closePath(); d.fill()
+            return
+        }
+        if (c == "") {
+            d.strokeStyle = 0xD7263D; d.lineWidth = 1.6
+            d.beginPath(); d.moveTo(2, h - 2); d.lineTo(w - 2, 2); d.stroke()
+            return
+        }
+        if (alphaOf(c) < 255) {
+            d.fillStyle = 0xDDDDDD
+            for (let y = 0; y < h; y += 5) for (let x = (y / 5) % 2 == 0 ? 0 : 5; x < w; x += 10) d.fillRect(x, y, 5, 5)
+        }
+        d.fillStyle = app.color(c)
+        d.fillRect(0, 0, w, h)
+        }
+    ]
+
+
+// One colour in the popover's palette.
+
+class Swatch extends Control [ width = 26, height = 26, cornerRadius = 7,
+    color: string = "",
+    chosen: boolean = false,
+    accessibilityLabel = { classroot.color },
+    accessibilityPressed = { classroot.chosen },
+    tooltipLabel = { classroot.color },
+    stroke = { classroot.chosen ? stroke(2, provided("theme").accent) : hovered ? stroke(2, provided("theme").lineStrong) : null },
+    Chip [ x = 3, y = 3, width = 20, height = 20, cornerRadius = 5, color = { classroot.color } ]
+    ]
+
+
+// A number typed in a small field, taken when the person leaves it or
+// presses Return: one change, one undo step.
+
+class NumField extends TextInput [ width = 64, height = 30, fontSize = 13, numeralWidth = tabular, commitOn = "end",
+    num: number = 0,
+    mixed: boolean = false,
+    unit: string = "",
+    value = { classroot.mixed ? "" : "" + Math.round(classroot.num * 10) / 10 },
+    placeholder = { classroot.mixed ? "–" : "" },
+    admit(v: string) -> string? { return /^-?[0-9]*\.?[0-9]*$/.test(v) ? v : null },
+    commit(v: string) { const n = parseFloat(v); if (!isNaN(n)) this.take(n) },
+    take(n: number) { }
+    ]

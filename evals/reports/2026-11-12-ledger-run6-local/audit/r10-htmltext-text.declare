@@ -1,0 +1,2 @@
+// Message check: `text` on an HTMLText (whose content member is `html`).
+App [ width = 300, height = 100, HTMLText [ text = "<b>hi</b>" ] ]

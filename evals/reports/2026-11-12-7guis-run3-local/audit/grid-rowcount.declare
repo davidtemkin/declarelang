@@ -1,0 +1,13 @@
+// A grid of 3 replicated rows, each replicating 4 cells. Expected: "grid 3 rows" / aria-rowcount=3.
+App [ width = 400, height = 200, fill = white,
+    data: Dataset { { "rows": [ { "c": [{ "v": 1 },{ "v": 2 },{ "v": 3 },{ "v": 4 }] }, { "c": [{ "v": 5 },{ "v": 6 },{ "v": 7 },{ "v": 8 }] }, { "c": [{ "v": 9 },{ "v": 10 },{ "v": 11 },{ "v": 12 }] } ] } },
+    sheet: View [ focusable = true, accessibilityRole = grid, accessibilityLabel = "Sheet A",
+        datapath = { app.data.value }, layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], accessibilityRole = row, layout: SimpleLayout [ axis = x ],
+            Text [ datapath = :c[], width = 40, accessibilityRole = cell, text = { String(:v) } ] ] ],
+    // the run's shape: a grid whose rows and cells carry no role
+    bare: View [ y = 100, focusable = true, accessibilityRole = grid, accessibilityLabel = "Sheet B",
+        datapath = { app.data.value }, layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], layout: SimpleLayout [ axis = x ],
+            Text [ datapath = :c[], width = 40, text = { String(:v) } ] ] ]
+    ]

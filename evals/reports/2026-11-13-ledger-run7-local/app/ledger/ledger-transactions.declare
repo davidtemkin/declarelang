@@ -1,0 +1,469 @@
+/*
+# Ledger: Transactions
+
+The whole history, filtered. On a desk it is a `DataGrid` over every
+transaction the filter matches (the service answers them in the order the
+grid's sort names), with the opened transaction's detail beside it; on a
+phone, a list grouped by day.
+
+- **Cells** show the row's own fields: the date, the description with the
+  contact beneath, the category as a coloured chip ("Split (3)",
+  "Uncategorised" marked as needing attention), the channel, and the amount,
+  right-aligned in tabular digits with a true minus for money out.
+- **Editing in place** goes through each column's editor: Enter or leaving the
+  cell saves (a PATCH to the service), Escape cancels. An edit the service
+  refuses stays on screen marked as not saved, with Retry.
+- **The selection** is the grid's own (click, Shift-click, ⌘-click, Space on
+  the walked row), held on the App as records; "Select all" selects every
+  transaction the filter matches, and bulk changes then address the filter
+  itself rather than a list of ids.
+*/
+
+use [ DateCell, DateEditor, DescCell, DescEditor, CatCell, CatEditor, ChannelCell, AmountCell, AmountEditor ]
+
+// ── cells ───────────────────────────────────────────────────────────────────
+//
+// A cell is bound to its row's record (`:date` is the row's date). Each says
+// when the service refused an edit to it, by showing the value that wasn't
+// saved with a marker, until it is retried or discarded.
+
+class Unsaved [ width = 7, height = 7, cornerRadius = 3.5, fill = { provided("theme").bad },
+    tooltipLabel = "Not saved", accessibilityRole = image, accessibilityLabel = "Not saved"
+    ]
+
+
+class DateCell [ width = 100%, height = 100%, padding = [0, 10, 0, 10],
+    shown: string = { app.unsavedText(:id ?? "", "date") ?? shortDate(:date ?? "", app.today) },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    TextLabel [ shrinks = true, fontSize = 13, wrap = false, maxLines = 1, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { classroot.shown } ],
+    Unsaved [ visible = { app.unsavedText(:id ?? "", "date") != null } ]
+    ]
+
+
+class DescCell [ width = 100%, height = 100%, padding = [0, 10, 0, 10],
+    // a transaction with no description is named by its contact, or its channel
+
+    blank: boolean = { (:description ?? "") == "" },
+    words: string = { app.unsavedText(:id ?? "", "description") ?? (classroot.blank ? app.fallbackName(:kind ?? "", :contactName ?? null, :channel ?? null) : :description ?? "") },
+    who: string = { app.unsavedText(:id ?? "", "contact") ?? (classroot.blank ? "" : :contactName ?? "") },
+    layout: SimpleLayout [ axis = y, spacing = 1, align = start ],
+    padTop: View [ height = { classroot.who == "" ? 17 : 8 } ],
+    line: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        HTMLText [ flexes = true, fontSize = 13.5, maxLines = 1, html = { highlight(classroot.words, app.hitWords) } ],
+        Unsaved [ visible = { app.unsavedText(:id ?? "", "description") != null || app.unsavedText(:id ?? "", "contact") != null } ]
+        ],
+    HTMLText [ visible = { classroot.who != "" }, width = 100%, fontSize = 12, maxLines = 1,
+        textColor = { provided("theme").textMuted }, html = { highlight(classroot.who, app.hitWords) } ]
+    ]
+
+
+class CatCell [ width = 100%, height = 100%, padding = [0, 10, 0, 10],
+    pending: string? = { app.unsavedText(:id ?? "", "category") },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    CategoryChip [
+        name = { classroot.pending ?? app.catLabel(:categoryId ?? null, :split?.parts ?? 0) },
+        colour = { classroot.pending != null || (:split?.parts ?? 0) > 0 ? -1 : app.books.catColour(:categoryId ?? null) },
+        attention = { classroot.pending == null && (:categoryId ?? null) == null && (:split?.parts ?? 0) == 0 } ],
+    Unsaved [ visible = { classroot.pending != null } ]
+    ]
+
+
+class ChannelCell [ width = 100%, height = 100%, padding = [0, 10, 0, 10],
+    TextLabel [ fontSize = 13, wrap = false, textColor = { provided("theme").textMuted }, text = { app.books.channelName(:channel ?? null) } ]
+    ]
+
+
+class AmountCell [ width = 100%, height = 100%, padding = [0, 12, 0, 10],
+    pending: string? = { app.unsavedText(:id ?? "", "amount") },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Spacer [ ],
+    Unsaved [ visible = { classroot.pending != null } ],
+    TextLabel [ fontSize = 13.5, fontWeight = medium, wrap = false, numeralWidth = tabular,
+        textColor = { (:signed ?? 0) > 0 ? provided("theme").good : provided("theme").text },
+        text = { classroot.pending ?? money(:inFilter ?? :signed ?? 0) } ]
+    ]
+
+
+// ── editors ─────────────────────────────────────────────────────────────────
+//
+// Each writes once, when the edit ends: Enter, or Tab to the next cell. Escape
+// leaves the record as it was.
+
+class DateEditor [ width = 100%, height = 100%, padding = [6, 4, 6, 4],
+    field: TextInput [ width = 100%, height = 100%, fontSize = 13, commitOn = "end",
+        accessibilityLabel = "Date — a date, or words like yesterday or 3 nov",
+        value = { :date ?? "" },
+        commit(v: string) {
+            const d = parseDate(v, app.today)
+            if (d == "") { app.toast.say("“" + v + "” isn't a date. Try 2026-11-03, 3 nov or yesterday.", null); return }
+            if (d != (:date ?? "")) app.patchCell(:id ?? "", ({ date: d }), "date", shortDate(d, app.today))
+            }
+        ]
+    ]
+
+
+class DescEditor [ width = 100%, height = 100%, padding = [4, 4, 4, 4],
+    layout: SimpleLayout [ axis = x, spacing = 4 ],
+    field: TextInput [ flexes = true, height = 100%, fontSize = 13, commitOn = "end",
+        accessibilityLabel = "Description", placeholder = "Description",
+        value = { :description ?? "" },
+        commit(v: string) { if (v != (:description ?? "")) app.patchCell(:id ?? "", ({ description: v }), "description", v) }
+        ],
+    Combobox [ width = { Math.max(120, parent.width * 0.42) }, height = 100%, placeholder = "Contact",
+        accessibilityLabel = "Contact",
+        items = { app.contactItems },
+        value = { app.contactItem(:contactId ?? null) },
+        commit(v: object) {
+            const c = v as ContactItem | null
+            const id = c == null ? null : c.id == "none" ? null : c.id
+            if (id != (:contactId ?? null)) app.patchCell(:id ?? "", ({ contactId: id }), "contact", c == null ? "" : c.label)
+            }
+        ]
+    ]
+
+
+class CatEditor [ width = 100%, height = 100%, padding = [6, 4, 6, 4],
+    pick: Combobox [ width = 100%, height = 100%, placeholder = "Category",
+        accessibilityLabel = "Category — type part of its name",
+        items = { app.catItemsFor(:kind ?? "expense") },
+        value = { app.catItem(:categoryId ?? null) },
+        commit(v: object) {
+            const c = v as CatItem | null
+            if (c == null) return
+            const id = c.id == "none" ? null : c.id
+            if (id != (:categoryId ?? null) || (:split?.parts ?? 0) > 0) app.patchCell(:id ?? "", ({ categoryId: id }), "category", c.label)
+            }
+        ]
+    ]
+
+
+class AmountEditor [ width = 100%, height = 100%, padding = [6, 4, 6, 4],
+    simple: boolean = { (:lineCount ?? 0) <= 1 && (:split?.parts ?? 0) == 0 },
+    field: TextInput [ visible = { classroot.simple }, width = 100%, height = 100%, fontSize = 13, textAlign = end, commitOn = "end", purpose = decimal,
+        accessibilityLabel = "Amount, in dollars",
+        value = { moneyInput(:amount ?? 0) },
+        admit(t: string) -> string? { return /^[0-9.,$]*$/.test(t) ? t : null },
+        commit(v: string) {
+            const c = parseMoney(v)
+            if (c == null || c <= 0) { app.toast.say("Type an amount above zero, like 42.50.", null); return }
+            if (c != (:amount ?? 0)) app.patchCell(:id ?? "", ({ amount: c }), "amount", money((:signed ?? 0) < 0 ? -c : c))
+            }
+        ],
+    TextLabel [ visible = { !classroot.simple }, x = end, fontSize = 12, textColor = { provided("theme").textMuted },
+        text = "Open to edit lines" ]
+    ]
+
+
+// ── a transaction, opened ───────────────────────────────────────────────────
+//
+// Beside the list on a desk, in a sheet on a phone: its lines, totals, its
+// linked refund or sale, and for a sale what it cost and what it made.
+
+class DetailLine [ width = 100%, padding = [6, 0, 6, 0],
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = start ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ width = 100%, fontSize = 13, text = { :description ?? "" } ],
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { count(:quantity ?? 0) + " × " + money(:unitPrice ?? 0)
+                + ((:refundedQuantity ?? 0) > 0 ? " · " + count(:refundedQuantity ?? 0) + " refunded" : (:refunded ?? 0) > 0 ? " · " + money(:refunded ?? 0) + " refunded" : "") } ]
+        ],
+    TextLabel [ fontSize = 13, numeralWidth = tabular, wrap = false, text = { money(:amount ?? 0) } ]
+    ]
+
+
+class DetailPart [ width = 100%, height = 30,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    CategoryChip [ name = { app.books.catName(:categoryId ?? null) }, colour = { app.books.catColour(:categoryId ?? null) } ],
+    Spacer [ ],
+    TextLabel [ fontSize = 13, numeralWidth = tabular, wrap = false, text = { money(:amount ?? 0) } ]
+    ]
+
+
+class LinkRow extends Control [ width = 100%, height = { app.touchFirst ? 44 : 32 }, cornerRadius = 6, padding = [0, 8, 0, 8],
+    accessibilityLabel = { "Open " + (:description ?? "") + ", " + shortDate(:date ?? "") },
+    fill = { hovered || pressed ? provided("theme").hover : provided("theme").sunken },
+    press() { app.peek(:id ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    TextLabel [ width = 50, fontSize = 12, numeralWidth = tabular, wrap = false, textColor = { provided("theme").textMuted }, text = { shortDate(:date ?? "") } ],
+    TextLabel [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { :description ?? "" } ],
+    TextLabel [ fontSize = 13, numeralWidth = tabular, wrap = false, text = { money(:amount ?? 0) } ]
+    ]
+
+
+class Fact [ width = 100%,
+    label: string = "",
+    value: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+    TextLabel [ width = 86, fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    Text [ flexes = true, fontSize = 13, text = { classroot.value } ]
+    ]
+
+
+class DetailPane [ width = 100%,
+    d: TxDetail? = { app.detail.value as TxDetail | null },
+    showing: boolean = { this.d != null && this.d.id == app.detailId },
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        TextLabel [ flexes = true, fontSize = 12, fontWeight = semibold, letterSpacing = 0.4, wrap = false,
+            textColor = { provided("theme").textMuted },
+            text = { classroot.showing ? (app.kindWord1(classroot.d?.kind ?? "") + " · " + shortDate(classroot.d?.date ?? "", "x")).toUpperCase() : "" } ],
+        IconButton [ visible = { app.peekId != "" }, shape = "left", tip = "Back to the selected transaction",
+            press() { app.peekId = "" }
+            ],
+        IconButton [ shape = "close", tip = "Close  Esc",
+            press() { app.closeDetail() }
+            ]
+        ],
+    loading: Text [ visible = { !classroot.showing && !app.detail.failed }, fontSize = 13, textColor = { provided("theme").textMuted }, text = "Opening…" ],
+    failed: View [ visible = { app.detail.failed }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ width = 100%, fontSize = 13, text = "This transaction couldn't be loaded." ],
+        Button [ label = "Retry",
+            onClick() { app.detail.fetch() }
+            ]
+        ],
+
+    body: View [ visible = { classroot.showing }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        title: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ width = 100%, fontSize = 18, fontWeight = semibold, accessibilityRole = heading,
+                text = { (classroot.d?.description ?? "") == "" ? app.fallbackName(classroot.d?.kind ?? "", classroot.d?.contactName ?? null, classroot.d?.channel ?? null) : classroot.d?.description ?? "" } ],
+            Text [ visible = { (classroot.d?.contactName ?? "") != "" }, fontSize = 13, textColor = { provided("theme").textMuted },
+                text = { classroot.d?.contactName ?? "" } ],
+            TextLabel [ fontSize = 26, fontWeight = semibold, numeralWidth = tabular, letterSpacing = -0.4,
+                textColor = { (classroot.d?.signed ?? 0) > 0 ? provided("theme").good : provided("theme").text },
+                text = { money(classroot.d?.signed ?? 0) } ]
+            ],
+        facts: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Fact [ visible = { (classroot.d?.parts ?? []).length == 0 }, label = "Category",
+                value = { app.books.catName(classroot.d?.categoryId ?? null) } ],
+            Fact [ visible = { (classroot.d?.channel ?? null) != null }, label = "Channel",
+                value = { app.books.channelName(classroot.d?.channel ?? null) } ],
+            Fact [ label = "Date", value = { dayHeading(classroot.d?.date ?? app.today, "") } ]
+            ],
+        split: View [ visible = { (classroot.d?.parts ?? []).length > 0 }, width = 100%,
+            datapath = { app.detail.value },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            TextLabel [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted },
+                text = { "Split across " + (classroot.d?.parts ?? []).length + " categories" } ],
+            DetailPart [ datapath = :parts[] ]
+            ],
+        lines: View [ visible = { (classroot.d?.lines ?? []).length > 0 }, width = 100%,
+            datapath = { app.detail.value },
+            layout: SimpleLayout [ axis = y ],
+            TextLabel [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "Lines" ],
+            DetailLine [ datapath = :lines[] ],
+            total: View [ width = 100%, padding = [6, 0, 0, 0],
+                layout: SimpleLayout [ axis = x, align = center ],
+                TextLabel [ flexes = true, fontSize = 13, fontWeight = semibold, text = "Total" ],
+                TextLabel [ fontSize = 13, fontWeight = semibold, numeralWidth = tabular, text = { money(classroot.d?.amount ?? 0) } ]
+                ]
+            ],
+        margin: Text [ visible = { (classroot.d?.kind ?? "") == "sale" && classroot.d?.cost != null }, width = 100%, fontSize = 13,
+            text = { app.marginLine(classroot.d) } ],
+        refunded: Text [ visible = { (classroot.d?.refunded ?? 0) > 0 }, width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { "Refunded " + money(classroot.d?.refunded ?? 0) + " · " + money(classroot.d?.refundable ?? 0) + " left to refund" } ],
+        refunds: View [ visible = { (classroot.d?.refunds ?? []).length > 0 }, width = 100%,
+            datapath = { app.detail.value },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            TextLabel [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "Refunds" ],
+            LinkRow [ datapath = :refunds[] ]
+            ],
+        sale: View [ visible = { classroot.d?.sale != null }, width = 100%,
+            datapath = { app.detail.value },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            TextLabel [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "Refund of" ],
+            LinkRow [ datapath = :sale ]
+            ],
+        actions: View [ width = 100%, padding = [6, 0, 0, 0],
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+            Button [ visible = { (classroot.d?.kind ?? "") != "refund" && (classroot.d?.refunds ?? []).length == 0 }, label = "Edit",
+                onClick() { app.editTxn(classroot.d) }
+                ],
+            Button [ visible = { (classroot.d?.kind ?? "") == "sale" && (classroot.d?.refundable ?? 0) > 0 }, label = "Refund…",
+                onClick() { app.startRefund(classroot.d?.id ?? "") }
+                ],
+            Button [ label = "Delete", ink = { provided("theme").bad },
+                onClick() { app.deleteOne(classroot.d) }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── the phone's list: grouped by day ────────────────────────────────────────
+
+schema DayLine [ id: string, heading?: string, total?: number, txn?: Txn ]
+
+class PhoneLine [ width = 100% ]
+
+class DayHead extends PhoneLine [ height = 40, padding = [14, 16, 0, 16],
+    layout: SimpleLayout [ axis = x, align = center ],
+    TextLabel [ flexes = true, fontSize = 13, fontWeight = semibold, accessibilityRole = heading, text = { :heading ?? "" } ],
+    TextLabel [ fontSize = 12.5, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { money(:total ?? 0) } ]
+    ]
+
+
+class TxnCard extends PhoneLine [ height = 64,
+    tx: Control [ width = 100%, height = 64, padding = [0, 16, 0, 16],
+        datapath = :txn,
+        accessibilityLabel = { ((:description ?? "") == "" ? app.kindWord1(:kind ?? "") : :description ?? "") + ", " + (:contactName ?? "") + ", " + money(:signed ?? 0) },
+        fill = { pressed ? provided("theme").controlPressed : null },
+        press() { app.openPhoneTxn(:id ?? "") },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        words: View [ flexes = true,
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            HTMLText [ width = 100%, fontSize = 15, maxLines = 1,
+                html = { highlight((:description ?? "") == "" ? app.fallbackName(:kind ?? "", :contactName ?? null, :channel ?? null) : :description ?? "", app.hitWords) } ],
+            TextLabel [ width = 100%, fontSize = 13, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted },
+                text = { (:description ?? "") == "" || (:contactName ?? "") == "" ? app.books.channelName(:channel ?? null) : :contactName ?? "" } ]
+            ],
+        end: View [
+            layout: SimpleLayout [ axis = y, spacing = 3, align = end ],
+            TextLabel [ fontSize = 15, fontWeight = medium, numeralWidth = tabular, wrap = false,
+                textColor = { (:signed ?? 0) > 0 ? provided("theme").good : provided("theme").text }, text = { money(:inFilter ?? :signed ?? 0) } ],
+            CategoryChip [ name = { app.catLabel(:categoryId ?? null, :split?.parts ?? 0) },
+                colour = { (:split?.parts ?? 0) > 0 ? -1 : app.books.catColour(:categoryId ?? null) },
+                attention = { (:categoryId ?? null) == null && (:split?.parts ?? 0) == 0 } ]
+            ]
+        ]
+    ]
+
+
+// ── the screen ──────────────────────────────────────────────────────────────
+
+class TransactionsScreen [ width = 100%,
+    layout: SimpleLayout [ axis = y ],
+
+    // where a drill came from, and the way back
+
+    drillBar: View [ visible = { app.drillBack != null }, width = 100%, padding = { [8, app.pad, 8, app.pad] },
+        fill = { provided("theme").selection },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ flexes = true, fontSize = 13, text = { "Showing the records behind " + app.drillSaid } ],
+        Button [ height = 30, label = { "← Back to " + app.titleOf(app.drillBack?.screen ?? "overview") },
+            onClick() { app.goBack() }
+            ]
+        ],
+
+    // the summary line, or the selection's, and what can be done
+
+    summary: View [ width = 100%, padding = { [10, app.pad, 10, app.pad] },
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = center ],
+        line: Text [ fontSize = 13.5, fontWeight = medium, numeralWidth = tabular, accessibilityLive = polite,
+            width = { app.phone ? app.width - 2 * app.pad : Math.min(this.contentWidth, 640) },
+            text = { app.summaryLine } ],
+        Spacer [ visible = { !app.phone }, width = 8, flexes = false ],
+        selectAll: BarButton [ visible = { !app.phone && app.selCount == 0 && app.listTotal > 0 }, label = "Select all",
+            press() { app.selectAll() }
+            ],
+        bulkCat: BarButton [ visible = { app.selCount > 0 }, label = "Categorise", menu = { app.bulkCatMenu } ],
+        bulkContact: BarButton [ visible = { app.selCount > 0 }, label = "Set contact",
+            press() { app.contactPop.showFor(this) }
+            ],
+        bulkDelete: BarButton [ visible = { app.selCount > 0 }, label = "Delete",
+            press() { app.bulkDelete() }
+            ],
+        clearSel: BarButton [ visible = { app.selCount > 0 }, label = "Clear selection",
+            press() { app.takeSelection(null) }
+            ],
+        export: BarButton [ visible = { app.listTotal > 0 }, shape = "export", label = { app.selCount > 0 ? "Export selection" : "Export CSV" },
+            press() { app.exportCsv() }
+            ],
+        columns: BarButton [ visible = { !app.phone }, shape = "columns", label = "Columns", menu = { app.columnsMenu } ]
+        ],
+
+    // edits the service didn't take: said, with Retry
+
+    unsaved: View [ visible = { app.failedEdit != null }, width = 100%, padding = { [8, app.pad, 8, app.pad] },
+        fill = { provided("theme").badTint },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ flexes = true, fontSize = 13, text = { "Not saved: " + app.failedWords } ],
+        Button [ height = 30, label = "Retry",
+            onClick() { app.retryEdit() }
+            ],
+        Button [ height = 30, label = "Discard",
+            onClick() { app.failedEdit = null }
+            ]
+        ],
+
+    listState: View [ visible = { app.list.failed || app.listSlow }, width = 100%, padding = { [8, app.pad, 8, app.pad] },
+        fill = { provided("theme").sunken },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ flexes = true, fontSize = 13, text = { app.list.failed ? "The transactions couldn't be loaded." : "Still working…" } ],
+        Button [ visible = { app.list.failed }, height = 30, label = "Retry",
+            onClick() { app.list.fetch() }
+            ]
+        ],
+
+    body: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x ],
+
+        grid: DataGrid [ visible = { !app.phone }, flexes = true, height = 100%, selects = "multi",
+            accessibilityLabel = "Transactions",
+            opacity = { app.list.loading ? 0.55 : 1 },
+            items = { app.listRows },
+            columns = { app.gridColumns },
+            widths = { app.gridWidths },
+            sortOn = { app.sortCol },
+            sortDir = { app.sortDir },
+            applySort(column: string, direction: string) { app.sortBy(column, direction) },
+            selection = { app.selRows },
+            commit(sel: object) { app.takeSelection(sel as Txn[] | null) },
+            deleteRequested() { app.bulkDelete() },
+            keyBindings = { [ ({ key: "Ctrl+A", command: "selectEverything", label: "Select all" }),
+                ({ key: "Tab", command: "tabCell", args: [1], when: "_isEditing" }),
+                ({ key: "Shift+Tab", command: "tabCell", args: [-1], when: "_isEditing" }) ] },
+            selectEverything() { app.selectAll() },
+
+            // Tab while a cell is being edited: leave it (which saves it) and
+            // edit the next cell along the row, as a spreadsheet does
+
+            tabCell(d: number) {
+                const n = this._colData.value.cols.length
+                this._leaveEdit(0)
+                this.activeCol = Math.max(0, Math.min(n - 1, this.activeCol + d))
+                afterSettle(() => {
+                    const cell = this._activeCell()
+                    if (cell != null && cell._kind() == "editor") this._enterCell(cell, "")
+                    })
+                }
+            ],
+
+        detailPane: View [ visible = { app.wide && app.detailId != "" }, width = { app.width >= 1280 ? 380 : 320 }, height = 100%,
+            scrolls = y, padding = 18, accessibilityRole = complementary, accessibilityLabel = "Transaction",
+            fill = { provided("theme").surface }, stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+            DetailPane [ ]
+            ],
+
+        phoneList: Table [ visible = { app.phone }, flexes = true, height = 100%, selects = "none",
+            accessibilityLabel = "Transactions by day",
+            datapath = { app.dayLines.value },
+            opacity = { app.list.loading ? 0.55 : 1 },
+            PhoneLine [ datapath = :rows[], virtualize = true, classFor = { (:heading ?? "") != "" ? DayHead : TxnCard } ]
+            ]
+        ],
+
+    // nothing matches: name the filters, and the one change that would bring results back
+
+    empty: View [ visible = { app.list.loaded && !app.list.loading && app.listTotal == 0 }, ignoreLayout = true,
+        x = center, y = 160, width = { Math.min(420, parent.width - 40) },
+        layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+        Text [ width = 100%, textAlign = center, fontSize = 17, fontWeight = semibold, text = { app.emptyTitle } ],
+        Text [ width = 100%, textAlign = center, fontSize = 13.5, textColor = { provided("theme").textMuted }, text = { app.emptyLine } ],
+        Button [ visible = { app.relax.label != "" }, primary = true, label = { app.relax.label },
+            onClick() { app.applyRelax() }
+            ],
+        Button [ visible = { app.books.people.length == 0 || app.everCount == 0 }, label = "Record an expense",
+            onClick() { app.record("expense") }
+            ]
+        ]
+    ]

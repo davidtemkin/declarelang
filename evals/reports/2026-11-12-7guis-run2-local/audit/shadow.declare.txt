@@ -1,0 +1,12 @@
+App [ width = 400, height = 200,
+    off: number = 0,
+    View [ x = { app.off + 10 }, width = 300, height = 40,
+        draw(d: DrawContext) {
+            for (let c = 0; c < 3; c++) {
+                const x = c * 20
+                d.fillStyle = #888888
+                d.fillRect(x, 0, 10, 10)
+                }
+            }
+        ]
+    ]

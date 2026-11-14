@@ -1,0 +1,16 @@
+// Run 7's name misses, as written: a method set as an attribute, a ring opt-out
+// that has no name, and a member named like a View method.
+class DeckCard extends Control [ width = 120, height = 80, accessibilityLabel = "Card",
+    focusShape = null ]
+App [ width = 300, height = 200, fill = white,
+    DeckCard [ ],
+    list: View [ y = 100, width = 200, height = 60, focusRing = null ],
+    other: View [ y = 160, width = 200, height = 30, tabOrder = null ]
+    ]
+
+/* ── against the local tree, 2026-11-12:
+       DeckCard has no attribute 'focusShape' — did you mean 'focusScope'? [DECLARE2000] (line 4, col 5)
+       View has no attribute 'focusRing' [DECLARE2000] (line 7, col 53)
+       View has no attribute 'tabOrder' — the CSS instinct: a border is 'stroke = { stroke(1, 0xE2E5E9) }' — drawn inside the box [DECLARE2000] (line 8, col 54)
+  verify: /private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/r/names.declare — FAILED at R1: DECLARE2000 at line 4, col 5
+*/

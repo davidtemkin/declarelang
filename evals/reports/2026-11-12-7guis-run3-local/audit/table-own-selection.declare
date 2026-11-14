@@ -1,0 +1,18 @@
+// Table.commit's reference: "override it to own the value (commit(sel) { app.chosen = sel })".
+// Does the table still show (and expose) the selection when the program owns it?
+//   a: commit overridden, nothing derived down (the reference's own example)
+//   b: the run's form — selection derived down from the program's value, commit delivers up
+App [ width = 520, height = 200, fill = white,
+    d: Dataset { { "rows": [ { "id": 1, "n": "Ada" }, { "id": 2, "n": "Alan" } ] } },
+    chosenA: object = null,
+    chosenB: object = null,
+    a: Table [ x = 20, y = 20, width = 200, height = 120, accessibilityLabel = "A",
+        datapath = { app.d.value },
+        commit(sel: object) { app.chosenA = sel },
+        TableRow [ datapath = :rows[], width = 100%, height = 28, Text [ x = 8, text = { :n } ] ] ],
+    b: Table [ x = 260, y = 20, width = 200, height = 120, accessibilityLabel = "B",
+        datapath = { app.d.value },
+        selection = { app.chosenB },
+        commit(sel: object) { app.chosenB = sel },
+        TableRow [ datapath = :rows[], width = 100%, height = 28, Text [ x = 8, text = { :n } ] ] ]
+    ]

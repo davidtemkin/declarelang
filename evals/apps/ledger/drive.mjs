@@ -157,6 +157,12 @@ async function findAll(page, test) {
   for (const n of (await nodes(page)).filter(test)) { const h = await elementOf(n); if (h) out.push({ node: n, handle: h }); }
   return out;
 }
+// The first node named `re` whose element takes focus (by any role but text or a heading).
+async function focusableNamed(page, re) {
+  for (const h of await findAll(page, (n) => !["StaticText", "heading"].includes(n.role) && named(n, re)))
+    if (await h.handle.evaluate((e) => e.tabIndex >= 0).catch(() => false)) return h;
+  return null;
+}
 const named = (n, re) => typeof n.name === "string" && (typeof re === "string" ? n.name === re : re.test(n.name));
 const control = (page, re, o = {}) => find(page, (n) => ACTION_ROLES.has(n.role) && named(n, re) && !n.disabled, { what: `a control named ${re}`, ...o });
 const field = (page, re, o = {}) => find(page, (n) => FIELD_ROLES.has(n.role) && named(n, re) && !n.disabled, { what: `a field named ${re}`, ...o });
@@ -249,6 +255,10 @@ async function chord(page, key, { shift = false, mod = "Meta" } = {}) {
 // An option in an open list, menu or popover.
 const OPTION_ROLES = new Set(["option", "menuitem", "menuitemradio", "menuitemcheckbox", "checkbox", "radio", "listitem", "button", "treeitem", "gridcell", "cell"]);
 const option = (page, re, o = {}) => find(page, (n) => OPTION_ROLES.has(n.role) && named(n, re) && !n.disabled, { what: `a choice named ${re}`, ...o });
+// A filter's choice, or a control on a record's detail: never a list's cell that merely says
+// the same words (a category cell reading "Uncategorised", a row's "Refund" status)
+const CELL_ROLES = new Set(["gridcell", "cell"]);
+const filterOption = (page, re, o = {}) => find(page, (n) => OPTION_ROLES.has(n.role) && !CELL_ROLES.has(n.role) && named(n, re) && !n.disabled, { what: `a choice named ${re}`, ...o });
 // A combobox: type part of the name, then choose the offered option.
 async function choose(page, ctx, el, typed, optRe) {
   await typeIn(page, el, typed);
@@ -294,12 +304,18 @@ async function view(page, ctx, name) {
 // The editor for a kind: its own control ("New expense"), else a "New" menu or the kind chosen at the top.
 async function newEditor(page, ctx, kind) {
   const direct = await maybe(control(page, new RegExp(`^(\\+ ?)?((new|add|record) (an? )?)?${kind}\\b(?!s)`, "i"), { timeout: 3000 }));
-  if (direct) { await press(page, direct); }
+  if (direct) {
+    await press(page, direct);
+    // a control named for both ("Record an expense or a sale") may open a menu: its item for the kind
+    const item = await maybe(find(page, (n) => ["menuitem", "option", "menuitemradio"].includes(n.role) && named(n, new RegExp(`^((new|add|record) (an? )?)?${kind}\\b(?!s)`, "i")), { timeout: 1200 }));
+    if (item) await press(page, item);
+  }
   else {
     ctx.fallback(`no "New ${kind}" control; opened a general New`);
     await press(page, await control(page, /^(\+ ?)?(new|add|record)\b|^\+$/i));
     // the item named for the kind — "Sale", "Sale…" — not a figure that mentions one ("1 sale")
-    const item = await maybe(control(page, new RegExp(`^${kind}\\b(?!s)`, "i"), { timeout: 2500 }));
+    // ("New expense" in a menu the + opens, as well as a bare "Expense")
+    const item = await maybe(control(page, new RegExp(`^((new|add|record) (an? )?)?${kind}\\b(?!s)`, "i"), { timeout: 2500 }));
     if (item) await press(page, item);
   }
   await sleep(400);
@@ -368,7 +384,9 @@ const SCENARIOS = {
       // where the walk starts: a period's mark in the tree, else the chart itself, named for its title
       const period = new RegExp(`${d.monthName}\\b[^|]*\\b(revenue|expenses|net profit|income)\\b[^|]*\\$`, "i");
       const start = await maybe(find(page, (n) => !["StaticText", "heading"].includes(n.role) && named(n, period), { timeout: 2500 }))
-        ?? await maybe(find(page, (n) => ["application", "img", "image", "figure", "graphics-document", "group", "grid", "list"].includes(n.role) && named(n, /income vs\.? expenses/i), { timeout: 2500 }));
+        ?? await maybe(find(page, (n) => ["application", "img", "image", "figure", "graphics-document", "group", "grid", "list"].includes(n.role) && named(n, /income vs\.? expenses/i), { timeout: 2500 }))
+        // else any node named for the chart that takes focus, whatever its role (a button too)
+        ?? await focusableNamed(page, /income vs\.? expenses/i);
       if (start) {
         await start.handle.evaluate((e) => e.focus());   // an <svg> chart too, which puppeteer's focus() refuses
         await sleep(150);
@@ -529,7 +547,9 @@ const SCENARIOS = {
     if (!row) throw new Error(`the new sale (${money(total)}) is not in the list`);
     await press(page, row);
     await sleep(500);
-    const refundBtn = await maybe(control(page, /^refund\b|refund (this|sale|items?)|issue (a )?refund|^record refund/i, { timeout: 4000 }));
+    const refundRe = /^refund\b|refund (this|sale|items?)|issue (a )?refund|^record refund/i;
+    // a control that refunds, never a row of the list that names a refund already made
+    const refundBtn = await maybe(find(page, (n) => ACTION_ROLES.has(n.role) && !CELL_ROLES.has(n.role) && !["option", "row", "listitem", "treeitem"].includes(n.role) && named(n, refundRe) && !n.disabled, { timeout: 4000, what: `a control named ${refundRe}` }));
     if (refundBtn) await press(page, refundBtn);
     else {
       // the refund editor, started from the sale chosen in it (§4: "A refund starts from a sale")
@@ -673,12 +693,12 @@ const SCENARIOS = {
     await view(page, ctx, "Transactions");
     const clear = await maybe(control(page, /clear (all|filters)/i, { timeout: 1500 }));
     if (clear) await press(page, clear); else ctx.fallback('no "Clear all" (a fresh start has no filters to clear)');
-    const panel = await revealFilters(page, ctx, (n) => OPTION_ROLES.has(n.role) && named(n, /^uncategori[sz]ed\b/i));
-    const direct = await maybe(option(page, /^uncategori[sz]ed\b/i, { timeout: 1000 }));
+    const panel = await revealFilters(page, ctx, (n) => OPTION_ROLES.has(n.role) && !CELL_ROLES.has(n.role) && named(n, /^uncategori[sz]ed\b/i));
+    const direct = await maybe(filterOption(page, /^uncategori[sz]ed\b/i, { timeout: 1000 }));
     if (direct) await press(page, direct);
     else {
       await press(page, await controlOr(page, ctx, /^categor(y|ies)\b/i, /categor/i));
-      await press(page, await option(page, /^uncategori[sz]ed\b/i));
+      await press(page, await filterOption(page, /^uncategori[sz]ed\b/i));
     }
     await page.keyboard.press("Escape");
     await sleep(400);
@@ -810,7 +830,8 @@ const SCENARIOS = {
       if (add) { await press(page, add); await sleep(400); }
       const sw = await maybe(find(page, (n) => ["option", "menuitem", "button", "checkbox", "radio", "row", "listitem"].includes(n.role) && named(n, /^software\b/i), { timeout: 2500 }));
       if (sw) { await press(page, sw); await sleep(300); }
-      else { const c = await maybe(field(page, /categor/i, { timeout: 2500 })); if (c) await choose(page, ctx, c, "Software", /^software$/i); }
+      // the category is chosen in a field named for it, or for adding a budget ("Add a budget")
+      else { const c = await maybe(field(page, /categor|(add|new|set) (a )?budget/i, { timeout: 2500 })); if (c) await choose(page, ctx, c, "Software", /^software$/i); }
       // its own amount, else the form's: never another category's row
       f = await maybe(field(page, /software/i, { timeout: 2500 }))
         ?? await maybe(field(page, /^(monthly )?amount\b|^monthly\b|^budget( amount)?$/i, { timeout: 2500 }))

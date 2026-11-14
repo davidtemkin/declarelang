@@ -1,0 +1,170 @@
+{
+  "app": "http://127.0.0.1:8290/evals/reports/2026-11-12-7guis-run3-local/audit/app-roles/7guis.declare",
+  "results": [
+    {
+      "name": "counter",
+      "pass": true,
+      "reason": "met",
+      "ms": 1648,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Counter\"",
+        "field": "StaticText \"0\""
+      },
+      "screenshot": "evals/reports/2026-11-12-7guis-run3-local/audit/full-drive-variant/counter.png"
+    },
+    {
+      "name": "temperature",
+      "pass": true,
+      "reason": "met",
+      "ms": 16043,
+      "fallbacks": [
+        "went to Temperature Converter by \"Temperature\" (tab), a looser name"
+      ],
+      "observed": {
+        "via": "tab \"Temperature\"",
+        "C→F": "100 → 212",
+        "C→F (negative)": "-40 → -40",
+        "C→F (decimal)": "37 → 98.6",
+        "F→C": "212 → 100",
+        "F→C (2)": "50 → 10",
+        "notANumber": "C \"abc\" left F \"50\"; F \"x12\" left C \"20\""
+      },
+      "screenshot": "evals/reports/2026-11-12-7guis-run3-local/audit/full-drive-variant/temperature.png"
+    },
+    {
+      "name": "flight",
+      "pass": true,
+      "reason": "met",
+      "ms": 12661,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Flight Booker\"",
+        "start": {
+          "kind": "one-way",
+          "startDate": "13.11.2026",
+          "returnDate": "13.11.2026"
+        },
+        "format": "DD.MM.YYYY",
+        "booked one-way": "You have booked a one-way flight on 13.11.2026. OK",
+        "kindControl": "button \"Flight type\" showing \"Flight type return flight return flight\"",
+        "booked return": "You have booked a return flight on 19.11.2026, returning on 26.11.2026. OK",
+        "start \"not a date\"": "aria-invalid no; red pixels 0 → 668",
+        "return \"not a date\"": "aria-invalid no; red pixels 0 → 668",
+        "booked one-way (again)": "You have booked a one-way flight on 19.11.2026. OK"
+      },
+      "screenshot": "evals/reports/2026-11-12-7guis-run3-local/audit/full-drive-variant/flight.png"
+    },
+    {
+      "name": "timer",
+      "pass": true,
+      "reason": "met",
+      "ms": 9856,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Timer\"",
+        "gauge": "progressbar \"Elapsed time\"",
+        "label": "0.8 s",
+        "realTime": "0.8 → 2.3 over 1.50 s",
+        "d1": 3.799999952316284,
+        "stopped": "3.8 s, gauge 1.00",
+        "resumed": "to 5.3 s at d 5.300000190734863",
+        "drag": "d 4.5 → 15.300000190734863, gauge 1.00 → 0.38 while the button is down",
+        "reset": "0 then 0.8"
+      },
+      "screenshot": "evals/reports/2026-11-12-7guis-run3-local/audit/full-drive-variant/timer.png"
+    },
+    {
+      "name": "crud",
+      "pass": true,
+      "reason": "met",
+      "ms": 4019,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"CRUD\"",
+        "selected": [
+          "Mustermann, Max"
+        ],
+        "layout": {
+          "filter": [
+            126,
+            90,
+            32
+          ],
+          "list": [
+            32,
+            134,
+            420,
+            682
+          ],
+          "create": [
+            32,
+            828
+          ]
+        }
+      },
+      "screenshot": "evals/reports/2026-11-12-7guis-run3-local/audit/full-drive-variant/crud.png"
+    },
+    {
+      "name": "circles_select",
+      "pass": true,
+      "reason": "met",
+      "ms": 3727,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Circle Drawer\"",
+        "canvas": [
+          32,
+          142,
+          1376,
+          726
+        ],
+        "diameter": 43
+      },
+      "screenshot": "evals/reports/2026-11-12-7guis-run3-local/audit/full-drive-variant/circles_select.png"
+    },
+    {
+      "name": "circles_history",
+      "pass": true,
+      "reason": "met",
+      "ms": 8854,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Circle Drawer\"",
+        "canvas": [
+          32,
+          142,
+          1376,
+          726
+        ],
+        "menuItem": "menuitem \"Adjust diameter…\"",
+        "slider": "\"Diameter\" 40",
+        "live": "thumb dragged 48 px: slider 40 → 71, radius 21.5 → 37.5 before the button was up",
+        "closedBy": "Close",
+        "history": "radius 21.5 → adjusted 37.5 → undo 21.5 → redo 37.5"
+      },
+      "screenshot": "evals/reports/2026-11-12-7guis-run3-local/audit/full-drive-variant/circles_history.png"
+    },
+    {
+      "name": "cells",
+      "pass": true,
+      "reason": "met",
+      "ms": 16022,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Cells\"",
+        "columns": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "error": "#SYNTAX",
+        "escape": "Escape cancels the edit",
+        "Z99": "32"
+      },
+      "screenshot": "evals/reports/2026-11-12-7guis-run3-local/audit/full-drive-variant/cells.png"
+    }
+  ],
+  "notes": [
+    "counter: the count is exposed as StaticText, not a read-only text field",
+    "flight: the kind-of-flight control is named \"Flight type\"; the choice it shows is in its text, not its name",
+    "flight: the bad start date is marked only in colour, not exposed as invalid (aria-invalid)",
+    "flight: the bad return date is marked only in colour, not exposed as invalid (aria-invalid)"
+  ]
+}

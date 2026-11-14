@@ -1,0 +1,2 @@
+App [ width = 200, height = 100, wide: boolean = true,
+    View [ width = 100, height = 50, padding = [0, 0, { app.wide ? 36 : 24 }, 0] ] ]

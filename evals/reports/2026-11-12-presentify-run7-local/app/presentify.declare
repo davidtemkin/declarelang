@@ -1,0 +1,860 @@
+/*
+# Presentify
+
+A slide editor: presentations made of slides, shapes and words, edited on a
+desk with a pointer and a keyboard, saved as you go, and presented full
+screen. Every presentation lives behind the Presentify service
+(task/api/API.md), on port 8360.
+
+How to read it:
+
+- **The records** are the service's. `decks` lists the presentations. An
+  open presentation is read into `doc` (a `Doc`, in `doc.declare`), the
+  working copy every view reads and every gesture writes. `sync` (a `Sync`,
+  in `sync.declare`) keeps the service in step with it, a moment after each
+  change.
+- **Where the person is** is a handful of attributes on the App: which
+  presentation is open (`location`, so it has an address and Back works),
+  the tool, the text being edited, whether they are presenting.
+- **The screens** are two: the presentations (`Library`, in
+  `library.declare`) and the editor (`EditorScreen`, below, whose panes are
+  in `editor.declare`). Opening a presentation grows the editor out of its
+  card on one spring (`openT`); closing it shrinks back.
+
+Files, in the order to read them: this one; `model.declare` (the format and
+the geometry); `doc.declare`; `sync.declare`; `editor.declare`;
+`slides.declare` (drawing a slide); `library.declare`; `brand.declare` (the
+look).
+*/
+
+defaultFlags [ devices = desktop ]
+
+include [ "model.declare", "sync.declare", "doc.declare", "slides.declare", "editor.declare", "library.declare", "brand.declare" ]
+
+// The browser's full screen, for presenting.
+
+script [ host = browser ] {
+    function enterFullScreen() {
+        const el = document.documentElement
+        if (el.requestFullscreen && !document.fullscreenElement) el.requestFullscreen().catch(() => {})
+    }
+    // Escape in the browser's full screen leaves it before the page hears
+    // the key; this tells the presenter it was left.
+    function onFullScreenLeft(fn: () => void) {
+        document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) fn() })
+    }
+    function leaveFullScreen() {
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {})
+    }
+    }
+
+// ── The editor's top bar ────────────────────────────────────────────────────
+
+class TopBar [ height = 56, padding = [0, 14, 0, 10],
+    fill = { provided("theme").surface },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    accessibilityRole = banner,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+
+    IconBtn [ shape = "back-arrow", label = "All presentations",
+        press() { app.closeDeck() }
+        ],
+    Mark [ width = 24, height = 24 ],
+    titleField: TextInput [ height = 34, padding = [0, 8, 0, 8],
+        width = { Math.min(320, Math.max(140, measureText(this.text, ({ fontFamily: app.brandFace, fontSize: 16, fontWeight: 700 })).width + 22)) },
+        fontFamily = { app.brandFace }, fontSize = 16, fontWeight = 700, commitOn = "end",
+        accessibilityLabel = "Presentation title", placeholder = "Untitled presentation",
+        fill = { this.focused ? provided("theme").raised : hovered ? provided("theme").control : null },
+        stroke = { this.focused ? stroke(1.5, provided("theme").accent) : null },
+        cornerRadius = 8,
+        value = { app.title },
+        commit(v: string) { app.title = v.trim() == "" ? "Untitled presentation" : v.trim() }
+        ],
+    View [ width = 1, height = 22, fill = { provided("theme").line } ],
+    menus: MenuBar [ menus = { app.menuRecords() },
+        picked(id: string) { app.run(id) }
+        ],
+    Spacer [ ],
+    SaveStatus [ ],
+    View [ width = 1, height = 22, fill = { provided("theme").line } ],
+    IconBtn [ shape = "undo", label = "Undo", disabled = { !app.doc.history.canUndo },
+        press() { app.doc.undo() }
+        ],
+    IconBtn [ shape = "redo", label = "Redo", disabled = { !app.doc.history.canRedo },
+        press() { app.doc.redo() }
+        ],
+    View [ width = 6, height = 1 ],
+    PillBtn [ shape = "play", label = "Present", tone = "spark", accessibilityLabel = "Present from this slide",
+        tooltipLabel = "Present from this slide (⌥⌘P)",
+        press() { app.present(app.doc.index) }
+        ]
+    ]
+
+
+// Whether the work is safe, in exactly one of three sentences. Pressing it
+// saves at once.
+
+class SaveStatus extends Control [ height = 30, cornerRadius = 15, padding = [0, 12, 0, 10],
+    st: string = { app.sync.status },
+    words: string = { classroot.st == "offline" ? "Not saved: can't reach the service" : classroot.st == "saving" ? "Saving…" : "All changes saved" },
+    accessibilityLabel = { classroot.words + ". Save now" },
+    accessibilityLive = polite,
+    tooltipLabel = "Save now (⌘S)",
+    fill = { classroot.st == "offline" ? provided("theme").dangerTint : hovered ? provided("theme").control : null },
+    press() { app.sync.saveNow() },
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+    Glyph [ iconSize = 16, weight = 1.5,
+        shape = { classroot.st == "offline" ? "cloudOff" : classroot.st == "saving" ? "cloudSync" : "cloud" },
+        ink = { classroot.st == "offline" ? provided("theme").danger : classroot.st == "saving" ? provided("theme").accent : provided("theme").textMuted } ],
+    TextLabel [ fontSize = 13, fontWeight = { classroot.st == "offline" ? 650 : 500 },
+        textColor = { classroot.st == "offline" ? provided("theme").danger : provided("theme").textMuted },
+        text = { classroot.words } ]
+    ]
+
+
+// The tools, floating over the top of the stage.
+
+class ToolPalette [ height = 44, padding = [0, 6, 0, 6], cornerRadius = 14,
+    fill = { provided("theme").raised },
+    stroke = { stroke(1, provided("theme").line) },
+    shadow = { provided("theme").shadowFloat },
+    accessibilityRole = toolbar, accessibilityLabel = "Tools",
+    layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+    IconBtn [ shape = "select", label = "Select", on = { app.tool == "select" },
+        press() { app.tool = "select" }
+        ],
+    View [ width = 1, height = 20, fill = { provided("theme").line } ],
+    IconBtn [ shape = "rect", label = "Rectangle", on = { app.tool == "rect" },
+        press() { app.useTool("rect") }
+        ],
+    IconBtn [ shape = "ellipse", label = "Ellipse", on = { app.tool == "ellipse" },
+        press() { app.useTool("ellipse") }
+        ],
+    IconBtn [ shape = "line", label = "Line", on = { app.tool == "line" },
+        press() { app.useTool("line") }
+        ],
+    IconBtn [ shape = "text", label = "Text", on = { app.tool == "text" },
+        press() { app.useTool("text") }
+        ]
+    ]
+
+
+// ── The editor ──────────────────────────────────────────────────────────────
+
+class EditorScreen [ fill = { provided("theme").background },
+    layout: SimpleLayout [ axis = y ],
+    bar: TopBar [ width = 100% ],
+    body: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x, align = stretch ],
+        side: View [ width = 214, fill = { provided("theme").surface },
+            stroke = { [null, stroke(1, provided("theme").line), null, null] },
+            layout: SimpleLayout [ axis = y ],
+            list: SlideList [ width = 100%, flexes = true ],
+            foot: View [ width = 100%, padding = 12, stroke = { [stroke(1, provided("theme").line), null, null, null] },
+                layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+                PillBtn [ flexes = true, shape = "plus", label = "New slide",
+                    press() { app.doc.addSlide() }
+                    ],
+                IconBtn [ shape = "duplicate", label = "Duplicate slide",
+                    press() { app.doc.duplicateSlide(app.doc.current) }
+                    ],
+                IconBtn [ shape = "trash", label = "Delete slide", disabled = { app.doc.slides.length <= 1 },
+                    press() { app.doc.deleteSlide(app.doc.current) }
+                    ]
+                ]
+            ],
+        centre: View [ flexes = true,
+            tabOrder() -> View[] { return [this.palette, this.stage] },
+            stage: Stage [ width = 100%, height = 100% ],
+            palette: ToolPalette [ x = center, y = 8 ]
+            ],
+        inspector: Inspector [ width = 292, fill = { provided("theme").surface },
+            stroke = { [null, null, null, stroke(1, provided("theme").line)] } ]
+        ],
+
+    // While the presentation is read: the shape of the editor, breathing.
+
+    failed: boolean = { app.deckSrc.failed || app.slidesSrc.failed },
+    gone: boolean = { app.deckSrc.statusCode == 404 },
+    waitingToSave: boolean = { app.opening != "" && !app.syncIdle },
+    say: string = { this.failed ? this.failure : this.waitingToSave ? "Saving your last presentation first…" : "Opening…" },
+    failure: string = { this.gone ? "This presentation no longer exists." : "Can't reach the service to open this presentation." },
+    veil: View [ ignoreLayout = true, width = 100%, height = 100%, visible = { !app.ready },
+        fill = { provided("theme").background },
+        onClick() { },
+        View [ x = center, y = center,
+            layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+            Shimmer [ width = 420, height = 236, cornerRadius = 12, active = { !app.ready && app.open } ],
+            Text [ fontSize = 14, textColor = { provided("theme").textMuted }, text = { classroot.say } ],
+            View [ visible = { classroot.failed },
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
+                PillBtn [ label = "Back to presentations",
+                    press() { app.closeDeck() }
+                    ],
+                PillBtn [ label = "Try again", tone = "accent", visible = { !classroot.gone },
+                    press() { app.follow() }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "Presentify", minWidth = 1024, minHeight = 640,
+    theme = { { ...SanFrancisco, ...Presentify } },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    // ── type: Bricolage Grotesque for the brand's voice (the wordmark,
+    //    titles), the system face for the controls.
+
+    bricolage: Font [ FontFace [ weight = range(200, 800),
+            src = "https://fonts.gstatic.com/s/bricolagegrotesque/v9/3y9K6as8bTXq_nANBjzKo3IeZx8z6up5BeSl9D4dj_x9PpZBMlGIInHWVyNJ.woff2" ]
+        ],
+    brandFace: array = { [app.bricolage, "Avenir Next", "Helvetica Neue", "sans-serif"] },
+    fontFamily = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+
+    api: string = "http://127.0.0.1:8360",
+    clock: Time [ tick = minute ],
+
+    // ── colours, from the format's "#RRGGBB(AA)" to a paint
+
+    color(s: string) -> Color {
+        if (s == "" || s == "mixed") return null
+        return colorWithAlpha(rgbOf(s), alphaOf(s))
+        },
+    outline(s: StrokeStyle?) -> Stroke {
+        return s == null || s.width <= 0 ? null : stroke(s.width, app.color(s.color))
+        },
+
+    // ── the presentations
+
+    decks: DataSource [ url = { app.api + "/api/decks" }, autoFetch = true, schema = DeckList ],
+
+    // ── where the person is
+    //
+    // `location` is the open presentation's id ("" for the list), so a
+    // presentation has an address and Back closes it.
+
+    location = "",
+    tool: "select" | "rect" | "ellipse" | "line" | "text" = "select",
+    editingText: string = "",           // the text box being typed in
+    presenting: boolean = false,
+    presentAt: number = 0,
+    clipboard: Element[] = [],          // what Copy took, for Paste in any slide or presentation
+    pasteCount: number = 0,
+
+    // the slide being dragged in the list, where from and where to
+
+    dragSlide: string = "",
+    dragFrom: number = 0,
+    dragTo: number = 0,
+    slotOf(i: number, id: string) -> number {
+        if (dragSlide == "" || id == dragSlide) return i
+        if (dragFrom < dragTo && i > dragFrom && i <= dragTo) return i - 1
+        if (dragFrom > dragTo && i >= dragTo && i < dragFrom) return i + 1
+        return i
+        },
+
+    // ── the open presentation
+
+    doc: Doc [ ],
+    deckData: Dataset [ contents = { { slides: app.doc.slides } } ],
+    title: string = "",
+    sync: Sync [ api = { app.api }, slides = { app.doc.slides }, title = { app.title } ],
+    syncIdle: boolean = { !app.sync.busy && !app.sync.hasWork },
+
+    // Reading one: the deck and its slides, then into the working copy once
+    // both have arrived (and the last one opened has finished saving).
+
+    opening: string = "",               // the deck being read
+    loadedId: string = "",              // the deck the editor holds
+    ready: boolean = { app.loadedId != "" && app.loadedId == app.location },
+    deckSrc: DataSource [ url = { app.opening == "" ? "" : app.api + "/api/decks/" + app.opening }, schema = Deck,
+        onLoad() { app.adopt() }
+        ],
+    slidesSrc: DataSource [ url = { app.opening == "" ? "" : app.api + "/api/decks/" + app.opening + "/slides" }, schema = SlidesReply,
+        onLoad() { app.adopt() }
+        ],
+
+    trackChanges = ["location", "syncIdle", "current"],
+    current: string = { app.doc.current },
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) {
+            if (c.name == "location") app.follow()
+            if (c.name == "syncIdle") app.adopt()
+            if (c.name == "current" && app.ready) app.sync.check(app.doc.current)
+            }
+        },
+    onInit() {
+        app.follow()
+        onFullScreenLeft(() => app.endPresent())
+        },
+
+    follow() {
+        if (location == "") {
+            if (editingText != "") this.endTextEdit()
+            presenting = false
+            opening = ""
+            sync.saveNow()
+            decks.fetch()
+            return
+            }
+        opening = location
+        loadedId = ""
+        deckSrc.fetch()
+        slidesSrc.fetch()
+        },
+
+    adopt() {
+        if (opening == "" || deckSrc.loading || slidesSrc.loading || !deckSrc.loaded || !slidesSrc.loaded) return
+        const deck = deckSrc.value
+        const list = slidesSrc.value?.slides ?? []
+        if (deck == null || deck.id != opening || list.some((s) => s.deckId != opening)) return
+        if (!syncIdle && sync.deckId != opening) return
+        sync.deckId = opening
+        sync.seed(deck, list)
+        title = deck.title
+        doc.load(list.map((s) => ({ id: s.id, background: s.background, elements: s.elements })))
+        tool = "select"
+        editingText = ""
+        loadedId = opening
+        opening = ""
+        },
+
+    // Someone else's copy of the open slide, or ours over it.
+
+    takeTheirs() {
+        const id = doc.current
+        const theirs = sync.conflicts[id]
+        if (theirs == null) return
+        doc.takeTheirs(id, theirs)
+        sync.resolve(id, false)
+        },
+    keepMine() { sync.resolve(doc.current, true) },
+    probe: Time [ tick = 20000, running = { app.ready && !app.presenting },
+        onTick() { app.sync.check(app.doc.current) }
+        ],
+
+    // ── opening and closing, from the list
+
+    fromBox: Bounds = { { x: 0, y: 0, w: 0, h: 0 } },
+    openDeck(id: string, from: View) {
+        const o = from.rootOrigin()
+        fromBox = ({ x: o.x, y: o.y, w: from.width, h: from.height })
+        location = id
+        },
+    closeDeck() {
+        if (editingText != "") this.endTextEdit()
+        location = ""
+        },
+    newFrom: View? = null,
+    newDeck(from: View) { newFrom = from; creator.fetch() },
+    creator: DataSource [ url = { app.api + "/api/decks" }, method = "POST", body = { { title: "Untitled presentation" } },
+        onLoad() { const d = (this.value as any).deck as Deck; if (app.newFrom != null) app.openDeck(d.id, app.newFrom) },
+        onError() { app.toast.say("Couldn't start a presentation: the service isn't answering.") }
+        ],
+
+    // The deck menu: the card's ⋯, or a right-click on it.
+
+    menuDeck: string = "",
+    menuTitle: string = "",
+    deckMenu: Menu [
+        items = { [ ({ id: "open", label: "Open" }), ({ id: "rename", label: "Rename…" }), ({ divider: true }),
+            ({ id: "delete", label: "Delete…" }) ] },
+        picked(id: string) {
+            if (id == "open") app.location = app.menuDeck
+            else if (id == "rename") { app.renameText = app.menuTitle; app.renameDlg.show() }
+            else if (id == "delete") app.confirmDelete()
+            }
+        ],
+    renameDlg: Dialog [ title = "Rename presentation",
+        buttons = { [ ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "ok", label: "Rename", default: true }) ] },
+        picked(id: string) { if (id == "ok") app.renameDeck(app.menuDeck, app.renameText) },
+        field: TextInput [ width = 100%, accessibilityLabel = "Title", value <-> app.renameText ]
+        ],
+    renameText: string = "",
+    renameTo: string = "",
+    renameDeck(id: string, t: string) {
+        const name = t.trim()
+        if (name == "" || name == menuTitle) return
+        if (id == loadedId) { title = name; return }
+        renameTo = name
+        renameRead.fetch()
+        },
+    renameRead: DataSource [ url = { app.api + "/api/decks/" + app.menuDeck }, schema = Deck,
+        onLoad() { app.renameWrite.fetch() },
+        onError() { app.toast.say("Couldn't rename: the service isn't answering.") }
+        ],
+    renameWrite: DataSource [ url = { app.api + "/api/decks/" + app.menuDeck }, method = "PATCH",
+        body = { { version: app.renameRead.value?.version ?? 0, title: app.renameTo } },
+        onLoad() { app.decks.fetch() },
+        onError() { app.toast.say("Couldn't rename: the service isn't answering.") }
+        ],
+
+    confirmDelete() {
+        const name = menuTitle
+        confirm.open("Delete “" + name + "”?", "The presentation and all its slides will be deleted. This can't be undone.",
+            [ ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "delete", label: "Delete", default: true }) ], "danger",
+            (choice: string) => { if (choice == "delete") app.deleteDeck() })
+        },
+    confirm: Dialog [ ],
+    deleting: string = "",
+    deleteDeck() {
+        deleting = menuDeck
+        if (loadedId == deleting) { loadedId = ""; sync.deckId = "" }
+        remover.fetch()
+        },
+    remover: DataSource [ url = { app.api + "/api/decks/" + app.deleting }, method = "DELETE",
+        onLoad() { app.toast.say("Deleted “" + app.menuTitle + "”"); app.decks.fetch() },
+        onError() { app.toast.say("Couldn't delete: the service isn't answering.") }
+        ],
+
+    // ── tools, and the elements they make
+
+    useTool(t: "select" | "rect" | "ellipse" | "line" | "text") {
+        if (editingText != "") this.endTextEdit()
+        tool = tool == t ? "select" : t
+        doc.clearSel()
+        },
+
+    newElement(kind: string, x: number, y: number, w: number, h: number) -> Element {
+        const id = newId("e")
+        const bg = doc.slide?.background ?? "#FFFFFF"
+        if (kind == "line") return ({ id: id, kind: "line", x1: x, y1: y, x2: x + w, y2: y + h,
+            stroke: ({ color: isLight(bg) ? "#1B1830" : "#FFFFFF", width: 4 }) })
+        if (kind == "text") return ({ id: id, kind: "text", x: x, y: y, width: Math.max(40, w), height: 40, keepProportions: false,
+            text: ({ content: "", font: "Helvetica Neue", size: 36, weight: 400, italic: false,
+                color: isLight(bg) ? "#1B1830" : "#FFFFFF", align: "left" }) })
+        return ({ id: id, kind: kind == "ellipse" ? "ellipse" : "rect", x: x, y: y, width: w, height: h,
+            fill: "#5B3CF5", cornerRadius: kind == "rect" ? 0 : undefined, keepProportions: false })
+        },
+
+    // ── typing in place
+
+    editText(id: string) {
+        doc.begin()
+        doc.select([id])
+        tool = "select"
+        editingText = id
+        },
+    typeText(v: string) {
+        const el = findEl(doc.els, editingText)
+        if (el == null || el.text == null) return
+        doc.replace(({ [el.id]: ({ ...el, text: ({ ...el.text, content: v }) }) }))
+        },
+    endTextEdit() {
+        const id = editingText
+        editingText = ""
+        const el = findEl(doc.els, id)
+        if (el != null && (el.text?.content ?? "").trim() == "") {
+            doc.setEls(removeEls(doc.els, [id]))
+            doc.clearSel()
+            }
+        doc.end()
+        },
+
+    // ── the inspector's changes, each one step
+
+    common(vs: string[]) -> string { return vs.length == 0 ? "" : vs.every((v) => v == vs[0]) ? vs[0] : "mixed" },
+    commonNum(vs: number[]) -> number { return vs.length == 0 ? 0 : vs.every((v) => v == vs[0]) ? vs[0] : NaN },
+
+    colorTarget: string = "",
+    colorValue: string = "",
+    colorNone: boolean = true,
+    pickColor(from: View, target: string, value: string, allowNone: boolean) {
+        colorTarget = target
+        colorValue = value
+        colorNone = allowNone
+        colorPop.showFor(from)
+        },
+    applyColor(c: string) {
+        colorValue = c
+        const t = colorTarget
+        const isShape = (e: Element) => e.kind == "rect" || e.kind == "ellipse"
+        if (t == "background") doc.setBackground(c == "" ? "#FFFFFF" : c)
+        else if (t == "fill") doc.restyle(isShape, (e) => ({ ...e, fill: c == "" ? undefined : c }))
+        else if (t == "outline") doc.restyle((e) => isShape(e) || e.kind == "line", (e) => c == "" && e.kind != "line"
+            ? ({ ...e, stroke: undefined })
+            : ({ ...e, stroke: ({ color: c == "" ? e.stroke?.color ?? "#1B1830" : c, width: e.stroke?.width ?? (e.kind == "line" ? 4 : 3) }) }))
+        else if (t == "text") doc.restyle((e) => e.kind == "text", (e) => ({ ...e, text: ({ ...e.text!, color: c }) }))
+        },
+    setStrokeWidth(w: number) {
+        const n = Math.max(0, Math.min(200, w))
+        doc.restyle((e) => e.kind == "rect" || e.kind == "ellipse" || e.kind == "line", (e) =>
+            n == 0 && e.kind != "line" ? ({ ...e, stroke: undefined })
+            : ({ ...e, stroke: ({ color: e.stroke?.color ?? "#1B1830", width: Math.max(e.kind == "line" ? 0.5 : 0, n) }) }))
+        },
+    setRadius(r: number) {
+        doc.restyle((e) => e.kind == "rect", (e) => ({ ...e, cornerRadius: Math.max(0, Math.min(r, Math.min(e.width ?? 0, e.height ?? 0) / 2)) }))
+        },
+    setText(change: (t: TextBlock) => TextBlock) {
+        doc.restyle((e) => e.kind == "text" && e.text != null, (e) => ({ ...e, text: change(e.text!) }))
+        },
+    setTextSize(n: number) { this.setText((t) => ({ ...t, size: Math.max(6, Math.min(400, Math.round(n))) })) },
+    setItalic(v: boolean) { this.setText((t) => ({ ...t, italic: v })) },
+    setAlign(a: string) { this.setText((t) => ({ ...t, align: a == "center" ? "center" : a == "right" ? "right" : "left" })) },
+    setKeep(v: boolean) { doc.restyle((e) => e.kind != "line", (e) => ({ ...e, keepProportions: v })) },
+
+    moveSelTo(x: number, y: number) {
+        const b = doc.selBox
+        const dx = isNaN(x) ? 0 : x - b.x
+        const dy = isNaN(y) ? 0 : y - b.y
+        if (dx != 0 || dy != 0) doc.nudge(dx, dy)
+        },
+    sizeSelTo(w: number, h: number) {
+        const b = doc.selBox
+        const keep = doc.selected.every((e) => keepsProportions(e))
+        let nw = isNaN(w) ? b.w : Math.max(1, w)
+        let nh = isNaN(h) ? b.h : Math.max(1, h)
+        if (keep && b.w > 0 && b.h > 0) { if (isNaN(h)) nh = nw * b.h / b.w; else nw = nh * b.w / b.h }
+        const nb: Bounds = ({ x: b.x, y: b.y, w: nw, h: nh })
+        const by: Record<string, Element> = {}
+        for (const e of doc.selected) by[e.id] = fitEl(e, b, nb)
+        doc.act(() => doc.replace(by))
+        },
+
+    fonts: string[] = ["Helvetica Neue", "Avenir Next", "Futura", "Gill Sans", "Georgia", "Baskerville", "Palatino", "Times New Roman", "Courier New", "Menlo"],
+    fontMenu: Menu [
+        items = { app.fonts.map((f) => ({ id: f, label: f, checked: app.inspector.font == f })) },
+        picked(id: string) { app.setText((t) => ({ ...t, font: id })) }
+        ],
+    weights: number[] = [300, 400, 500, 600, 700, 900],
+    weightName(w: number) -> string {
+        if (isNaN(w)) return "Mixed"
+        return ({ 100: "Thin", 200: "Extra light", 300: "Light", 400: "Regular", 500: "Medium", 600: "Semibold", 700: "Bold", 800: "Extra bold", 900: "Black" } as Record<number, string>)[w] ?? "" + w
+        },
+    weightMenu: Menu [
+        items = { app.weights.map((w) => ({ id: "" + w, label: app.weightName(w), checked: app.inspector.weight == w })) },
+        picked(id: string) { app.setText((t) => ({ ...t, weight: parseInt(id) })) }
+        ],
+
+    selectionName() -> string {
+        const sel = doc.selected
+        if (sel.length == 0) return "Slide " + (doc.index + 1)
+        if (sel.length > 1) return sel.length + " things selected"
+        const names: Record<string, string> = ({ rect: "Rectangle", ellipse: "Ellipse", line: "Line", text: "Text box", group: "Group" })
+        const e = sel[0]
+        if (e.kind == "rect" && (e.cornerRadius ?? 0) > 0) return "Rounded rectangle"
+        return names[e.kind] ?? "Shape"
+        },
+
+    // ── copy and paste: the selection as JSON, so a paste works in any
+    //    slide, any presentation, and another Presentify window.
+
+    copySel() -> boolean {
+        if (doc.selected.length == 0) return false
+        clipboard = doc.selected
+        pasteCount = 0
+        return true
+        },
+    onClipboardCopy(e: ClipboardEvent) {
+        if (!this.copySel()) return
+        e.put("application/x-presentify", JSON.stringify(clipboard))
+        e.put(clipboard.flatMap(leaves).map((l) => l.text?.content ?? "").filter((t) => t != "").join("\n"))
+        },
+    onClipboardCut(e: ClipboardEvent) {
+        if (!this.copySel()) return
+        e.put("application/x-presentify", JSON.stringify(clipboard))
+        doc.deleteSel()
+        },
+    onClipboardPaste(e: ClipboardEvent) {
+        if (!ready) return
+        const raw = e.types.includes("application/x-presentify") ? e.get("application/x-presentify") ?? "" : ""
+        if (raw != "") {
+            const list = JSON.parse(raw) as Element[]
+            if (JSON.stringify(list) != JSON.stringify(clipboard)) { clipboard = list; pasteCount = 0 }
+            this.paste()
+        } else if (e.text.trim() != "") {
+            const t = this.newElement("text", 160, 300, 960, 40)
+            doc.act(() => doc.add(({ ...t, text: ({ ...t.text!, content: e.text.trim() }) })))
+        } else this.paste()
+        },
+    paste() {
+        if (clipboard.length == 0) return
+        pasteCount = pasteCount + 1
+        const onSlide = clipboard.every((c) => findEl(doc.els, c.id) != null)
+        const step = onSlide ? 16 * pasteCount : 16 * (pasteCount - 1)
+        doc.place(clipboard, step, step)
+        },
+
+    // ── commands: the menu bar's records are the program's shortcuts
+
+    hasSel: boolean = { app.doc.selection.length > 0 },
+    menuRecords() -> array {
+        const d = doc
+        const one = d.selection.length > 0
+        return [
+            ({ id: "edit", label: "Edit", items: [
+                ({ id: "undo", label: "Undo", key: "Ctrl+Z", enabled: d.history.canUndo }),
+                ({ id: "redo", label: "Redo", key: "Ctrl+Shift+Z", enabled: d.history.canRedo }),
+                ({ divider: true }),
+                ({ id: "cut", label: "Cut", key: "Ctrl+X", command: "cut", enabled: one }),
+                ({ id: "copy", label: "Copy", key: "Ctrl+C", command: "copy", enabled: one }),
+                ({ id: "paste", label: "Paste", key: "Ctrl+V", command: "paste" }),
+                ({ id: "duplicate", label: "Duplicate", key: "Ctrl+D", enabled: one }),
+                ({ id: "delete", label: "Delete", key: "Backspace", enabled: one }),
+                ({ divider: true }),
+                ({ id: "selectAll", label: "Select All", key: "Ctrl+A" }),
+                ({ divider: true }),
+                ({ id: "save", label: "Save Now", key: "Ctrl+S" }) ] }),
+            ({ id: "insert", label: "Insert", items: [
+                ({ id: "newSlide", label: "New Slide", key: "Ctrl+Alt+N" }),
+                ({ id: "dupSlide", label: "Duplicate Slide" }),
+                ({ id: "delSlide", label: "Delete Slide", enabled: d.slides.length > 1 }),
+                ({ divider: true }),
+                ({ id: "tool:rect", label: "Rectangle", key: "R" }),
+                ({ id: "tool:ellipse", label: "Ellipse", key: "O" }),
+                ({ id: "tool:line", label: "Line", key: "L" }),
+                ({ id: "tool:text", label: "Text", key: "T" }) ] }),
+            ({ id: "arrange", label: "Arrange", items: [
+                ({ id: "order:front", label: "Bring to Front", key: "Ctrl+Shift+]", enabled: one }),
+                ({ id: "order:forward", label: "Bring Forward", key: "Ctrl+]", enabled: one }),
+                ({ id: "order:backward", label: "Send Backward", key: "Ctrl+[", enabled: one }),
+                ({ id: "order:back", label: "Send to Back", key: "Ctrl+Shift+[", enabled: one }),
+                ({ divider: true }),
+                ({ id: "group", label: "Group", key: "Ctrl+G", enabled: d.canGroup }),
+                ({ id: "ungroup", label: "Ungroup", key: "Ctrl+Shift+G", enabled: d.canUngroup }),
+                ({ divider: true }),
+                ({ id: "align:left", label: "Align Left Edges", enabled: d.selection.length > 1 }),
+                ({ id: "align:center", label: "Align Centres", enabled: d.selection.length > 1 }),
+                ({ id: "align:right", label: "Align Right Edges", enabled: d.selection.length > 1 }),
+                ({ id: "align:top", label: "Align Tops", enabled: d.selection.length > 1 }),
+                ({ id: "align:middle", label: "Align Middles", enabled: d.selection.length > 1 }),
+                ({ id: "align:bottom", label: "Align Bottoms", enabled: d.selection.length > 1 }),
+                ({ divider: true }),
+                ({ id: "dist:across", label: "Distribute Across", enabled: d.selection.length > 2 }),
+                ({ id: "dist:down", label: "Distribute Down", enabled: d.selection.length > 2 }) ] }),
+            ({ id: "show", label: "Present", items: [
+                ({ id: "present", label: "Present from This Slide", key: "Ctrl+Alt+P" }),
+                ({ id: "presentStart", label: "Present from the Start", key: "Ctrl+Alt+Shift+P" }) ] })
+            ]
+        },
+    run(id: string) {
+        if (!ready || presenting) return
+        if (id == "undo") doc.undo()
+        else if (id == "redo") doc.redo()
+        else if (id == "duplicate") doc.duplicateSel()
+        else if (id == "delete") doc.deleteSel()
+        else if (id == "paste") this.paste()
+        else if (id == "selectAll") doc.selectAll()
+        else if (id == "save") sync.saveNow()
+        else if (id == "newSlide") doc.addSlide()
+        else if (id == "dupSlide") doc.duplicateSlide(doc.current)
+        else if (id == "delSlide") doc.deleteSlide(doc.current)
+        else if (id == "group") doc.group()
+        else if (id == "ungroup") doc.ungroup()
+        else if (id == "present") this.present(doc.index)
+        else if (id == "presentStart") this.present(0)
+        else if (id.startsWith("tool:")) this.useTool(id.slice(5) as "rect" | "ellipse" | "line" | "text")
+        else if (id.startsWith("order:")) doc.order(id.slice(6))
+        else if (id.startsWith("align:")) doc.align(id.slice(6))
+        else if (id.startsWith("dist:")) doc.distribute(id.slice(5))
+        },
+
+    // Keys with no menu item: nudging, and Escape.
+
+    keyBindings = { [
+        ({ key: "ArrowLeft", command: "nudge", args: [-1, 0], when: "canNudge" }),
+        ({ key: "ArrowRight", command: "nudge", args: [1, 0], when: "canNudge" }),
+        ({ key: "ArrowUp", command: "nudge", args: [0, -1], when: "canNudge" }),
+        ({ key: "ArrowDown", command: "nudge", args: [0, 1], when: "canNudge" }),
+        ({ key: "Shift+ArrowLeft", command: "nudge", args: [-10, 0], when: "canNudge" }),
+        ({ key: "Shift+ArrowRight", command: "nudge", args: [10, 0], when: "canNudge" }),
+        ({ key: "Shift+ArrowUp", command: "nudge", args: [0, -10], when: "canNudge" }),
+        ({ key: "Shift+ArrowDown", command: "nudge", args: [0, 10], when: "canNudge" }),
+        ({ key: "Delete", command: "remove", when: "canNudge" }),
+        ({ key: "V", command: "pick" }),
+        ({ key: "Escape", command: "escape" }),
+        ({ key: "Enter", command: "enter", when: "canEnter" })
+        ] },
+    canNudge() -> boolean { return ready && !presenting && editingText == "" && doc.selection.length > 0 },
+    canEnter() -> boolean { return ready && editingText == "" && doc.single?.kind == "text" },
+    nudge(dx: number, dy: number) { doc.nudge(dx, dy) },
+    remove() { doc.deleteSel() },
+    pick() { if (ready) tool = "select" },
+    enter() { this.editText(doc.selection[0]) },
+    escape() -> boolean {
+        if (colorPop.shown) { colorPop.close(); return true }
+        if (editingText != "") { this.endTextEdit(); return true }
+        if (tool != "select") { tool = "select"; return true }
+        if (doc.scope != "") { const g = doc.scope; doc.scope = ""; doc.select([g]); return true }
+        if (doc.selection.length > 0) { doc.clearSel(); return true }
+        return false
+        },
+
+    // ── presenting
+
+    present(at: number) {
+        if (!ready) return
+        if (editingText != "") this.endTextEdit()
+        presentAt = Math.max(0, Math.min(doc.slides.length - 1, at))
+        presenting = true
+        enterFullScreen()
+        },
+    presentStep(d: number) { presentAt = Math.max(0, Math.min(doc.slides.length - 1, presentAt + d)) },
+    endPresent() {
+        if (!presenting) return
+        presenting = false
+        doc.go(doc.slides[presentAt]?.id ?? doc.current)
+        leaveFullScreen()
+        },
+
+    // Views used from far away, named once.
+
+    stage: Stage = { app.editorFrame.inner.ed.body.centre.stage },
+    frame: SelectionFrame = { app.stage.frame },
+    slideList: SlideList = { app.editorFrame.inner.ed.body.side.list },
+    inspector: Inspector = { app.editorFrame.inner.ed.body.inspector },
+
+    // ── the screens
+
+    // How far the editor has grown out of the card it was opened from.
+
+    open: boolean = { app.location != "" },
+    openT: number = 0,
+    Spring [ attribute = openT, to = { app.open ? 1 : 0 }, stiffness = 230, damping = 28 ],
+    lerp(a: number, b: number) -> number { return a + (b - a) * openT },
+
+    library: Library [ width = { app.width }, height = { app.height },
+        visible = { app.openT < 0.995 },
+        opacity = { 1 - 0.35 * app.openT },
+        scale = { 1 - 0.03 * app.openT }, pivotX = { app.width / 2 }, pivotY = { app.height / 2 } ],
+
+    editorFrame: View [ visible = { app.openT > 0.002 || app.open }, clip = true,
+        far: boolean = { app.fromBox.w == 0 },
+        x = { app.lerp(this.far ? app.width * 0.2 : app.fromBox.x, 0) },
+        y = { app.lerp(this.far ? app.height * 0.2 : app.fromBox.y, 0) },
+        width = { Math.max(1, app.lerp(this.far ? app.width * 0.6 : app.fromBox.w, app.width)) },
+        height = { Math.max(1, app.lerp(this.far ? app.height * 0.6 : app.fromBox.h, app.height)) },
+        cornerRadius = { 12 * (1 - app.openT) },
+        shadow = { app.openT < 0.98 ? provided("theme").shadowOpen : null },
+        inner: View [ width = { app.width }, height = { app.height },
+            scale = { parent.width / app.width }, pivotX = 0, pivotY = 0,
+            ed: EditorScreen [ width = 100%, height = 100% ],
+            View [ width = 100%, height = 100%, pointerEvents = "none", fill = { provided("theme").raised },
+                opacity = { Math.max(0, 1 - app.openT * 2.2) } ]
+            ]
+        ],
+
+    // The colour popover, opened from any colour well.
+
+    palette: Dataset { { "colors": ["#FFFFFF", "#F6F4EF", "#D9D6CF", "#9B97A3", "#5E5A69", "#2E2B38", "#1B1830", "#000000",
+        "#5B3CF5", "#2F6FEB", "#0EA5B7", "#1F9D6B", "#E6B422", "#FF6A3D", "#E0475B", "#B4428C",
+        "#DCD3FE", "#CFE0FC", "#C8EEF2", "#CDEFDF", "#FBEFC4", "#FFDCCD", "#FAD3D9", "#F0D4E6"] } },
+    colorPop: Popover [ accessibilityLabel = "Colour",
+        View [ width = 246,
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            View [ width = 100%, datapath = { app.palette.value },
+                layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
+                Swatch [ datapath = :colors[], color = { "" + :@ }, chosen = { app.colorValue.slice(0, 7) == "" + :@ },
+                    press() { app.applyColor(this.color); app.colorPop.close() }
+                    ]
+                ],
+            View [ width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                Swatch [ visible = { app.colorNone }, color = "", chosen = { app.colorValue == "" }, accessibilityLabel = "None",
+                    tooltipLabel = "None",
+                    press() { app.applyColor(""); app.colorPop.close() }
+                    ],
+                TextInput [ flexes = true, height = 30, fontSize = 13, commitOn = "end", accessibilityLabel = "Hex colour",
+                    placeholder = "#RRGGBB",
+                    value = { app.colorValue == "mixed" ? "" : app.colorValue },
+                    commit(v: string) { const h = parseHex(v); if (h != null) app.applyColor(h) }
+                    ]
+                ],
+            View [ width = 100%, visible = { app.colorValue != "" && app.colorValue != "mixed" },
+                layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                Text [ fontSize = 12.5, textColor = { provided("theme").textMuted }, text = "Opacity" ],
+                Slider [ flexes = true, min = 0, max = 100, step = 1, commitOn = "end", accessibilityLabel = "Opacity",
+                    value = { Math.round(alphaOf(app.colorValue) / 2.55) },
+                    commit(v: number) {
+                        const a = Math.round(v * 2.55)
+                        const base = app.colorValue.slice(0, 7)
+                        app.applyColor(a >= 255 ? base : base + a.toString(16).toUpperCase().padStart(2, "0"))
+                        }
+                    ]
+                ]
+            ]
+        ],
+
+    // A slide's own menu, from a right-click in the list.
+
+    slideMenu: ContextMenu [
+        items = { [ ({ id: "new", label: "New Slide After" }), ({ id: "dup", label: "Duplicate Slide" }), ({ divider: true }),
+            ({ id: "del", label: "Delete Slide", enabled: app.doc.slides.length > 1 }) ] },
+        picked(id: string) {
+            if (id == "new") app.doc.addSlide()
+            else if (id == "dup") app.doc.duplicateSlide(app.doc.current)
+            else if (id == "del") app.doc.deleteSlide(app.doc.current)
+            }
+        ],
+
+    // The stage's own menu, from a right-click on it.
+
+    stageMenu: ContextMenu [
+        items = { app.doc.selection.length == 0 ? [
+                ({ id: "paste", label: "Paste", enabled: app.clipboard.length > 0 }),
+                ({ id: "selectAll", label: "Select All" }),
+                ({ divider: true }),
+                ({ id: "newSlide", label: "New Slide" }) ]
+            : [ ({ id: "cut", label: "Cut" }), ({ id: "copy", label: "Copy" }),
+                ({ id: "paste", label: "Paste", enabled: app.clipboard.length > 0 }),
+                ({ id: "duplicate", label: "Duplicate" }), ({ id: "delete", label: "Delete" }),
+                ({ divider: true }),
+                ({ id: "order:front", label: "Bring to Front" }), ({ id: "order:forward", label: "Bring Forward" }),
+                ({ id: "order:backward", label: "Send Backward" }), ({ id: "order:back", label: "Send to Back" }),
+                ({ divider: true }),
+                ({ id: "group", label: "Group", enabled: app.doc.canGroup }),
+                ({ id: "ungroup", label: "Ungroup", enabled: app.doc.canUngroup }) ] },
+        picked(id: string) {
+            if (id == "copy") app.copySel()
+            else if (id == "cut") { if (app.copySel()) app.doc.deleteSel() }
+            else app.run(id)
+            }
+        ],
+
+    // The cursor over each handle.
+
+    cursorFor(name: string) -> string {
+        if (name == "lt" || name == "rb") return "nwse-resize"
+        if (name == "rt" || name == "lb") return "nesw-resize"
+        if (name == "l" || name == "r") return "ew-resize"
+        if (name == "t" || name == "b") return "ns-resize"
+        return "pointer"
+        },
+
+    // ── presenting: the slides, one at a time, filling the screen
+
+    presenter: Dialog [ presentation = "full", fill = black, accessibilityLabel = "Presentation",
+        shown = { app.presenting },
+        commit(open: boolean) { if (!open) app.endPresent() },
+        slideshow: View [ width = { app.width }, height = { app.height }, fill = black, focusable = true,
+            k: number = { Math.min(this.width / 1280, this.height / 720) },
+            keyBindings = { [
+                ({ key: "ArrowRight", command: "step", args: [1] }), ({ key: "ArrowDown", command: "step", args: [1] }),
+                ({ key: "Space", command: "step", args: [1] }), ({ key: "PageDown", command: "step", args: [1] }),
+                ({ key: "Enter", command: "step", args: [1] }),
+                ({ key: "ArrowLeft", command: "step", args: [-1] }), ({ key: "ArrowUp", command: "step", args: [-1] }),
+                ({ key: "PageUp", command: "step", args: [-1] }), ({ key: "Backspace", command: "step", args: [-1] }),
+                ({ key: "Home", command: "step", args: [-100000] }), ({ key: "End", command: "step", args: [100000] }),
+                ({ key: "Escape", command: "leave" })
+                ] },
+            step(d: number) { app.presentStep(d) },
+            leave() { app.endPresent() },
+            onClick() { app.presentStep(1) },
+            onInit() { afterSettle(() => Focus.focus(this)) },
+            stage: View [ x = center, y = center, width = { 1280 * parent.k }, height = { 720 * parent.k }, clip = true,
+                datapath = { app.deckData.value?.slides[app.presentAt] ?? null },
+                SlideView [ scale = { parent.parent.k } ]
+                ],
+            counter: TextLabel [ x = { parent.width - this.width - 22 }, y = { parent.height - 34 }, fontSize = 13,
+                numeralWidth = tabular, textColor = 0xFFFFFF, opacity = 0.4,
+                text = { (app.presentAt + 1) + " / " + app.doc.slides.length } ]
+            ]
+        ],
+
+    toast: Toast [ duration = 4000 ]
+    ]

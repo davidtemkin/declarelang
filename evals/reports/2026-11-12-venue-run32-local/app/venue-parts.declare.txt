@@ -1,0 +1,371 @@
+/*
+# The Venue: the parts
+
+The look of the box office, kept apart from how it works: the house theme,
+the plain functions the constraints call (money, dates, card numbers), the
+drawn marks (a seat, a card's brand, a barcode) and the small pieces the
+screens are built from. `venue.declare` includes this file.
+*/
+
+// ── The house theme ─────────────────────────────────────────────────────────
+//
+// Warm paper and ink, one accent. The accent is crimson and it means one
+// thing: *yours* — the seats you hold, the button that pays for them. Errors
+// are amber, never the accent. `tiers` shade the free seats of each section,
+// darker toward the stage, so the dearer seats read as the better ones.
+
+theme House [
+    background = #F5F0E7, surface = #FFFDF8, card = #FFFFFF,
+    line = #E2D9CA, lineStrong = #C9BCA8, quiet = #EEE7DB, hover = #EFE7DA,
+    text = #1E1914, textMuted = #6B6155, textFaint = #A0947F,
+    accent = #9E1B32, accentHovered = #881629, accentPressed = #731222, accentTextColor = #FFFFFF,
+    linkColor = #9E1B32,
+    control = #ECE4D6, controlHovered = #E4DACA, controlPressed = #D9CDBA, controlSelected = #F2DCDF,
+    controlCornerRadius = 10, buttonCornerRadius = 12, buttonHeight = 44,
+    error = #A84B00, noticeFill = #FBEBD9, noticeLine = #EBC9A2, noticeText = #6A3200,
+    seatInk = #3A322A, soldInk = #CFC4B2, stage = #2A231C, stageText = #F5F0E7,
+    tiers = [#E7D9C0, #EDE2CF, #F2EADC, #F7F2E9],
+    focusRingStyle = "both"
+    ]
+
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments only: formatting and the card rules.
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const LONG_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    // "2026-11-13T19:30", the hall's own clock: read as written, never shifted.
+    function stamp(s: string): number[] {
+        const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s)
+        return m == null ? [2000, 1, 1, 0, 0] : [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5])]
+    }
+    function weekday(s: string): number { const p = stamp(s); return new Date(p[0], p[1] - 1, p[2]).getDay() }
+    function dayLabel(s: string): string { const p = stamp(s); return DAYS[weekday(s)] + " " + p[2] + " " + MONTHS[p[1] - 1] }
+    function longDay(s: string): string { return LONG_DAYS[weekday(s)] }
+    function dayOfMonth(s: string): string { return "" + stamp(s)[2] }
+    function monthName(s: string): string { return MONTHS[stamp(s)[1] - 1] }
+    function timeLabel(s: string): string {
+        const p = stamp(s)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + (p[4] < 10 ? "0" : "") + p[4] + (p[3] < 12 ? "am" : "pm")
+    }
+
+    // Integer cents to "$1,240.00".
+    function money(cents: number): string {
+        return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    }
+    function seatCount(n: number): string { return n + (n == 1 ? " seat" : " seats") }
+
+    // ── cards
+    function digitsOf(s: string): string { return s.replace(/\D/g, "") }
+    function brandOf(digits: string): string {
+        if (/^3[47]/.test(digits)) return "amex"
+        if (/^4/.test(digits)) return "visa"
+        if (/^(5[1-5]|2(2[2-9]|[3-6]\d|7[01]|720))/.test(digits)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(digits)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        return b == "visa" ? "Visa" : b == "mastercard" ? "Mastercard" : b == "amex" ? "American Express" : b == "discover" ? "Discover" : ""
+    }
+    function brandShort(b: string): string {
+        return ({ visa: "VISA", amex: "AMEX", discover: "DISC", mastercard: "MC" } as Record<string, string>)[b] ?? "CARD"
+    }
+    function cardLength(b: string): number { return b == "amex" ? 15 : b == "" ? 19 : 16 }
+    function codeLength(b: string): number { return b == "amex" ? 4 : 3 }
+    // Grouped as printed: 4-6-5 for American Express, fours for the rest.
+    function groupCard(raw: string): string {
+        const b = brandOf(digitsOf(raw))
+        const d = digitsOf(raw).slice(0, cardLength(b))
+        if (b == "amex") return [d.slice(0, 4), d.slice(4, 10), d.slice(10)].filter((g) => g != "").join(" ")
+        return (d.match(/.{1,4}/g) ?? []).join(" ")
+    }
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum = sum + n
+        }
+        return d.length > 0 && sum % 10 == 0
+    }
+    function cardProblem(raw: string): string {
+        const d = digitsOf(raw)
+        const b = brandOf(d)
+        if (b == "" && d.length >= 4) return "That isn't a card number we recognise — check the first digits."
+        if (d.length < (b == "" ? 13 : cardLength(b))) return "That card number is too short — check the digits."
+        if (!luhn(d)) return "That card number isn't valid — check the digits."
+        return ""
+    }
+
+    // Expiry as "MM / YY". Typed or autofilled ("04/28", "04/2028", "0428").
+    function formatExpiry(raw: string, prev: string): string {
+        let d = digitsOf(raw)
+        if (d.length == 6 && /^\d{2}20\d{2}$/.test(d)) d = d.slice(0, 2) + d.slice(4)
+        d = d.slice(0, 4)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        // Deleting back over the separator removes the digit before it.
+        if (d.length == 2 && digitsOf(prev).length == 2 && raw.length < prev.length) return d.slice(0, 1)
+        return d.length > 2 || (d.length == 2 && raw.length > prev.length) ? d.slice(0, 2) + " / " + d.slice(2) : d
+    }
+    function expiryParts(s: string): number[] {
+        const d = digitsOf(s)
+        return d.length == 4 ? [Number(d.slice(0, 2)), 2000 + Number(d.slice(2))] : [0, 0]
+    }
+    function expiryProblem(s: string, year: number, month: number): string {
+        const d = digitsOf(s)
+        if (d.length < 4) return "Enter the expiry as MM / YY, as it is printed on the card."
+        const p = expiryParts(s)
+        if (p[0] < 1 || p[0] > 12) return "That month doesn't exist — use 01 to 12."
+        if (p[1] < year || (p[1] == year && p[0] < month)) return "That date has passed — this card has expired."
+        return ""
+    }
+    function expiredCard(m: number, y: number, year: number, month: number): boolean {
+        return y < year || (y == year && m < month)
+    }
+    function twoDigits(n: number): string { return (n < 10 ? "0" : "") + n }
+
+    // Postal codes by country.
+    function postalProblem(code: string, country: string): string {
+        const c = code.trim().toUpperCase()
+        if (country == "US" && !/^\d{5}(-\d{4})?$/.test(c)) return "Enter a ZIP code like 94103 or 94103-1234."
+        if (country == "CA" && !/^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z] ?\d[ABCEGHJ-NPRSTV-Z]\d$/.test(c)) return "Enter a postal code like K1A 0B1."
+        if (country == "GB" && !/^(GIR ?0AA|[A-PR-UWYZ][A-HK-Y]?\d[A-Z\d]? ?\d[ABD-HJLNP-UW-Z]{2})$/.test(c)) return "Enter a postcode like SW1A 2AA."
+        return ""
+    }
+    function tidyPostal(code: string, country: string): string {
+        const c = code.trim().toUpperCase().replace(/\s+/g, " ")
+        if ((country == "CA" || country == "GB") && !c.includes(" ") && c.length > 3) {
+            const spaced = c.slice(0, c.length - 3) + " " + c.slice(c.length - 3)
+            if (postalProblem(spaced, country) == "") return spaced
+        }
+        return c
+    }
+
+    // A barcode's bars, from its text: the same code always draws the same bars.
+    function bars(code: string): number[] {
+        const out: number[] = [2, 1, 1, 2, 3, 2]
+        for (let i = 0; i < code.length; i++) {
+            const c = code.charCodeAt(i) * 31 + i * 17
+            out.push(1 + (c % 3), 1 + ((c >> 2) % 3), 1 + ((c >> 4) % 4), 1 + ((c >> 6) % 2))
+        }
+        out.push(2, 3, 3, 1, 1, 2)
+        return out
+    }
+    }
+
+
+// ── A seat, drawn ───────────────────────────────────────────────────────────
+//
+// Three states that differ in shape, not only in colour, so they read with
+// the legend covered and to someone who can't tell red from grey:
+//   free  — an open seat: an outlined cushion with its backrest;
+//   mine  — filled solid in the accent, with a white tick;
+//   sold  — a small faint dot, the seat itself gone from the room.
+// Rows face the stage, so the backrest is the edge away from it.
+
+class Chair [
+    state: string = "free",
+    tint: Color = white,
+    lit: boolean = false,
+    pop: number = 1,
+    accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const w = this.width
+        const h = this.height
+        if (state == "sold") {
+            d.fillStyle = t.soldInk
+            d.beginPath()
+            d.arc(w / 2, h / 2, w * 0.16, 0, Math.PI * 2)
+            d.fill()
+            return
+        }
+        const s = state == "mine" ? pop : 1
+        const bw = w * 0.78 * s
+        const bh = h * 0.7 * s
+        const x0 = (w - bw) / 2
+        const y0 = (h - bh) / 2
+        d.beginPath()
+        d.roundRect(x0, y0, bw, bh, bw * 0.24)
+        if (state == "mine") {
+            d.fillStyle = t.accent
+            d.fill()
+            d.strokeStyle = 0xFFFFFF
+            d.lineWidth = Math.max(1.6, w * 0.09)
+            d.lineCap = "round"
+            d.lineJoin = "round"
+            d.beginPath()
+            d.moveTo(x0 + bw * 0.27, y0 + bh * 0.52)
+            d.lineTo(x0 + bw * 0.44, y0 + bh * 0.7)
+            d.lineTo(x0 + bw * 0.74, y0 + bh * 0.32)
+            d.stroke()
+            return
+        }
+        d.fillStyle = lit ? t.surface : tint
+        d.fill()
+        d.strokeStyle = t.seatInk
+        d.lineWidth = Math.max(1, w * 0.06)
+        d.stroke()
+        d.beginPath()
+        d.moveTo(x0 + bw * 0.18, y0 + bh - Math.max(1.5, h * 0.09))
+        d.lineTo(x0 + bw * 0.82, y0 + bh - Math.max(1.5, h * 0.09))
+        d.lineWidth = Math.max(1.4, w * 0.08)
+        d.lineCap = "round"
+        d.stroke()
+        }
+    ]
+
+
+// The legend: the three seats beside their words.
+
+class LegendItem [ height = { app.wide ? 28 : 22 },
+    state: string = "free",
+    word: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Chair [ width = { app.wide ? 22 : 18 }, height = { this.width }, state = { classroot.state }, tint = { provided("theme").tiers[1] } ],
+    Text [ fontSize = 14, textColor = { provided("theme").textMuted }, text = { classroot.word } ]
+    ]
+
+
+// ── A card's brand, as a small printed mark ─────────────────────────────────
+
+class BrandMark [ width = 40, height = 26, cornerRadius = 5,
+    brand: string = "",
+    fill = { provided("theme").surface },
+    stroke = { stroke(1, provided("theme").lineStrong) },
+    accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        if (brand == "mastercard") {
+            d.globalAlpha = 0.85
+            d.fillStyle = t.seatInk
+            d.beginPath(); d.arc(16, 13, 6.5, 0, Math.PI * 2); d.fill()
+            d.fillStyle = t.textFaint
+            d.beginPath(); d.arc(24, 13, 6.5, 0, Math.PI * 2); d.fill()
+            d.globalAlpha = 1
+        }
+        },
+    TextLabel [ x = center, visible = { classroot.brand != "mastercard" }, fontSize = 10, fontWeight = bold,
+        letterSpacing = 0.4, italic = { classroot.brand == "visa" }, textColor = { provided("theme").seatInk },
+        text = { brandShort(classroot.brand) } ]
+    ]
+
+
+// ── A barcode, drawn from the ticket's code ─────────────────────────────────
+
+class Barcode [ height = 84,
+    code: string = "",
+    accessibilityRole = image,
+    accessibilityLabel = { "Barcode " + classroot.code },
+    draw(d: DrawContext) {
+        const list = bars(code)
+        const units = list.reduce((a, b) => a + b, 0)
+        const u = this.width / units
+        let x = 0
+        d.fillStyle = 0x000000
+        list.forEach((b, i) => {
+            if (i % 2 == 0) d.fillRect(Math.round(x), 0, Math.max(1, Math.round(b * u)), this.height)
+            x = x + b * u
+            })
+        }
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A back link in the top bar: a chevron and where it goes.
+
+class BackLink extends Control [ height = 44, padding = [0, 10, 0, 4], cornerRadius = 10,
+    label: string = "",
+    accessibilityLabel = { "Back to " + classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    ChevronIcon [ iconSize = 14, rotation = 90, pivotX = 7, pivotY = 7, ink = { provided("theme").text } ],
+    TextLabel [ fontSize = 15, fontWeight = medium, wrap = false, text = { classroot.label } ]
+    ]
+
+
+// The button that commits: crimson, the amount on it, a quiet working state.
+// It stays focusable while the payment is out; the form sends once whatever
+// is pressed meanwhile.
+
+class PayButton extends Control [ height = 52, cornerRadius = 14, padding = [0, 22, 0, 22],
+    label: string = "",
+    busy: boolean = false,
+    stretched: boolean = false,
+    accessibilityLabel = { classroot.label },
+    accessibilityHint = { classroot.busy ? "Payment under way" : "" },
+    fill = { pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent },
+    spin: number = 0,
+    Animator [ attribute = spin, from = 0, to = 360, duration = 900, repeat = { Infinity }, started = { classroot.busy } ],
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Spacer [ visible = { classroot.stretched } ],
+    ring: View [ visible = { classroot.busy }, width = 18, height = 18, pivotX = 9, pivotY = 9,
+        rotation = { classroot.spin },
+        draw(d: DrawContext) {
+            d.strokeStyle = 0xFFFFFF
+            d.lineWidth = 2.2
+            d.lineCap = "round"
+            d.beginPath()
+            d.arc(9, 9, 7, 0, Math.PI * 1.4)
+            d.stroke()
+            }
+        ],
+    TextLabel [ fontSize = 17, fontWeight = semibold, numeralWidth = tabular, wrap = false,
+        textColor = { provided("theme").accentTextColor },
+        text = { classroot.busy ? "Paying…" : classroot.label } ],
+    Spacer [ visible = { classroot.stretched } ]
+    ]
+
+
+// A saved card, offered as a choice: its brand, its last four, its expiry.
+// One that has expired says so, and can't be chosen.
+
+class CardOption extends ChoiceItem [ width = 100%, height = 64, cornerRadius = 12, padding = [0, 14, 0, 14],
+    brand: string = "",
+    last4: string = "",
+    expiry: string = "",
+    expired: boolean = false,
+    disabled = { classroot.expired },
+    accessibilityLabel = { brandName(classroot.brand) + " ending " + classroot.last4 + (classroot.expired ? ", expired " : ", expires ") + classroot.expiry },
+    fill = { provided("theme").surface },
+    stroke = { on ? stroke(2, provided("theme").accent) : stroke(1, provided("theme").line) },
+    opacity = { classroot.expired ? 0.55 : 1 },
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    dot: View [ width = 20, height = 20, cornerRadius = 10,
+        stroke = { classroot.on ? stroke(6, provided("theme").accent) : stroke(1.5, provided("theme").lineStrong) } ],
+    BrandMark [ brand = { classroot.brand } ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ fontSize = 16, fontWeight = medium, numeralWidth = tabular,
+            text = { brandName(classroot.brand) + " •••• " + classroot.last4 } ],
+        Text [ fontSize = 13, numeralWidth = tabular,
+            textColor = { classroot.expired ? provided("theme").error : provided("theme").textMuted },
+            text = { (classroot.expired ? "Expired " : "Expires ") + classroot.expiry } ]
+        ]
+    ]
+
+
+// "A new card" among the saved ones.
+
+class NewCardOption extends ChoiceItem [ width = 100%, height = 56, cornerRadius = 12, padding = [0, 14, 0, 14],
+    accessibilityLabel = "A new card",
+    fill = { provided("theme").surface },
+    stroke = { on ? stroke(2, provided("theme").accent) : stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    View [ width = 20, height = 20, cornerRadius = 10,
+        stroke = { classroot.on ? stroke(6, provided("theme").accent) : stroke(1.5, provided("theme").lineStrong) } ],
+    Text [ fontSize = 16, fontWeight = medium, text = "A new card" ]
+    ]
+
+
+// A small caps heading over a group of fields.
+
+class Eyebrow extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
+    textColor = { provided("theme").textMuted }
+    ]

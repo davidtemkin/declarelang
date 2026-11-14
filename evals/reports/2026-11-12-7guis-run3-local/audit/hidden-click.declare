@@ -1,0 +1,6 @@
+// d16: an assert script clicks a hidden view by index. Does drive.click refuse it?
+App [ width = 300, height = 160, fill = white, n: number = 0, form: View [ x = 20, y = 20,
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Text [ text = "Start" ],
+    Text [ visible = false, text = "the return date is before the start" ],
+    Button [ label = "Book", onClick() { app.n = app.n + 1 } ] ] ]

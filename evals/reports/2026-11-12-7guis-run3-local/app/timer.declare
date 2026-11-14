@@ -1,0 +1,46 @@
+/*
+# Timer
+
+A gauge for the elapsed time, its value in seconds, a slider for the
+duration, and Reset.
+
+Elapsed time is integrated: each frame adds its step to `elapsed`, and the
+clock runs only while `elapsed < duration`. So the timer stops by itself with
+the gauge full; raising the duration above the elapsed time lets the clock
+run again, and lowering it below stops it at once. The slider, the clock and
+Reset all write the same two numbers, and everything shown derives from them.
+*/
+
+class TimerTask [ padding = 32,
+    elapsed: number = 0,        // seconds
+    duration: number = 10,      // seconds
+    running: boolean = { classroot.elapsed < classroot.duration },
+
+    clock: Time [ tick = frame, running = { classroot.running },
+        onTick(dt: number) { classroot.elapsed = Math.min(classroot.duration, classroot.elapsed + dt) }
+        ],
+
+    form: View [
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        View [ layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Text [ width = 100, text = "Elapsed time" ],
+            ProgressBar [ width = 240, min = 0, max = { Math.max(classroot.duration, 0.001) },
+                value = { Math.min(classroot.elapsed, classroot.duration) },
+                accessibilityLabel = "Elapsed time" ]
+            ],
+        Text [ padding = [0, 0, 0, 110], numeralWidth = tabular, accessibilityRole = status,
+            text = { classroot.elapsed.toFixed(1) + " s" } ],
+        View [ layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Text [ width = 100, text = "Duration" ],
+            Slider [ width = 240, min = 0, max = 30, step = 0.1, accessibilityLabel = "Duration",
+                value = { classroot.duration },
+                commit(v: number) { classroot.duration = v }
+                ],
+            Text [ width = 50, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                text = { classroot.duration.toFixed(1) + " s" } ]
+            ],
+        Button [ label = "Reset",
+            onClick() { classroot.elapsed = 0 }
+            ]
+        ]
+    ]

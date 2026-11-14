@@ -1,0 +1,430 @@
+/*
+# Ledger: Transactions
+
+The whole history, matching the filters. On a desk, a `DataGrid` over every
+matching transaction (the grid builds a screenful at a time, so scrolling
+stays smooth through thousands of rows and the end is a jump away), with the
+open transaction's detail beside it. Cells edit in place; Enter saves, Escape
+cancels, Tab moves on. On a phone, the same rows grouped by day.
+
+The cells are classes the grid draws by name (`use` keeps them in a build).
+*/
+
+use [ DateCell, DateEditor, DescCell, DescEditor, CatCell, CatEditor, ChannelCell, AmountCell, AmountEditor, DayHead ]
+
+// ── The summary line ────────────────────────────────────────────────────────
+//
+// "1,284 transactions · In $48,210.00 · Out $31,905.50 · Net $16,304.50" —
+// what is shown, or, with rows selected, the selection.
+
+class SummaryLine [
+    s: Summary = { app.sel.length > 0 && !app.allSel ? app.selSummary : app.shownSummary },
+    lead: string = { app.allSel ? "All " : "" },
+    noun: string = { (classroot.s.count == 1 ? " transaction" : " transactions") + (app.sel.length > 0 ? " selected" : "") },
+    accessibilityLive = polite,
+    width = { app.phone ? Math.max(200, app.width - 90) : this.line.contentWidth },
+    line: Text [ fontSize = 13, fontWeight = medium, numeralWidth = tabular, width = 100%, wrap = true,
+        text = { classroot.lead + classroot.s.count.toLocaleString("en-US") + classroot.noun + " · In " + money(classroot.s.in) +
+            " · Out " + money(classroot.s.out) + " · Net " + money(classroot.s.net) } ]
+    ]
+
+
+// ── The grid's cells ────────────────────────────────────────────────────────
+//
+// Each is bound to its row's record (`:date`, `:description` …). A cell with
+// an unsaved change says so, in place.
+
+class CellBase [ width = 100%, height = 100%, padding = [0, 8, 0, 8],
+    failed: object = { app.unsavedOf(:id ?? "") },
+    failedHere: boolean = { classroot.failed != null && classroot.failed.field == provided("column").id },
+    fill = { classroot.failedHere ? provided("theme").badTint : null }
+    ]
+
+
+class DateCell extends CellBase [
+    TextLabel [ y = center, fontSize = 13, numeralWidth = tabular, wrap = false, textColor = { provided("theme").textMuted },
+        text = { dateShort(:date ?? "", app.today) } ]
+    ]
+
+
+class DescCell extends CellBase [
+    layout: SimpleLayout [ axis = y, spacing = 1 ],
+    padding = [6, 8, 0, 8],
+    title: HTMLText [ width = 100%, fontSize = 13.5, fontWeight = medium, maxLines = 1,
+        html = { highlightHTML((:description ?? "") == "" ? untitled(:kind ?? "", app.books.chanName(:channel ?? null)) : :description ?? "", app.query) } ],
+    sub: View [ width = 100%, height = 16,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Text [ visible = { :kind == "refund" && (:description ?? "") != "" }, fontSize = 11, fontWeight = semibold, textColor = { provided("theme").bad }, text = "REFUND" ],
+        HTMLText [ flexes = true, fontSize = 12, maxLines = 1, textColor = { provided("theme").textMuted },
+            html = { highlightHTML(:contactName ?? "", app.query) } ]
+        ],
+    failNote: Text [ visible = { classroot.failed != null }, fontSize = 11, textColor = { provided("theme").bad },
+        text = { "Not saved — " + (classroot.failed?.message ?? "") } ]
+    ]
+
+
+class CatCell extends CellBase [
+    CatChip [ y = center, catId = { :categoryId ?? "" }, parts = { :split?.parts ?? 0 } ]
+    ]
+
+
+class ChannelCell extends CellBase [
+    TextLabel [ y = center, fontSize = 13, wrap = false, textColor = { provided("theme").textMuted },
+        text = { app.books.chanName(:channel ?? null) } ]
+    ]
+
+
+class AmountCell extends CellBase [
+    Money [ x = end, y = center, fontSize = 13.5, fontWeight = medium, cents = { :inFilter ?? 0 }, tone = "flow" ]
+    ]
+
+
+// The editors: what a cell becomes while it is edited. Each commits once, as
+// the edit ends — Return, Tab, or leaving it — and Escape drops it.
+
+class EditorBase [ width = 100%, height = 100%, padding = [4, 4, 4, 4],
+    rec: Txn = { :@ }
+    ]
+
+
+class DateEditor extends EditorBase [
+    TextInput [ width = 100%, height = 100%, fontSize = 13, commitOn = "end", accessibilityLabel = "Date",
+        value = { dateLong(:date ?? "") },
+        commit(v: string) {
+            const d = parseDate(v, app.today)
+            if (d == null) { app.toast.say("“" + v + "” isn't a date"); return }
+            if (d != classroot.rec.date) app.editField(classroot.rec, "date", d)
+            }
+        ]
+    ]
+
+
+class DescEditor extends EditorBase [
+    layout: SimpleLayout [ axis = x, spacing = 4 ],
+    desc: TextInput [ flexes = true, height = 100%, fontSize = 13, commitOn = "end", accessibilityLabel = "Description",
+        value = { :description ?? "" },
+        commit(v: string) { if (v != classroot.rec.description) app.editField(classroot.rec, "description", v) },
+
+        // Tab goes on to the contact, beside it, before leaving the cell
+
+        onKeyDown(e: KeyEvent) {
+            if (e.key == "Tab" && !e.shift) { this.endEdit(); Focus.focus(classroot.who.entry) } else super.onKeyDown(e)
+            }
+        ],
+    who: Combobox [ width = 150, height = 100%, placeholder = "Contact", accessibilityLabel = "Contact", creates = true,
+        items = { app.books.contacts().map((c) => ({ id: c.id, label: c.name })) },
+        value = { (:contactId ?? null) == null ? null : ({ id: :contactId, label: :contactName ?? "" }) },
+        commit(v: object) { if ((v?.id ?? null) != (classroot.rec.contactId ?? null)) app.editField(classroot.rec, "contactId", v?.id ?? null) },
+        createRequested(text: string) {
+            app.createContact(text, classroot.rec.kind == "expense" ? "vendor" : "customer", null,
+                (c: Contact) => { app.editField(classroot.rec, "contactId", c.id) })
+            }
+        ]
+    ]
+
+
+// A category, chosen by typing part of its name. Income categories for a sale
+// or refund, expense ones for an expense; archived ones can't be chosen.
+
+class CatEditor extends EditorBase [
+    Combobox [ width = 100%, height = 100%, placeholder = "Category", accessibilityLabel = "Category",
+        items = { [ ...app.books.choosable(classroot.rec.kind == "expense" ? "expense" : "income").map((c) => ({ id: c.id, label: c.name })),
+            ({ id: "", label: "Uncategorised" }) ] },
+        value = { (:categoryId ?? null) == null ? null : ({ id: :categoryId, label: app.books.catName(:categoryId) }) },
+        commit(v: object) {
+            const id = v == null || v.id == "" ? null : "" + v.id
+            if (id != (classroot.rec.categoryId ?? null)) app.editField(classroot.rec, "categoryId", id)
+            }
+        ]
+    ]
+
+
+// An amount: only for a transaction with one line (or an expense that isn't split).
+
+class AmountEditor extends EditorBase [
+    editable: boolean = { classroot.rec.kind == "expense" ? classroot.rec.split == null : classroot.rec.lineCount <= 1 },
+    TextInput [ visible = { classroot.editable }, width = 100%, height = 100%, fontSize = 13, textAlign = right, numeralWidth = tabular,
+        commitOn = "end", accessibilityLabel = "Amount",
+        value = { moneyPlain(:amount ?? 0) },
+        admit(t: string) -> string | null { return /^\$?[\d,]*\.?\d{0,2}$/.test(t.trim()) ? t : null },
+        commit(v: string) {
+            const c = parseMoney(v)
+            if (c == null || c <= 0) { app.toast.say("An amount is more than $0.00"); return }
+            if (c != classroot.rec.amount) app.editField(classroot.rec, "amount", c)
+            }
+        ],
+    Text [ visible = { !classroot.editable }, x = end, y = center, fontSize = 12, wrap = false,
+        textColor = { provided("theme").textMuted }, text = { classroot.rec.split != null ? "Split — edit the parts" : "Several lines" } ]
+    ]
+
+
+// ── The open transaction ────────────────────────────────────────────────────
+//
+// Beside the list on a wide desk, in a sheet otherwise: its lines and totals,
+// the refund or sale it is linked to, and for a sale what it cost and made.
+
+class DetailBody [ width = 100%,
+    t: Detail? = { app.detail.value ?? null },
+    open: boolean = { classroot.t != null && classroot.t.id == app.openId },
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+
+    LoadState [ visible = { !classroot.open }, failed = { app.detail.failed },
+        retry() { app.detail.fetch() }
+        ],
+
+    head: View [ width = 100%, visible = { classroot.open },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Caption [ text = { classroot.t == null ? "" : ({ sale: "Sale", refund: "Refund", expense: "Expense" })[classroot.t.kind] +
+            " · " + dateLong(classroot.t.date) + (classroot.t.channel != null ? " · " + app.books.chanName(classroot.t.channel) : "") } ],
+        Text [ width = 100%, fontSize = 18, fontWeight = semibold, accessibilityRole = heading, accessibilityLevel = 2,
+            text = { classroot.t == null ? "" : classroot.t.description == "" ? untitled(classroot.t.kind, app.books.chanName(classroot.t.channel ?? null)) : classroot.t.description } ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.t?.contactName ?? "No contact" } ],
+        Money [ fontSize = 24, fontWeight = semibold, cents = { classroot.t?.signed ?? 0 }, tone = "flow" ]
+        ],
+
+    // a sale's or refund's lines
+
+    lines: View [ width = 100%, visible = { classroot.open && (classroot.t?.lines ?? []).length > 0 },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Caption [ text = "Lines" ],
+        list: View [ width = 100%, datapath = { app.detail.value ?? null },
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            LineRow [ datapath = :lines[] ]
+            ],
+        total: View [ width = 100%, padding = [6, 0, 0, 0], stroke = { [stroke(1, provided("theme").line), null, null, null] },
+            layout: SimpleLayout [ axis = x, align = baseline ],
+            Text [ flexes = true, fontSize = 13, fontWeight = semibold, text = "Total" ],
+            Money [ fontSize = 13, fontWeight = semibold, cents = { classroot.t?.amount ?? 0 } ]
+            ]
+        ],
+
+    // an expense's split
+
+    parts: View [ width = 100%, visible = { classroot.open && (classroot.t?.parts ?? []).length > 0 },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Caption [ text = "Split" ],
+        View [ width = 100%, datapath = { app.detail.value ?? null },
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            PartRow [ datapath = :parts[] ]
+            ]
+        ],
+
+    // what a sale cost and made
+
+    margin: Text [ visible = { classroot.open && classroot.t?.kind == "sale" && classroot.t?.cost != null }, width = 100%, fontSize = 13,
+        numeralWidth = tabular, wrap = true,
+        text = { classroot.t == null || classroot.t.cost == null ? "" : "Cost " + money(classroot.t.cost) + " · Margin " + money(classroot.t.margin ?? 0) +
+            " (" + (classroot.t.amount == 0 ? "—" : Math.round(100 * (classroot.t.margin ?? 0) / classroot.t.amount) + "%") + ")" } ],
+
+    // a sale's refunds, and a refund's sale
+
+    refunds: View [ width = 100%, visible = { classroot.open && (classroot.t?.refunds ?? []).length > 0 },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Caption [ text = { "Refunded " + money(classroot.t?.refunded ?? 0) + " · " + money(classroot.t?.refundable ?? 0) + " left to refund" } ],
+        View [ width = 100%, datapath = { app.detail.value ?? null },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            LinkRow [ datapath = :refunds[], targetId = :id, label = { dateLong(:date) + " · " + (:description == "" ? "Refund" : :description) }, cents = { -(:amount) } ]
+            ]
+        ],
+    sale: View [ width = 100%, visible = { classroot.open && classroot.t?.sale != null },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Caption [ text = "Refund of" ],
+        LinkRow [ targetId = { classroot.t?.sale?.id ?? "" },
+            label = { classroot.t?.sale == null ? "" : dateLong(classroot.t.sale.date) + " · " + classroot.t.sale.description },
+            cents = { classroot.t?.sale?.amount ?? 0 } ]
+        ],
+
+    actions: View [ width = 100%, visible = { classroot.open },
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+        Button [ visible = { classroot.t?.kind == "sale" && (classroot.t?.refundable ?? 0) > 0 }, label = "Refund…",
+            onClick() { app.refund(classroot.t?.id ?? "") }
+            ],
+        Button [ label = "Delete", ink = { provided("theme").bad },
+            onClick() { app.deleteOne(classroot.t?.id ?? "") }
+            ]
+        ]
+    ]
+
+
+class LineRow [ width = 100%,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+    Text [ flexes = true, fontSize = 13, wrap = true,
+        text = { (:quantity ?? 1) + " × " + (:description ?? "") + "  @ " + money(:unitPrice ?? 0) } ],
+    Text [ visible = { (:refundedQuantity ?? 0) > 0 || (:refunded ?? 0) > 0 }, fontSize = 11, fontWeight = semibold,
+        textColor = { provided("theme").bad },
+        text = { (:refundedQuantity ?? 0) > 0 ? (:refundedQuantity ?? 0) + " refunded" : money(:refunded ?? 0) + " refunded" } ],
+    Money [ fontSize = 13, cents = { :amount ?? 0 } ]
+    ]
+
+
+class PartRow [ width = 100%,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    CatChip [ catId = { :categoryId ?? "" } ],
+    Spacer [ ],
+    Money [ fontSize = 13, cents = { :amount ?? 0 } ]
+    ]
+
+
+// A linked transaction: opens it.
+
+class LinkRow extends Control [ width = 100%, height = { app.tap }, cornerRadius = 8, padding = [0, 8, 0, 8],
+    targetId: string = "",
+    label: string = "",
+    cents: number = 0,
+    fill = { hovered ? provided("theme").hover : provided("theme").control },
+    accessibilityLabel = { "Open " + label },
+    press() { app.showTxn(targetId) },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { classroot.label } ],
+    Money [ fontSize = 13, cents = { classroot.cents } ]
+    ]
+
+
+// ── The phone's list: grouped by day ────────────────────────────────────────
+
+class PhoneLine extends TableRow [ width = 100% ]
+
+class DayHead extends PhoneLine [ height = 44, padding = [20, 16, 0, 16],
+    layout: SimpleLayout [ axis = x, align = baseline ],
+    Text [ flexes = true, fontSize = 13, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = { :label ?? "" } ],
+    Money [ fontSize = 12, textColor = { provided("theme").textMuted }, cents = { :net ?? 0 } ]
+    ]
+
+
+class PhoneRow extends PhoneLine [ height = 64, padding = [0, 16, 0, 16],
+    fill = { selected ? provided("theme").controlSelected : provided("theme").surface },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        Text [ width = 100%, fontSize = 15, fontWeight = medium, wrap = false, maxLines = 1,
+            text = { (:txn.description ?? "") == "" ? untitled(:txn.kind ?? "", app.books.chanName(:txn.channel ?? null)) : :txn.description ?? "" } ],
+        Text [ width = 100%, fontSize = 13, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted },
+            text = { (:txn.kind == "refund" ? "Refund · " : "") + (:txn.contactName ?? "No contact") } ]
+        ],
+    right: View [
+        layout: SimpleLayout [ axis = y, spacing = 4, align = end ],
+        Money [ fontSize = 15, fontWeight = semibold, cents = { :txn.inFilter ?? 0 }, tone = "flow" ],
+        CatChip [ catId = { :txn.categoryId ?? "" }, parts = { :txn.split?.parts ?? 0 } ]
+        ],
+    onClick() { super.onClick(); app.showTxn(:txn.id ?? "") }
+    ]
+
+
+// ── The screen ──────────────────────────────────────────────────────────────
+
+class TransactionsScreen [
+    layout: SimpleLayout [ axis = y, align = stretch ],
+
+    head: View [ padding = { app.phone ? [10, 16, 8, 16] : [14, 24, 10, 24] },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        backRow: Control [ visible = { app.back != null }, height = { app.tap }, cornerRadius = 8, padding = [0, 10, 0, 8],
+            fill = { hovered ? provided("theme").controlHovered : provided("theme").control },
+            press() { app.goBack() },
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            Glyph [ shape = "back", iconSize = 14, weight = 1.6, ink = { provided("theme").accent } ],
+            Text [ fontSize = 13, fontWeight = semibold, textColor = { provided("theme").accent },
+                text = { "Back to " + (app.back?.label ?? "") } ]
+            ],
+        line: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 10, rowSpacing = 6, align = center ],
+            title: Text [ visible = { !app.phone }, fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = "Transactions" ],
+            summary: SummaryLine [ ],
+            Spacer [ ],
+            selectAll: Button [ visible = { !app.allSel && app.rows.length > 0 && !app.phone }, height = 30,
+                label = { "Select all " + app.shownSummary.count.toLocaleString("en-US") },
+                onClick() { app.selectAll() }
+                ],
+            cols: GlyphButton [ visible = { !app.phone }, glyph = "columns", label = "Columns", menu = { app.columnsMenu } ],
+            export: GlyphButton [ glyph = "download", label = { app.phone ? "" : app.sel.length > 0 ? "Export selected" : "Export" },
+                accessibilityLabel = { app.sel.length > 0 ? "Export the selection as CSV" : "Export these transactions as CSV" },
+                disabled = { app.rows.length == 0 },
+                press() { app.exportCSV() }
+                ]
+            ]
+        ],
+
+    // what is selected, and what can be done to all of it
+
+    bulkBar: View [ visible = { app.selCount > 0 }, padding = { app.phone ? [0, 12, 8, 12] : [0, 24, 10, 24] },
+        bar: View [ width = 100%, padding = [6, 8, 6, 14], cornerRadius = 10, fill = { provided("theme").controlSelected },
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 6, align = center ],
+            Text [ fontSize = 13, fontWeight = semibold, wrap = false,
+                text = { app.allSel ? "All " + app.selCount.toLocaleString("en-US") + " transactions matching the filters are selected"
+                    : app.selCount.toLocaleString("en-US") + " selected" } ],
+            Spacer [ ],
+            Button [ visible = { app.sel.length == 1 && !(app.roomy && !app.phone) }, height = 32, label = "Details", tooltipLabel = "O",
+                onClick() { app.showTxn(app.sel[0].id) } ],
+            Button [ height = 32, label = "Categorise", menu = { app.categoriseMenu } ],
+            Button [ height = 32, label = "Set contact…",
+                onClick() { app.contactSetPop.showFor(this) }
+                ],
+            Button [ height = 32, label = "Delete", ink = { provided("theme").bad },
+                onClick() { app.bulk("delete", null) }
+                ],
+            GlyphButton [ glyph = "close", accessibilityLabel = "Clear selection",
+                press() { app.takeSelection(null) }
+                ]
+            ]
+        ],
+
+    body: View [ flexes = true,
+        layout: SimpleLayout [ axis = x, align = stretch ],
+
+        // the desk's grid
+
+        gridBox: View [ flexes = true, visible = { !app.phone }, padding = [0, 24, 16, 24],
+            opacity = { app.stale ? 0.6 : 1 },
+            grid: DataGrid [ width = 100%, height = 100%, selects = "multi", accessibilityLabel = "Transactions",
+                visible = { app.rows.length > 0 || !app.txns.loaded },
+                theme = { { ...provided("theme"), gridRowHeight: 48, gridHeaderHeight: 34 } },
+                cornerRadius = 10, stroke = { stroke(1, provided("theme").line) }, fill = { provided("theme").surface }, clip = true,
+                items = { app.rows },
+                columns = { app.columns(this.width) },
+                sortOn = { app.sortOn }, sortDir = { app.sortDir },
+                applySort(column: string, direction: string) { app.sortBy(column, direction) },
+                selection = { app.sel.length == 0 ? null : app.sel },
+                commit(s: array?) { app.takeSelection(s) },
+                deleteRequested() { app.bulk("delete", null) },
+                activateRequested() { if (app.sel.length == 1) app.openId = app.sel[0].id },
+                keyBindings = { [ ({ key: "Ctrl+A", command: "all", label: "Select all matching" }),
+                    ({ key: "Escape", command: "none", when: "hasSelection" }) ] },
+                all() { app.selectAll() },
+                none() { app.takeSelection(null) },
+                hasSelection() -> boolean { return app.sel.length > 0 && !this.editing }
+                ],
+            empty: NoMatches [ visible = { app.txns.loaded && app.rows.length == 0 && !app.stale && !app.txns.failed } ],
+            failed: LoadState [ visible = { app.txns.failed || !app.txns.loaded }, x = 24, y = 0, width = { parent.width - 48 },
+                padding = [14, 16, 14, 16], cornerRadius = 10, fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+                failed = { app.txns.failed },
+                retry() { app.txns.fetch() }
+                ]
+            ],
+
+        // the detail, beside the grid on a wide desk
+
+        side: View [ visible = { !app.phone && app.roomy && app.detailOpen }, width = 360, scrolls = y,
+            padding = [4, 24, 24, 20], stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+            accessibilityRole = region, accessibilityLabel = "Transaction detail",
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            closeRow: View [ width = 100%, height = { app.tap },
+                GlyphButton [ x = end, glyph = "close", accessibilityLabel = "Close detail",
+                    press() { app.openId = "" }
+                    ]
+                ],
+            DetailBody [ ]
+            ],
+
+        // the phone's day-grouped list
+
+        phoneFail: LoadState [ visible = { app.phone && (app.txns.failed || app.rows.length == 0) }, padding = [14, 16, 14, 16],
+            failed = { app.txns.failed }, empty = { app.txns.loaded }, emptyText = "Nothing matches these filters.",
+            retry() { app.txns.fetch() }
+            ],
+        phoneList: Table [ visible = { app.phone }, flexes = true, selects = "single", accessibilityLabel = "Transactions",
+            opacity = { app.stale ? 0.6 : 1 },
+            datapath = { app.phoneLines.value },
+            selectable(m: object) -> boolean { return m == null || (m as any).kind != "day" },
+            PhoneLine [ datapath = :rows[], virtualize = true, classFor = { :kind == "day" ? DayHead : PhoneRow } ]
+            ]
+        ]
+    ]

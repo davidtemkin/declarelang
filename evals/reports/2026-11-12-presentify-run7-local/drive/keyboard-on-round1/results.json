@@ -1,0 +1,56 @@
+[
+  {
+    "name": "tab_through_the_parts",
+    "pass": false,
+    "error": "Tab never reached the slide (labelled Slide) (passed: slider \"Outline width\", textbox \"Outline width in points\", slider \"Corner radius\", textbox \"Corner radius in points\", button \"Font\", spinbutton \"Text size\", button \"Weight\", button \"Italic\", radio \"\", button \"Text colour: None\", textbox \"X\", textbox \"Y\", textbox \"Width\", textbox \"Height\")",
+    "ms": 16768
+  },
+  {
+    "name": "slide_list_keys",
+    "pass": false,
+    "error": "Tab never reached the slide (labelled Slide) (passed: slider \"Outline width\", textbox \"Outline width in points\", slider \"Corner radius\", textbox \"Corner radius in points\", button \"Font\", spinbutton \"Text size\", button \"Weight\", button \"Italic\", radio \"\", button \"Text colour: None\", textbox \"X\", textbox \"Y\", textbox \"Width\", textbox \"Height\")",
+    "ms": 16977
+  },
+  {
+    "name": "add_shape_by_keyboard",
+    "pass": false,
+    "error": "Tab never reached the slide (passed: slider \"Outline width\", textbox \"Outline width in points\", slider \"Corner radius\", textbox \"Corner radius in points\", button \"Font\", spinbutton \"Text size\", button \"Weight\", button \"Italic\", radio \"\", button \"Text colour: None\", textbox \"X\", textbox \"Y\", textbox \"Width\", textbox \"Height\")",
+    "ms": 16482
+  },
+  {
+    "name": "edit_and_arrange_keys",
+    "pass": false,
+    "error": "Tab never reached the slide (labelled Slide) (passed: slider \"Outline width\", textbox \"Outline width in points\", slider \"Corner radius\", textbox \"Corner radius in points\", button \"Font\", spinbutton \"Text size\", button \"Weight\", button \"Italic\", radio \"\", button \"Text colour: None\", textbox \"X\", textbox \"Y\", textbox \"Width\", textbox \"Height\")",
+    "ms": 16875
+  },
+  {
+    "name": "keys_follow_the_focus",
+    "pass": false,
+    "error": "Tab never reached the slide (labelled Slide) (passed: slider \"Outline width\", textbox \"Outline width in points\", slider \"Corner radius\", textbox \"Corner radius in points\", button \"Font\", spinbutton \"Text size\", button \"Weight\", button \"Italic\", radio \"\", button \"Text colour: None\", textbox \"X\", textbox \"Y\", textbox \"Width\", textbox \"Height\")",
+    "ms": 16860
+  },
+  {
+    "name": "escape_reverts_a_field",
+    "pass": false,
+    "error": "Tab never reached the slide (passed: slider \"Outline width\", textbox \"Outline width in points\", slider \"Corner radius\", textbox \"Corner radius in points\", button \"Font\", spinbutton \"Text size\", button \"Weight\", button \"Italic\", radio \"\", button \"Text colour: None\", textbox \"X\", textbox \"Y\", textbox \"Width\", textbox \"Height\")",
+    "ms": 16400
+  },
+  {
+    "name": "delete_dialog_by_keyboard",
+    "pass": true,
+    "error": null,
+    "ms": 37013
+  },
+  {
+    "name": "shortcuts_are_shown",
+    "pass": false,
+    "error": "Tab never reached the slide (labelled Slide) (passed: slider \"Outline width\", textbox \"Outline width in points\", slider \"Corner radius\", textbox \"Corner radius in points\", button \"Font\", spinbutton \"Text size\", button \"Weight\", button \"Italic\", radio \"\", button \"Text colour: None\", textbox \"X\", textbox \"Y\", textbox \"Width\", textbox \"Height\")",
+    "ms": 16957
+  },
+  {
+    "name": "keyboard_only_deck",
+    "pass": false,
+    "error": "Tab never reached the slide (passed: slider \"Outline width\", textbox \"Outline width in points\", slider \"Corner radius\", textbox \"Corner radius in points\", button \"Font\", spinbutton \"Text size\", button \"Weight\", button \"Italic\", radio \"\", button \"Text colour: None\", textbox \"X\", textbox \"Y\", textbox \"Width\", textbox \"Height\")",
+    "ms": 16249
+  }
+]

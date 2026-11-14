@@ -1,0 +1,11 @@
+App [ width = 400, height = 300,
+    seg: Segmented [ width = 200, choices = { [({ id: "a", label: "A" })] } ],
+    v: View [ width = 10, height = 10, blend = multiply, filter = { [blur(2)] }, onDblClick() { } ],
+    t: Text [ text = "x", outline = { stroke(1, #000000) } ],
+    b: Button [ label = "b", inkColor = #FF0000, onClick() { app.navigate("https://example.com") } ],
+    m: Menu [ items = { [({ id: "a", label: "A" })] } ],
+    c: Button [ label = "c", onClick() { app.m.openFor(this) } ],
+    tbl: Table [ width = 200, height = 100, headerH = 30, selected = null ],
+    a: Animator [ attribute = "x", to = 10, motion = "easeOut" ],
+    i: TextInput [ width = 100, input(t: string) { } ]
+    ]

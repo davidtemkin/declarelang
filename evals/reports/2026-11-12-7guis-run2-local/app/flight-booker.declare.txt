@@ -1,0 +1,89 @@
+/*
+# 3. Flight Booker
+
+A choice of one-way or return flight, a start date, a return date, and Book.
+
+Dates are written DD.MM.YYYY, the format the fields show as their
+placeholder and the confirmation uses. Each field's text is the person's; the
+dates are derived from it (`null` when the text isn't a real date), and every
+rule is a constraint over those:
+
+- the return field is editable only for a return flight;
+- a field whose text is not a date is outlined red, and Book is disabled;
+- for a return flight, a return date before the start date disables Book,
+  and a line under the fields says why.
+
+Both fields start on today's date, read from a `Time` member: `startText`
+and `returnText` are computed defaults, so they follow the clock until the
+person types, and then the text is theirs.
+*/
+
+script {
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    function formatFlightDate(y: number, m: number, d: number): string {
+        return pad2(d) + "." + pad2(m) + "." + y
+    }
+
+    // DD.MM.YYYY to a day number (days since 1970), or null when the text
+    // is not a real date (31.02.2026 is refused).
+    function parseFlightDate(t: string): number | null {
+        const m = /^([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{4})$/.exec(t.trim())
+        if (m == null) return null
+        const d = Number(m[1]), mo = Number(m[2]), y = Number(m[3])
+        const at = new Date(Date.UTC(y, mo - 1, d))
+        if (at.getUTCFullYear() != y || at.getUTCMonth() != mo - 1 || at.getUTCDate() != d) return null
+        return at.getTime() / 86400000
+    }
+    }
+
+
+// A date field: outlined red, from the first keystroke, while its text is
+// not a date. Disabled, it isn't judged.
+
+class DateField extends TextInput [ width = 100%, placeholder = "DD.MM.YYYY", numeralWidth = tabular, judged = true,
+    validate(v: string) -> string { return disabled || parseFlightDate(v) != null ? "" : "Not a date — write DD.MM.YYYY" },
+    State [ applied = { parent.disabled }, opacity = { provided("theme").disabledOpacity } ]
+    ]
+
+
+class FlightBookerTask [
+    kind: "oneway" | "return" = "oneway",
+    isReturn: boolean = { classroot.kind == "return" },
+
+    clock: Time [ tick = day ],
+    today: string = { formatFlightDate(classroot.clock.year, classroot.clock.month, classroot.clock.day) },
+    startText: string = { classroot.today },
+    returnText: string = { classroot.today },
+
+    start: number? = { parseFlightDate(classroot.startText) },
+    back: number? = { parseFlightDate(classroot.returnText) },
+    bothDates: boolean = { classroot.start != null && classroot.back != null },
+    backTooEarly: boolean = { classroot.isReturn && classroot.bothDates && classroot.back! < classroot.start! },
+    canBook: boolean = { classroot.start != null && (!classroot.isReturn || (classroot.back != null && !classroot.backTooEarly)) },
+
+    booking: string = { classroot.isReturn
+        ? "You have booked a return flight on " + classroot.startText.trim() + ", returning on " + classroot.returnText.trim() + "."
+        : "You have booked a one-way flight on " + classroot.startText.trim() + "." },
+
+    kinds: Menu [
+        items = { [ ({ id: "oneway", label: "one-way flight", checked: !classroot.isReturn }),
+                    ({ id: "return", label: "return flight", checked: classroot.isReturn }) ] },
+        picked(id: string) { classroot.kind = id == "return" ? "return" : "oneway" }
+        ],
+    confirm: Dialog [ ],
+
+    form: View [ x = center, y = center, width = 260,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Button [ width = 100%, accessibilityLabel = "Flight type", menu = { classroot.kinds },
+            label = { classroot.isReturn ? "return flight" : "one-way flight" } ],
+        DateField [ accessibilityLabel = "Start date", value <-> classroot.startText ],
+        DateField [ accessibilityLabel = "Return date", disabled = { !classroot.isReturn }, value <-> classroot.returnText ],
+        Button [ width = 100%, label = "Book", primary = true, disabled = { !classroot.canBook },
+            onClick() { classroot.confirm.notice("Booked", classroot.booking) }
+            ],
+        Text [ width = 100%, height = 18, fontSize = 12,
+            textColor = { classroot.backTooEarly ? provided("theme").error : provided("theme").textMuted },
+            text = { classroot.backTooEarly ? "The return date is before the start date." : "Dates are written DD.MM.YYYY." } ]
+        ]
+    ]

@@ -1,0 +1,23 @@
+export default async ({ drive, expect, page }) => {
+  const read = () => page.evaluate(() => { const a = window.__declare.find("app"); return { presses: a.presses, doubles: a.doubles, stamps: a.stamps }; });
+  const reset = () => page.evaluate(() => { const a = window.__declare.find("app"); a.presses = 0; a.doubles = 0; a.stamps = ""; });
+  await page.getByRole("button", { name: "Plain" }).dblclick();
+  console.log("locator dblclick on a Button:", JSON.stringify(await read()));
+  await reset();
+  await drive.dblclick("app.0");
+  console.log("drive.dblclick on a Button:", JSON.stringify(await read()));
+  await reset();
+  await page.getByLabel("Pair").dblclick();
+  console.log("locator dblclick on onClick+onDoubleClick:", JSON.stringify(await read()));
+  await reset();
+  await drive.dblclick("app.2");
+  console.log("drive.dblclick on onClick+onDoubleClick:", JSON.stringify(await read()));
+  await reset();
+  const t0 = Date.now();
+  await page.getByRole("button", { name: "Sender" }).dblclick();
+  console.log("locator dblclick on a Button that sends (1.5 s reply):", JSON.stringify(await read()), "took", Date.now() - t0, "ms real");
+  await reset();
+  const t1 = Date.now();
+  await drive.dblclick("app.1");
+  console.log("drive.dblclick on a Button that sends:", JSON.stringify(await read()), "took", Date.now() - t1, "ms real");
+};

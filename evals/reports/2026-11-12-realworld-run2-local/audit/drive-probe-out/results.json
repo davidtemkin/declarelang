@@ -1,0 +1,30 @@
+{
+  "app": "http://127.0.0.1:8290/my-apps/conduit-run2/conduit.declare",
+  "results": [
+    {
+      "name": "article_delete",
+      "pass": true,
+      "reason": "met",
+      "ms": 4442,
+      "checks": [
+        {
+          "test": "should delete an article",
+          "pass": true,
+          "ms": 1289
+        },
+        {
+          "test": "should delete an article when server returns 200 instead of 204",
+          "pass": true,
+          "ms": 1262
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "evals/reports/2026-11-12-realworld-run2-local/audit/drive-probe-out/article_delete.png"
+    }
+  ],
+  "notes": [
+    "the app routes by hash (#/…); the spec's routes were taken as hash routes"
+  ]
+}

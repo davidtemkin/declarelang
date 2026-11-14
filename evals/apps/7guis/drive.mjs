@@ -36,7 +36,7 @@ const FIND_MS = 8000;
 const fail = (m) => { throw new Error(m); };
 
 // ── the page, by role and name ──────────────────────────────────────────────
-const ACTION_ROLES = new Set(["button", "link", "menuitem", "tab", "option", "radio", "checkbox", "switch", "row", "gridcell", "listitem", "cell", "treeitem", "menuitemradio", "menuitemcheckbox", "togglebutton", "img", "graphics-symbol", "PopUpButton", "combobox"]);
+const ACTION_ROLES = new Set(["button", "link", "menuitem", "tab", "option", "radio", "checkbox", "switch", "row", "gridcell", "listitem", "cell", "treeitem", "menuitemradio", "menuitemcheckbox", "togglebutton", "img", "image", "graphics-symbol", "PopUpButton", "combobox"]);
 const FIELD_ROLES = new Set(["textbox", "searchbox", "combobox", "spinbutton", "TextField", "slider", "date", "Date", "DateTime", "InputTime"]);
 const TEXT_FIELD_ROLES = new Set(["textbox", "searchbox", "combobox", "spinbutton", "TextField", "date", "Date", "DateTime"]);
 // The whole tree, less the unnamed wrappers: puppeteer's "interesting only" prunes whatever sits
@@ -245,7 +245,7 @@ async function circleKit(page, ctx) {
   const undo = () => controlAny(page, /^undo\b/i), redo = () => controlAny(page, /^redo\b/i);
   const u0 = await undo(), r0 = await redo();
   // the canvas: named for itself, else the area right below Undo
-  let canvas = await maybe(find(page, (n) => ["img", "graphics-document", "application", "group", "figure", "canvas", "Canvas", "region"].includes(n.role) && named(n, /canvas|drawing|circles?/i), { timeout: 2500 }));
+  let canvas = await maybe(find(page, (n) => ["img", "image", "graphics-document", "application", "group", "figure", "canvas", "Canvas", "region"].includes(n.role) && named(n, /canvas|drawing|circles?/i), { timeout: 2500 }));
   if (!canvas) {
     const ub = await u0.handle.boundingBox();
     const h = await page.evaluateHandle((y) => {

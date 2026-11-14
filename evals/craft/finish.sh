@@ -22,8 +22,26 @@ PID=$(grep -o 'AGENT_PID=[0-9]*' "$LOGS/started.txt" | cut -d= -f2)
 until grep -q '"type":"result"' "$LOGS/agent.stream.jsonl" 2>/dev/null || ! kill -0 "$PID" 2>/dev/null; do sleep 5; done
 echo "finish: $(date -u +%H:%M:%SZ) the build's result is in (or the agent is gone)"
 
+# STRAYS: what the agent started detached (`nohup npm start &`, a server sent to the
+# background) is no longer under it, so the tree walk below cannot see it — a dev server
+# outlived Ledger run 5 by hours. Anything whose working directory is inside the run's
+# work/ is the run's, except the data service (it stays up for scoring) and the tools'
+# Chromes and their reapers (shared, and they end themselves).
+strays() {
+  local work="$RUN/work" p cwd cmd
+  for p in $(pgrep -u "$(id -u)" 2>/dev/null); do
+    [ "$p" = "$$" ] && continue
+    cwd=$(lsof -a -p "$p" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
+    case "$cwd" in "$work"|"$work"/*) ;; *) continue ;; esac
+    cmd=$(ps -p "$p" -o command= 2>/dev/null)
+    case "$cmd" in *api/server.mjs*|*[Cc]hrome*|*chrome-reaper*|*finish.sh*|*record.sh*) continue ;; esac
+    echo "finish: stopping a stray $p — $(echo "$cmd" | cut -c1-140)"
+    kill "$p" 2>/dev/null
+  done
+}
+
 # a moment to exit by itself
-for _ in $(seq 1 15); do kill -0 "$PID" 2>/dev/null || { echo "finish: the agent exited by itself; nothing to stop"; exit 0; }; sleep 1; done
+for _ in $(seq 1 15); do kill -0 "$PID" 2>/dev/null || { echo "finish: the agent exited by itself"; strays; echo "finish: done"; exit 0; }; sleep 1; done
 
 # what still runs under it, deepest first
 tree() { local p; for p in $(pgrep -P "$1"); do tree "$p"; echo "$p"; done; }
@@ -33,4 +51,6 @@ for p in $(tree "$PID"); do
 done
 sleep 1
 kill -0 "$PID" 2>/dev/null && { echo "finish: stopping the agent $PID"; kill "$PID" 2>/dev/null; }
+sleep 1
+strays
 echo "finish: done"

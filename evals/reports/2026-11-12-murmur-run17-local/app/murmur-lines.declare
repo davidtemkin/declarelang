@@ -1,0 +1,338 @@
+/*
+# Murmur: the lines of a conversation
+
+One message is one `Line`. It decides from its neighbours what goes with it:
+a day's heading when the day changes, a quiet time when the talk resumed after
+a pause, the sender's name at the start of their run in a group, their face at
+the end of it. A run of messages from one person tightens its corners where its
+bubbles meet. The three kinds of message are three subclasses whose content
+goes into the base's `bubble`.
+
+A line reads its neighbours through `provided("rows")`, the conversation's
+messages as the transcript holds them, and the transcript's facts — who I am,
+whether it is a group, where the new messages start — the same way.
+*/
+
+// ── A line ──────────────────────────────────────────────────────────────────
+
+class Line [ width = 100%, defaultPlacement = bubble,
+
+    // the record, read once and named
+
+    msgId: string = { :id ?? "" },
+    from: string = { :from ?? "" },
+    at: string = { :at ?? "" },
+    reactions: Reaction[] = { :reactions ?? [] },
+    pending: boolean = { :pending ?? false },
+
+    // where the line stands among its neighbours
+
+    rows: Message[] = { provided("rows") },
+    prev: Message? = { rowIndex > 0 ? classroot.rows[rowIndex - 1] ?? null : null },
+    next: Message? = { classroot.rows[rowIndex + 1] ?? null },
+    mine: boolean = { classroot.from == app.me },
+    group: boolean = { provided("group") },
+    newDay: boolean = { classroot.prev == null || dayKey(classroot.prev.at) != dayKey(classroot.at) },
+    paused: boolean = { classroot.prev != null && minutesBetween(classroot.prev.at, classroot.at) >= 45 },
+    runStart: boolean = { classroot.newDay || classroot.paused || classroot.prev?.from != classroot.from },
+    nextOther: boolean = { classroot.next == null || classroot.next.from != classroot.from },
+    nextApart: boolean = { classroot.next != null && (dayKey(classroot.next.at) != dayKey(classroot.at)
+        || minutesBetween(classroot.at, classroot.next.at) >= 45) },
+    runEnd: boolean = { classroot.nextOther || classroot.nextApart },
+    firstNew: boolean = { classroot.msgId == provided("newFrom") },
+    myLatest: boolean = { classroot.msgId == provided("myLatest") },
+
+    // the gutter a group keeps for faces, and the bubble's side
+
+    gutter: number = { classroot.group ? 40 : 0 },
+    side: number = { app.wide ? 28 : 12 },
+    edgeX: number = { classroot.mine ? this.width - classroot.side : classroot.side + classroot.gutter },
+    maxBubble: number = { Math.min(app.wide ? 520 : 9999, Math.round((this.width - classroot.gutter) * 0.76)) },
+
+    // a subclass's bubble look
+
+    bubblePad: Inset = [7, 12, 8, 12],
+    bubbleFill: Color? = { classroot.mine ? provided("theme").mine : provided("theme").theirs },
+    textInk: Color = { classroot.mine ? provided("theme").mineText : provided("theme").theirsText },
+
+    // corners: round outside a run, tight where two of one person's bubbles meet
+
+    big: number = 18,
+    small: number = 5,
+    corners: Radius = { classroot.mine
+        ? [classroot.big, classroot.runStart ? classroot.big : classroot.small, classroot.runEnd ? classroot.big : classroot.small, classroot.big]
+        : [classroot.runStart ? classroot.big : classroot.small, classroot.big, classroot.big, classroot.runEnd ? classroot.big : classroot.small] },
+
+    padding = { [classroot.runStart ? 10 : 2, 0, 0, 0] },
+    layout: SimpleLayout [ axis = y, spacing = 3 ],
+
+    day: DayHead [ exists = { classroot.newDay }, at = { classroot.at } ],
+    pause: TextLabel [ exists = { classroot.paused && !classroot.newDay }, x = center, padding = [8, 0, 6, 0],
+        fontSize = 12, fontWeight = medium, textColor = { provided("theme").textFaint },
+        text = { clockTime(classroot.at) } ],
+    newRule: NewRule [ exists = { classroot.firstNew } ],
+    who: Text [ exists = { classroot.group && !classroot.mine && classroot.runStart },
+        x = { classroot.side + classroot.gutter + 12 }, width = { classroot.maxBubble }, maxLines = 1,
+        fontSize = 12, fontWeight = semibold, textColor = { app.voiceOf(classroot.from) },
+        text = { app.store.nameOf(classroot.from) } ],
+
+    // The bubble. A hold (or a right-click) on it offers reactions; on a desk
+    // a small button beside it does too, while the pointer is over the line.
+
+    bubble: View [ x = { classroot.mine ? classroot.edgeX - this.width : classroot.edgeX },
+        padding = { classroot.bubblePad }, cornerRadius = { classroot.corners }, clip = true,
+        fill = { classroot.bubbleFill },
+        onHold(e: PointerEvent) { app.offerReactions(classroot) },
+        onContextMenu(e: PointerEvent) { app.offerReactions(classroot) }
+        ],
+
+    reacts: ReactionStrip [ exists = { classroot.reactions.length > 0 },
+        x = { classroot.mine ? classroot.edgeX - this.width - 8 : classroot.edgeX + 8 },
+        msgId = { classroot.msgId }, list = { classroot.reactions } ],
+
+    receipt: TextLabel [ exists = { classroot.myLatest }, x = { classroot.edgeX - this.width - 4 },
+        padding = [1, 0, 2, 0], fontSize = 11.5, fontWeight = medium, textColor = { provided("theme").textFaint },
+        text = { app.receipt(classroot.msgId, classroot.pending) } ],
+
+    // the face at the end of someone's run, level with the bubble's foot
+
+    face: Avatar [ exists = { classroot.group && !classroot.mine && classroot.runEnd }, ignoreLayout = true,
+        x = { classroot.side }, y = { classroot.bubble.y + classroot.bubble.height - 28 }, width = 28, height = 28,
+        person = { classroot.from } ],
+
+    // a desk's reaction button, beside the bubble on the side away from the edge
+
+    addReact: IconButton [ exists = { app.wide && classroot.hovered && !app.picker.shown }, ignoreLayout = true,
+        width = 30, markSize = 15, shape = "react", accessibilityLabel = "Add a reaction", focusable = quiet,
+        x = { classroot.mine ? classroot.bubble.x - 36 : classroot.bubble.x + classroot.bubble.width + 6 },
+        y = { classroot.bubble.y + classroot.bubble.height / 2 - 15 },
+        press() { app.offerReactions(classroot) }
+        ]
+    ]
+
+
+// The day, where it changes: a quiet heading between hairlines.
+
+class DayHead [ width = 100%, padding = { [18, app.wide ? 28 : 16, 10, app.wide ? 28 : 16] },
+    at: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    View [ flexes = true, height = 1, fill = { provided("theme").line } ],
+    TextLabel [ fontSize = 12, fontWeight = semibold, letterSpacing = 0.4, wrap = false,
+        textColor = { provided("theme").textMuted }, text = { dayLabel(classroot.at, app.today) } ],
+    View [ flexes = true, height = 1, fill = { provided("theme").line } ]
+    ]
+
+
+// Where the messages that arrived since you last looked begin.
+
+class NewRule [ width = 100%, padding = { [14, app.wide ? 28 : 16, 8, app.wide ? 28 : 16] },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    View [ flexes = true, height = 1, fill = { provided("theme").ember }, opacity = 0.5 ],
+    TextLabel [ fontSize = 12, fontWeight = semibold, wrap = false, textColor = { provided("theme").ember }, text = "New" ],
+    View [ flexes = true, height = 1, fill = { provided("theme").ember }, opacity = 0.5 ]
+    ]
+
+
+// ── Written text ────────────────────────────────────────────────────────────
+//
+// A line of a few emoji and nothing else is said larger, without a bubble.
+
+class TextLine extends Line [
+    words: string = { :text ?? "" },
+    jumbo: boolean = { isJumbo(classroot.words) },
+    bubblePad = { classroot.jumbo ? [0, 0, 0, 0] : [7, 12, 8, 12] },
+    bubbleFill = { classroot.jumbo ? null : classroot.mine ? provided("theme").mine : provided("theme").theirs },
+    body: Text [ width = { Math.min(this.contentWidth, classroot.maxBubble - 24) },
+        fontSize = { classroot.jumbo ? 40 : app.wide ? 15 : 16.5 }, lineHeight = { classroot.jumbo ? 1.15 : 1.35 },
+        selectable = true, textColor = { classroot.textInk }, text = { classroot.words } ]
+    ]
+
+
+// ── A photograph ────────────────────────────────────────────────────────────
+//
+// Shown at its own proportions, which arrive only with its pixels. Until then
+// it holds a 4:3 place in a stone tint, its description faintly inside, and
+// takes its own shape when it lands (above the reader, the transcript's anchor
+// keeps the words being read where they are). Pressing it opens it full size.
+
+class PhotoLine extends Line [ bubblePad = [0, 0, 0, 0], bubbleFill = { provided("theme").placeholder },
+    src: string = { :src ?? "" },
+    alt: string = { :alt ?? "" },
+    seen: boolean = { classroot.pic.img.loaded && classroot.pic.img.naturalHeight > 0 },
+    ratio: number = { classroot.seen ? clampRatio(classroot.pic.img.naturalWidth / classroot.pic.img.naturalHeight) : 4 / 3 },
+    boxW: number = { Math.round(Math.min(Math.min(classroot.maxBubble, 340), (app.wide ? 340 : 300) * classroot.ratio)) },
+    pic: Control [ width = { classroot.boxW }, height = { Math.round(classroot.boxW / classroot.ratio) },
+        accessibilityRole = button, accessibilityLabel = { "Photo: " + classroot.alt },
+        press() { app.viewPhoto(classroot.src, classroot.alt) },
+        waiting: View [ visible = { !parent.img.loaded }, width = 100%, height = 100%, padding = 14,
+            layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+            Spacer [ ],
+            Glyph [ iconSize = 22, weight = 1.6, shape = "photo", ink = { provided("theme").placeholderInk } ],
+            Text [ width = 100%, maxLines = 2, textAlign = center, fontSize = 12,
+                textColor = { provided("theme").placeholderInk }, text = { classroot.alt } ],
+            Spacer [ ]
+            ],
+        img: Image [ width = 100%, height = 100%, fit = cover, source = { app.service + classroot.src },
+            opacity = { this.loaded ? 1 : 0 } ]
+        ]
+    ]
+
+
+// ── A voice message ─────────────────────────────────────────────────────────
+//
+// Play, the recording's own shape, and its time. The shape is the control:
+// press anywhere along it to go there, or drag along it. Before it plays the
+// time says how long it is; while it plays, how far in.
+
+class VoiceLine extends Line [ bubblePad = [8, 14, 8, 8],
+    src: string = { :src ?? "" },
+    ms: number = { :durationMs ?? 0 },
+    peaks: number[] = { :peaks ?? [] },
+    active: boolean = { app.deck.clipId == classroot.msgId },
+    going: boolean = { classroot.active && app.deck.want },
+    at01: number = { classroot.active && classroot.ms > 0 ? Math.min(1, app.deck.head * 1000 / classroot.ms) : 0 },
+    row: View [
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        play: Control [ width = 36, height = 36, cornerRadius = 18,
+            accessibilityLabel = { classroot.going ? "Pause voice message" : "Play voice message" },
+            fill = { classroot.mine ? provided("theme").mineText : provided("theme").accent },
+            opacity = { pressed ? 0.8 : 1 },
+            press() { app.deck.toggle(classroot.msgId, classroot.src, classroot.ms) },
+            Glyph [ x = { classroot.going ? 10 : 11 }, y = 10, iconSize = 16, weight = 1, shape = { classroot.going ? "pause" : "play" },
+                ink = { classroot.mine ? provided("theme").mine : provided("theme").accentTextColor } ]
+            ],
+        wave: Waveform [ width = { Math.max(120, Math.min(200, classroot.maxBubble - 120)) }, height = 36,
+            peaks = { classroot.peaks }, mine = { classroot.mine },
+            accessibilityLabel = "Position in voice message",
+            value = { classroot.at01 },
+            commit(v: number) { app.deck.seek(classroot.msgId, classroot.src, classroot.ms, v) }
+            ],
+        time: TextLabel [ width = 38, fontSize = 12.5, fontWeight = medium, numeralWidth = tabular,
+            textColor = { classroot.mine ? provided("theme").mineMuted : provided("theme").textMuted },
+            text = { duration(classroot.row.wave.editing || classroot.active
+                ? classroot.row.wave.shown * classroot.ms : classroot.ms) } ]
+        ]
+    ]
+
+
+// The scrubber. A row of bars, one per loudness sample, inked up to the
+// playhead; while a finger or the pointer is on it, a thin line marks the
+// point it will go to. One edit from press to release: the press itself is a
+// choice of point, so a tap seeks, and a drag scrubs. Sideways only: a finger
+// moving down the conversation still scrolls it.
+
+class Waveform extends ValueControl [ claim = x,
+    value: number = 0,
+    fieldValue = { value },
+    commitOn = "end",
+    commit(v: number) { value = v },
+    peaks: number[] = [],
+    mine: boolean = false,
+    accessibilityRole = slider,
+    accessibilityValue = { Math.round(shown * 100) },
+    accessibilityMin = 0,
+    accessibilityMax = 100,
+    accessibilityIncrement() { edit(Math.min(1, shown + 0.05)) },
+    accessibilityDecrement() { edit(Math.max(0, shown - 0.05)) },
+
+    held: boolean = false,
+    at(x: number) -> number { return Math.max(0, Math.min(1, x / width)) },
+    onPointerDown(e: PointerEvent) {
+        super.onPointerDown()
+        held = true
+        beginEdit()
+        edit(at(e.x))
+        },
+    onDrag(e: PointerEvent) { if (held) edit(at(e.x)) },
+    onPointerUp() { if (held) { held = false; endEdit() } },
+
+    played: Color = { mine ? provided("theme").mineText : provided("theme").wavePlayed },
+    rest: Color = { mine ? provided("theme").mineMuted : provided("theme").wave },
+    draw(d: DrawContext) {
+        const n = peaks.length
+        if (n == 0) return
+        const bars = Math.max(8, Math.floor((d.w + 1.5) / 4))
+        const step = d.w / bars
+        const mid = d.h / 2
+        for (let b = 0; b < bars; b++) {
+            // each bar is the loudest sample in its share of the clip
+            const lo = Math.floor(b * n / bars), hi = Math.max(lo + 1, Math.floor((b + 1) * n / bars))
+            let p = 0
+            for (let i = lo; i < hi; i++) p = Math.max(p, peaks[i])
+            const h = Math.max(3, p * (d.h - 6))
+            d.fillStyle = (b + 0.5) / bars <= shown ? played : rest
+            d.beginPath()
+            d.roundRect(b * step, mid - h / 2, Math.max(1.5, step - 1.6), h, 1.2)
+            d.fill()
+            }
+        if (held) {
+            d.fillStyle = played
+            d.beginPath()
+            d.roundRect(shown * d.w - 1, 0, 2, d.h, 1)
+            d.fill()
+            }
+        }
+    ]
+
+
+// ── Reactions ───────────────────────────────────────────────────────────────
+//
+// Under the bubble, one chip per mark with how many attached it. Yours are
+// tinted, and pressing any chip adds the same mark from you.
+
+class ReactionStrip [
+    msgId: string = "",
+    list: Reaction[] = [],
+    tallied: Dataset [ contents = { { rows: tally(classroot.list, app.me) } } ],
+    datapath = { this.tallied.value },
+    layout: SimpleLayout [ axis = x, spacing = 4 ],
+    ReactChip [ datapath = :rows[] ]
+    ]
+
+
+class ReactChip extends Control [ height = { app.wide ? 26 : 44 },
+    width = { Math.max(app.wide ? 0 : 44, this.pill.width) },
+    emoji: string = { :id ?? "" },
+    n: number = { :n ?? 0 },
+    on: boolean = { :mine ?? false },
+    accessibilityLabel = { classroot.emoji + " " + classroot.n },
+    accessibilityPressed = { classroot.on },
+    press() { app.react(classroot.parent.msgId, classroot.emoji) },
+
+    // a finger's whole target, around a pill drawn smaller
+
+    pill: View [ x = center, y = center, height = { app.wide ? 24 : 28 }, cornerRadius = { this.height / 2 },
+        padding = { app.wide ? [0, 7, 0, 6] : [0, 10, 0, 9] },
+        fill = { classroot.on ? provided("theme").chipMine : classroot.hovered ? provided("theme").hover : provided("theme").chip },
+        stroke = { stroke(1, classroot.on ? provided("theme").accent : provided("theme").chipLine) },
+        scale = { classroot.pressed ? 0.94 : 1 }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+        layout: SimpleLayout [ axis = x, spacing = 3, align = center ],
+        TextLabel [ fontSize = { app.wide ? 13 : 14 }, wrap = false, text = { classroot.emoji } ],
+        TextLabel [ visible = { classroot.n > 1 }, fontSize = 11.5, fontWeight = semibold, numeralWidth = tabular,
+            textColor = { classroot.on ? provided("theme").accent : provided("theme").textMuted }, text = { "" + classroot.n } ]
+        ]
+    ]
+
+
+// ── Someone writing ─────────────────────────────────────────────────────────
+//
+// At the foot of the conversation while someone is composing: their face in a
+// group, and three dots that breathe in turn.
+
+class Writing [ width = 100%, padding = { [10, 0, 4, app.wide ? 28 : 12] },
+    people: string[] = [],
+    group: boolean = false,
+    beat: Time [ tick = 90 ],
+    phase: number = { (classroot.beat.now % 1200) / 1200 },
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    Avatar [ visible = { classroot.group }, width = 28, height = 28, person = { classroot.people[0] ?? "" } ],
+    dots: View [ height = 34, cornerRadius = 17, padding = [0, 14, 0, 14], fill = { provided("theme").theirs },
+        accessibilityRole = image, accessibilityLabel = { app.writingLine(classroot.people) },
+        layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+        View [ width = 7, height = 7, cornerRadius = 4, fill = { provided("theme").textMuted }, opacity = { pulse(classroot.phase, 0) } ],
+        View [ width = 7, height = 7, cornerRadius = 4, fill = { provided("theme").textMuted }, opacity = { pulse(classroot.phase, 1) } ],
+        View [ width = 7, height = 7, cornerRadius = 4, fill = { provided("theme").textMuted }, opacity = { pulse(classroot.phase, 2) } ]
+        ],
+    TextLabel [ visible = { classroot.group }, fontSize = 12, textColor = { provided("theme").textFaint },
+        text = { app.writingLine(classroot.people) } ]
+    ]

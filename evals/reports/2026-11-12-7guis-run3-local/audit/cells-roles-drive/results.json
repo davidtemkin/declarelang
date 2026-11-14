@@ -1,0 +1,21 @@
+{
+  "app": "http://127.0.0.1:8290/evals/reports/2026-11-12-7guis-run3-local/audit/app-roles/7guis.declare",
+  "results": [
+    {
+      "name": "cells",
+      "pass": true,
+      "reason": "met",
+      "ms": 16447,
+      "fallbacks": [],
+      "observed": {
+        "via": "tab \"Cells\"",
+        "columns": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "error": "#SYNTAX",
+        "escape": "Escape cancels the edit",
+        "Z99": "32"
+      },
+      "screenshot": "evals/reports/2026-11-12-7guis-run3-local/audit/cells-roles-drive/cells.png"
+    }
+  ],
+  "notes": []
+}

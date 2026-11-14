@@ -1,0 +1,48 @@
+# eval-7guis-2.noindex
+total 16.9 min · 100 turns · output 78117 tokens (thinking 30808)
+phases: reading 5.2 · writing 2.8 · checking 8.9 min
+tool time 4.8 min · model time 12.0 min
+tools:
+  verify    22×   3.38 min  (median 4.6 s)
+  look       6×   0.62 min  (median 4.5 s)
+  bash      21×   0.52 min  (median 0.0 s)
+  help       8×   0.30 min  (median 1.4 s)
+  read      17×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     21×   3.99 min  (median 1.9 s)
+  after read     17×   2.00 min  (median 2.5 s)
+  after verify   22×   1.72 min  (median 3.6 s)
+  after write     9×   1.54 min  (median 7.9 s)
+  after help      8×   1.33 min  (median 3.8 s)
+  after image    15×   0.80 min  (median 0.4 s)
+  after look      5×   0.36 min  (median 5.2 s)
+  after edit      1×   0.04 min  (median 2.6 s)
+app: 8 .declare files, 836 non-blank lines · 23 snapshots changed them: 1077 lines added, 87 removed
+verify results mentioning accessibility: 1
+source reads: library 4 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/table.declare
+            library  library/tabbar.declare
+            library  library/valuecontrol.declare
+            library  library/textinput.declare
+diagnostic codes, by tool results reporting them: DECLARE5000 3, DECLARE1002 2, DECLARE2000 1, DECLARE4035 1, DECLARE4025 1, DECLARE4001 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   2.92 min    28×  R5 behavior, in all
+   2.61 min    28×  script: the assert script, in all
+   0.64 min   614×  drive.key
+   0.50 min   132×  drive.click
+   0.45 min    35×  compile (R1–R3)
+   0.41 min    80×  drive.dblclick
+   0.28 min    44×  page: load, compile in the page and boot
+   0.23 min    28×  open: the app loaded and arrived, in all
+   0.20 min    61×  locator.click
+   0.17 min   124×  expect(locator), in all
+   0.16 min   303×  locator: wait a tick for it
+   0.16 min    63×  locator.fill
+   0.14 min    54×  drive.settleMotion
+   0.13 min    39×  drive.clickAt
+   0.12 min    75×  check: scrolling come to rest
+   0.12 min    16×  R4 boot, in all
+   0.07 min    30×  locator.pressSequentially
+   0.07 min    80×  drive.type
+   0.06 min    44×  page: a new page
+   0.04 min    21×  end: layout questions at the end of the script

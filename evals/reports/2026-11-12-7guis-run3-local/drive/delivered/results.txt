@@ -1,0 +1,15 @@
+PASS  counter  1.8 s  met
+PASS  temperature  16.0 s  met
+      fallbacks: went to Temperature Converter by "Temperature" (tab), a looser name
+PASS  flight  12.6 s  met
+PASS  timer  9.9 s  met
+FAIL  crud  4.8 s  a lower-case "t" (a prefix of Tisch): the list doesn't show exactly "Tisch, Roman" (last seen: [])
+PASS  circles_select  3.8 s  met
+PASS  circles_history  8.9 s  met
+FAIL  cells  17.9 s  accessibility: the sheet has no grid, gridcell, columnheader or rowheader in the tree — its cells can't be reached by role or name (everything else met)
+      fallbacks: cells are found by the visible column letters and row numbers: the sheet exposes no column/row headers (accessibility)
+note  counter: the count is exposed as StaticText, not a read-only text field
+note  flight: the kind-of-flight control is named "Flight type"; the choice it shows is in its text, not its name
+note  flight: the bad start date is marked only in colour, not exposed as invalid (aria-invalid)
+note  flight: the bad return date is marked only in colour, not exposed as invalid (aria-invalid)
+6 of 8 passed in 76 s

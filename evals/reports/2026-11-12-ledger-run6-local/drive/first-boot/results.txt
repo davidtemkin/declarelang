@@ -1,0 +1,9 @@
+FAIL  overview_drill  16.4 s  the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare
+FAIL  split_expense  16.4 s  the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare
+FAIL  sale_refund  16.4 s  the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare
+FAIL  filters_keyboard  16.4 s  the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare
+FAIL  bulk_undo  16.4 s  the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare
+FAIL  export_csv  16.4 s  the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare
+FAIL  budget_words  16.4 s  the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare
+FAIL  phone  16.1 s  the app never showed Overview or Transactions at http://127.0.0.1:8290/my-apps/ledger-run6-fb/ledger.declare
+0 of 8 passed in 131 s

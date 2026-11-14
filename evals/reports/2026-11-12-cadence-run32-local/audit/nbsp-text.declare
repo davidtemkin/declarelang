@@ -1,0 +1,2 @@
+App [ width = 300, height = 100,
+    hero: Text [ text = { "2 sessions \u00b7 1h\u00a024m" } ] ]

@@ -1,0 +1,45 @@
+# eval-venue-33
+total 21.3 min · 91 turns · output 107699 tokens (thinking 41723)
+phases: reading 6.3 · writing 3.3 · checking 11.7 min
+tool time 4.8 min · model time 16.5 min
+tools:
+  verify    29×   3.87 min  (median 2.9 s)
+  look       6×   0.46 min  (median 4.0 s)
+  help       9×   0.34 min  (median 1.9 s)
+  bash       9×   0.07 min  (median 0.0 s)
+  read      16×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after help      9×   4.63 min  (median 7.6 s)
+  after write     2×   3.30 min  (median 98.9 s)
+  after image    19×   2.66 min  (median 4.9 s)
+  after verify   28×   2.52 min  (median 3.9 s)
+  after read     16×   2.24 min  (median 1.6 s)
+  after bash      9×   0.69 min  (median 3.2 s)
+  after look      6×   0.18 min  (median 0.9 s)
+app: 2 .declare files, 1298 non-blank lines · 26 snapshots changed them: 1757 lines added, 265 removed
+verify results mentioning accessibility: 3
+source reads: library 2 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/control.declare
+            library  library/*.declare
+diagnostic codes, by tool results reporting them: DECLARE1002 4, DECLARE6001 2, DECLARE2000 1, DECLARE3006 1, DECLARE4023 1, DECLARE4025 1, DECLARE7001 1, DECLARE1000 1
+inside the agent's verify and look calls:
+   3.27 min    25×  R5 behavior, in all
+   2.87 min    25×  script: the assert script, in all
+   1.06 min   105×  locator.click
+   0.52 min   968×  locator: wait a tick for it
+   0.43 min    40×  compile (R1–R3)
+   0.43 min   100×  expect(locator), in all
+   0.32 min    25×  open: the app loaded and arrived, in all
+   0.32 min     9×  drive.waitReal
+   0.30 min    28×  page: load, compile in the page and boot
+   0.28 min   165×  check: scrolling come to rest
+   0.24 min    98×  locator.fill
+   0.24 min    96×  drive.settleMotion
+   0.20 min    51×  drive.settleData
+   0.10 min  1629×  locator: query the page
+   0.10 min    48×  drive.key
+   0.04 min    16×  locator.pressSequentially
+   0.04 min   165×  check: the layout questions
+   0.04 min    28×  page: a new page
+   0.03 min    18×  end: layout questions at the end of the script
+   0.03 min    26×  drive.tab

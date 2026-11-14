@@ -1,0 +1,144 @@
+{
+  "app": "http://127.0.0.1:8290/evals/_score-ledger5/ledger.declare",
+  "results": [
+    {
+      "name": "overview_drill",
+      "pass": true,
+      "reason": "met",
+      "ms": 7343,
+      "fallbacks": [
+        "this month's expense bar has no node of its own in the tree until the chart is arrowed to it (\"November 2026 (so far), Expenses, $3,576.58, down 40% from October 2026, 26 transactions\")"
+      ],
+      "observed": {
+        "Revenue": "Revenue $3,789.00 ▼ 48% vs Oct",
+        "Expenses": "Expenses $3,576.58 ▼ 40% vs Oct",
+        "Net profit": "Net profit $212.42 ▼ 83% vs Oct",
+        "Gross margin": "Gross margin 68.8% ▼ −4.3 pts vs Oct",
+        "bar": "November 2026 (so far), Expenses, $3,576.58, down 40% from October 2026, 26 transactions",
+        "via": "the expense bar, by keyboard"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-drive/overview_drill.png"
+    },
+    {
+      "name": "split_expense",
+      "pass": true,
+      "reason": "met",
+      "ms": 15391,
+      "fallbacks": [
+        "found \"Transactions 2\" by the looser name /\\bTransactions\\b/i (nothing named /^Transactions$/i)"
+      ],
+      "observed": {
+        "vendorOption": "Add “Printworks”",
+        "partFields": "Part 1 category / Part 1 amount",
+        "remaining": "Remaining to allocate: $10.00"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-drive/split_expense.png"
+    },
+    {
+      "name": "sale_refund",
+      "pass": true,
+      "reason": "met",
+      "ms": 14682,
+      "fallbacks": [
+        "found \"Transactions 2\" by the looser name /\\bTransactions\\b/i (nothing named /^Transactions$/i)"
+      ],
+      "observed": {
+        "products": "Speckled mug ×2, Art print A4 ×1",
+        "refundFields": "Quantity of Speckled mug to refund=; Quantity of Art print A4 to refund=",
+        "refundShown": "$32.00 · 1 refund"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-drive/sale_refund.png"
+    },
+    {
+      "name": "filters_keyboard",
+      "pass": true,
+      "reason": "met",
+      "ms": 28725,
+      "fallbacks": [
+        "found \"Transactions 2\" by the looser name /\\bTransactions\\b/i (nothing named /^Transactions$/i)",
+        "found \"Insights 3\" by the looser name /\\bInsights\\b/i (nothing named /^Insights$/i)",
+        "found \"Overview 1\" by the looser name /\\bOverview\\b/i (nothing named /^Overview$/i)"
+      ],
+      "observed": {
+        "handles": [
+          "Minimum amount",
+          "Maximum amount"
+        ],
+        "handlesAfter": [
+          "$20 | Minimum amount | 4",
+          "$100 | Maximum amount | 11"
+        ],
+        "service": {
+          "count": 16,
+          "in": 0,
+          "out": 80984,
+          "net": -80984
+        },
+        "filteredNote": "evious $20 – $100 Kind Category Contact Filtered: Search “adobe” × $20 – $100 × Clear al"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-drive/filters_keyboard.png"
+    },
+    {
+      "name": "bulk_undo",
+      "pass": true,
+      "reason": "met",
+      "ms": 19686,
+      "fallbacks": [
+        "found \"Transactions 2\" by the looser name /\\bTransactions\\b/i (nothing named /^Transactions$/i)",
+        "no \"Clear all\" (a fresh start has no filters to clear)"
+      ],
+      "observed": {
+        "range": "this month",
+        "before": 5,
+        "toast": "Categorised 5 transactions Undo Categorised 5 transac"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-drive/bulk_undo.png"
+    },
+    {
+      "name": "export_csv",
+      "pass": true,
+      "reason": "met",
+      "ms": 9798,
+      "fallbacks": [
+        "found \"Transactions 2\" by the looser name /\\bTransactions\\b/i (nothing named /^Transactions$/i)"
+      ],
+      "observed": {
+        "file": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-drive/export_csv-download/ledger-2026-11-01-to-2026-11-30.csv",
+        "header": "id,date,kind,description,contact,category,channel,amount"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-drive/export_csv.png"
+    },
+    {
+      "name": "budget_words",
+      "pass": true,
+      "reason": "met",
+      "ms": 17554,
+      "fallbacks": [
+        "found \"Budgets 4\" by the looser name /\\bBudgets\\b/i (nothing named /^Budgets$/i)",
+        "the Software budget was set through \"Add budget\", then the field \"Monthly amount\""
+      ],
+      "observed": {
+        "field": "Monthly amount",
+        "service": {
+          "categoryId": "software",
+          "amount": 3000,
+          "spent": 11339,
+          "remaining": -8339,
+          "count": 3
+        },
+        "words": "Software Over by $83.39 Budget"
+      },
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-drive/budget_words.png"
+    },
+    {
+      "name": "phone",
+      "pass": true,
+      "reason": "met",
+      "ms": 3387,
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/l5-drive/phone.png"
+    }
+  ],
+  "notes": []
+}

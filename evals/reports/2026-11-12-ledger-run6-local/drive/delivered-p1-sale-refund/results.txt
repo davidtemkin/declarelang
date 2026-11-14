@@ -1,0 +1,3 @@
+FAIL  sale_refund  28.5 s  not found: the mug line in the refund
+      fallbacks: the sale's detail offers no Refund; opened the refund editor and chose the sale there | no option named /\$88\.00/ offered after typing "88.00" into "Search transactions" (offered: nothing); pressed Enter | no quantity fields in the refund; chose the mug's line
+0 of 1 passed in 29 s

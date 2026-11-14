@@ -1,0 +1,14 @@
+App [ width = 400, height = 300,
+    v: View [ width = 10, height = 10, onDblClick() { } ],
+    b: Button [ label = "b", onClick() { app.navigate("https://example.com") } ],
+    m: Menu [ items = { [({ id: "a", label: "A" })] } ],
+    c: Button [ label = "c", onClick() { app.m.openFor(this) } ],
+    d: Button [ label = "d", onClick() { app.m.openAt(10, 10) } ],
+    cm: ContextMenu [ items = { [({ id: "a", label: "A" })] } ],
+    e: Button [ label = "e", onClick() { app.cm.open() } ],
+    g: DataGrid [ width = 200, height = 100, headerH = 30, active = null, sortInput(k: string) { } ],
+    i: TextInput [ width = 100, input(t: string) { } ],
+    s: Slider [ input(v: number) { } ],
+    tb: TabBar [ width = 200, choices = { [({ id: "a", label: "A" })] } ],
+    im: Image [ width = 50, height = 50, stretches = "both" ]
+    ]

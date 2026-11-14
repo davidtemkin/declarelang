@@ -1,0 +1,8 @@
+// #30: `?.` yields undefined, and a `Hall?` holds null: refused, rightly, but the message
+// says "computes a this Hall | undefined": TypeScript's polymorphic `this` leaks into it.
+class Hall [ pitch: number = 24 ]
+App [
+    screen: View [ exists = false, pane: View [ scrolls = y, hall: Hall [ ] ] ],
+    pane: View? = { app.screen?.pane },
+    hall: Hall? = { app.screen?.pane.hall }
+    ]

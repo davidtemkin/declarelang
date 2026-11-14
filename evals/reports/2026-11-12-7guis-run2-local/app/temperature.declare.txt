@@ -1,0 +1,64 @@
+/*
+# 2. Temperature Converter
+
+Two fields, Celsius and Fahrenheit. Typing a number in either updates the
+other at once; typing something that isn't a number leaves the other alone
+(and outlines the field being typed in, so the reason is visible).
+
+Each field's text is the person's, kept as an attribute. A field's `commit`
+writes its own text and, when that text is a number, the other field's text
+converted. While someone types, a field shows what they typed, so the
+conversion never rewrites the field under the caret.
+*/
+
+script {
+    // A number as a person types one: digits, an optional sign and point.
+    function parseTemperature(t: string): number | null {
+        const s = t.trim()
+        return /^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)$/.test(s) ? Number(s) : null
+    }
+
+    function formatTemperature(n: number): string {
+        const r = Math.round(n * 100) / 100
+        return String(r == 0 ? 0 : r)
+    }
+    }
+
+
+// One labelled temperature field. It judges itself from the start, so a
+// field holding something that isn't a number is outlined at once.
+
+class TemperatureField extends TextInput [ width = 110, textAlign = end, judged = true,
+    validate(v: string) -> string { return v.trim() == "" || parseTemperature(v) != null ? "" : "Not a number" }
+    ]
+
+
+class TemperatureTask [
+    celsius: string = "",
+    fahrenheit: string = "",
+
+    setCelsius(t: string) {
+        celsius = t
+        const c = parseTemperature(t)
+        if (c != null) fahrenheit = formatTemperature(c * 9 / 5 + 32)
+        },
+    setFahrenheit(t: string) {
+        fahrenheit = t
+        const f = parseTemperature(t)
+        if (f != null) celsius = formatTemperature((f - 32) * 5 / 9)
+        },
+
+    row: View [ x = center, y = center,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        TemperatureField [ accessibilityLabel = "Celsius",
+            value = { classroot.celsius },
+            commit(t: string) { classroot.setCelsius(t) }
+            ],
+        Text [ text = "Celsius =" ],
+        TemperatureField [ accessibilityLabel = "Fahrenheit",
+            value = { classroot.fahrenheit },
+            commit(t: string) { classroot.setFahrenheit(t) }
+            ],
+        Text [ text = "Fahrenheit" ]
+        ]
+    ]

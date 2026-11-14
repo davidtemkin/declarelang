@@ -56,7 +56,7 @@ const ACTION_ROLES = new Set(["button", "link", "menuitem", "tab", "option", "ra
 async function nodes(page) {
   const out = [];
   const walk = (n) => { out.push(n); for (const c of n.children ?? []) walk(c); };
-  const root = await page.accessibility.snapshot({ interestingOnly: true });
+  const root = await page.accessibility.snapshot({ interestingOnly: false });   // the whole tree, as assistive technology has it: the pruned one drops a disabled option inside a list box
   if (root) walk(root);
   return out;
 }

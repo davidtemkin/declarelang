@@ -1,0 +1,2 @@
+// Any program: the defect is in the driver.
+App [ width = 200, height = 100, TextLabel [ text = "hello" ] ]

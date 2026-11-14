@@ -1,0 +1,136 @@
+{
+  "app": "http://127.0.0.1:8290/my-apps/ledger-run6/ledger.declare",
+  "results": [
+    {
+      "name": "overview_drill",
+      "pass": true,
+      "reason": "met",
+      "ms": 12426,
+      "fallbacks": [
+        "this month's expense bar has no node of its own in the tree until the chart is arrowed to it (\"November 2026 (so far), Expenses, $3,735.27, down 38% from October 2026, 30 transactions\")"
+      ],
+      "observed": {
+        "Revenue": "Revenue $3,867.00 ▼ 47% · −$3,395.00 vs Oct",
+        "Expenses": "Expenses $3,735.27 ▼ 38% · −$2,257.07 vs Oct",
+        "Net profit": "Net profit $131.73 ▼ 90% · −$1,137.93 vs Oct",
+        "Gross margin": "Gross margin 69.0% ▼ 4.1 pts vs Oct",
+        "bar": "November 2026 (so far), Expenses, $3,735.27, down 38% from October 2026, 30 transactions",
+        "via": "the expense bar, by keyboard"
+      },
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/delivered-drive-fixed/overview_drill.png"
+    },
+    {
+      "name": "split_expense",
+      "pass": true,
+      "reason": "met",
+      "ms": 9924,
+      "fallbacks": [],
+      "observed": {
+        "vendorOption": "Add “Printworks”",
+        "partFields": "Category of part 1 / Amount of part 1",
+        "remaining": "Remaining to allocate: $10.00"
+      },
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/delivered-drive-fixed/split_expense.png"
+    },
+    {
+      "name": "sale_refund",
+      "pass": false,
+      "reason": "not found: the mug line in the refund",
+      "ms": 28417,
+      "fallbacks": [
+        "the sale's detail offers no Refund; opened the refund editor and chose the sale there",
+        "no option named /\\$88\\.00/ offered after typing \"88.00\" into \"Search transactions\" (offered: nothing); pressed Enter",
+        "no quantity fields in the refund; chose the mug's line"
+      ],
+      "observed": {
+        "products": "Speckled mug ×2, Art print A4 ×1"
+      },
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/delivered-drive-fixed/sale_refund.png"
+    },
+    {
+      "name": "filters_keyboard",
+      "pass": true,
+      "reason": "met",
+      "ms": 10609,
+      "fallbacks": [],
+      "observed": {
+        "handles": [
+          "Minimum amount",
+          "Maximum amount"
+        ],
+        "handlesAfter": [
+          "$20 | Minimum amount | 3",
+          "$100 | Maximum amount | 7"
+        ],
+        "service": {
+          "count": 16,
+          "in": 0,
+          "out": 80984,
+          "net": -80984
+        },
+        "filteredNote": "s 2025 $20 – $100 Kind Category Contact Filtered “adobe” Amount $20 – $100 Clear all Ove"
+      },
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/delivered-drive-fixed/filters_keyboard.png"
+    },
+    {
+      "name": "bulk_undo",
+      "pass": true,
+      "reason": "met",
+      "ms": 10875,
+      "fallbacks": [
+        "no \"Clear all\" (a fresh start has no filters to clear)"
+      ],
+      "observed": {
+        "range": "this month",
+        "before": 6,
+        "toast": "Categorised 6 transactions as Other Undo Categorised "
+      },
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/delivered-drive-fixed/bulk_undo.png"
+    },
+    {
+      "name": "export_csv",
+      "pass": true,
+      "reason": "met",
+      "ms": 4046,
+      "fallbacks": [],
+      "observed": {
+        "file": "evals/reports/2026-11-12-ledger-run6-local/drive/delivered-drive-fixed/export_csv-download/ledger-2026-11-01-to-2026-11-30.csv",
+        "header": "id,date,kind,description,contact,category,channel,amount"
+      },
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/delivered-drive-fixed/export_csv.png"
+    },
+    {
+      "name": "budget_words",
+      "pass": true,
+      "reason": "met",
+      "ms": 25229,
+      "fallbacks": [
+        "the Software budget was set through \"a category field\", then the field \"Monthly amount\""
+      ],
+      "observed": {
+        "field": "Monthly amount",
+        "service": {
+          "categoryId": "software",
+          "amount": 3000,
+          "spent": 11339,
+          "remaining": -8339,
+          "count": 3
+        },
+        "words": "Software Over by $83.39"
+      },
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/delivered-drive-fixed/budget_words.png"
+    },
+    {
+      "name": "phone",
+      "pass": true,
+      "reason": "met",
+      "ms": 6612,
+      "fallbacks": [
+        "no \"New expense\" control; opened a general New"
+      ],
+      "observed": {},
+      "screenshot": "evals/reports/2026-11-12-ledger-run6-local/drive/delivered-drive-fixed/phone.png"
+    }
+  ],
+  "notes": []
+}

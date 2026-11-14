@@ -1,0 +1,186 @@
+/*
+# Ledger: the parts
+
+The look of Ledger and the small pieces its screens are built from: the two
+themes, money as text, the category chip, filter chips, cards, and the
+in-place states every panel shares (loading, failed with Retry, empty).
+How the app works is in `ledger.declare`.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// Laid over the library's San Francisco preset, so library controls read the
+// same palette. `cats` is one colour per category colour index (0–11), so a
+// category keeps its colour on every chart; `catTints` are their soft chip
+// fills. `inColor` / `outColor` are money in and out; `good` / `bad` colour a
+// change by what it means, never alone (an arrow and words come with it).
+
+theme LedgerLight [
+    background = #F6F5F2, surface = #FFFFFF, raised = #FFFFFF, sunken = #EFEDE8,
+    line = #E3E0DA, lineStrong = #CFCBC3,
+    text = #1E1F22, textMuted = #64666B, textFaint = #9A9CA1,
+    accent = #2F5FD0, accentHovered = #2954BB, accentPressed = #2349A6, linkColor = #2F5FD0,
+    control = #ECEAE5, controlHovered = #E4E1DB, controlPressed = #D9D5CE, controlSelected = #DCE5FA,
+    rowHover = #F3F1EC, rowSelected = #E5ECFB, rowActive = #D6E1FA,
+    inColor = #1F8A5B, outColor = #D2603A, netColor = #2B2D33, compareColor = #9A9CA1, runColor = #6B58C9,
+    good = #1E7F52, bad = #C2412D, warn = #A86A00, warnTint = #FFF3D6, badTint = #FCE9E4, goodTint = #E3F4EA,
+    hit = #FFE58A, partialFill = #F0EEE9,
+    cats = [#3B7DD8, #2E9C8F, #7A63D1, #D07A2E, #C9A227, #5B8DB8, #B5523B, #8E5BB5, #D1477A, #4E9A4A, #7C8592, #9C7B5B],
+    catTints = [#E6EFFB, #E1F3F0, #ECE8FA, #FBEEE2, #F8F1D9, #E7EFF6, #F7E6E1, #F1E8F7, #FAE4EC, #E5F2E4, #EDEEF0, #F1EBE4]
+    ]
+
+theme LedgerDark [
+    background = #17181B, surface = #1F2024, raised = #26272C, sunken = #141518,
+    line = #303237, lineStrong = #45474E,
+    text = #ECEDEF, textMuted = #A3A6AD, textFaint = #6F727A,
+    accent = #6E95F0, accentHovered = #7FA2F2, accentPressed = #5F86E0, linkColor = #7FA2F2,
+    control = #2B2C31, controlHovered = #33353B, controlPressed = #3B3D44, controlSelected = #2A3756,
+    rowHover = #24262B, rowSelected = #26324D, rowActive = #2D3B5C,
+    inColor = #4CC38A, outColor = #F08A5D, netColor = #ECEDEF, compareColor = #6F727A, runColor = #A592F5,
+    good = #5BD39A, bad = #FF7A66, warn = #F2B544, warnTint = #3A2E14, badTint = #3D211C, goodTint = #18322A,
+    hit = #6B5A12, partialFill = #232428,
+    cats = [#6EA0F0, #4CC3B5, #A593F5, #F0A060, #E0C04A, #7FB0D8, #E07B63, #B98BE0, #F07AA2, #74C36F, #9AA2AE, #C49E7C],
+    catTints = [#1E2A40, #183330, #29243F, #3A2A1B, #36301A, #1D2B36, #3A231E, #2F2338, #3A1E2A, #1D321C, #2A2C31, #33291F]
+    ]
+
+// a search hit inside a description
+style Hit [ fontWeight = semibold ]
+
+
+// ── Money and numbers ───────────────────────────────────────────────────────
+//
+// Money is shown with every digit the same width, so columns line up.
+
+class Money extends Text [ wrap = false, numeralWidth = tabular,
+    cents: number = 0,
+    text = { money(cents) }
+    ]
+
+
+// ── The category chip ───────────────────────────────────────────────────────
+//
+// A category in its colour; "Split (3)" for a split; "Uncategorised" marked
+// as needing attention (an outline and a "!" as well as the colour).
+
+class CatChip [ height = 22, cornerRadius = 11, padding = [0, 9, 0, 7],
+    categoryId: string? = null,
+    splitParts: number = 0,
+    name: string = { classroot.splitParts > 0 ? "Split (" + classroot.splitParts + ")" : app.books.catName(classroot.categoryId) },
+    colourIndex: number = { classroot.splitParts > 0 ? 10 : app.books.catColour(classroot.categoryId) },
+    missing: boolean = { classroot.splitParts == 0 && classroot.categoryId == null },
+    fill = { classroot.missing ? provided("theme").warnTint : provided("theme").catTints[Math.max(0, classroot.colourIndex)] },
+    stroke = { classroot.missing ? stroke(1, provided("theme").warn) : null },
+    tooltipLabel = { classroot.missing ? "Needs a category" : "" },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    dot: View [ visible = { !classroot.missing }, width = 7, height = 7, cornerRadius = 3.5,
+        fill = { provided("theme").cats[Math.max(0, classroot.colourIndex)] } ],
+    bang: Text [ visible = { classroot.missing }, fontSize = 11, fontWeight = bold, wrap = false,
+        textColor = { provided("theme").warn }, text = "!" ],
+    Text [ fontSize = 12, wrap = false, maxLines = 1,
+        textColor = { classroot.missing ? provided("theme").warn : provided("theme").text },
+        text = { classroot.name } ]
+    ]
+
+
+// A coloured square for a legend or a list
+class Swatch [ width = 10, height = 10, cornerRadius = 3,
+    tone: Color = gray,
+    fill = { classroot.tone }
+    ]
+
+
+// ── Filter chips ────────────────────────────────────────────────────────────
+//
+// An active filter: what it is and its value, and an × that removes it.
+
+class FilterChip [ height = 28, cornerRadius = 14, padding = [0, 4, 0, 11],
+    label: string = "",
+    fill = { provided("theme").controlSelected },
+    remove() { },
+    layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+    Text [ fontSize = 12.5, wrap = false, text = { classroot.label } ],
+    close: Control [ width = 22, height = 22, cornerRadius = 11,
+        accessibilityLabel = { "Remove filter " + classroot.label },
+        fill = { hovered || pressed ? provided("theme").controlHovered : null },
+        press() { classroot.remove() },
+        TextLabel [ x = center, fontSize = 13, textColor = { provided("theme").textMuted }, text = "×" ]
+        ]
+    ]
+
+
+// A quiet button: text, a hover fill, no frame
+class QuietButton extends Control [ height = 30, cornerRadius = 7, padding = [0, 10, 0, 10],
+    label: string = "",
+    tone: Color = { provided("theme").text },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").control : null },
+    TextLabel [ y = center, fontSize = 13, wrap = false, textColor = { classroot.tone }, text = { classroot.label } ]
+    ]
+
+
+// A menu button: a label and a chevron; `on` marks a value that is set
+class DropButton extends Control [ height = 30, cornerRadius = 7, padding = [0, 8, 0, 11],
+    label: string = "",
+    on: boolean = false,
+    fill = { classroot.on ? provided("theme").controlSelected : hovered || pressed ? provided("theme").controlHovered : provided("theme").control },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    TextLabel [ fontSize = 13, wrap = false, text = { classroot.label } ],
+    ChevronIcon [ iconSize = 10, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// ── Cards and panels ────────────────────────────────────────────────────────
+
+class Panel [ width = 100%, cornerRadius = 12, padding = 16,
+    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+    title: string = "",
+    defaultPlacement = body,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    head: View [ width = 100%, visible = { classroot.title != "" },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 14, fontWeight = semibold, wrap = false, accessibilityRole = heading,
+            text = { classroot.title } ]
+        ],
+    body: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ]
+        ]
+    ]
+
+
+// The state of one load, said in place: a failure with Retry, or a slow
+// answer still coming. The rest of the screen keeps working.
+
+class LoadState [ width = 100%,
+    source: DataSource? = null,
+    slow: boolean = false,
+    failed: boolean = { classroot.source != null && classroot.source.failed },
+    visible = { classroot.failed || classroot.slow },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Text [ flexes = true, fontSize = 13, wrap = true,
+        textColor = { classroot.failed ? provided("theme").bad : provided("theme").textMuted },
+        text = { classroot.failed ? "Couldn't load this. " + (classroot.source?.failure == "networkError" || classroot.source?.failure == "offline" ? "The service isn't answering." : "") : "Still working…" } ],
+    Button [ visible = { classroot.failed }, label = "Retry", height = 28,
+        onClick() { classroot.source?.fetch() } ]
+    ]
+
+
+// A small horizontal bar with a label and a figure: top products, top
+// customers. Pressing it opens its records.
+
+class BarItem extends Control [ width = 100%, height = 34, cornerRadius = 6, padding = [0, 6, 0, 6],
+    label: string = "",
+    value: number = 0,
+    peak: number = 1,
+    tone: Color = gray,
+    figure: string = { money(classroot.value) },
+    fill = { hovered || pressed ? provided("theme").rowHover : null },
+    layout: SimpleLayout [ axis = y, spacing = 3 ],
+    line: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { classroot.label } ],
+        Text [ fontSize = 13, wrap = false, numeralWidth = tabular, text = { classroot.figure } ]
+        ],
+    track: View [ width = 100%, height = 5, cornerRadius = 2.5, fill = { provided("theme").sunken },
+        View [ height = 5, cornerRadius = 2.5, fill = { classroot.tone },
+            width = { Math.max(2, parent.width * Math.max(0, classroot.value) / Math.max(1, classroot.peak)) } ]
+        ]
+    ]

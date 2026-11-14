@@ -1,0 +1,9 @@
+// DECLARE4035: a View with an accessibilityLabel and no role. Is it true that
+// nothing reads the label? (The run's Avatar and reaction chip.)
+App [ width = 300, height = 120,
+    face: View [ width = 40, height = 40, cornerRadius = 20, fill = #A34A6B, accessibilityLabel = "Dana Ruiz",
+        TextLabel [ x = center, y = center, text = "DR", textColor = white ] ],
+    face2: View [ x = 60, width = 40, height = 40, cornerRadius = 20, fill = #A34A6B,
+        accessibilityRole = image, accessibilityLabel = "Dana Ruiz (role image)",
+        TextLabel [ x = center, y = center, text = "DR", textColor = white ] ]
+    ]

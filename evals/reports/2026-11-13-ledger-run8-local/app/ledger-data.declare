@@ -1,0 +1,180 @@
+/*
+# Ledger: the data
+
+The shapes of everything the Ledger service answers (`task/api/API.md`), and
+`Books`, the business's lookups: what day the service says it is, the
+categories, channels, products and contacts. Every record lives in the
+service; nothing here keeps a copy of a transaction. Money is integer cents
+and dates are calendar strings throughout.
+*/
+
+script [ "ledger-helpers.ts" ]
+
+// ── lookups ─────────────────────────────────────────────────────────────────
+
+schema Category [ id: string, name: string, kind: "income" | "expense", colour: number, archived: boolean ]
+schema Channel [ id: string, name: string ]
+schema Product [ id: string, name: string, price: number, unitCost: number, archived: boolean ]
+schema Contact [ id: string, name: string, type: "customer" | "vendor", usualCategoryId?: string,
+    transactionCount: number, lastDate?: string ]
+
+// a choice offered by a Combobox or a menu: shown by its label
+
+schema Choice [ id: string, label: string ]
+
+// ── transactions ────────────────────────────────────────────────────────────
+
+schema SplitInfo [ parts: number, categoryIds[]: string ]
+
+schema Tx [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, split?: SplitInfo,
+    channel?: string, amount: number, signed: number, inFilter?: number,
+    lineCount: number, refundOf?: string, refunded?: number ]
+
+schema Summary [ count: number, in: number, out: number, net: number ]
+
+schema TxPage [ total: number, summary: Summary, rows[]: Tx ]
+
+schema TxLine [ id: string, productId?: string, description: string, quantity: number, unitPrice: number,
+    amount: number, unitCost?: number, refunded?: number, refundedQuantity?: number,
+    refundable?: number, refundableQuantity?: number, saleLineId?: string ]
+schema Part [ categoryId: string, amount: number ]
+schema RefundRef [ id: string, date: string, amount: number, description: string ]
+schema SaleRef [ id: string, date: string, description: string, amount: number, channel?: string ]
+
+schema TxDetail [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, channel?: string,
+    amount: number, signed: number, refundOf?: string, refunded?: number,
+    parts[]?: Part, lines[]: TxLine, refunds[]?: RefundRef, sale?: SaleRef,
+    refundable?: number, cost?: number, margin?: number ]
+
+schema Written [ transaction: TxDetail, changeId?: string ]
+schema BulkResult [ action: string, matched: number, count: number, changeId?: string ]
+
+// a row being edited in place: its fields as typed
+
+schema EditDraft [ date: string, description: string, categoryId?: string, contactId?: string,
+    amount: string, single: boolean, kind: string ]
+
+// ── totals ──────────────────────────────────────────────────────────────────
+
+schema Measure [ amount: number, count: number ]
+schema Margin [ amount: number, percent?: number, count: number ]
+schema Totals [ revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema Period [ period: string, start: string, end: string, from: string, to: string, partial: boolean,
+    revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema Periods [ by: string, from: string, to: string, periods[]: Period, total: Totals ]
+
+schema CatAmount [ categoryId?: string, amount: number, count: number ]
+schema CatTotals [ side: string, categories[]: CatAmount, total: Measure ]
+
+schema ProductAmount [ productId?: string, units: number, revenue: number, cost: number, margin: number,
+    marginPercent?: number, count: number ]
+schema ProductTotals [ products[]: ProductAmount ]
+
+schema ContactAmount [ contactId?: string, contactName?: string, amount: number, count: number ]
+schema ContactTotals [ side: string, contacts[]: ContactAmount, total: Measure ]
+
+schema Bucket [ min: number, max?: number, count: number ]
+schema AmountSpread [ buckets[]: Bucket, count: number, lowest?: number, highest?: number ]
+
+schema CatCount [ categoryId?: string, count: number ]
+schema CatCounts [ categories[]: CatCount, total: number ]
+
+schema Budget [ categoryId: string, amount: number, spent: number, remaining: number, count: number ]
+schema Budgets [ month: string, from: string, to: string, budgets[]: Budget ]
+
+// ── the filter ──────────────────────────────────────────────────────────────
+
+// one set of filters, shared by every screen; `min`/`max` are cents, -1 for none
+
+schema Filter [ from: string, to: string, q: string, min: number, max: number,
+    kind[]: string, category[]: string, contact[]: string, product[]: string ]
+
+// where the person was before a number opened its records, to come back to
+
+schema Snapshot [ screen: string, preset: string, customFrom: string, customTo: string,
+    kind[]: string, category[]: string, contact[]: string, product[]: string, label: string ]
+
+// ── what the screen derives ─────────────────────────────────────────────────
+
+// one point of a time chart: a period, the value of each series, how many
+// transactions each covers, and the comparison period's value
+
+schema ChartPoint [ id: string, label: string, tick: string, from: string, to: string, partial: boolean,
+    v[]: number, n[]: number, c?: number ]
+schema ChartData [ rows[]: ChartPoint ]
+
+// one bar of a ranked list: a category, product or customer and its share
+
+schema RankRow [ id: string, key: string, label: string, amount: number, count: number,
+    share: number, change?: number, colour: number, extra?: string ]
+schema RankData [ rows[]: RankRow ]
+
+// an active filter, as a chip
+
+schema ChipRow [ id: string, label: string ]
+schema ChipData [ rows[]: ChipRow ]
+
+// something that needs attention on the Overview
+
+schema Attention [ id: string, label: string, detail: string, tone: "warn" | "bad" ]
+schema AttentionData [ rows[]: Attention ]
+
+
+// ── the books: the lookups every screen names things by ─────────────────────
+
+class Books extends Node [
+    api: string = "http://127.0.0.1:8370/api/",
+
+    // `rev` moves when the books change, so a contact created or a count
+    // that moved is fetched again
+
+    rev: number = 0,
+
+    clock: DataSource [ url = { classroot.api + "today" }, autoFetch = true, schema = [ today: string ] ],
+    cats: DataSource [ url = { classroot.api + "categories" }, autoFetch = true, schema = [ categories[]: Category ] ],
+    chans: DataSource [ url = { classroot.api + "channels" }, autoFetch = true, schema = [ channels[]: Channel ] ],
+    prods: DataSource [ url = { classroot.api + "products" }, autoFetch = true, schema = [ products[]: Product ] ],
+    people: DataSource [ url = { classroot.api + "contacts?v=" + classroot.rev }, autoFetch = true,
+        schema = [ contacts[]: Contact ] ],
+
+    ready: boolean = { this.clock.loaded && this.cats.loaded && this.chans.loaded && this.prods.loaded },
+    failed: boolean = { this.clock.failed || this.cats.failed || this.chans.failed || this.prods.failed },
+    today: string = { this.clock.value?.today ?? "" },
+
+    retry() {
+        if (!this.clock.loaded) this.clock.fetch()
+        if (!this.cats.loaded) this.cats.fetch()
+        if (!this.chans.loaded) this.chans.fetch()
+        if (!this.prods.loaded) this.prods.fetch()
+        },
+
+    // ── categories
+
+    categories() -> Category[] { return this.cats.value?.categories ?? [] },
+    category(id: string?) -> Category? { return this.categories().find((c) => c.id == id) ?? null },
+    catName(id: string?) -> string { return id == null ? "Uncategorised" : this.category(id)?.name ?? id },
+    catColour(id: string?) -> number { return this.category(id)?.colour ?? -1 },
+    usable(kind: string) -> Category[] { return this.categories().filter((c) => c.kind == kind && !c.archived) },
+    choices(kind: string) -> Choice[] { return this.usable(kind).map((c) => ({ id: c.id, label: c.name })) },
+
+    // ── channels and products
+
+    channels() -> Channel[] { return this.chans.value?.channels ?? [] },
+    channelName(id: string?) -> string { return id == null ? "" : this.channels().find((c) => c.id == id)?.name ?? id },
+    products() -> Product[] { return (this.prods.value?.products ?? []).filter((p) => !p.archived) },
+    product(id: string?) -> Product? { return (this.prods.value?.products ?? []).find((p) => p.id == id) ?? null },
+    productName(id: string?) -> string { return id == null ? "Free-form items" : this.product(id)?.name ?? id },
+
+    // ── contacts: customers and vendors
+
+    contacts() -> Contact[] { return this.people.value?.contacts ?? [] },
+    contact(id: string?) -> Contact? { return this.contacts().find((c) => c.id == id) ?? null },
+    contactName(id: string?) -> string { return id == null ? "No contact" : this.contact(id)?.name ?? id },
+    contactChoices(type: string) -> Choice[] {
+        return this.contacts().filter((c) => type == "" || c.type == type).map((c) => ({ id: c.id, label: c.name }))
+        }
+    ]

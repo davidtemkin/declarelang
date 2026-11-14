@@ -1,0 +1,11 @@
+STARTED=2026-11-12T22:08:36Z
+APP=venue
+MODEL=claude-opus-5-5
+SUBJECT=local tree at 3bc519f9 Four silent failures said: onChange that tracks nothing, a mistyped text face, a focusShape of no box, hover on a view that takes no presses + 412 changed, 1 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-venue-31.noindex/work (logs outside it)
+PORT=8350 (the brief names 8350)
+SERVICE=node ~/Code/Declare/evals/apps/venue/api/server.mjs --port=8350 --seed=1
+AGENT_PID=21529

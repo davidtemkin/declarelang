@@ -1,0 +1,8 @@
+// DECLARE1000 suggests { ({}) } for a bare ({}); DECLARE1002 calls the same
+// parentheses redundant in { ({ … }) }. Which form gets the hint?
+App [ width = 200, height = 100,
+    draft: object = { ({}) },
+    other: object = { ({ a: 1 }) },
+    third: object = { { a: 1 } },
+    d: Dataset [ contents = { ({ items: [1, 2] }) } ]
+    ]

@@ -1,0 +1,406 @@
+/*
+# The Venue: the hall
+
+The Grand Hall as a room: the stage at the top, four sections behind it,
+each row a gentle arc around the stage, each seat a control. The same plan
+draws the whole house at a desk and one section at a finger's size on a
+phone; a drawn overview (`HallMap`) keeps the whole house in sight there.
+
+Geometry is in units of `pitch`, the distance between two seats, which the
+hall provides to everything inside it. A row's seats are listed left to right
+as seen from the stage, and the stage faces the audience, so seat 1 sits at
+the right of the drawing.
+*/
+
+script {
+    // How far a seat rises toward the stage at the end of its row: rows are
+    // arcs about a point behind the stage, flatter the further back they are.
+    const ARC = 34
+    function sag(offset: number, globalRow: number, pitch: number): number {
+        const px = offset * pitch
+        return px * px / (2 * (ARC + globalRow) * pitch)
+    }
+    function sagAtTop(widest: number, firstRow: number, pitch: number): number {
+        return sag(widest / 2, firstRow, pitch)
+    }
+    // Where seat k of a row of n sits across, in pitches from the middle:
+    // seat 1 (k = 0) is at the stage's left, the drawing's right.
+    function offsetOf(k: number, n: number): number { return (n - 1) / 2 - k }
+    }
+
+
+// ── One seat ────────────────────────────────────────────────────────────────
+//
+// Free, theirs, gone: three shapes, not three colours. Free is an open ring
+// on its section's tint; theirs is a filled disc with a check; gone is a small
+// dot, so a full house reads as a field of dots and an empty one as rings.
+
+class Seat extends Control [
+    width = { provided("pitch") }, height = { provided("pitch") },
+    seatId: string = { :id ?? "" },
+    num: number = { :number ?? 0 },
+    k: number = { rowIndex },
+    rowAt: number = { provided("rowAt") },
+    offset: number = { offsetOf(rowIndex, provided("rowLen")) },
+    sold: boolean = { :status == "sold" },
+    mine: boolean = { app.chosen.includes(classroot.seatId) },
+    gone: boolean = { classroot.sold && !classroot.mine },
+    tint: Color = { provided("theme").tiers[provided("tier")] },
+    disabled = { classroot.gone },
+
+    x = { parent.width / 2 + classroot.offset * provided("pitch") - provided("pitch") / 2 },
+    y = { provided("sectionSag") + classroot.rowAt * provided("pitch")
+        - provided("curve") * sag(classroot.offset, provided("firstRow") + classroot.rowAt, provided("pitch")) },
+
+    accessibilityRole = checkbox,
+    accessibilityChecked = { classroot.mine },
+    accessibilityLabel = { provided("sectionName") + ", row " + provided("rowName") + ", seat " + classroot.num },
+    accessibilityHint = { classroot.gone ? "Taken" : money(provided("priceCents")) + (classroot.mine ? ", chosen" : ", free") },
+    press() { app.toggleSeat(classroot.seatId) },
+
+    // The disc grows in past its ring and settles: the moment of choosing.
+
+    pop: number = 0,
+    Spring [ attribute = pop, to = { classroot.mine ? 1 : 0 }, stiffness = 520, damping = 17 ],
+
+    draw(d: DrawContext) {
+        const s = width
+        const c = s / 2
+        const r = Math.min(s * 0.36, 13)
+        const t = provided("theme")
+        if (gone) {
+            d.fillStyle = t.seatGone
+            d.beginPath(); d.arc(c, c, Math.max(1.6, r * 0.34), 0, 6.3); d.fill()
+            return
+            }
+        d.beginPath(); d.arc(c, c, r, 0, 6.3)
+        d.fillStyle = hovered ? t.seatHover : tint
+        d.fill()
+        d.lineWidth = Math.max(1.2, r * 0.16)
+        d.strokeStyle = t.seatInk
+        d.stroke()
+        if (pop > 0.02) {
+            const p = Math.max(0, pop)
+            d.beginPath(); d.arc(c, c, r * (0.35 + 0.75 * p), 0, 6.3)
+            d.fillStyle = t.accent
+            d.fill()
+            d.globalAlpha = Math.min(1, p)
+            d.strokeStyle = t.accentTextColor
+            d.lineWidth = Math.max(1.4, r * 0.2)
+            d.lineCap = "round"; d.lineJoin = "round"
+            d.beginPath()
+            d.moveTo(c - r * 0.45, c + r * 0.02); d.lineTo(c - r * 0.12, c + r * 0.36); d.lineTo(c + r * 0.48, c - r * 0.34)
+            d.stroke()
+            d.globalAlpha = 1
+            }
+        }
+    ]
+
+
+// A row: its seats, each placed in the section's own coordinates. The row
+// provides what its seats share.
+
+class SeatRow [ width = 100%, height = 100%,
+    rowAt: number = { rowIndex },
+    rowName: string = { :name ?? "" },
+    rowLen: number = { (:seats ?? []).length },
+    Seat [ datapath = :seats[] ]
+    ]
+
+
+// The row's letter, at both ends of its arc, so "row C" can be found by eye.
+
+class RowLetters [ width = 100%, height = 100%,
+    rowLen: number = { (:seats ?? []).length },
+    off: number = { (classroot.rowLen + 0.6) / 2 + 0.25 },
+    top: number = { provided("sectionSag") + rowIndex * provided("pitch")
+        - provided("curve") * sag(classroot.off, provided("firstRow") + rowIndex, provided("pitch")) },
+    accessibilityHidden = true,
+    Text [ width = { provided("pitch") }, textAlign = center, fontSize = { Math.min(11, provided("pitch") * 0.42) },
+        fontWeight = semibold, textColor = { provided("theme").textFaint }, text = { :name ?? "" },
+        x = { parent.width / 2 - classroot.off * provided("pitch") - provided("pitch") / 2 },
+        y = { classroot.top + (provided("pitch") - this.height) / 2 } ],
+    Text [ width = { provided("pitch") }, textAlign = center, fontSize = { Math.min(11, provided("pitch") * 0.42) },
+        fontWeight = semibold, textColor = { provided("theme").textFaint }, text = { :name ?? "" },
+        x = { parent.width / 2 + classroot.off * provided("pitch") - provided("pitch") / 2 },
+        y = { classroot.top + (provided("pitch") - this.height) / 2 } ]
+    ]
+
+
+// ── One section ─────────────────────────────────────────────────────────────
+//
+// Its name and price, then its rows. It is one Tab stop; the arrows move
+// through the seats as they sit — left and right along the row, up and down
+// to the nearest seat in the next row — passing over seats that are gone.
+
+class SectionPlan [
+    code: string = { :key ?? "" },
+    sectionName: string = { :name ?? "" },
+    priceCents: number = { :priceCents ?? 0 },
+    tier: number = { app.tierOf(classroot.code) },
+    firstRow: number = { app.firstRowOf(classroot.code) },
+    rowList: RowRec[] = { :rows ?? [] },
+    widest: number = { classroot.rowList.reduce((m, r) => Math.max(m, r.seats.length), 0) },
+    sectionSag: number = { provided("curve") * sagAtTop(classroot.widest, classroot.firstRow, provided("pitch")) },
+    freeCount: number = { app.freeIn(classroot.code) },
+
+    accessibilityRole = group,
+    accessibilityLabel = { classroot.sectionName + ", " + money(classroot.priceCents) + " a seat, " + classroot.freeCount + " free" },
+    focusScope = stop,
+    keyBindings = { [
+        ({ key: "ArrowLeft", command: "step", args: [-1, 0] }),
+        ({ key: "ArrowRight", command: "step", args: [1, 0] }),
+        ({ key: "ArrowUp", command: "step", args: [0, -1] }),
+        ({ key: "ArrowDown", command: "step", args: [0, 1] })
+        ] },
+
+    layout: SimpleLayout [ axis = y, spacing = { provided("pitch") * 0.35 }, align = center ],
+
+    caption: View [ visible = { !app.phone },
+        accessibilityHidden = true,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ fontSize = { app.phone ? 12 : 11 }, fontWeight = bold, letterSpacing = 1.6, textTransform = uppercase,
+            textColor = { provided("theme").textMuted }, text = { classroot.sectionName } ],
+        Text [ fontSize = { app.phone ? 12 : 11 }, numeralWidth = tabular, textColor = { provided("theme").textFaint },
+            text = { money(classroot.priceCents) } ]
+        ],
+
+    plan: View [
+        width = { (classroot.widest + 3) * provided("pitch") },
+        height = { classroot.sectionSag + classroot.rowList.length * provided("pitch") },
+        letters: View [ width = 100%, height = 100%,
+            RowLetters [ datapath = :rows[] ]
+            ],
+        rows: View [ width = 100%, height = 100%,
+            SeatRow [ datapath = :rows[] ]
+            ]
+        ],
+
+    free(r: number, k: number) -> boolean {
+        const s = rowList[r]?.seats[k]
+        return s != null && (s.status == "available" || app.chosen.includes(s.id))
+        },
+    seatView(r: number, k: number) -> View? {
+        const row = plan.rows.childViews[r] as View | undefined
+        return (row?.childViews[k] as View | undefined) ?? null
+        },
+    focusSeat(r: number, k: number) { const v = seatView(r, k); if (v != null) Focus.focus(v) },
+
+    // The nearest free seat in row r to a place across the hall.
+
+    nearest(r: number, offset: number) -> number {
+        const n = rowList[r]?.seats.length ?? 0
+        let best = -1
+        let bestD = 1e9
+        for (let k = 0; k < n; k++) {
+            const dd = Math.abs(offsetOf(k, n) - offset)
+            if (free(r, k) && dd < bestD) { best = k; bestD = dd }
+            }
+        return best
+        },
+
+    step(dx: number, dy: number, e: KeyEvent) -> boolean {
+        const f = Focus.getFocus()
+        if (!(f instanceof Seat)) return false
+        const seat = f as Seat
+        const r = seat.rowAt
+        const k = seat.k
+        const n = rowList[r].seats.length
+        if (dy == 0) {
+            // Leftward on screen is further along the row (seat 1 is at the right).
+            const dir = dx < 0 ? 1 : -1
+            let j = k + dir
+            while (j >= 0 && j < n && !free(r, j)) j = j + dir
+            if (j >= 0 && j < n) focusSeat(r, j)
+            return true
+            }
+        let rr = r + dy
+        while (rr >= 0 && rr < rowList.length) {
+            const j = nearest(rr, seat.offset)
+            if (j >= 0) { focusSeat(rr, j); return true }
+            rr = rr + dy
+            }
+        app.leaveSection(code, dy, seat.offset)
+        return true
+        }
+    ]
+
+
+// The stage: a shallow arc the whole house faces.
+
+class Stage [ height = { app.phone ? 34 : 48 },
+    accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const w = width
+        const h = height
+        d.beginPath()
+        d.moveTo(w * 0.18, 0); d.lineTo(w * 0.82, 0)
+        d.lineTo(w * 0.78, h * 0.62)
+        d.quadraticCurveTo(w * 0.5, h * 1.05, w * 0.22, h * 0.62)
+        d.closePath()
+        d.fillStyle = provided("theme").stage
+        d.fill()
+        },
+    TextLabel [ x = center, fontSize = 10, fontWeight = bold, letterSpacing = 3, textColor = { provided("theme").stageText },
+        text = "STAGE" ]
+    ]
+
+
+// ── The whole house, drawn small ────────────────────────────────────────────
+//
+// On a phone the sections are shown one at a time at a finger's size; this is
+// the house above them, at a glance: every seat a dot, yours in the accent,
+// the section in view framed. A press picks the section under it (the tabs
+// below it do the same for the keyboard and a screen reader).
+
+class HallMap [ width = 100%,
+    seats: SeatMap? = null,
+    current: number = 0,
+    chosen: string[] = [],
+
+    // The part of the current section in view below, in pitches from its middle.
+
+    viewFrom: number = -100,
+    viewTo: number = 100,
+    pitch: number = { Math.min(8, this.width / 34) },
+    gap: number = { this.pitch * 1.6 },
+    stageH: number = { this.pitch * 2.4 },
+
+    // Where each section starts, top to bottom.
+
+    tops: number[] = {
+        (classroot.seats?.sections ?? []).reduce((acc: number[], s, i) => {
+            const prev = i == 0 ? classroot.stageH + classroot.gap : acc[i - 1]
+                + app.sectionHeight((classroot.seats?.sections ?? [])[i - 1], classroot.pitch) + classroot.gap
+            return [...acc, prev]
+            }, [])
+        },
+    height = { (classroot.tops[classroot.tops.length - 1] ?? 0)
+        + app.sectionHeight((classroot.seats?.sections ?? [])[classroot.tops.length - 1] ?? null, classroot.pitch) + 4 },
+    accessibilityHidden = true,
+
+    onClick(e: PointerEvent) {
+        let pick = -1
+        tops.forEach((t, i) => { if (e.y >= t - gap / 2) pick = i })
+        if (pick >= 0) app.showSection(pick)
+        },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const w = width
+        const p = pitch
+        d.beginPath()
+        d.moveTo(w * 0.2, 0); d.lineTo(w * 0.8, 0); d.lineTo(w * 0.77, stageH * 0.6)
+        d.quadraticCurveTo(w * 0.5, stageH * 1.0, w * 0.23, stageH * 0.6); d.closePath()
+        d.fillStyle = t.stage; d.fill()
+        const sections = seats?.sections ?? []
+        sections.forEach((s, si) => {
+            const top = tops[si] ?? 0
+            const first = app.firstRowOf(s.key)
+            const widest = s.rows.reduce((m, r) => Math.max(m, r.seats.length), 0)
+            const lift = sagAtTop(widest, first, p)
+            if (si == current) {
+                const left = Math.max(-(widest / 2 + 1), viewFrom)
+                const right = Math.min(widest / 2 + 1, viewTo)
+                d.beginPath()
+                d.roundRect(w / 2 + left * p, top - p * 0.6, (right - left) * p, lift + s.rows.length * p + p * 0.2, p * 0.8)
+                d.lineWidth = 1.5
+                d.strokeStyle = t.text
+                d.stroke()
+                }
+            s.rows.forEach((row, ri) => {
+                const n = row.seats.length
+                row.seats.forEach((seat, k) => {
+                    const off = offsetOf(k, n)
+                    const cx = w / 2 + off * p
+                    const cy = top + lift + ri * p - sag(off, first + ri, p) + p / 2
+                    const mine = chosen.includes(seat.id)
+                    d.beginPath()
+                    if (mine) { d.arc(cx, cy, p * 0.42, 0, 6.3); d.fillStyle = t.accent; d.fill() }
+                    else if (seat.status == "sold") { d.arc(cx, cy, p * 0.16, 0, 6.3); d.fillStyle = t.seatGone; d.fill() }
+                    else { d.arc(cx, cy, p * 0.3, 0, 6.3); d.fillStyle = t.tiers[si]; d.fill(); d.lineWidth = 1; d.strokeStyle = t.seatInk; d.stroke() }
+                    })
+                })
+            })
+        }
+    ]
+
+
+// A section to look at on a phone: its name, price and what is left, and a
+// mark when some of the person's seats are in it.
+
+class SectionTab extends Control [ height = 56, cornerRadius = 12, padding = [8, 12, 8, 12],
+    index: number = 0,
+    on: boolean = false,
+    name: string = "",
+    priceCents: number = 0,
+    free: number = 0,
+    mine: number = 0,
+    accessibilityRole = toggle,
+    accessibilityPressed = { classroot.on },
+    accessibilityLabel = { classroot.name + ", " + money(classroot.priceCents) + ", " + classroot.free + " free" },
+    fill = { classroot.on ? provided("theme").text : provided("theme").surface },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Text [ flexes = true, fontSize = 15, fontWeight = semibold, wrap = false,
+            textColor = { classroot.on ? provided("theme").background : provided("theme").text }, text = { classroot.name } ],
+        badge: View [ visible = { classroot.mine > 0 }, height = 20, cornerRadius = 10, padding = [0, 7, 0, 7],
+            fill = { provided("theme").accent },
+            TextLabel [ fontSize = 12, fontWeight = bold, textColor = { provided("theme").accentTextColor }, text = { "" + classroot.mine } ]
+            ]
+        ],
+    Text [ fontSize = 13, numeralWidth = tabular, wrap = false,
+        textColor = { classroot.on ? provided("theme").background : provided("theme").textMuted },
+        opacity = { classroot.on ? 0.8 : 1 },
+        text = { money(classroot.priceCents) + " · " + classroot.free + " free" } ]
+    ]
+
+
+// The three states, side by side, drawn exactly as the seats are.
+
+class LegendMark [ width = 22, height = 22,
+    state: string = "free",
+    accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const c = 11
+        const r = 8
+        d.beginPath()
+        if (state == "gone") { d.arc(c, c, 2.8, 0, 6.3); d.fillStyle = t.seatGone; d.fill(); return }
+        d.arc(c, c, r, 0, 6.3)
+        if (state == "free") { d.fillStyle = t.tiers[1]; d.fill(); d.lineWidth = 1.4; d.strokeStyle = t.seatInk; d.stroke(); return }
+        d.fillStyle = t.accent; d.fill()
+        d.strokeStyle = t.accentTextColor; d.lineWidth = 1.8; d.lineCap = "round"; d.lineJoin = "round"
+        d.beginPath(); d.moveTo(c - 3.6, c); d.lineTo(c - 1, c + 2.9); d.lineTo(c + 3.8, c - 2.7); d.stroke()
+        }
+    ]
+
+
+class Legend [
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        LegendMark [ state = "free" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Free" ]
+        ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        LegendMark [ state = "mine" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Yours" ]
+        ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        LegendMark [ state = "gone" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Taken" ]
+        ]
+    ]
+
+
+// On a phone the section is wider than the screen, so the row letters at the
+// ends of each arc are often out of sight: a gutter pinned to the strip's left
+// edge says which row is which.
+
+class RowGutter [ width = 22, pointerEvents = "none", accessibilityHidden = true,
+    lift: number = 0,
+    Text [ datapath = :rows[], width = 22, textAlign = center, fontSize = 12, fontWeight = bold,
+        textColor = { provided("theme").textMuted }, text = { :name ?? "" },
+        y = { classroot.lift + rowIndex * provided("pitch") + (provided("pitch") - this.height) / 2 + 4 } ]
+    ]

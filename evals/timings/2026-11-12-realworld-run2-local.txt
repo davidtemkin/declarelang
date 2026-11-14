@@ -1,0 +1,44 @@
+# eval-realworld-2
+total 15.0 min · 87 turns · output 80264 tokens (thinking 31942)
+phases: reading 5.7 · writing 2.6 · checking 6.7 min
+tool time 2.8 min · model time 12.2 min
+tools:
+  verify    22×   1.97 min  (median 2.6 s)
+  look       3×   0.61 min  (median 12.6 s)
+  help      10×   0.17 min  (median 0.8 s)
+  bash      20×   0.03 min  (median 0.0 s)
+  read      18×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after help     10×   3.58 min  (median 5.2 s)
+  after bash     19×   2.47 min  (median 3.0 s)
+  after edit      1×   2.01 min  (median 120.4 s)
+  after verify   22×   1.51 min  (median 3.2 s)
+  after read     18×   0.97 min  (median 2.3 s)
+  after image     9×   0.71 min  (median 0.4 s)
+  after write     3×   0.57 min  (median 3.9 s)
+  after look      3×   0.09 min  (median 1.5 s)
+app: 3 .declare files, 974 non-blank lines · 15 snapshots changed them: 1256 lines added, 98 removed
+verify results mentioning accessibility: 2
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+diagnostic codes, by tool results reporting them: DECLARE2000 2, DECLARE1002 2, DECLARE6001 2, DECLARE5000 1, DECLARE4005 1, DECLARE4022 1, DECLARE4026 1, DECLARE4001 1, DECLARE3006 1
+inside the agent's verify and look calls:
+   1.77 min    16×  R5 behavior, in all
+   1.34 min    15×  script: the assert script, in all
+   0.54 min    29×  page: load, compile in the page and boot
+   0.40 min   153×  drive.settleData
+   0.39 min    16×  open: the app loaded and arrived, in all
+   0.37 min   105×  locator.click
+   0.32 min   192×  check: scrolling come to rest
+   0.19 min    13×  R4 boot, in all
+   0.18 min    25×  compile (R1–R3)
+   0.17 min    68×  locator.fill
+   0.16 min     4×  drive.waitReal
+   0.06 min    28×  drive.settleMotion
+   0.04 min     4×  drive.reveal
+   0.04 min    29×  page: a new page
+   0.03 min    12×  locator.press
+   0.02 min   111×  drive.set
+   0.02 min    11×  end: layout questions at the end of the script
+   0.02 min   314×  locator: query the page
+   0.02 min     2×  drive.device
+   0.02 min    29×  chrome: a browser (shared between calls)

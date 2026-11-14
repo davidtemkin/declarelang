@@ -1,0 +1,751 @@
+/*
+# Presentify: the model
+
+What a presentation is, and how it reaches the service. `presentify.declare`
+includes this file; nothing here paints.
+
+- **The shape of the data** — the schemas are the service's format
+  (task/api/API.md), field for field, because the service refuses any field it
+  doesn't define.
+- **Geometry** — plain functions over elements: their boxes, hit-testing,
+  moving and fitting them to a new box. Pure functions of their arguments, so
+  they live in `script`.
+- **`Library`** — the list of presentations, and the three things done to one
+  from the list: create, rename, delete.
+- **`Presentation`** — the open presentation as a working copy. Every edit is
+  a write to it, made at once; a sync loop then brings the service level with
+  it, one request at a time: new slides first, then removed ones, then the
+  title and order, then each changed slide. Nothing waits on the service, so
+  nothing the person does is ever lost to it: what failed is still in the
+  working copy, still different from what the service holds, and is sent again.
+*/
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Outline [ color: string, width: number ]
+
+schema TextSpec [ content: string, font: string, size: number, weight: number,
+    italic: boolean, color: string, align: "left" | "center" | "right" ]
+
+// One element of a slide. The kinds share one schema, every field optional
+// beyond `id` and `kind`; each kind's class reads only its own.
+
+schema El [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    fill?: string, stroke?: Outline, cornerRadius?: number, keepProportions?: boolean,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    text?: TextSpec, children[]?: El ]
+
+// A slide as the editor holds it: what the service stores, less its
+// bookkeeping (`deckId`, `version`), which the sync keeps beside it.
+
+schema Slide [ id: string, background: string, elements[]: El ]
+
+schema Deck [ id: string, title: string, version: number, updatedAt: string,
+    slideOrder[]: string, thumbnailSlideId: string ]
+
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number,
+    thumbnailSlideId: string ]
+
+schema Decks [ decks[]: DeckSummary ]
+
+// A served slide: a `Slide` with its bookkeeping.
+
+schema ServedSlide [ id: string, deckId: string, version: number, background: string, elements[]: El ]
+
+// The open presentation: its title and slides, in order.
+
+schema Doc [ deckId: string, title: string, slides[]: Slide ]
+
+// What one Undo puts back: every slide, which one was open, what was selected.
+
+schema Snapshot [ label: string, slides[]: Slide, current: string, sel[]: string ]
+
+// A remote change to a slide the person has open: theirs, as it now stands.
+
+schema Conflict [ id: string, theirs: ServedSlide ]
+
+
+// ── Geometry ────────────────────────────────────────────────────────────────
+//
+// An element's box is its x, y, width and height; a line's is the box its two
+// ends span; a group's is the union of its children's. Everything that
+// selects, moves, resizes, aligns or snaps works on boxes.
+
+script {
+    type Box = { x: number, y: number, w: number, h: number }
+
+    const SLIDE_W = 1280
+    const SLIDE_H = 720
+
+    // "#RRGGBB" or "#RRGGBBAA" to the runtime's colour; null stays none.
+    function col(s: string | null | undefined): number | null {
+        if (s == null || s == "") return null
+        const h = s.replace("#", "")
+        const rgb = parseInt(h.slice(0, 6), 16)
+        if (h.length >= 8) return colorWithAlpha(rgb, parseInt(h.slice(6, 8), 16))
+        return rgb
+    }
+
+    // The relative luminance of a colour string, 0 (black) to 1 (white).
+    function lum(s: string | null | undefined): number {
+        if (s == null || s == "") return 1
+        const h = s.replace("#", "")
+        const c = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+            .map((v) => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    }
+
+    let idSeed = 0
+    function uid(prefix: string): string {
+        idSeed = idSeed + 1
+        return prefix + Date.now().toString(36) + idSeed.toString(36) + Math.floor(Math.random() * 1296).toString(36)
+    }
+
+    function boxOf(e: El): Box {
+        if (e.kind == "line") {
+            const x = Math.min(e.x1 ?? 0, e.x2 ?? 0), y = Math.min(e.y1 ?? 0, e.y2 ?? 0)
+            return { x: x, y: y, w: Math.abs((e.x2 ?? 0) - (e.x1 ?? 0)), h: Math.abs((e.y2 ?? 0) - (e.y1 ?? 0)) }
+        }
+        if (e.kind == "group") return unionOf((e.children ?? []).map(boxOf)) ?? { x: 0, y: 0, w: 0, h: 0 }
+        return { x: e.x ?? 0, y: e.y ?? 0, w: e.width ?? 0, h: e.height ?? 0 }
+    }
+
+    function unionOf(bs: Box[]): Box | null {
+        if (bs.length == 0) return null
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+        for (const b of bs) {
+            x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y)
+            x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h)
+        }
+        return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+    }
+
+    function overlaps(a: Box, b: Box): boolean {
+        return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h
+    }
+
+    // Whether a point (slide points) is on an element. `tol` is a few screen
+    // pixels in slide points, so thin lines and small shapes stay easy to hit.
+    function hits(e: El, px: number, py: number, tol: number): boolean {
+        if (e.kind == "group") return (e.children ?? []).some((c) => hits(c, px, py, tol))
+        if (e.kind == "line") {
+            const x1 = e.x1 ?? 0, y1 = e.y1 ?? 0, x2 = e.x2 ?? 0, y2 = e.y2 ?? 0
+            const dx = x2 - x1, dy = y2 - y1
+            const len2 = dx * dx + dy * dy
+            const t = len2 == 0 ? 0 : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2))
+            const qx = x1 + t * dx - px, qy = y1 + t * dy - py
+            return Math.sqrt(qx * qx + qy * qy) <= Math.max(tol, (e.stroke?.width ?? 2) / 2 + tol / 2)
+        }
+        const b = boxOf(e)
+        if (e.kind == "ellipse") {
+            const rx = b.w / 2 + tol, ry = b.h / 2 + tol
+            const nx = (px - b.x - b.w / 2) / rx, ny = (py - b.y - b.h / 2) / ry
+            return nx * nx + ny * ny <= 1
+        }
+        return px >= b.x - tol && px <= b.x + b.w + tol && py >= b.y - tol && py <= b.y + b.h + tol
+    }
+
+    // The element moved by (dx, dy): a new record, the original untouched.
+    function shifted(e: El, dx: number, dy: number): El {
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => shifted(c, dx, dy)) }
+        if (e.kind == "line") return { ...e, x1: (e.x1 ?? 0) + dx, y1: (e.y1 ?? 0) + dy, x2: (e.x2 ?? 0) + dx, y2: (e.y2 ?? 0) + dy }
+        return { ...e, x: (e.x ?? 0) + dx, y: (e.y ?? 0) + dy }
+    }
+
+    // The element carried from one box to another, as a resize carries what
+    // it holds. A corner radius is a length and stays as it is; a text box
+    // takes the new width and keeps its type size, so its text rewraps.
+    function fitted(e: El, from: Box, to: Box): El {
+        const sx = from.w == 0 ? 1 : to.w / from.w, sy = from.h == 0 ? 1 : to.h / from.h
+        const mx = (v: number) => to.x + (v - from.x) * sx
+        const my = (v: number) => to.y + (v - from.y) * sy
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => fitted(c, from, to)) }
+        if (e.kind == "line") return { ...e, x1: mx(e.x1 ?? 0), y1: my(e.y1 ?? 0), x2: mx(e.x2 ?? 0), y2: my(e.y2 ?? 0) }
+        const x = mx(e.x ?? 0), y = my(e.y ?? 0)
+        const w = Math.max(1, (e.width ?? 0) * sx), h = Math.max(1, (e.height ?? 0) * sy)
+        return { ...e, x: x, y: y, width: w, height: h }
+    }
+
+    // A copy with fresh ids throughout, for duplicate and paste.
+    function freshIds(e: El): El {
+        if (e.kind == "group") return { ...e, id: uid("g"), children: (e.children ?? []).map(freshIds) }
+        return { ...e, id: uid("e") }
+    }
+
+    // Finding and replacing an element at any depth.
+    function findEl(els: El[], id: string): El | null {
+        for (const e of els) {
+            if (e.id == id) return e
+            if (e.kind == "group") { const f = findEl(e.children ?? [], id); if (f != null) return f }
+        }
+        return null
+    }
+    function mapEls(els: El[], f: (e: El) => El | null): El[] {
+        const out: El[] = []
+        for (const e of els) {
+            const r = f(e)
+            if (r == null) continue
+            if (r.kind == "group") {
+                const kids = mapEls(r.children ?? [], f)
+                if (kids.length >= 2) out.push({ ...r, children: kids })
+                else if (kids.length == 1) out.push(kids[0])
+            } else out.push(r)
+        }
+        return out
+    }
+    // The group directly holding `id`, or null when it is at the top.
+    function groupOf(els: El[], id: string): El | null {
+        for (const e of els) {
+            if (e.kind != "group") continue
+            if ((e.children ?? []).some((c) => c.id == id)) return e
+            const g = groupOf(e.children ?? [], id)
+            if (g != null) return g
+        }
+        return null
+    }
+    // The siblings `id` sits among: the slide's elements, or its group's children.
+    function siblingsOf(els: El[], id: string): El[] {
+        const g = groupOf(els, id)
+        return g == null ? els : (g.children ?? [])
+    }
+    // Every leaf element, in paint order.
+    function leaves(els: El[]): El[] {
+        const out: El[] = []
+        for (const e of els) { if (e.kind == "group") out.push(...leaves(e.children ?? [])); else out.push(e) }
+        return out
+    }
+    function allKeep(e: El): boolean {
+        if (e.kind == "group") return (e.children ?? []).every(allKeep)
+        return e.keepProportions ?? false
+    }
+
+    // "3 minutes ago", for a presentation's last change.
+    function ago(iso: string, now: number): string {
+        const t = Date.parse(iso)
+        if (isNaN(t)) return ""
+        const s = Math.max(0, Math.round((now - t) / 1000))
+        if (s < 45) return "Edited just now"
+        const m = Math.round(s / 60)
+        if (m < 60) return "Edited " + m + (m == 1 ? " minute ago" : " minutes ago")
+        const h = Math.round(m / 60)
+        if (h < 24) return "Edited " + h + (h == 1 ? " hour ago" : " hours ago")
+        const d = Math.round(h / 24)
+        if (d < 7) return "Edited " + d + (d == 1 ? " day ago" : " days ago")
+        return "Edited " + new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    }
+
+    function sameList(a: string[], b: string[]): boolean {
+        return a.length == b.length && a.every((v, i) => v == b[i])
+    }
+    function sameSet(a: string[], b: string[]): boolean {
+        return a.length == b.length && a.every((v) => b.includes(v))
+    }
+
+    // What a slide's content is, as the service would store it: compared to
+    // what was last saved, it says whether the slide still needs saving.
+    function contentOf(s: Slide): string { return JSON.stringify({ b: s.background, e: s.elements }) }
+    }
+
+
+// ── The service ─────────────────────────────────────────────────────────────
+
+script {
+    const API = "http://127.0.0.1:8360/api"
+    }
+
+
+// ── The list of presentations ───────────────────────────────────────────────
+//
+// The decks, most recently changed first, as the service lists them. The
+// three things done to a deck from the list go through `op`, one request at a
+// time; `then` says what the reply is for.
+
+class Library extends DataSource [ url = { API + "/decks" }, schema = Decks,
+    all() -> DeckSummary[] { return this.value?.decks ?? [] },
+    ready: boolean = { this.loaded },
+
+    // A rename reads the deck first, for the version the service asks for.
+
+    then: "" | "create" | "renameRead" | "renameWrite" | "remove" = "",
+    renaming: string = "",
+    newTitle: string = "",
+    created: object = null,
+    opUrl: string = "",
+    opMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+    opBody: object = null,
+    opFormat: "json" | "text" = "json",
+    busy: boolean = { this.op.loading },
+    problem: string = "",
+
+    op: DataSource [ url = { classroot.opUrl }, method = { classroot.opMethod }, body = { classroot.opBody },
+        format = { classroot.opFormat }, timeout = 15,
+        onLoad() { classroot.landed() },
+        onError() { classroot.refused() }
+        ],
+    send(then: "create" | "renameRead" | "renameWrite" | "remove", method: "GET" | "POST" | "PATCH" | "DELETE",
+    url: string, body: object, format: "json" | "text") {
+    this.then = then
+    this.opMethod = method
+    this.opUrl = url
+    this.opBody = body
+    this.opFormat = format
+    this.problem = ""
+    this.op.fetch()
+        },
+
+    create(title: string) { this.send("create", "POST", API + "/decks", ({ title: title }), "json") },
+    rename(id: string, title: string) {
+        this.renaming = id
+        this.newTitle = title
+        this.send("renameRead", "GET", API + "/decks/" + id, null, "json")
+        },
+    remove(id: string) { this.send("remove", "DELETE", API + "/decks/" + id, null, "text") },
+
+    landed() {
+        const v = this.op.value as object
+        if (this.then == "create") {
+            this.created = v
+            app.created(v)
+        } else if (this.then == "renameRead") {
+            const d = v as Deck
+            this.send("renameWrite", "PATCH", API + "/decks/" + d.id, ({ version: d.version, title: this.newTitle }), "json")
+            return
+        }
+        this.then = ""
+        this.fetch()
+        },
+    refused() {
+        const said = (this.op.errorBody as object)?.message
+        this.problem = typeof said == "string" ? said : "Presentify can't reach the service right now. Try again in a moment."
+        app.listProblem(this.problem)
+        this.then = ""
+        }
+    ]
+
+
+// ── The open presentation ───────────────────────────────────────────────────
+//
+// A working copy of one deck: its title and its slides, each as the editor
+// holds it. The App writes it through the verbs below and nothing else does.
+//
+// Beside it, what the service is known to hold: each slide's version and
+// content as last saved (`versions`, `saved`), the deck's order, title and
+// version. The difference between the two is what still has to be sent, so
+// the save state is derived, never kept: a slide is unsaved exactly while its
+// content differs from what was last saved.
+
+class Presentation extends Dataset [ schema = Doc,
+
+    slides() -> Slide[] { return this.value?.slides ?? [] },
+    count: number = { this.slides().length },
+    order: string[] = { this.slides().map((s) => s.id) },
+    indexOf(id: string) -> number { return this.slides().findIndex((s) => s.id == id) },
+    slide(id: string) -> Slide? { return this.slides().find((s) => s.id == id) ?? null },
+    title: string = { this.value?.title ?? "" },
+    deckId: string = { this.value?.deckId ?? "" },
+    loadedDeck: boolean = { this.deckId != "" },
+
+    // ── what the service holds
+
+    versions: object = { {} },
+    saved: object = { {} },
+    serverOrder: string[] = [],
+    serverTitle: string = "",
+    deckVersion: number = 0,
+
+    // ── the edits
+
+    load(d: Deck, served: ServedSlide[]) {
+        const byId = new Map(served.map((s) => [s.id, s]))
+        const ordered = d.slideOrder.map((id) => byId.get(id)).filter((s) => s != null) as ServedSlide[]
+        const slides = ordered.map((s) => ({ id: s.id, background: s.background, elements: s.elements }))
+        const versions = ({ })
+        const saved = ({ })
+        for (const s of ordered) { versions[s.id] = s.version; saved[s.id] = contentOf(s) }
+        this.versions = versions
+        this.saved = saved
+        this.serverOrder = [...d.slideOrder]
+        this.serverTitle = d.title
+        this.deckVersion = d.version
+        this.conflicts = []
+        this.failing = false
+        this.set([], ({ deckId: d.id, title: d.title, slides: slides }))
+        },
+    unload() {
+        this.set([], ({ deckId: "", title: "", slides: [] }))
+        this.versions = ({ })
+        this.saved = ({ })
+        this.serverOrder = []
+        this.conflicts = []
+        },
+
+    setTitle(t: string) { this.set(["title"], t); this.soon() },
+    setElements(id: string, els: El[]) {
+        const i = this.indexOf(id)
+        if (i < 0) return
+        this.set(["slides", i, "elements"], els)
+        this.soon()
+        },
+    setBackground(id: string, c: string) {
+        const i = this.indexOf(id)
+        if (i < 0) return
+        this.set(["slides", i, "background"], c)
+        this.soon()
+        },
+    insertSlide(at: number, s: Slide) { this.insert(["slides"], Math.max(0, Math.min(at, this.count)), s); this.soon() },
+    removeSlide(id: string) {
+        const i = this.indexOf(id)
+        if (i >= 0 && this.count > 1) { this.removeAt(["slides"], i); this.soon() }
+        },
+    moveSlide(from: number, to: number) {
+        if (from == to || from < 0 || to < 0 || from >= this.count || to >= this.count) return
+        this.move(["slides"], from, to)
+        this.soon()
+        },
+    restore(slides: Slide[]) { this.set(["slides"], structuredClone(slides)); this.soon() },
+    snapshot() -> Slide[] { return structuredClone(this.slides()) },
+
+    // ── what is still to send, derived
+
+    unsavedIds() -> string[] {
+        return this.slides().filter((s) => this.versions[s.id] != null && this.saved[s.id] != contentOf(s)).map((s) => s.id)
+        },
+    newIds() -> string[] { return this.slides().filter((s) => this.versions[s.id] == null).map((s) => s.id) },
+    goneIds() -> string[] { return this.serverOrder.filter((id) => this.indexOf(id) < 0) },
+    orderChanged() -> boolean { return !sameList(this.order, this.serverOrder) },
+    titleChanged() -> boolean { return this.title != this.serverTitle },
+    outstanding: number = {
+        this.unsavedIds().filter((id) => !this.conflicts.some((c) => c.id == id)).length + this.newIds().length
+            + this.goneIds().length + (this.orderChanged() || this.titleChanged() ? 1 : 0)
+        },
+
+    // ── the save state: exactly one of three, as the window says it
+
+    failing: boolean = false,
+    sending: boolean = { this.call.loading },
+    status: "saved" | "saving" | "offline" = {
+        this.failing && this.outstanding > 0 ? "offline" : this.outstanding > 0 || this.sending ? "saving" : "saved"
+        },
+
+    // ── remote changes to slides the person has open
+
+    conflicts: Conflict[] = [],
+    conflictFor(id: string) -> Conflict? { return this.conflicts.find((c) => c.id == id) ?? null },
+    dropConflict(id: string) { this.conflicts = this.conflicts.filter((c) => c.id != id) },
+
+    // Their version, as it now stands, replaces the slide here. It is now
+    // what the service holds, so nothing is sent.
+
+    takeTheirs(id: string) {
+        const c = this.conflictFor(id)
+        if (c == null) return
+        const t = c.theirs
+        this.versions = ({ ...this.versions, [id]: t.version })
+        this.saved = ({ ...this.saved, [id]: contentOf(t) })
+        this.dropConflict(id)
+        const i = this.indexOf(id)
+        if (i >= 0) {
+            this.set(["slides", i, "background"], t.background)
+            this.set(["slides", i, "elements"], structuredClone(t.elements))
+            }
+        },
+
+    // This window's version stands: it is sent over theirs, at their version.
+
+    keepMine(id: string) {
+        const c = this.conflictFor(id)
+        if (c == null) return
+        this.versions = ({ ...this.versions, [id]: c.theirs.version })
+        this.saved = ({ ...this.saved, [id]: contentOf(c.theirs) })
+        this.dropConflict(id)
+        this.soon()
+        },
+
+    // ── the sync loop
+    //
+    // `soon` asks for a save shortly after the last edit (and never later than
+    // two seconds after the first unsaved one); `now` asks at once. While the
+    // person's hand is on something (`hold`), a save waits for the release.
+
+    hold: boolean = false,
+    firstEdit: number = 0,
+    timer: object = null,
+    soon() {
+        const t = Date.now()
+        if (this.firstEdit == 0) this.firstEdit = t
+        const wait = Math.max(0, Math.min(700, 1800 - (t - this.firstEdit)))
+        if (this.timer != null) (this.timer as DelayHandle).cancel()
+        this.timer = afterDelay(wait, () => { this.timer = null; this.pump() })
+        },
+    now() {
+        if (this.timer != null) (this.timer as DelayHandle).cancel()
+        this.timer = null
+        this.failing = false
+        this.pump()
+        },
+
+    // One request in flight at a time, the next chosen when it lands.
+
+    task: "" | "create" | "remove" | "deck" | "slide" | "peek" = "",
+    taskId: string = "",
+    sent: string = "",
+    reqUrl: string = "",
+    reqMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+    reqBody: object = null,
+    call: DataSource [ url = { classroot.reqUrl }, method = { classroot.reqMethod }, body = { classroot.reqBody },
+        timeout = 12,
+        onLoad() { classroot.landed() },
+        onError() { classroot.failed() }
+        ],
+    request(task: "create" | "remove" | "deck" | "slide", id: string,
+    method: "POST" | "PUT" | "PATCH" | "DELETE", url: string, body: object) {
+    this.task = task
+    this.taskId = id
+    this.reqMethod = method
+    this.reqUrl = url
+    this.reqBody = body
+    this.call.fetch()
+        },
+
+    pump() {
+        if (this.hold || this.task != "" || !this.loadedDeck) return
+        this.firstEdit = 0
+        const deck = this.deckId
+        const fresh = this.newIds()
+        if (fresh.length > 0) {
+            const s = this.slide(fresh[0])!
+            const i = this.indexOf(s.id)
+            const before = this.slides().slice(0, i).reverse().find((p) => this.versions[p.id] != null)
+            this.sent = contentOf(s)
+            this.request("create", s.id, "POST", API + "/decks/" + deck + "/slides",
+                ({ after: before?.id ?? null, background: s.background, elements: s.elements }))
+            return
+            }
+        const gone = this.goneIds()
+        if (gone.length > 0) {
+            this.request("remove", gone[0], "DELETE", API + "/slides/" + gone[0], null)
+            return
+            }
+        if (this.orderChanged() || this.titleChanged()) {
+            const reorder = sameSet(this.order, this.serverOrder) && this.orderChanged()
+            const body = reorder ? ({ version: this.deckVersion, title: this.title, slideOrder: this.order })
+                : ({ version: this.deckVersion, title: this.title })
+            this.sent = this.title
+            this.request("deck", deck, "PATCH", API + "/decks/" + deck, body)
+            return
+            }
+        const blocked = this.conflicts.map((c) => c.id)
+        const next = this.unsavedIds().find((id) => !blocked.includes(id))
+        if (next != null) {
+            const s = this.slide(next)!
+            this.sent = contentOf(s)
+            this.request("slide", next, "PUT", API + "/slides/" + next,
+                ({ version: this.versions[next], background: s.background, elements: s.elements }))
+            return
+            }
+        },
+
+    landed() {
+        const v = this.call.value as object
+        const id = this.taskId
+        const task = this.task
+        this.task = ""
+        this.failing = false
+        if (task == "create") {
+            const s = v.slide as ServedSlide
+            this.adopt(v.deck as Deck)
+            this.versions = ({ ...this.versions, [s.id]: s.version })
+            this.saved = ({ ...this.saved, [s.id]: this.sent })
+            const i = this.indexOf(id)
+            if (i >= 0) this.set(["slides", i, "id"], s.id)
+            app.renamedSlide(id, s.id)
+        } else if (task == "remove") {
+            this.adopt(v.deck as Deck)
+        } else if (task == "deck") {
+            this.adopt(v as Deck)
+            this.serverTitle = this.sent
+        } else if (task == "slide") {
+            const s = v as ServedSlide
+            this.versions = ({ ...this.versions, [id]: s.version })
+            this.saved = ({ ...this.saved, [id]: this.sent })
+            }
+        this.pump()
+        },
+    adopt(d: Deck) {
+        this.serverOrder = [...d.slideOrder]
+        this.deckVersion = d.version
+        },
+
+    failed() {
+        const task = this.task
+        const id = this.taskId
+        this.task = ""
+        const code = this.call.statusCode
+        const body = this.call.errorBody as object
+        if (code == 409 && body?.error == "conflict" && body?.current != null) {
+            if (task == "slide") {
+                const theirs = body.current as ServedSlide
+                if (contentOf(theirs) == this.sent) {
+                    // our own earlier save, whose reply was lost: it is theirs and ours both
+                    this.versions = ({ ...this.versions, [id]: theirs.version })
+                    this.saved = ({ ...this.saved, [id]: this.sent })
+                } else this.conflicts = [...this.conflicts.filter((c) => c.id != id), ({ id: id, theirs: theirs })]
+            } else if (task == "deck") {
+                // the deck moved on elsewhere: build on its version, keeping this window's title and order
+                const d = body.current as Deck
+                this.adopt(d)
+                this.serverTitle = d.title
+                }
+            this.pump()
+            return
+            }
+        if (code == 404 && task == "slide") {
+            // the slide was deleted elsewhere: it is sent again as a new one
+            const versions = ({ ...this.versions })
+            delete versions[id]
+            this.versions = versions
+            this.serverOrder = this.serverOrder.filter((s) => s != id)
+            this.pump()
+            return
+            }
+        if (code == 404 && task == "remove") {
+            this.serverOrder = this.serverOrder.filter((s) => s != id)
+            this.pump()
+            return
+            }
+        if (code == 409 && task == "remove") {
+            // the service won't delete a deck's last slide; one has been added since
+            this.pump()
+            return
+            }
+        if (code == 422) console.warn("Presentify: the service refused a save", body)
+        // Unreachable, or the service didn't take it: keep everything, try again.
+        this.failing = true
+        if (this.timer != null) (this.timer as DelayHandle).cancel()
+        this.timer = afterDelay(3000, () => { this.timer = null; this.pump() })
+        },
+
+    // ── has the open slide changed elsewhere?
+    //
+    // Read whenever the person comes to a slide, and every few seconds while
+    // they are on it. A version newer than the one this window last saved is
+    // someone else's change.
+
+    peekId: string = "",
+    peek: DataSource [ url = { classroot.peekId == "" ? "" : API + "/slides/" + classroot.peekId }, timeout = 10,
+        onLoad() { classroot.peeked() }
+        ],
+    check(id: string) {
+        if (this.versions[id] == null || this.task == "slide" && this.taskId == id) return
+        this.peekId = id
+        this.peek.fetch()
+        },
+    peeked() {
+        const s = this.peek.value as ServedSlide
+        if (s == null || s.id != this.peekId) return
+        const mine = this.versions[s.id]
+        if (mine == null || s.version <= mine) return
+        if (this.task == "slide" && this.taskId == s.id) return
+        this.conflicts = [...this.conflicts.filter((c) => c.id != s.id), ({ id: s.id, theirs: s })]
+        }
+    ]
+
+
+// ── Arranging ───────────────────────────────────────────────────────────────
+//
+// What aligning, distributing, stacking and grouping do to a list of
+// elements, as functions of it: each returns the new list.
+
+script {
+    // `edge`: left, center, right, top, middle, bottom. One element aligns
+    // to the slide; several, to the box they span.
+    function aligned(els: El[], ids: string[], edge: string): El[] {
+        const picked = els.filter((e) => ids.includes(e.id))
+        if (picked.length == 0) return els
+        const u = picked.length == 1 ? { x: 0, y: 0, w: SLIDE_W, h: SLIDE_H } : unionOf(picked.map(boxOf))!
+        return els.map((e) => {
+            if (!ids.includes(e.id)) return e
+            const b = boxOf(e)
+            if (edge == "left") return shifted(e, u.x - b.x, 0)
+            if (edge == "center") return shifted(e, u.x + u.w / 2 - (b.x + b.w / 2), 0)
+            if (edge == "right") return shifted(e, u.x + u.w - (b.x + b.w), 0)
+            if (edge == "top") return shifted(e, 0, u.y - b.y)
+            if (edge == "middle") return shifted(e, 0, u.y + u.h / 2 - (b.y + b.h / 2))
+            return shifted(e, 0, u.y + u.h - (b.y + b.h))
+        })
+    }
+
+    // Equal gaps between neighbours, the outermost two staying where they are.
+    function distributed(els: El[], ids: string[], across: boolean): El[] {
+        const picked = els.filter((e) => ids.includes(e.id))
+        if (picked.length < 3) return els
+        const pos = (b: Box) => across ? b.x : b.y
+        const size = (b: Box) => across ? b.w : b.h
+        const sorted = [...picked].sort((a, b) => pos(boxOf(a)) + size(boxOf(a)) / 2 - pos(boxOf(b)) - size(boxOf(b)) / 2)
+        const first = boxOf(sorted[0]), last = boxOf(sorted[sorted.length - 1])
+        const span = pos(last) + size(last) - pos(first)
+        const total = sorted.reduce((n, e) => n + size(boxOf(e)), 0)
+        const gap = (span - total) / (sorted.length - 1)
+        const target = new Map<string, number>()
+        let at = pos(first)
+        for (const e of sorted) { target.set(e.id, at); at = at + size(boxOf(e)) + gap }
+        return els.map((e) => {
+            const t = target.get(e.id)
+            if (t == null) return e
+            const d = t - pos(boxOf(e))
+            return across ? shifted(e, d, 0) : shifted(e, 0, d)
+        })
+    }
+
+    // Stacking: later in the list paints on top.
+    function restacked(els: El[], ids: string[], how: string): El[] {
+        const sel = els.filter((e) => ids.includes(e.id))
+        const rest = els.filter((e) => !ids.includes(e.id))
+        if (sel.length == 0) return els
+        if (how == "front") return [...rest, ...sel]
+        if (how == "back") return [...sel, ...rest]
+        const out = [...els]
+        if (how == "forward") {
+            for (let i = out.length - 2; i >= 0; i--) {
+                if (ids.includes(out[i].id) && !ids.includes(out[i + 1].id)) { const t = out[i]; out[i] = out[i + 1]; out[i + 1] = t }
+            }
+        } else {
+            for (let i = 1; i < out.length; i++) {
+                if (ids.includes(out[i].id) && !ids.includes(out[i - 1].id)) { const t = out[i]; out[i] = out[i - 1]; out[i - 1] = t }
+            }
+        }
+        return out
+    }
+
+    // Two or more siblings become one group, where the topmost of them was.
+    function grouped(els: El[], ids: string[], gid: string): El[] {
+        const kids = els.filter((e) => ids.includes(e.id))
+        if (kids.length < 2) return els
+        const top = Math.max(...kids.map((k) => els.indexOf(k)))
+        const out: El[] = []
+        els.forEach((e, i) => {
+            if (i == top) out.push({ id: gid, kind: "group", children: kids })
+            else if (!ids.includes(e.id)) out.push(e)
+        })
+        return out
+    }
+
+    function ungrouped(els: El[], ids: string[]): El[] {
+        const out: El[] = []
+        for (const e of els) {
+            if (ids.includes(e.id) && e.kind == "group") out.push(...(e.children ?? []))
+            else out.push(e)
+        }
+        return out
+    }
+
+    // Applies `f` to the sibling list `ids` live in: the slide's top level,
+    // or the children of the group that holds them.
+    function inScope(els: El[], ids: string[], f: (list: El[]) => El[]): El[] {
+        if (ids.length == 0) return els
+        const g = groupOf(els, ids[0])
+        if (g == null) return f(els)
+        return mapEls(els, (e) => e.id == g.id ? { ...e, children: f(e.children ?? []) } : e)
+    }
+    }

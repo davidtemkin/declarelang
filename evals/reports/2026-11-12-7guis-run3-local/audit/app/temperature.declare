@@ -1,0 +1,62 @@
+/*
+# Temperature Converter
+
+Two fields, Celsius and Fahrenheit. Each field's text is the task's own
+state; typing a number into one writes the other's text, converted, and
+typing anything else leaves the other alone (and marks the field being typed
+in). While a field is being typed in it keeps the person's text, so the
+conversion never rewrites what they are typing.
+*/
+
+script {
+    // A number as a person types one: "12", "-3.5", ".5", "1e3". An empty or
+    // half-typed entry ("-", "1e") is not a number.
+    function parseNumber(t: string): number | null {
+        const s = t.trim()
+        if (!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) return null
+        return Number(s)
+    }
+
+    // A converted value, to at most two decimals, with no trailing zeros.
+    function formatNumber(n: number): string {
+        const r = Math.round(n * 100) / 100
+        return String(Object.is(r, -0) ? 0 : r)
+    }
+    }
+
+
+// A temperature field: red while what is typed in it is not a number.
+
+class TemperatureInput extends TextInput [ width = 120, purpose = decimal,
+    invalid: boolean = { this.text.trim() != "" && parseNumber(this.text) == null },
+    State [ applied = { parent.invalid }, stroke = { stroke(1.5, provided("theme").error) } ]
+    ]
+
+
+class TemperatureTask [ padding = 32,
+    celsius: string = "",
+    fahrenheit: string = "",
+
+    setCelsius(t: string) {
+        celsius = t
+        const c = parseNumber(t)
+        if (c != null) fahrenheit = formatNumber(c * 9 / 5 + 32)
+        },
+    setFahrenheit(t: string) {
+        fahrenheit = t
+        const f = parseNumber(t)
+        if (f != null) celsius = formatNumber((f - 32) * 5 / 9)
+        },
+
+    row: View [
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        TemperatureInput [ accessibilityLabel = "Celsius", value = { classroot.celsius },
+            commit(t: string) { classroot.setCelsius(t) }
+            ],
+        Text [ wrap = false, text = "Celsius =" ],
+        TemperatureInput [ accessibilityLabel = "Fahrenheit", value = { classroot.fahrenheit },
+            commit(t: string) { classroot.setFahrenheit(t) }
+            ],
+        Text [ wrap = false, text = "Fahrenheit" ]
+        ]
+    ]

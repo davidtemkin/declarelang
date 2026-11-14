@@ -1,0 +1,16 @@
+// The first-boot defect as the agent wrote it: the rows sit inside a CLASS whose datapath
+// (:sections[]) is set where the class is used. The same misread path is not checked.
+schema SeatRow [ name: string, seats[]: [ number: number ] ]
+schema Section [ name: string, priceCents: number, rows[]: SeatRow ]
+schema Plan [ sections[]: Section ]
+App [ width = 400, height = 300,
+    plan: Dataset [ schema = Plan, contents = { { sections: [ { name: "Orchestra", priceCents: 8000, rows: [ { name: "A", seats: [ { number: 1 } ] } ] } ] } } ],
+    View [ datapath = { app.plan.value }, layout: SimpleLayout [ axis = y ],
+        HallSection [ datapath = :sections[] ]
+        ]
+    ]
+class HallSection [ layout: SimpleLayout [ axis = y ],
+    Row [ datapath = :rows[], section = { :name ?? "" }, price = { :priceCents ?? 0 } ]
+    ]
+class Row [ section: string = "", price: number = 0, height = 20,
+    Text [ text = { classroot.section + ", row " + (:name ?? "") + " " + classroot.price } ] ]

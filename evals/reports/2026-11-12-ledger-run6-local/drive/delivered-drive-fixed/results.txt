@@ -1,0 +1,14 @@
+PASS  overview_drill  12.4 s  met
+      fallbacks: this month's expense bar has no node of its own in the tree until the chart is arrowed to it ("November 2026 (so far), Expenses, $3,735.27, down 38% from October 2026, 30 transactions")
+PASS  split_expense  9.9 s  met
+FAIL  sale_refund  28.4 s  not found: the mug line in the refund
+      fallbacks: the sale's detail offers no Refund; opened the refund editor and chose the sale there | no option named /\$88\.00/ offered after typing "88.00" into "Search transactions" (offered: nothing); pressed Enter | no quantity fields in the refund; chose the mug's line
+PASS  filters_keyboard  10.6 s  met
+PASS  bulk_undo  10.9 s  met
+      fallbacks: no "Clear all" (a fresh start has no filters to clear)
+PASS  export_csv  4.0 s  met
+PASS  budget_words  25.2 s  met
+      fallbacks: the Software budget was set through "a category field", then the field "Monthly amount"
+PASS  phone  6.6 s  met
+      fallbacks: no "New expense" control; opened a general New
+7 of 8 passed in 108 s

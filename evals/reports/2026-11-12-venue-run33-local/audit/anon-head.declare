@@ -1,0 +1,6 @@
+// #30–#31: `head` lives inside an anonymous wrapper; the path skips the wrapper.
+// The refusal is right, but it does not say where a `head` is (app.tickets.<0>.head).
+App [
+    tickets: View [ View [ head: Text [ text = "Your tickets" ] ] ],
+    heading: View? = { app.tickets.head }
+    ]

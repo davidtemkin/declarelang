@@ -1,0 +1,9 @@
+// A full-screen Dialog given its own fill. The fill is painted under the
+// Dialog's internal _panel, which paints the theme's surface over it, so the
+// dark ground never shows and nothing says why.
+App [ width = 600, height = 400,
+    onInit() { this.viewer.show() },
+    viewer: Dialog [ presentation = "full", fill = #0B0B0C,
+        TextLabel [ text = "photo here", textColor = white ]
+        ]
+    ]

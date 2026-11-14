@@ -1,0 +1,336 @@
+/*
+# Ledger: Insights
+
+Charts of the filtered data, as tabs. Each says in one plain sentence what it
+shows, draws it, and can be seen as a table that holds everything the chart
+shows. Every bar, point and cell opens the records behind it; Back returns
+here with the tab, the measure and the table as they were (they live on
+`InsightsScreen`, which is kept while another screen shows).
+*/
+
+class InsightsScreen [ scrolls = y,
+    on: boolean = { app.screen == "insights" && app.ready },
+    base: string = { app.api.base },
+    v: string = { "&v=" + app.api.rev },
+
+    tab: string = "trends",
+    measure: string = "revenue",
+    granPick: string = "",                // "" follows the range
+    gran: string = { classroot.granPick != "" ? classroot.granPick : granFor(app.range, app.today) },
+    side: string = "expense",
+    asTable: boolean = false,
+    prodSort: string = "revenue",
+
+    // ── what the tabs read ──
+
+    periodsUrl(r: Range?) -> string {
+        if (r == null) return ""
+        return base + "/api/aggregates/periods?by=" + gran + "&" + qs(app.filterQuery(r)) + v
+        },
+    now: DataSource [ autoFetch = true, schema = Periods,
+        url = { classroot.on && (classroot.tab == "trends" || classroot.tab == "ive") ? classroot.periodsUrl(app.range) : "" } ],
+    before: DataSource [ autoFetch = true, schema = Periods,
+        url = { classroot.on && classroot.tab == "trends" && app.cmpRange != null ? classroot.periodsUrl(app.cmpRange) : "" } ],
+    cats: DataSource [ autoFetch = true, schema = CatAmounts,
+        url = { classroot.on && classroot.tab == "breakdown" ? classroot.base + "/api/aggregates/categories?side=" + classroot.side + "&" + app.where + classroot.v : "" } ],
+    catsBefore: DataSource [ autoFetch = true, schema = CatAmounts,
+        url = { classroot.on && classroot.tab == "breakdown" && app.cmpRange != null ? classroot.base + "/api/aggregates/categories?side=" + classroot.side + "&" +
+            qs(app.filterQuery(app.cmpRange)) + classroot.v : "" } ],
+    prods: DataSource [ autoFetch = true, schema = ProductAmounts,
+        url = { classroot.on && classroot.tab == "products" ? classroot.base + "/api/aggregates/products?" + app.where + classroot.v : "" } ],
+    loading: boolean = { classroot.now.loading || classroot.before.loading || classroot.cats.loading || classroot.prods.loading },
+
+    // periods that haven't started yet are left out, so a month in progress doesn't read as a fall to zero
+
+    periods: Period[] = { (classroot.now.value?.periods ?? []).filter((p) => p.from <= app.today) },
+    axis: array = { classroot.periods.map((p) => ({ key: p.period, short: periodShort(p.period, classroot.gran),
+        long: periodLong(p.period, classroot.gran), from: p.from, to: p.to, partial: p.partial })) },
+
+    // ── Trends: one measure over time, the comparison dashed beside it ──
+
+    measures: object = { {
+        revenue: ({ label: "Revenue", unit: "money", kinds: ["sale", "refund"] }),
+        expenses: ({ label: "Expenses", unit: "money", kinds: ["expense"] }),
+        net: ({ label: "Net profit", unit: "money", kinds: [] }),
+        margin: ({ label: "Gross margin %", unit: "percent", kinds: ["sale", "refund"] }),
+        sales: ({ label: "Number of sales", unit: "count", kinds: ["sale"] }) } },
+    m: object = { classroot.measures[classroot.measure] },
+    measureOf(p: Period, measure: string) -> number {
+        if (measure == "margin") return p.grossMargin.percent ?? 0
+        if (measure == "sales") return p.sales.count
+        return p[measure].amount
+        },
+    countOf(p: Period, measure: string) -> number {
+        if (measure == "margin") return p.grossMargin.count
+        if (measure == "sales") return p.sales.count
+        return p[measure].count
+        },
+    beforePeriods: Period[] = { classroot.before.value?.periods ?? [] },
+    trendSeries: array = { [
+        ({ id: "now", label: classroot.m.label, style: "line", colour: provided("theme").accent,
+            values: classroot.periods.map((p) => classroot.measureOf(p, classroot.measure)),
+            counts: classroot.periods.map((p) => classroot.countOf(p, classroot.measure)),
+            before: classroot.periods.map((p, i) => classroot.beforePeriods[i] == null ? null : classroot.measureOf(classroot.beforePeriods[i], classroot.measure)) }),
+        ...(app.cmpRange == null || classroot.beforePeriods.length == 0 ? [] : [
+            ({ id: "before", label: classroot.m.label + ", " + (app.compareMode == "year" ? "a year before" : "the period before"), style: "dash",
+                colour: provided("theme").compare,
+                values: classroot.periods.map((p, i) => classroot.beforePeriods[i] == null ? 0 : classroot.measureOf(classroot.beforePeriods[i], classroot.measure)),
+                counts: classroot.periods.map((p, i) => classroot.beforePeriods[i] == null ? 0 : classroot.countOf(classroot.beforePeriods[i], classroot.measure)) }) ]) ] },
+    trendBeforeNames: string[] = { classroot.periods.map((p, i) => classroot.beforePeriods[i] == null ? "" : periodLong(classroot.beforePeriods[i].period, classroot.gran)) },
+    enoughTrend: boolean = { classroot.periods.length >= 2 && classroot.periods.some((p) => classroot.measureOf(p, classroot.measure) != 0) },
+    trendSentence: string = { classroot.sentenceFor(classroot.measure) },
+    sentenceFor(measure: string) -> string {
+        if (periods.length == 0) return ""
+        let best = 0
+        periods.forEach((p, i) => { if (this.measureOf(p, measure) > this.measureOf(periods[best], measure)) best = i })
+        const name = this.m.label
+        const v = fmtValue(this.measureOf(periods[best], measure), this.m.unit)
+        const total = now.value?.total
+        const sum = total == null ? "" : measure == "margin" ? " Over the whole range it was " + pct(total.grossMargin.percent ?? 0) + "."
+            : measure == "sales" ? " " + total.sales.count.toLocaleString("en-US") + " sales in all."
+            : " " + fmtValue(total[measure].amount, "money") + " in all."
+        return name + (measure == "sales" ? " were" : " was") + " highest " + this.when(periods[best].period) + " (" + v + ")." + sum
+        },
+
+    // "on Sat 7 Nov 2026", "in the week of 2 Nov 2026", "in March 2026"
+
+    when(period: string) -> string {
+        const long = periodLong(period, gran)
+        return gran == "day" ? "on " + long : gran == "week" ? "in the w" + long.slice(1) : "in " + long
+        },
+    openTrend(pi: number, si: number) {
+        const isBefore = si == 1
+        const p = isBefore ? beforePeriods[pi] : periods[pi]
+        if (p == null) return
+        app.openRecords(({ from: p.from, to: p.to, kinds: m.kinds }), "Insights")
+        },
+
+    // ── Income vs expenses, and a running total of net profit ──
+
+    iveSeries: array = { [
+        ({ id: "revenue", label: "Revenue", style: "bar", colour: provided("theme").income,
+            values: classroot.periods.map((p) => p.revenue.amount), counts: classroot.periods.map((p) => p.revenue.count) }),
+        ({ id: "expenses", label: "Expenses", style: "bar", colour: provided("theme").expense,
+            values: classroot.periods.map((p) => p.expenses.amount), counts: classroot.periods.map((p) => p.expenses.count) }),
+        ({ id: "net", label: "Net profit", style: "line", colour: provided("theme").net,
+            values: classroot.periods.map((p) => p.net.amount), counts: classroot.periods.map((p) => p.net.count) }),
+        ({ id: "running", label: "Running net profit", style: "dash", colour: provided("theme").accent,
+            values: classroot.running, counts: classroot.runningCounts }) ] },
+    running: number[] = { classroot.cumulative(classroot.periods.map((p) => p.net.amount)) },
+    runningCounts: number[] = { classroot.cumulative(classroot.periods.map((p) => p.net.count)) },
+    cumulative(xs: number[]) -> number[] { let n = 0; return xs.map((x) => { n = n + x; return n }) },
+    breakEven: number = { classroot.running.findIndex((v, i) => classroot.running.slice(i).every((x) => x >= 0)) },
+    iveSentence: string = { classroot.breakEvenWords(classroot.periods, classroot.running, classroot.breakEven) },
+    breakEvenWords(ps: Period[], run: number[], at: number) -> string {
+        if (ps.length == 0) return ""
+        const end = money(run[run.length - 1] ?? 0)
+        if (at == 0) return "Running net profit was positive from the start of the range and stayed there: " + end + " by the end."
+        if (at > 0) return "You broke even " + this.when(ps[at].period) + ": running net profit has stayed positive since, reaching " + end + "."
+        return "Running net profit hasn't reached break-even in this range: " + end + " so far."
+        },
+    openIve(pi: number, si: number) {
+        const p = periods[pi]
+        if (p == null) return
+        if (si == 3) { app.openRecords(({ from: periods[0].from, to: p.to, kinds: [] }), "Insights"); return }
+        app.openRecords(({ from: p.from, to: p.to, kinds: si == 0 ? ["sale", "refund"] : si == 1 ? ["expense"] : [] }), "Insights")
+        },
+
+    // ── Breakdown: categories as sorted bars, with share and change ──
+
+    catRows: array = { classroot.breakdownRows(classroot.cats.value, classroot.catsBefore.value) },
+    breakdownRows(nowv: CatAmounts?, was: CatAmounts?) -> array {
+        if (nowv == null) return []
+        const th = provided("theme")
+        const total = nowv.total.amount
+        return nowv.categories.map((c) => {
+            const id = c.categoryId ?? "none"
+            const before = was == null || app.cmpRange == null ? null : (was.categories.find((b) => (b.categoryId ?? "none") == id)?.amount ?? 0)
+            const d = before == null ? null : before == 0 ? null : 100 * (c.amount - before) / Math.abs(before)
+            const upIsGood = side == "income"
+            return ({ id: id, label: app.books.catName(c.categoryId ?? null), amount: c.amount, count: c.count,
+                share: total == 0 ? 0 : 100 * c.amount / total,
+                colour: c.categoryId == null ? th.warn : th.cats[app.books.catColour(c.categoryId)] ?? th.textFaint,
+                changeShort: before == null ? "" : d == null ? (c.amount == 0 ? "—" : "new") : (d > 0 ? "▲ " : d < 0 ? "▼ " : "") + pctChange(d),
+                changeText: before == null ? "" : changeWords(c.amount, before, "money", app.cmpName),
+                changeTone: d == null || Math.abs(d) < 0.5 ? "" : (d > 0) == upIsGood ? "good" : "bad" })
+            })
+        },
+    catSentence: string = { classroot.catRows.length == 0 ? "" :
+        classroot.catRows[0].label + " was the largest " + (classroot.side == "expense" ? "expense" : "source of income") + ": " +
+        money(classroot.catRows[0].amount) + ", " + pct(classroot.catRows[0].share) + " of " + money(classroot.cats.value?.total.amount ?? 0) + "." },
+    openCat(r: object) {
+        app.openRecords(({ from: app.range.from, to: app.range.to, kinds: side == "expense" ? ["expense"] : ["sale", "refund"], cats: [r.id] }), "Insights")
+        },
+
+    // ── Products: units, revenue, cost, margin, margin % ──
+
+    prodRows: array = { classroot.sortedProducts(classroot.prods.value?.products ?? [], classroot.prodSort) },
+    sortedProducts(list: ProductAmount[], by: string) -> array {
+        const rows = list.map((p) => ({ id: p.productId ?? "none", label: app.books.productName(p.productId ?? null),
+            units: p.units, revenue: p.revenue, cost: p.cost, margin: p.margin, marginPercent: p.marginPercent ?? 0, count: p.count }))
+        return rows.sort((a, b) => by == "name" ? a.label.localeCompare(b.label) : b[by] - a[by])
+        },
+    prodBars: array = { classroot.prodRows.map((p) => ({ id: p.id, label: p.label, count: p.count, colour: provided("theme").income,
+        amount: classroot.prodSort == "name" ? p.revenue : p[classroot.prodSort] })) },
+    prodUnit: string = { classroot.prodSort == "units" ? "count" : classroot.prodSort == "marginPercent" ? "percent" : "money" },
+    prodSentence: string = { classroot.prodRows.length == 0 ? "" : classroot.bestProduct() },
+    bestProduct() -> string {
+        const best = [...prodRows].sort((a, b) => b.revenue - a.revenue)[0]
+        const richest = [...prodRows].filter((p) => p.revenue > 0).sort((a, b) => b.marginPercent - a.marginPercent)[0]
+        return best.label + " brought in the most revenue: " + money(best.revenue) + " from " + best.units + " sold." +
+            (richest == null ? "" : " " + richest.label + " kept the most of each sale, at " + pct(richest.marginPercent) + " margin.")
+        },
+    openProduct(id: string) {
+        app.openRecords(({ from: app.range.from, to: app.range.to, kinds: ["sale", "refund"], products: [id] }), "Insights")
+        },
+
+    // ── the tables: everything each chart shows ──
+
+    tableColumns: string[] = { classroot.columnsFor(classroot.tab, classroot.m.label, classroot.trendSeries.length > 1) },
+    columnsFor(tab: string, label: string, compared: boolean) -> string[] {
+        switch (tab) {
+            case "trends": return ["Period", label, ...(compared ? ["Comparison"] : [])]
+            case "ive": return ["Period", "Revenue", "Expenses", "Net profit", "Running net"]
+            case "breakdown": return ["Category", "Amount", "Share", "Change"]
+            default: return ["Product", "Units", "Revenue", "Cost", "Margin", "Margin %"]
+            }
+        },
+    tableRows: array = { classroot.rowsFor(classroot.tab) },
+    rowsFor(tab: string) -> array {
+        const span = (from: string, to: string, kinds: string[]) => ({ from: from, to: to, kinds: kinds })
+        const whole = { from: app.range.from, to: app.range.to }
+        const label = (p: Period) => periodLong(p.period, gran) + (p.partial ? " (so far)" : "")
+        switch (tab) {
+            case "trends": return periods.map((p, i) => {
+                const b = beforePeriods[i]
+                const cells = [({ id: "a", text: label(p) }),
+                    ({ id: "b", text: fmtValue(this.measureOf(p, measure), m.unit), spec: span(p.from, p.to, m.kinds) })]
+                if (trendSeries.length > 1 && b != null)
+                    cells.push(({ id: "c", text: fmtValue(this.measureOf(b, measure), m.unit), spec: span(b.from, b.to, m.kinds) }))
+                return ({ id: p.period, cells: cells })
+                })
+            case "ive": return periods.map((p, i) => ({ id: p.period, cells: [
+                ({ id: "a", text: label(p) }),
+                ({ id: "b", text: money(p.revenue.amount), spec: span(p.from, p.to, ["sale", "refund"]) }),
+                ({ id: "c", text: money(p.expenses.amount), spec: span(p.from, p.to, ["expense"]) }),
+                ({ id: "d", text: money(p.net.amount), spec: span(p.from, p.to, []) }),
+                ({ id: "e", text: money(running[i] ?? 0), spec: span(periods[0].from, p.to, []) }) ] }))
+            case "breakdown": return catRows.map((r) => ({ id: r.id, cells: [
+                ({ id: "a", text: r.label }),
+                ({ id: "b", text: money(r.amount), spec: ({ ...whole, kinds: side == "expense" ? ["expense"] : ["sale", "refund"], cats: [r.id] }) }),
+                ({ id: "c", text: pct(r.share) }), ({ id: "d", text: r.changeShort == "" ? "—" : r.changeShort }) ] }))
+            default: return prodRows.map((r) => ({ id: r.id, cells: [
+                ({ id: "a", text: r.label }),
+                ({ id: "b", text: r.units.toLocaleString("en-US"), spec: ({ ...whole, kinds: ["sale", "refund"], products: [r.id] }) }),
+                ({ id: "c", text: money(r.revenue), spec: ({ ...whole, kinds: ["sale", "refund"], products: [r.id] }) }),
+                ({ id: "d", text: money(r.cost) }), ({ id: "e", text: money(r.margin) }), ({ id: "f", text: pct(r.marginPercent) }) ] }))
+            }
+        },
+
+    // ── the page ──
+
+    page: View [ width = 100%, padding = { app.phone ? [8, 12, 24, 12] : [20, 24, 32, 24] },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        head: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 12, rowSpacing = 10, align = center ],
+            Text [ visible = { !app.phone }, fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = "Insights" ],
+            tabs: TabBar [ width = { app.phone ? app.width - 24 : 520 }, height = { app.tap }, accessibilityLabel = "Charts",
+                items = { [ ({ id: "trends", label: "Trends" }), ({ id: "ive", label: "Income vs expenses" }),
+                    ({ id: "breakdown", label: "Breakdown" }), ({ id: "products", label: "Products" }) ] },
+                value = { classroot.tab },
+                commit(v: string) { classroot.tab = v }
+                ]
+            ],
+        filteredNote: Text [ visible = { app.filtered }, width = 100%, fontSize = 13, wrap = true, textColor = { provided("theme").warn },
+            text = "These charts are filtered: they cover only the transactions matching the filters above." ],
+
+        card: Panel [ width = 100%, opacity = { classroot.loading ? 0.6 : 1 },
+            title = { ({ trends: classroot.m.label + " over time", ive: "Income vs expenses",
+                breakdown: (classroot.side == "expense" ? "Expenses" : "Income") + " by category", products: "Products" })[classroot.tab] ?? "" },
+
+            // the controls each chart has
+
+            controls: View [ width = 100%,
+                layout: WrappingLayout [ spacing = 10, rowSpacing = 8, align = center ],
+                measure: BarButton [ visible = { classroot.tab == "trends" }, label = { classroot.m.label }, accessibilityLabel = "Measure",
+                    menu = { app.measureMenu } ],
+                gran: Segmented [ visible = { classroot.tab == "trends" || classroot.tab == "ive" }, width = 300, height = { app.tap },
+                    accessibilityLabel = "Granularity",
+                    items = { [ ({ id: "day", label: "Days" }), ({ id: "week", label: "Weeks" }), ({ id: "month", label: "Months" }), ({ id: "quarter", label: "Quarters" }) ] },
+                    value = { classroot.gran },
+                    commit(v: string) { classroot.granPick = v }
+                    ],
+                side: Segmented [ visible = { classroot.tab == "breakdown" }, width = 220, height = { app.tap }, accessibilityLabel = "Expenses or income",
+                    items = { [ ({ id: "expense", label: "Expenses" }), ({ id: "income", label: "Income" }) ] },
+                    value = { classroot.side },
+                    commit(v: string) { classroot.side = v }
+                    ],
+                sort: BarButton [ visible = { classroot.tab == "products" }, accessibilityLabel = "Sort products by",
+                    label = { "Sort: " + ({ name: "Name", units: "Units", revenue: "Revenue", cost: "Cost", margin: "Margin", marginPercent: "Margin %" })[classroot.prodSort] },
+                    menu = { app.prodSortMenu } ],
+                Spacer [ ],
+                tableToggle: GlyphButton [ glyph = { classroot.asTable ? "chart" : "table" }, label = { classroot.asTable ? "Show as chart" : "Show as table" },
+                    accessibilityPressed = { classroot.asTable },
+                    press() { classroot.asTable = !classroot.asTable }
+                    ]
+                ],
+
+            sentence: Text [ width = 100%, fontSize = 15, wrap = true, accessibilityLive = polite,
+                text = { ({ trends: classroot.trendSentence, ive: classroot.iveSentence, breakdown: classroot.catSentence,
+                    products: classroot.prodSentence })[classroot.tab] ?? "" } ],
+
+            // the charts
+
+            trends: View [ width = 100%, visible = { classroot.tab == "trends" && !classroot.asTable },
+                layout: SimpleLayout [ axis = y, spacing = 10 ],
+                Legend [ width = 100%, items = { classroot.trendSeries } ],
+                TimeChart [ width = 100%, visible = { classroot.enoughTrend }, height = { app.phone ? 220 : 300 },
+                    title = { classroot.m.label + " over time" }, unit = { classroot.m.unit },
+                    periods = { classroot.axis }, series = { classroot.trendSeries }, beforeNames = { classroot.trendBeforeNames },
+                    opened(pi: number, si: number) { classroot.openTrend(pi, si) },
+                    brushed(a: number, b: number) { app.setCustomRange(this.periods[a].from, this.periods[b].to) }
+                    ],
+                tooLittle: Text [ visible = { classroot.now.loaded && !classroot.enoughTrend }, width = 100%, fontSize = 13, wrap = true,
+                    textColor = { provided("theme").textMuted },
+                    text = "There isn't enough data in this range to draw a trend. Choose a longer range or a finer granularity." ]
+                ],
+            ive: View [ width = 100%, visible = { classroot.tab == "ive" && !classroot.asTable },
+                layout: SimpleLayout [ axis = y, spacing = 10 ],
+                Legend [ width = 100%, items = { classroot.iveSeries } ],
+                TimeChart [ width = 100%, visible = { classroot.periods.length >= 2 }, height = { app.phone ? 240 : 320 },
+                    title = "Income vs expenses, with net profit and its running total",
+                    periods = { classroot.axis }, series = { classroot.iveSeries },
+                    opened(pi: number, si: number) { classroot.openIve(pi, si) },
+                    brushed(a: number, b: number) { app.setCustomRange(this.periods[a].from, this.periods[b].to) }
+                    ],
+                Text [ visible = { classroot.now.loaded && classroot.periods.length < 2 }, width = 100%, fontSize = 13, wrap = true,
+                    textColor = { provided("theme").textMuted },
+                    text = "There's only one period in this range — choose a longer range or a finer granularity to compare periods." ]
+                ],
+            breakdown: View [ width = 100%, visible = { classroot.tab == "breakdown" && !classroot.asTable },
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                BarList [ items = { classroot.catRows }, showShare = true, showChange = { app.cmpRange != null },
+                    opened(r: object) { classroot.openCat(r) }
+                    ]
+                ],
+            products: View [ width = 100%, visible = { classroot.tab == "products" && !classroot.asTable },
+                BarList [ items = { classroot.prodBars }, unit = { classroot.prodUnit },
+                    opened(r: object) { classroot.openProduct(r.id) }
+                    ]
+                ],
+            empty: Text [ visible = { !classroot.loading && classroot.tableRows.length == 0 }, fontSize = 13,
+                textColor = { provided("theme").textMuted }, text = "Nothing in this range matches the filters." ],
+
+            // the table version
+
+            table: ChartTable [ visible = { classroot.asTable || classroot.tab == "products" }, columns = { classroot.tableColumns },
+                items = { classroot.tableRows },
+                opened(spec: object) { app.openRecords(spec, "Insights") }
+                ],
+
+            LoadState [ visible = { classroot.now.failed || classroot.cats.failed || classroot.prods.failed }, failed = true,
+                retry() { classroot.now.fetch(); classroot.before.fetch(); classroot.cats.fetch(); classroot.catsBefore.fetch(); classroot.prods.fetch() }
+                ]
+            ]
+        ]
+    ]

@@ -1,0 +1,884 @@
+/*
+# Presentify: the editor
+
+The three panes of an open presentation and what happens in them:
+
+- **`Stage`** — the slide being edited, fitted to the room it has. It takes
+  every press on and around the slide and works out, in slide points, what
+  the press meant: a handle, an element, empty slide. Drawing, selecting,
+  moving, resizing, rounding corners and the marquee are its gestures; each
+  is one undo step (`Doc.begin` / `Doc.end`). The element views underneath
+  take no pointer at all.
+- **`SlideList`** — the slides in order, as live pictures. Rows glide to
+  their places; dragging one opens a gap where it would land.
+- **`Inspector`** — the selection's fill, outline, corners, text, place and
+  size, and the arrange commands. Every section is always there, so the panel
+  never changes shape; one that doesn't apply to the selection is dimmed.
+*/
+
+// ── The stage ───────────────────────────────────────────────────────────────
+
+class Stage [ clip = true, focusable = quiet,
+    fill = { provided("theme").stage },
+    accessibilityLabel = "Slide editor", accessibilityRole = region,
+
+    // The slide's zoom and place, in the stage's own coordinates.
+
+    pad: number = 56,
+    s: number = { Math.max(0.05, Math.min((this.width - 2 * this.pad) / 1280, (this.height - 2 * this.pad) / 720)) },
+    ox: number = { Math.round((this.width - 1280 * this.s) / 2) },
+    oy: number = { Math.round((this.height - 720 * this.s) / 2) },
+    tol: number = { 5 / this.s },              // a few screen pixels, in slide points
+
+    // ── the gesture in progress ─────────────────────────────────────────
+
+    mode: "" | "move" | "marquee" | "draw" | "resize" | "end" | "radius" = "",
+    downX: number = 0,
+    downY: number = 0,
+    pressTarget: string = "",
+    wasSelected: boolean = false,
+    hx: number = 0,
+    hy: number = 0,
+    startEls: Element[] = [],
+    startBox: Bounds = { { x: 0, y: 0, w: 0, h: 0 } },
+    startSel: string[] = [],
+    keep: boolean = false,
+    linesV: number[] = [],
+    linesH: number[] = [],
+    drawId: string = "",
+    guides: Guide[] = [],
+    marquee: Bounds? = null,
+    hoverId: string = "",
+
+    cursor = { app.tool != "select" ? "crosshair" : this.hoverId != "" ? "move" : "default" },
+
+    sx(vx: number) -> number { return (vx - ox) / s },
+    sy(vy: number) -> number { return (vy - oy) / s },
+
+    // What a click on `path` (outermost first) picks: the outermost thing,
+    // or, inside a group the person has double-clicked into, the thing one
+    // level inside it.
+
+    resolve(path: string[]) -> string {
+        if (path.length == 0) return ""
+        const d = app.doc
+        const at = d.scope == "" ? -1 : path.indexOf(d.scope)
+        return at < 0 ? path[0] : path[at + 1] ?? path[at]
+        },
+
+    // ── pressing ────────────────────────────────────────────────────────
+
+    onPointerDown(e: PointerEvent) {
+        Focus.focus(this)
+        const d = app.doc
+        if (app.editingText != "") app.endTextEdit()
+        mode = ""
+        downX = this.sx(e.x)
+        downY = this.sy(e.y)
+        if (app.tool != "select") return
+        const handle = this.handleAt(e.x, e.y)
+        if (handle != "") { pressTarget = handle; return }
+        const path = hitPath(d.els, downX, downY, tol)
+        if (d.scope != "" && !path.includes(d.scope)) d.scope = ""
+        const t = this.resolve(path)
+        pressTarget = t
+        wasSelected = d.selection.includes(t)
+        if (t == "") {
+            if (!e.shift) d.clearSel()
+        } else if (e.shift) {
+            if (wasSelected) { d.select(d.selection.filter((id) => id != t)); pressTarget = "" }
+            else d.select([...d.selection, t])
+        } else if (!wasSelected) d.select([t])
+        },
+
+    onClick(e: PointerEvent) {
+        const d = app.doc
+        if (app.tool != "select") { this.drawAt(downX, downY, e.shift); return }
+        if (!e.shift && wasSelected && d.selection.length > 1 && pressTarget != "" && !pressTarget.startsWith("handle:")) d.select([pressTarget])
+        },
+
+    onDoubleClick(e: PointerEvent) {
+        const d = app.doc
+        if (app.tool != "select") return
+        const path = hitPath(d.els, this.sx(e.x), this.sy(e.y), tol)
+        const t = this.resolve(path)
+        const el = findEl(d.els, t)
+        if (el == null) return
+        if (el.kind == "group") {
+            d.scope = t
+            const inner = path[path.indexOf(t) + 1] ?? t
+            d.select([inner])
+            const ie = findEl(d.els, inner)
+            if (ie?.kind == "text") app.editText(inner)
+        } else if (el.kind == "text") app.editText(t)
+        },
+
+    // Hovering shows what a click would take.
+
+    onPointerMove(e: PointerEvent) {
+        if (e.down || app.tool != "select") { if (!e.down) hoverId = ""; return }
+        hoverId = this.handleAt(e.x, e.y) != "" ? "" : this.resolve(hitPath(app.doc.els, this.sx(e.x), this.sy(e.y), tol))
+        },
+    onPointerOut() { hoverId = "" },
+
+    // A right-click selects what is under it (keeping a selection it is
+    // part of) and offers what can be done to it.
+
+    onContextMenu(e: PointerEvent) {
+        const d = app.doc
+        if (app.editingText != "") app.endTextEdit()
+        const t = this.resolve(hitPath(d.els, this.sx(e.x), this.sy(e.y), tol))
+        if (t == "") d.clearSel()
+        else if (!d.selection.includes(t)) d.select([t])
+        app.stageMenu.showAt(this, e)
+        },
+
+    // ── dragging ────────────────────────────────────────────────────────
+
+    onDragStart(e: PointerEvent) {
+        const d = app.doc
+        hoverId = ""
+        if (app.tool != "select") { this.beginDraw(e.shift); return }
+        if (pressTarget.startsWith("handle:")) { this.beginHandle(pressTarget.slice(7)); return }
+        if (pressTarget != "") {
+            mode = "move"
+            d.begin()
+            startEls = copyOf(d.selected)
+            startBox = copyOf(d.selBox)
+            this.gatherLines()
+        } else {
+            mode = "marquee"
+            startSel = e.shift ? copyOf(d.selection) : []
+        }
+        },
+
+    onDrag(e: PointerEvent) {
+        const dx = e.deltaX / s
+        const dy = e.deltaY / s
+        if (mode == "move") this.moveBy(dx, dy, e.shift, e.alt)
+        else if (mode == "marquee") this.sweep(dx, dy)
+        else if (mode == "draw") this.drawTo(downX + dx, downY + dy, e.shift)
+        else if (mode == "resize") this.resizeBy(dx, dy, e.shift, e.alt)
+        else if (mode == "end") this.endpointBy(dx, dy, e.shift, e.alt)
+        else if (mode == "radius") this.radiusBy(dx, dy)
+        },
+
+    onDragEnd(e: DragEndEvent) {
+        const d = app.doc
+        const was = mode
+        mode = ""
+        guides = []
+        marquee = null
+        if (was == "marquee" || was == "") return
+        if (e.canceled) { d.cancel(); app.tool = "select"; return }
+        if (was == "draw") {
+            app.tool = "select"
+            if (findEl(d.els, drawId)?.kind == "text") { app.editText(drawId); return }
+        }
+        d.end()
+        },
+
+    // ── moving, with snapping ───────────────────────────────────────────
+    //
+    // The lines a box can snap to: the slide's edges and middle, and every
+    // element the drag isn't carrying.
+
+    gatherLines() {
+        const d = app.doc
+        const moving = d.selection
+        const others = d.els.filter((el) => !moving.includes(el.id) && !moving.some((m) => pathTo([el], m).length > 0))
+        const lines = snapLines(others.map(boxOf))
+        linesV = lines.v
+        linesH = lines.h
+        },
+
+    moveBy(dx0: number, dy0: number, lockAxis: boolean, free: boolean) {
+        let dx = dx0
+        let dy = dy0
+        if (lockAxis) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0 }
+        const b = startBox
+        const g: Guide[] = []
+        if (!free) {
+            const sv = snapAxis([b.x + dx, b.x + dx + b.w / 2, b.x + dx + b.w], linesV, tol)
+            const sh = snapAxis([b.y + dy, b.y + dy + b.h / 2, b.y + dy + b.h], linesH, tol)
+            if (!isNaN(sv.at) && !(lockAxis && dx == 0)) { dx = dx + sv.off; g.push(({ axis: "v", at: sv.at })) }
+            if (!isNaN(sh.at) && !(lockAxis && dy == 0)) { dy = dy + sh.off; g.push(({ axis: "h", at: sh.at })) }
+        }
+        guides = g
+        const by: Record<string, Element> = {}
+        for (const el of startEls) by[el.id] = moveEl(el, dx, dy)
+        app.doc.replace(by)
+        },
+
+    // ── the marquee ─────────────────────────────────────────────────────
+
+    sweep(dx: number, dy: number) {
+        const d = app.doc
+        const r: Bounds = ({ x: Math.min(downX, downX + dx), y: Math.min(downY, downY + dy), w: Math.abs(dx), h: Math.abs(dy) })
+        marquee = r
+        const pool = d.scope != "" ? (findEl(d.els, d.scope)?.children ?? []) : d.els
+        const hit = pool.filter((el) => intersects(boxOf(el), r)).map((el) => el.id)
+        d.select([...startSel, ...hit.filter((id) => !startSel.includes(id))])
+        },
+
+    // ── drawing ─────────────────────────────────────────────────────────
+
+    beginDraw(square: boolean) {
+        const d = app.doc
+        mode = "draw"
+        d.begin()
+        const el = app.newElement(app.tool, downX, downY, 1, 1)
+        drawId = el.id
+        d.add(el)
+        this.gatherLines()
+        this.drawTo(downX, downY, square)
+        },
+
+    drawTo(px: number, py: number, square: boolean) {
+        const d = app.doc
+        const el = findEl(d.els, drawId)
+        if (el == null) return
+        if (el.kind == "line") {
+            let x2 = px
+            let y2 = py
+            if (square) {
+                const a = Math.round(Math.atan2(py - downY, px - downX) / (Math.PI / 4)) * (Math.PI / 4)
+                const len = Math.hypot(px - downX, py - downY)
+                x2 = downX + Math.cos(a) * len
+                y2 = downY + Math.sin(a) * len
+            }
+            d.replace(({ [drawId]: ({ ...el, x1: downX, y1: downY, x2: x2, y2: y2 }) }))
+            return
+        }
+        let w = px - downX
+        let h = py - downY
+        if (square && el.kind != "text") {
+            const side = Math.max(Math.abs(w), Math.abs(h))
+            w = Math.sign(w || 1) * side
+            h = Math.sign(h || 1) * side
+        }
+        const box: Bounds = ({ x: Math.min(downX, downX + w), y: Math.min(downY, downY + h), w: Math.max(1, Math.abs(w)), h: Math.max(1, Math.abs(h)) })
+        d.replace(({ [drawId]: ({ ...el, x: box.x, y: box.y, width: box.w, height: box.h,
+            keepProportions: square && el.kind != "text" }) }))
+        },
+
+    // A click with a shape tool: a shape of a good size where the click was.
+
+    drawAt(px: number, py: number, square: boolean) {
+        const d = app.doc
+        const k = app.tool
+        const w = k == "text" ? 480 : k == "line" ? 280 : 260
+        const h = k == "line" ? 0 : k == "text" ? 1 : square || k == "ellipse" ? 260 : 170
+        const el = app.newElement(k, k == "text" ? px : px - w / 2, k == "text" ? py - 20 : py - h / 2, w, h)
+        app.tool = "select"
+        d.begin()
+        d.add(({ ...el, keepProportions: square && k != "text" && k != "line" ? true : el.keepProportions }))
+        if (k == "text") app.editText(el.id)
+        else d.end()
+        },
+
+    // ── handles ─────────────────────────────────────────────────────────
+    //
+    // Which handle, if any, is under a point of the stage: "handle:" and
+    // its name. Handles are drawn by the frame below; the stage, which has
+    // the press, does the arithmetic.
+
+    handleAt(vx: number, vy: number) -> string {
+        const f = app.frame
+        if (!f.shown) return ""
+        let best = ""
+        let bestD = 13
+        for (const h of f.handles()) {
+            const dd = Math.max(Math.abs(vx - h.x), Math.abs(vy - h.y))
+            if (dd < bestD) { bestD = dd; best = h.name }
+        }
+        return best == "" ? "" : "handle:" + best
+        },
+
+    beginHandle(name: string) {
+        const d = app.doc
+        d.begin()
+        startEls = copyOf(d.selected)
+        startBox = copyOf(d.selBox)
+        this.gatherLines()
+        if (name == "radius") { mode = "radius"; return }
+        if (name == "p1" || name == "p2") { mode = "end"; hx = name == "p1" ? 1 : 2; return }
+        mode = "resize"
+        hx = name.includes("l") ? -1 : name.includes("r") ? 1 : 0
+        hy = name.includes("t") ? -1 : name.includes("b") ? 1 : 0
+        keep = startEls.length > 0 && startEls.every((el) => keepsProportions(el))
+        },
+
+    resizeBy(dx0: number, dy0: number, shift: boolean, free: boolean) {
+        const proportional = keep != shift
+        let dx = dx0
+        let dy = dy0
+        const b = startBox
+        const g: Guide[] = []
+        if (!free && !proportional) {
+            if (hx != 0) {
+                const edge = hx < 0 ? b.x + dx : b.x + b.w + dx
+                const sv = snapAxis([edge], linesV, tol)
+                if (!isNaN(sv.at)) { dx = dx + sv.off; g.push(({ axis: "v", at: sv.at })) }
+            }
+            if (hy != 0) {
+                const edge = hy < 0 ? b.y + dy : b.y + b.h + dy
+                const sh = snapAxis([edge], linesH, tol)
+                if (!isNaN(sh.at)) { dy = dy + sh.off; g.push(({ axis: "h", at: sh.at })) }
+            }
+        }
+        guides = g
+        const nb = resizeBox(b, hx, hy, dx, dy, proportional)
+        const by: Record<string, Element> = {}
+        for (const el of startEls) by[el.id] = fitEl(el, b, nb)
+        app.doc.replace(by)
+        },
+
+    endpointBy(dx: number, dy: number, shift: boolean, free: boolean) {
+        const el = startEls[0]
+        if (el == null) return
+        const first = hx == 1
+        const ax = first ? el.x2 ?? 0 : el.x1 ?? 0
+        const ay = first ? el.y2 ?? 0 : el.y1 ?? 0
+        let px = (first ? el.x1 ?? 0 : el.x2 ?? 0) + dx
+        let py = (first ? el.y1 ?? 0 : el.y2 ?? 0) + dy
+        const g: Guide[] = []
+        if (shift) {
+            const a = Math.round(Math.atan2(py - ay, px - ax) / (Math.PI / 4)) * (Math.PI / 4)
+            const len = Math.hypot(px - ax, py - ay)
+            px = ax + Math.cos(a) * len
+            py = ay + Math.sin(a) * len
+        } else if (!free) {
+            const sv = snapAxis([px], linesV, tol)
+            const sh = snapAxis([py], linesH, tol)
+            if (!isNaN(sv.at)) { px = sv.at; g.push(({ axis: "v", at: sv.at })) }
+            if (!isNaN(sh.at)) { py = sh.at; g.push(({ axis: "h", at: sh.at })) }
+        }
+        guides = g
+        app.doc.replace(({ [el.id]: first ? ({ ...el, x1: px, y1: py }) : ({ ...el, x2: px, y2: py }) }))
+        },
+
+    radiusBy(dx: number, dy: number) {
+        const el = startEls[0]
+        if (el == null) return
+        const max = Math.min(el.width ?? 0, el.height ?? 0) / 2
+        const r = Math.max(0, Math.min(max, Math.min(el.cornerRadius ?? 0, max) + (dx + dy) / 2))
+        app.doc.replace(({ [el.id]: ({ ...el, cornerRadius: Math.round(r) }) }))
+        },
+
+    // ── what the stage shows ────────────────────────────────────────────
+
+    // The slide's shadow, then the slide itself: labelled "Slide", its edges
+    // the slide's edges.
+
+    View [ x = { classroot.ox }, y = { classroot.oy }, width = { 1280 * classroot.s }, height = { 720 * classroot.s },
+        fill = white, shadow = { provided("theme").shadowSlide } ],
+    slide: View [ x = { classroot.ox }, y = { classroot.oy }, width = { 1280 * classroot.s }, height = { 720 * classroot.s },
+        accessibilityLabel = "Slide", accessibilityRole = image, clip = true,
+        datapath = { app.deckData.value?.slides[app.doc.index] ?? null },
+        SlideView [ scale = { classroot.s }, hidden = { app.editingText } ]
+        ],
+
+    // An empty slide says how to begin.
+
+    hint: View [ x = { classroot.ox }, y = { classroot.oy }, width = { 1280 * classroot.s }, height = { 720 * classroot.s },
+        pointerEvents = "none",
+        visible = { app.ready && app.doc.els.length == 0 && app.editingText == "" },
+        ink: Color = { isLight(app.doc.slide?.background ?? "#FFFFFF") ? 0x1B1830 : 0xFFFFFF },
+        View [ x = center, y = center,
+            layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 22, fontWeight = 700, textColor = { parent.parent.ink }, opacity = 0.32,
+                text = "An empty slide" ],
+            Text [ fontSize = 14, textColor = { parent.parent.ink }, opacity = 0.42,
+                text = { app.tool == "select" ? "Choose a shape or Text above, then drag on the slide" : "Drag on the slide to draw, or click to place one" } ]
+            ]
+        ],
+
+    // The text being edited, in place: a field over its box, in its style,
+    // at the slide's zoom.
+
+    words: View [ x = { classroot.ox }, y = { classroot.oy }, width = 1280, height = 720,
+        scale = { classroot.s }, pivotX = 0, pivotY = 0,
+        TextEditor [ exists = { app.editingText != "" } ]
+        ],
+
+    // Outlines, guides and the marquee: drawn, and never in the way.
+
+    marks: View [ width = 100%, height = 100%, pointerEvents = "none",
+        draw(d: DrawContext) {
+            const st = classroot
+            const doc = app.doc
+            const sel = provided("theme").sel
+            const X = (v: number) => st.ox + v * st.s
+            const Y = (v: number) => st.oy + v * st.s
+            const ring = (b: Bounds, wid: number, a: number) => {
+                d.globalAlpha = a
+                d.lineWidth = wid
+                d.strokeRect(Math.round(X(b.x)) + 0.5, Math.round(Y(b.y)) + 0.5, Math.round(b.w * st.s), Math.round(b.h * st.s))
+                d.globalAlpha = 1
+                }
+            const lineOf = (el: Element, wid: number, color: Color) => {
+                d.strokeStyle = color; d.lineWidth = wid; d.lineCap = "round"
+                d.beginPath(); d.moveTo(X(el.x1 ?? 0), Y(el.y1 ?? 0)); d.lineTo(X(el.x2 ?? 0), Y(el.y2 ?? 0)); d.stroke()
+                }
+            // the group double-clicked into: a dashed boundary
+            if (doc.scope != "") {
+                const g = findEl(doc.els, doc.scope)
+                if (g != null) { d.strokeStyle = sel; d.setLineDash([4, 3]); ring(boxOf(g), 1, 0.7); d.setLineDash([]) }
+            }
+            // the text box being typed in: its edges, faintly
+            if (app.editingText != "") {
+                const t = findEl(doc.els, app.editingText)
+                if (t != null) { d.strokeStyle = sel; d.setLineDash([3, 3]); ring(boxOf(t), 1, 0.8); d.setLineDash([]) }
+            }
+            // what a click would take
+            const hov = st.hoverId != "" && !doc.selection.includes(st.hoverId) ? findEl(doc.els, st.hoverId) : null
+            if (hov != null) {
+                if (hov.kind == "line") lineOf(hov, 1.5, sel)
+                else { d.strokeStyle = sel; ring(boxOf(hov), 1.5, 0.75) }
+            }
+            // each selected thing, when there are several or it is a line
+            for (const el of doc.selected) {
+                if (el.kind == "line") { lineOf(el, 4, 0xFFFFFF); lineOf(el, 1.5, sel) }
+                else if (doc.selected.length > 1) { d.strokeStyle = sel; ring(boxOf(el), 1, 0.9) }
+            }
+            // the selection's frame: white under violet, so it shows on any slide
+            if (app.frame.shown && app.frame.boxed) {
+                const b = doc.selBox
+                d.strokeStyle = 0xFFFFFF; ring(b, 3.5, 0.9)
+                d.strokeStyle = sel; ring(b, 1.5, 1)
+            }
+            // guides, across the slide
+            d.strokeStyle = provided("theme").guide
+            d.lineWidth = 1
+            for (const g of st.guides) {
+                d.beginPath()
+                if (g.axis == "v") { d.moveTo(Math.round(X(g.at)) + 0.5, Y(0)); d.lineTo(Math.round(X(g.at)) + 0.5, Y(720)) }
+                else { d.moveTo(X(0), Math.round(Y(g.at)) + 0.5); d.lineTo(X(1280), Math.round(Y(g.at)) + 0.5) }
+                d.stroke()
+            }
+            // the marquee
+            const m = st.marquee
+            if (m != null) {
+                d.fillStyle = colorWithAlpha(sel ?? 0, 24)
+                d.fillRect(X(m.x), Y(m.y), m.w * st.s, m.h * st.s)
+                d.strokeStyle = sel; ring(m, 1, 1)
+            }
+            }
+        ],
+
+    frame: SelectionFrame [ width = 100%, height = 100% ],
+
+    // Someone else changed this slide: say so, and offer both.
+
+    conflict: ConflictBar [ x = center, y = { parent.height - this.height - 18 } ]
+    ]
+
+
+// The handles of the selection, as views: they show where to grab and set
+// the cursor; the stage under them takes the press (see `Stage.handleAt`).
+
+schema HandleSpot [ name: string, x: number, y: number ]
+
+class SelectionFrame [ pointerEvents = "none",
+    doc: Doc = { app.doc },
+    st: Stage = { app.stage },
+    one: Element? = { classroot.doc.single },
+    isLine: boolean = { classroot.one?.kind == "line" },
+    textOnly: boolean = { classroot.doc.selected.length > 0 && classroot.doc.selected.every((e) => e.kind == "text") },
+
+    // Handles show for a selection, except while typing, drawing or sweeping.
+
+    busy: boolean = { app.editingText != "" || app.tool != "select" || classroot.st.mode == "marquee" },
+    shown: boolean = { classroot.doc.selected.length > 0 && !classroot.busy },
+    boxed: boolean = { !classroot.isLine },
+    bx: number = { classroot.st.ox + classroot.doc.selBox.x * classroot.st.s },
+    by: number = { classroot.st.oy + classroot.doc.selBox.y * classroot.st.s },
+    bw: number = { classroot.doc.selBox.w * classroot.st.s },
+    bh: number = { classroot.doc.selBox.h * classroot.st.s },
+    small: boolean = { classroot.bw < 36 || classroot.bh < 36 },
+    showRadius: boolean = { classroot.one?.kind == "rect" && classroot.bw > 40 && classroot.bh > 40 },
+    radiusAt: number = { Math.max(14, Math.min(Math.min(classroot.one?.cornerRadius ?? 0, Math.min(classroot.one?.width ?? 0, classroot.one?.height ?? 0) / 2) * classroot.st.s, Math.min(classroot.bw, classroot.bh) / 2)) },
+
+    // Where each handle is, in stage coordinates.
+
+    handles() -> HandleSpot[] {
+        if (!shown) return []
+        if (isLine && one != null) {
+            const s = st.s
+            return [({ name: "p1", x: st.ox + (one.x1 ?? 0) * s, y: st.oy + (one.y1 ?? 0) * s }),
+                    ({ name: "p2", x: st.ox + (one.x2 ?? 0) * s, y: st.oy + (one.y2 ?? 0) * s })]
+        }
+        const out: HandleSpot[] = []
+        const xs = [bx, bx + bw / 2, bx + bw]
+        const ys = [by, by + bh / 2, by + bh]
+        const names = [["lt", "t", "rt"], ["l", "", "r"], ["lb", "b", "rb"]]
+        for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+            const n = names[r][c]
+            if (n == "") continue
+            if (textOnly && n.length == 1 && (n == "t" || n == "b")) continue
+            if (small && n.length == 1) continue
+            out.push(({ name: n, x: xs[c], y: ys[r] }))
+        }
+        if (showRadius) out.push(({ name: "radius", x: bx + radiusAt, y: by + radiusAt }))
+        return out
+        },
+    spots: Dataset [ contents = { { spots: classroot.handles() } } ],
+    View [ datapath = { classroot.spots.value }, width = 100%, height = 100%,
+        Grip [ datapath = :spots[], identityKey = :name ]
+        ]
+    ]
+
+
+// One handle: easy to hit (the stage gives it 26 pixels), small to see.
+
+class Grip [ width = 26, height = 26,
+    name: string = { :name ?? "" },
+    x = { (:x ?? 0) - 13 }, y = { (:y ?? 0) - 13 },
+    cursor = { app.cursorFor(classroot.name) },
+    round: boolean = { classroot.name == "p1" || classroot.name == "p2" || classroot.name == "radius" },
+    dot: View [ x = center, y = center, width = { classroot.name == "radius" ? 9 : 10 }, height = { this.width },
+        cornerRadius = { classroot.round ? this.width / 2 : 2.5 },
+        fill = { classroot.name == "radius" ? provided("theme").sel : 0xFFFFFF },
+        stroke = { classroot.name == "radius" ? stroke(1.5, 0xFFFFFF) : stroke(1.5, provided("theme").sel) },
+        shadow = { provided("theme").shadowGrip } ]
+    ]
+
+
+// The text box being edited: a field laid exactly over it, in its style.
+
+class TextEditor extends TextInput [ multiline = true, wrap = true, fill = null, stroke = null, padding = 0,
+    el: Element? = { findEl(app.doc.els, app.editingText) },
+    t: TextBlock? = { classroot.el?.text ?? null },
+    x = { classroot.el?.x ?? 0 }, y = { classroot.el?.y ?? 0 }, width = { Math.max(20, classroot.el?.width ?? 20) },
+    fontFamily = { [classroot.t?.font ?? "Helvetica Neue", "Helvetica Neue", "Arial", "sans-serif"] },
+    fontSize = { classroot.t?.size ?? 24 },
+    fontWeight = { (classroot.t?.weight ?? 400) as FontWeight },
+    italic = { classroot.t?.italic ?? false },
+    textColor = { app.color(classroot.t?.color ?? "#000000") },
+    textAlign = { classroot.t?.align ?? "left" },
+    lineHeight = 1.2,
+    accessibilityLabel = "Text",
+    value = { classroot.t?.content ?? "" },
+    commit(v: string) { app.typeText(v) },
+    onInit() { afterSettle(() => Focus.focus(this)) }
+    ]
+
+
+// A slide changed in another window since it was opened.
+
+class ConflictBar [ visible = { this.theirs != null }, padding = [10, 10, 10, 14], cornerRadius = 14,
+    theirs: ServerSlide? = { app.sync.conflicts[app.doc.current] ?? null },
+    fill = { provided("theme").raised },
+    stroke = { stroke(1, provided("theme").warn) },
+    shadow = { provided("theme").shadowBanner },
+    accessibilityRole = status, accessibilityLive = assertive,
+    layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+    theirsData: Dataset [ contents = { { slide: classroot.theirs } } ],
+    SlideThumb [ width = 112, cornerRadius = 4, stroke = { stroke(1, provided("theme").line) },
+        datapath = { classroot.theirsData.value?.slide ?? null } ],
+    View [ width = 300,
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        Text [ fontSize = 14, fontWeight = 650, textColor = { provided("theme").text },
+            text = "This slide was changed in another window" ],
+        Text [ width = 100%, fontSize = 12.5, textColor = { provided("theme").textMuted },
+            text = "Their version is on the left. Your changes to this slide are kept until you choose." ]
+        ],
+    PillBtn [ label = "Use their version", tone = "accent",
+        press() { app.takeTheirs() }
+        ],
+    PillBtn [ label = "Keep mine",
+        press() { app.keepMine() }
+        ]
+    ]
+
+
+// ── The slide list ──────────────────────────────────────────────────────────
+//
+// Rows are placed by hand on purpose: each glides to its slot on a spring,
+// and while one is dragged the others glide aside to open the gap where it
+// would land. Arrow keys move through the slides while the list has focus.
+
+class SlideList [ scrolls = y, focusable = true, accessibilityLabel = "Slides",
+    rowH: number = 118,
+    count: number = { app.doc.slides.length },
+    keyBindings = { [ ({ key: "ArrowUp", command: "step", args: [-1] }), ({ key: "ArrowDown", command: "step", args: [1] }),
+        ({ key: "Home", command: "jump", args: [0] }), ({ key: "End", command: "jump", args: [1] }),
+        ({ key: "Backspace", command: "drop" }), ({ key: "Delete", command: "drop" }) ] },
+    step(d: number) { app.doc.goBy(d); afterSettle(() => this.reveal()) },
+    jump(end: number) { app.doc.goBy(end == 0 ? -100000 : 100000); afterSettle(() => this.reveal()) },
+    drop() { app.doc.deleteSlide(app.doc.current) },
+    reveal() {
+        const top = 10 + app.doc.index * rowH
+        if (top < this.scrollY + 4) this.scrollTo(top - 10)
+        else if (top + rowH > this.scrollY + this.height - 4) this.scrollTo(top + rowH - this.height + 10)
+        },
+    rows: View [ width = 100%, height = { classroot.count * classroot.rowH + 20 },
+        datapath = { app.deckData.value },
+        SlideRow [ datapath = :slides[] ]
+        ]
+    ]
+
+
+class SlideRow extends Control [ x = 0, width = 100%, height = { app.slideList.rowH }, focusable = false,
+    sid: string = { :id ?? "" },
+    num: number = { rowIndex + 1 },
+    here: boolean = { app.doc.current == classroot.sid },
+    accessibilityLabel = { "Slide " + classroot.num },
+    accessibilityRole = button,
+    accessibilityPressed = { classroot.here },
+
+    // Its slot, and the spring that carries it there. While it is dragged
+    // it follows the pointer instead.
+
+    slotTop: number = { 10 + app.slotOf(rowIndex, classroot.sid) * app.slideList.rowH },
+    pos: number = { classroot.slotTop },
+    Spring [ attribute = pos, to = { classroot.slotTop }, stiffness = 380, damping = 34 ],
+    dragging: boolean = { app.dragSlide == classroot.sid },
+    dragTop: number = 0,
+    grabTop: number = 0,
+    y = { classroot.dragging ? classroot.dragTop : classroot.pos },
+
+    press() { app.doc.go(sid); Focus.focus(app.slideList) },
+    onDragStart(e: PointerEvent) {
+        grabTop = pos
+        dragTop = pos
+        app.doc.go(sid)
+        app.dragFrom = rowIndex
+        app.dragTo = rowIndex
+        app.dragSlide = sid
+        this.raise()
+        },
+    onDrag(e: PointerEvent) {
+        const rh = app.slideList.rowH
+        const n = app.doc.slides.length
+        dragTop = Math.max(0, Math.min(10 + (n - 1) * rh + 10, grabTop + e.deltaY))
+        app.dragTo = Math.max(0, Math.min(n - 1, Math.round((dragTop - 10) / rh)))
+        },
+    onDragEnd(e: DragEndEvent) {
+        pos = dragTop
+        const to = app.dragTo
+        app.dragSlide = ""
+        if (!e.canceled) app.doc.moveSlide(sid, to)
+        },
+    onContextMenu(e: PointerEvent) { app.doc.go(sid); app.slideMenu.showAt(this, e) },
+
+    layout: SimpleLayout [ axis = x, spacing = 8, align = start ],
+    padding = [0, 12, 0, 8],
+    TextLabel [ width = 22, fontSize = 12, fontWeight = 650, numeralWidth = tabular, textAlign = right,
+        textColor = { classroot.here ? provided("theme").accent : provided("theme").textFaint },
+        text = { "" + classroot.num } ],
+    frame: View [ flexes = true, padding = 3, cornerRadius = 9,
+        stroke = { classroot.here ? stroke(2.5, provided("theme").accent) : classroot.hovered ? stroke(2.5, provided("theme").lineStrong) : null },
+        shadow = { classroot.dragging ? provided("theme").shadowDrag : null },
+        scale = { classroot.dragging ? 1.04 : 1 }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+        SlideThumb [ width = 100%, cornerRadius = 6, stroke = { stroke(1, provided("theme").lineStrong) } ],
+        View [ visible = { app.sync.conflicts[classroot.sid] != null }, x = end, y = 0,
+            width = 22, height = 22, cornerRadius = 11, fill = { provided("theme").warn },
+            tooltipLabel = "Changed in another window",
+            Glyph [ x = center, y = center, iconSize = 12, weight = 1.8, shape = "alert", ink = white ]
+            ]
+        ]
+    ]
+
+
+// ── The inspector ───────────────────────────────────────────────────────────
+
+class Inspector [ scrolls = y, accessibilityLabel = "Inspector", accessibilityRole = complementary, fontSize = 13,
+    doc: Doc = { app.doc },
+    sel: Element[] = { classroot.doc.selected },
+    parts: Element[] = { classroot.doc.leavesSel },
+    none: boolean = { classroot.sel.length == 0 },
+    shapes: Element[] = { classroot.parts.filter((l) => l.kind == "rect" || l.kind == "ellipse") },
+    outlined: Element[] = { classroot.parts.filter((l) => l.kind == "rect" || l.kind == "ellipse" || l.kind == "line") },
+    hasLine: boolean = { classroot.parts.some((l) => l.kind == "line") },
+    rects: Element[] = { classroot.parts.filter((l) => l.kind == "rect") },
+    texts: Element[] = { classroot.parts.filter((l) => l.kind == "text") },
+    sized: Element[] = { classroot.parts.filter((l) => l.kind != "line") },
+
+    fillValue: string = { classroot.none ? (classroot.doc.slide?.background ?? "#FFFFFF") : app.common(classroot.shapes.map((l) => l.fill ?? "")) },
+    strokeValue: string = { app.common(classroot.outlined.map((l) => l.stroke?.color ?? "")) },
+    strokeWidth: number = { app.commonNum(classroot.outlined.map((l) => l.stroke?.width ?? 0)) },
+    radius: number = { app.commonNum(classroot.rects.map((l) => l.cornerRadius ?? 0)) },
+    maxRadius: number = { Math.max(1, ...classroot.rects.map((l) => Math.min(l.width ?? 0, l.height ?? 0) / 2)) },
+    font: string = { app.common(classroot.texts.map((l) => l.text?.font ?? "")) },
+    size: number = { app.commonNum(classroot.texts.map((l) => l.text?.size ?? 0)) },
+    weight: number = { app.commonNum(classroot.texts.map((l) => l.text?.weight ?? 400)) },
+    italic: boolean = { classroot.texts.length > 0 && classroot.texts.every((l) => l.text?.italic ?? false) },
+    align: string = { app.common(classroot.texts.map((l) => l.text?.align ?? "left")) },
+    inkValue: string = { app.common(classroot.texts.map((l) => l.text?.color ?? "")) },
+    keeps: boolean = { classroot.sized.length > 0 && classroot.sized.every((l) => l.keepProportions ?? false) },
+    box: Bounds = { classroot.doc.selBox },
+
+    title: string = { app.selectionName() },
+
+    layout: SimpleLayout [ axis = y ],
+
+    head: View [ width = 100%, padding = [16, 16, 14, 16],
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        Text [ fontFamily = { app.brandFace }, fontSize = 17, fontWeight = 700, maxLines = 1, width = 100%,
+            textColor = { provided("theme").text }, text = { classroot.title } ],
+        Text [ fontSize = 12.5, maxLines = 1, width = 100%, textColor = { provided("theme").textMuted },
+            text = { classroot.none ? "Click something on the slide to style it" : classroot.sel.length > 1 ? "Changes apply to all of them" : "Double-click to go inside or edit" } ]
+        ],
+
+    Section [ title = { classroot.none ? "Slide background" : "Fill" }, off = { !classroot.none && classroot.shapes.length == 0 },
+        Row [ label = "Colour",
+            ColorWell [ target = { classroot.none ? "background" : "fill" }, value = { classroot.fillValue },
+                allowNone = { !classroot.none } ]
+            ]
+        ],
+
+    Section [ title = "Outline", off = { classroot.outlined.length == 0 },
+        Row [ label = "Colour",
+            ColorWell [ target = "outline", value = { classroot.strokeValue }, allowNone = { !classroot.hasLine } ]
+            ],
+        Row [ label = "Width",
+            Slider [ flexes = true, min = 0, max = 24, step = 0.5, commitOn = "end",
+                accessibilityLabel = "Outline width",
+                value = { isNaN(classroot.strokeWidth) ? 0 : classroot.strokeWidth },
+                commit(v: number) { app.setStrokeWidth(v) }
+                ],
+            NumField [ width = 52, num = { classroot.strokeWidth }, mixed = { isNaN(classroot.strokeWidth) },
+                accessibilityLabel = "Outline width in points",
+                take(n: number) { app.setStrokeWidth(n) }
+                ]
+            ]
+        ],
+
+    Section [ title = "Corners", off = { classroot.rects.length == 0 },
+        Row [ label = "Radius",
+            Slider [ flexes = true, min = 0, max = { classroot.maxRadius }, step = 1, commitOn = "end",
+                accessibilityLabel = "Corner radius",
+                value = { isNaN(classroot.radius) ? 0 : Math.min(classroot.radius, classroot.maxRadius) },
+                commit(v: number) { app.setRadius(v) }
+                ],
+            NumField [ width = 52, num = { classroot.radius }, mixed = { isNaN(classroot.radius) },
+                accessibilityLabel = "Corner radius in points",
+                take(n: number) { app.setRadius(n) }
+                ]
+            ]
+        ],
+
+    Section [ title = "Text", off = { classroot.texts.length == 0 },
+        Row [ label = "Font",
+            Button [ flexes = true, height = 30, label = { classroot.font == "mixed" ? "Mixed" : classroot.font == "" ? "—" : classroot.font },
+                accessibilityLabel = "Font", menu = { app.fontMenu } ]
+            ],
+        Row [ label = "Size",
+            Stepper [ width = 104, min = 6, max = 400, step = 2, accessibilityLabel = "Text size",
+                value = { isNaN(classroot.size) ? 0 : classroot.size },
+                format(v: number) -> string { return classroot.texts.length == 0 ? "—" : isNaN(classroot.size) ? "–" : "" + v },
+                commit(v: number) { app.setTextSize(v) }
+                ],
+            Button [ flexes = true, height = 30, accessibilityLabel = "Weight", menu = { app.weightMenu },
+                label = { classroot.texts.length == 0 ? "—" : app.weightName(classroot.weight) } ]
+            ],
+        Row [ label = "Style",
+            IconBtn [ shape = "italic", label = "Italic", on = { classroot.italic },
+                press() { app.setItalic(!classroot.italic) }
+                ],
+            Segmented [ flexes = true, value = { classroot.align }, accessibilityLabel = "Alignment",
+                items = { [ ({ id: "left", icon: "AlignLeftIcon" }), ({ id: "center", icon: "AlignCenterIcon" }), ({ id: "right", icon: "AlignRightIcon" }) ] },
+                commit(v: object) { app.setAlign("" + v) }
+                ]
+            ],
+        Row [ label = "Colour",
+            ColorWell [ target = "text", value = { classroot.inkValue }, allowNone = false ]
+            ]
+        ],
+
+    Section [ title = "Position and size", off = { classroot.none },
+        Row [ label = "Position",
+            NumField [ flexes = true, num = { classroot.box.x }, accessibilityLabel = "X",
+                take(n: number) { app.moveSelTo(n, NaN) }
+                ],
+            NumField [ flexes = true, num = { classroot.box.y }, accessibilityLabel = "Y",
+                take(n: number) { app.moveSelTo(NaN, n) }
+                ]
+            ],
+        Row [ label = "Size",
+            NumField [ flexes = true, num = { classroot.box.w }, accessibilityLabel = "Width",
+                take(n: number) { app.sizeSelTo(n, NaN) }
+                ],
+            NumField [ flexes = true, num = { classroot.box.h }, accessibilityLabel = "Height",
+                take(n: number) { app.sizeSelTo(NaN, n) }
+                ]
+            ],
+        Row [ label = "",
+            Checkbox [ fontSize = 13, label = "Keep proportions", checked = { classroot.keeps }, disabled = { classroot.sized.length == 0 },
+                commit(v: boolean) { app.setKeep(v) }
+                ]
+            ]
+        ],
+
+    Section [ title = "Arrange", off = { classroot.none },
+        Row [ label = "Align",
+            View [ layout: SimpleLayout [ axis = x, spacing = 0 ],
+                IconBtn [ shape = "alignLeft", label = "Align left edges", disabled = { classroot.sel.length < 2 },
+                    press() { app.doc.align("left") }
+                    ],
+                IconBtn [ shape = "alignCenter", label = "Align centres", disabled = { classroot.sel.length < 2 },
+                    press() { app.doc.align("center") }
+                    ],
+                IconBtn [ shape = "alignRight", label = "Align right edges", disabled = { classroot.sel.length < 2 },
+                    press() { app.doc.align("right") }
+                    ],
+                IconBtn [ shape = "alignTop", label = "Align tops", disabled = { classroot.sel.length < 2 },
+                    press() { app.doc.align("top") }
+                    ],
+                IconBtn [ shape = "alignMiddle", label = "Align middles", disabled = { classroot.sel.length < 2 },
+                    press() { app.doc.align("middle") }
+                    ],
+                IconBtn [ shape = "alignBottom", label = "Align bottoms", disabled = { classroot.sel.length < 2 },
+                    press() { app.doc.align("bottom") }
+                    ]
+                ]
+            ],
+        Row [ label = "Spread",
+            View [ layout: SimpleLayout [ axis = x, spacing = 0 ],
+                IconBtn [ shape = "distAcross", label = "Distribute across", disabled = { classroot.sel.length < 3 },
+                    press() { app.doc.distribute("across") }
+                    ],
+                IconBtn [ shape = "distDown", label = "Distribute down", disabled = { classroot.sel.length < 3 },
+                    press() { app.doc.distribute("down") }
+                    ],
+                View [ width = 12, height = 1 ],
+                IconBtn [ shape = "group", label = "Group", disabled = { !classroot.doc.canGroup },
+                    press() { app.doc.group() }
+                    ],
+                IconBtn [ shape = "ungroup", label = "Ungroup", disabled = { !classroot.doc.canUngroup },
+                    press() { app.doc.ungroup() }
+                    ]
+                ]
+            ],
+        Row [ label = "Order",
+            View [ layout: SimpleLayout [ axis = x, spacing = 0 ],
+                IconBtn [ shape = "front", label = "Bring to front", disabled = { classroot.none },
+                    press() { app.doc.order("front") }
+                    ],
+                IconBtn [ shape = "forward", label = "Bring forward", disabled = { classroot.none },
+                    press() { app.doc.order("forward") }
+                    ],
+                IconBtn [ shape = "backward", label = "Send backward", disabled = { classroot.none },
+                    press() { app.doc.order("backward") }
+                    ],
+                IconBtn [ shape = "back", label = "Send to back", disabled = { classroot.none },
+                    press() { app.doc.order("back") }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// The three alignment marks, as classes a `Segmented` can name.
+
+use [ AlignLeftIcon, AlignCenterIcon, AlignRightIcon ]
+
+class AlignLeftIcon extends Glyph [ shape = "textLeft" ]
+
+class AlignCenterIcon extends Glyph [ shape = "textCenter" ]
+
+class AlignRightIcon extends Glyph [ shape = "textRight" ]

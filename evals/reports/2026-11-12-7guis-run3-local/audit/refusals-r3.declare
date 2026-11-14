@@ -1,0 +1,9 @@
+// The run's R3 warnings, minimal: press() on a Button (DECLARE4013); a 4-part condition
+// (DECLARE4025); a labelled, focusable drawing with no role (DECLARE4035 + DECLARE4018);
+// redundant parentheses (DECLARE1002).
+App [ width = 300, height = 200, n: number = 0, a: number? = null, b: number? = null, ret: boolean = false,
+    late: boolean = { app.ret && app.a != null && app.b != null && app.b < app.a },
+    d: Dataset [ contents = { ({ rows: [] }) } ],
+    Button [ label = "Count", press() { app.n = app.n + 1 } ],
+    View [ y = 40, width = 100, height = 60, focusable = true, accessibilityLabel = "Drawing",
+        draw(g: DrawContext) { g.fillRect(0, 0, 10, 10) } ] ]

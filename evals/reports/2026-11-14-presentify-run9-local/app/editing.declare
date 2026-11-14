@@ -1,0 +1,353 @@
+/*
+# Presentify: editing
+
+`Editor` is where the person is inside an open presentation: which slide is
+being edited, what is selected, which tool is in hand, which text box is being
+typed in. It also holds every verb the person can apply: each one a single
+step in the undo history, made by one write to the working copy (`app.doc`).
+
+Verbs read the working copy fresh (`_els()`), never the derived values below,
+because a handler sees derived values as they were before its own writes.
+*/
+
+class Editor extends Node [
+
+    // ── where the person is
+
+    currentId: string = "",
+    selection: string[] = [],
+    scope: string = "",                // a group entered with a double-click: clicks pick inside it
+    tool: "select" | "rect" | "ellipse" | "line" | "text" = "select",
+    editingId: string = "",            // the text box being typed in
+    hoverId: string = "",
+
+    // shown while a drag is under way
+
+    guidesX: number[] = [],
+    guidesY: number[] = [],
+    marquee: Box? = null,
+
+    // what Copy took, for Paste in this window (the system clipboard carries it to others)
+
+    clipboard: Element[] = [],
+    _pasteN: number = 0,
+
+    // ── what follows from it
+
+    slide: Slide? = { app.doc.slide(this.currentId) },
+    index: number = { app.doc.indexOf(this.currentId) },
+    els: Element[] = { this.slide?.elements ?? [] },
+    layer: Element[] = { this.scope == "" ? this.els : (findEl(this.els, this.scope)?.children ?? []) },
+    selected: Element[] = { this.selection.map((id) => findEl(this.els, id)).filter((e) => e != null) as Element[] },
+    selBox: Box? = { boundsOfAll(this.selected) },
+    single: Element? = { this.selected.length == 1 ? this.selected[0] : null },
+    leaves: Element[] = { leavesOf(this.selected) },
+    hovered: Element? = { this.hoverId == "" || this.selection.includes(this.hoverId) ? null : findEl(this.els, this.hoverId) },
+    canGroup: boolean = { this.selected.length >= 2 },
+    canUngroup: boolean = { this.selected.some((e) => e.kind == "group") },
+    canAlign: boolean = { this.selected.length >= 2 },
+    canDistribute: boolean = { this.selected.length >= 3 },
+    hasSelection: boolean = { this.selected.length > 0 },
+    slideCount: number = { app.doc.slides().length },
+    blank: boolean = { this.slide != null && this.els.length == 0 && this.editingId == "" },
+    editingEl: Element? = { this.editingId == "" ? null : findEl(this.els, this.editingId) },
+
+    // Whether the person is working on this element: typing in it, or it is
+    // selected, alone or inside a selected group.
+
+    touching(id: string) -> boolean {
+        if (editingId == id) return true
+        return selection.some((s) => s == id || findEl([findEl(_els(), s) ?? ({ id: "", kind: "rect" })], id) != null)
+        },
+
+    _els() -> Element[] { return app.doc.slide(currentId)?.elements ?? [] },
+    _bg() -> string { return app.doc.slide(currentId)?.background ?? "#FFFFFF" },
+
+    // One step: the slide's elements made new by `f`.
+
+    change(key: string, f: (els: Element[]) => Element[]) {
+        app.history.step(key, () => app.doc.setElements(currentId, f(_els()), true))
+        },
+
+    // ── where the person is, changed
+
+    select(ids: string[]) {
+        if (editingId != "" && !ids.includes(editingId)) endEditing()
+        selection = ids
+        app.history.endRun()
+        },
+    toggle(id: string) { select(selection.includes(id) ? selection.filter((s) => s != id) : [...selection, id]) },
+    selectAll() { endEditing(); scope = ""; selection = _els().map((e) => e.id) },
+    clear() { endEditing(); selection = []; scope = "" },
+    setTool(t: "select" | "rect" | "ellipse" | "line" | "text") { endEditing(); tool = t; if (t != "select") selection = [] },
+
+    // Escape: out of typing, then out of a tool, then out of a group, then
+    // the selection.
+
+    escape() -> boolean {
+        if (editingId != "") { endEditing(); return true }
+        if (tool != "select") { tool = "select"; return true }
+        if (scope != "") { const g = scope; scope = ""; selection = [g]; return true }
+        if (selection.length > 0) { selection = []; return true }
+        return false
+        },
+
+    goTo(id: string) {
+        if (id == currentId || app.doc.slide(id) == null) return
+        endEditing()
+        currentId = id
+        selection = []
+        scope = ""
+        hoverId = ""
+        app.sync.check()
+        },
+    goBy(d: number) {
+        const order = app.doc.order()
+        const i = order.indexOf(currentId) + d
+        if (i >= 0 && i < order.length) goTo(order[i])
+        },
+    restoreView(current: string, sel: string[], sc: string) {
+        editingId = ""
+        currentId = app.doc.slide(current) != null ? current : (app.doc.order()[0] ?? "")
+        scope = sc
+        selection = sel
+        },
+    reset(first: string) {
+        currentId = first
+        selection = []
+        scope = ""
+        tool = "select"
+        editingId = ""
+        hoverId = ""
+        guidesX = []
+        guidesY = []
+        marquee = null
+        },
+
+    // ── drawing
+
+    // A new shape from a dragged box. The tool goes back to Select, and the
+    // new thing is selected; a text box opens for typing.
+
+    create(kind: "rect" | "ellipse" | "line" | "text", b: Box, square: boolean, ax: number, ay: number, bx: number, by: number) -> string {
+        const id = newId("e")
+        const ink = inkHex(_bg())
+        let e: Element
+        if (kind == "line") e = ({ id: id, kind: "line", x1: ax, y1: ay, x2: bx, y2: by, stroke: ({ color: ink, width: 4 }) })
+        else if (kind == "text") e = ({ id: id, kind: "text", x: b.x, y: b.y, width: Math.max(b.w, 40), keepProportions: false,
+            text: ({ content: "", font: "Inter", size: 32, weight: 400, italic: false, color: ink, align: "left" }), height: 38.4 })
+        else if (kind == "rect") e = ({ id: id, kind: "rect", x: b.x, y: b.y, width: b.w, height: b.h, fill: "#7C5CFF",
+            stroke: null, cornerRadius: 0, keepProportions: square })
+        else e = ({ id: id, kind: "ellipse", x: b.x, y: b.y, width: b.w, height: b.h, fill: "#FF6A3D",
+            stroke: null, keepProportions: square })
+        if (kind == "text") _undoDepth = app.history.undos.length
+        app.doc.setElements(currentId, [..._els(), e], true)
+        scope = ""
+        selection = [id]
+        tool = "select"
+        if (kind == "text") { editingId = id; _session = _session + 1; _madeHere = id }
+        return id
+        },
+
+    // While the drag goes on, the shape follows the pointer.
+
+    reshape(id: string, b: Box, ax: number, ay: number, bx: number, by: number) {
+        app.doc.setElements(currentId, mapIds(_els(), [id], (e) => e.kind == "line"
+            ? ({ ...e, x1: ax, y1: ay, x2: bx, y2: by })
+            : ({ ...e, x: b.x, y: b.y, width: Math.max(b.w, e.kind == "text" ? 40 : 1), height: e.kind == "text" ? e.height : Math.max(b.h, 1) })), true)
+        },
+
+    // ── typing in a text box
+
+    _session: number = 0,
+    _madeHere: string = "",            // the text box made for this typing, if it was
+    _undoDepth: number = 0,
+    beginEditing(id: string) {
+        const e = findEl(_els(), id)
+        if (e == null || e.kind != "text") return
+        selection = [id]
+        editingId = id
+        _session = _session + 1
+        _madeHere = ""
+        app.history.endRun()
+        },
+    type(id: string, content: string) {
+        change("type:" + id + ":" + _session, (els) => mapIds(els, [id], (e) => ({ ...e, text: ({ ...e.text!, content: content }) })))
+        },
+
+    // A click elsewhere or Escape ends typing. A text box left empty goes;
+    // one made just now and never filled leaves no step behind.
+
+    endEditing() {
+        if (editingId == "") return
+        const id = editingId
+        editingId = ""
+        const e = findEl(_els(), id)
+        if (e == null || (e.text?.content ?? "").trim() != "") { _madeHere = ""; return }
+        if (_madeHere == id) {
+            app.doc.setElements(currentId, removeIds(_els(), [id]), true)
+            app.history.trimTo(_undoDepth)
+        } else {
+            change("type:" + id + ":" + _session, (els) => removeIds(els, [id]))
+            }
+        _madeHere = ""
+        selection = selection.filter((s) => s != id)
+        },
+
+    // The field lost the focus to something other than itself: typing is over.
+
+    endEditingIfBlurred() {
+        const f = Focus.getFocus()
+        if (editingId != "" && !(f instanceof TextField)) endEditing()
+        },
+
+    // A text box's height follows its lines; it is written only for what the
+    // person is working on, so opening a presentation changes nothing.
+
+    noteHeight(id: string, h: number) {
+        const e = findEl(_els(), id)
+        if (e == null || Math.abs((e.height ?? 0) - h) < 0.5) return
+        app.doc.setElements(currentId, mapIds(_els(), [id], (x) => ({ ...x, height: Math.round(h * 100) / 100 })), false)
+        },
+
+    // ── the selection, changed
+
+    deleteSelection() {
+        if (selection.length == 0) return
+        const ids = selection
+        change("", (els) => removeIds(els, ids))
+        selection = []
+        },
+    duplicate() {
+        const sel = selection.map((id) => findEl(_els(), id)).filter((e) => e != null) as Element[]
+        if (sel.length == 0) return
+        const copies = sel.map((e) => translated(withNewIds(e), 24, 24))
+        const last = sel[sel.length - 1].id
+        change("", (els) => insertAfter(els, last, copies))
+        selection = copies.map((e) => e.id)
+        },
+    copy() {
+        const sel = selection.map((id) => findEl(_els(), id)).filter((e) => e != null) as Element[]
+        if (sel.length == 0) return
+        clipboard = structuredClone(sel)
+        _pasteN = 0
+        },
+    cut() { copy(); deleteSelection() },
+    paste(list: Element[]) {
+        if (list.length == 0) return
+        _pasteN = _pasteN + 1
+        const d = 24 * _pasteN
+        const copies = list.map((e) => translated(withNewIds(e), d, d))
+        endEditing()
+        change("", (els) => [...els, ...copies])
+        scope = ""
+        selection = copies.map((e) => e.id)
+        },
+    nudge(dx: number, dy: number) {
+        if (selection.length == 0) return
+        const ids = selection
+        change("nudge", (els) => mapIds(els, ids, (e) => translated(e, dx, dy)))
+        },
+    group() {
+        if (!canGroup) return
+        const gid = newId("g")
+        const ids = selection
+        change("", (els) => grouped(els, ids, gid))
+        selection = [gid]
+        },
+    ungroup() {
+        const groups = selected.filter((e) => e.kind == "group")
+        if (groups.length == 0) return
+        const kids = groups.flatMap((g) => (g.children ?? []).map((c) => c.id))
+        const ids = groups.map((g) => g.id)
+        change("", (els) => ungrouped(els, ids))
+        if (ids.includes(scope)) scope = ""
+        selection = [...selection.filter((id) => !ids.includes(id)), ...kids]
+        },
+    align(how: string) {
+        if (!canAlign) return
+        const off = alignOffsets(selected, how)
+        change("", (els) => mapIdsBy(els, off))
+        },
+    distribute(axis: string) {
+        if (!canDistribute) return
+        const off = distributeOffsets(selected, axis)
+        change("", (els) => mapIdsBy(els, off))
+        },
+    order(how: string) {
+        if (selection.length == 0) return
+        const ids = selection
+        change("", (els) => reordered(els, ids, how))
+        },
+
+    // ── styling: what the inspector sets. Each applies to everything selected
+    //    that has the property; groups are styled through their parts.
+
+    setFill(c: string?) {
+        if (selection.length == 0) { setBackground(c ?? "#FFFFFF"); return }
+        const ids = selection
+        change("", (els) => mapLeaves(els, ids, (e) => e.kind == "rect" || e.kind == "ellipse" ? ({ ...e, fill: c }) : e))
+        },
+    setBackground(c: string) {
+        const id = currentId
+        app.history.step("", () => app.doc.setBackground(id, c))
+        },
+    setStrokeColor(c: string?) {
+        const ids = selection
+        change("", (els) => mapLeaves(els, ids, (e) => {
+            if (e.kind == "line") return c == null ? e : ({ ...e, stroke: ({ color: c, width: e.stroke?.width ?? 4 }) })
+            if (e.kind != "rect" && e.kind != "ellipse") return e
+            return c == null ? ({ ...e, stroke: null }) : ({ ...e, stroke: ({ color: c, width: e.stroke?.width ?? 2 }) })
+            }))
+        },
+    setStrokeWidth(w: number) {
+        const ids = selection
+        const v = Math.max(0.5, Math.min(64, w))
+        change("stroke-width:" + ids.join(","), (els) => mapLeaves(els, ids, (e) => {
+            if (e.kind != "rect" && e.kind != "ellipse" && e.kind != "line") return e
+            return ({ ...e, stroke: ({ color: e.stroke?.color ?? "#1F2328", width: v }) })
+            }))
+        },
+    setRadius(r: number) {
+        const ids = selection
+        change("radius:" + ids.join(","), (els) => mapLeaves(els, ids, (e) => e.kind == "rect"
+            ? ({ ...e, cornerRadius: Math.max(0, Math.min(r, Math.min(e.width ?? 0, e.height ?? 0) / 2)) }) : e))
+        },
+    setText(field: string, v: object, key: string) {
+        const ids = selection
+        change(key, (els) => mapLeaves(els, ids, (e) => e.kind == "text" ? ({ ...e, text: ({ ...e.text!, [field]: v }) }) : e))
+        },
+    setKeep(b: boolean) {
+        const ids = selection
+        change("", (els) => mapLeaves(els, ids, (e) => e.kind == "line" ? e : ({ ...e, keepProportions: b })))
+        },
+
+    // ── slides
+
+    addSlide() {
+        const s: Slide = ({ id: newId("new-"), background: "#FFFFFF", elements: [] })
+        const at = index + 1
+        app.history.step("", () => app.doc.insertSlide(at, s))
+        goTo(s.id)
+        },
+    duplicateSlide(id: string) {
+        const src = app.doc.slide(id)
+        if (src == null) return
+        const s: Slide = ({ id: newId("new-"), background: src.background, elements: structuredClone(src.elements) })
+        const at = app.doc.indexOf(id) + 1
+        app.history.step("", () => app.doc.insertSlide(at, s))
+        goTo(s.id)
+        },
+    deleteSlide(id: string) {
+        const order = app.doc.order()
+        if (order.length <= 1) { app.say("A presentation keeps at least one slide."); return }
+        const i = order.indexOf(id)
+        const next = order[i + 1] ?? order[i - 1]
+        if (id == currentId) goTo(next)
+        app.history.step("", () => app.doc.removeSlide(id))
+        },
+    moveSlide(from: number, to: number) {
+        app.history.step("", () => app.doc.moveSlide(from, to))
+        },
+    remap(from: string, to: string) { if (currentId == from) currentId = to }
+    ]

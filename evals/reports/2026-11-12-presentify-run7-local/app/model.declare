@@ -1,0 +1,447 @@
+/*
+# Presentify: the model
+
+What a presentation is, and the arithmetic over it. `presentify.declare`
+includes this file.
+
+- **The shape of the data** — the service's format (task/api/API.md) as
+  schemas: a `Deck`, a `Slide`, and the `Element`s on a slide.
+- **Geometry** — plain functions over elements: their bounds, hit-testing,
+  moving and fitting them into a new box, aligning and distributing. They are
+  functions of their arguments, so they live in `script`; the editor calls them
+  from its gestures.
+
+Elements are never edited in place. Every change builds new records, so a
+slide
+that did not change is the very same object, and the history (`History` in
+`sync.declare`) can keep whole snapshots cheaply.
+*/
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema StrokeStyle [ color: string, width: number ]
+
+schema TextBlock [ content: string, font: string, size: number, weight: number, italic: boolean,
+    color: string, align: "left" | "center" | "right" ]
+
+// One element of a slide. A schema field has one type, so the element
+// declares every field any kind has, optional; `kind` says which apply.
+
+schema Element [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    fill?: string, stroke?: StrokeStyle, cornerRadius?: number, keepProportions?: boolean,
+    text?: TextBlock, children[]?: Element ]
+
+// A slide as the editor holds it: its own id (never the service's, see
+// `Sync`), its background and its elements, back to front.
+
+schema Slide [ id: string, background: string, elements[]: Element ]
+
+// What the service sends.
+
+schema ServerSlide [ id: string, deckId: string, version: number, background: string, elements[]: Element ]
+schema Deck [ id: string, title: string, version: number, updatedAt: string, slideOrder[]: string, thumbnailSlideId: string ]
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number, thumbnailSlideId: string ]
+schema DeckList [ decks[]: DeckSummary ]
+schema SlidesReply [ slides[]: ServerSlide ]
+
+// A box in slide points (named so as not to clash with a layout's `Box`).
+
+schema Bounds [ x: number, y: number, w: number, h: number ]
+
+// One moment of the presentation, as the history keeps it: the slides, which
+// one was open and what was selected.
+
+schema Snapshot [ slides[]: Slide, current: string, selection[]: string ]
+schema Step [ before: Snapshot, after: Snapshot ]
+
+// A guide drawn while dragging: a vertical (`v`) or horizontal line at `at`.
+
+schema Guide [ axis: "v" | "h", at: number ]
+
+
+// ── Geometry ────────────────────────────────────────────────────────────────
+
+script {
+    // The elements as script sees them: the same fields the schema declares.
+    type El = {
+        id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+        x?: number | null, y?: number | null, width?: number | null, height?: number | null,
+        x1?: number | null, y1?: number | null, x2?: number | null, y2?: number | null,
+        fill?: string | null, stroke?: { color: string, width: number } | null,
+        cornerRadius?: number | null, keepProportions?: boolean | null,
+        text?: { content: string, font: string, size: number, weight: number, italic: boolean, color: string, align: "left" | "center" | "right" } | null,
+        children?: El[] | null
+    }
+    type Rect = { x: number, y: number, w: number, h: number }
+
+    const SLIDE_W = 1280
+    const SLIDE_H = 720
+
+    // A frozen copy of a value read from an attribute. What an attribute
+    // hands back stays live, so a snapshot (the history's, a gesture's
+    // starting point) is taken as a copy.
+    function copyOf<T>(v: T): T { return v == null ? v : JSON.parse(JSON.stringify(v)) }
+
+    // ── ids ─────────────────────────────────────────────────────────────
+
+    let idCounter = 0
+    function newId(prefix: string): string {
+        idCounter = idCounter + 1
+        return prefix + Date.now().toString(36) + idCounter.toString(36) + Math.floor(Math.random() * 1296).toString(36)
+    }
+
+    // A copy of an element with fresh ids all the way down, so a duplicate
+    // or a paste never shares an id with what it came from.
+    function reId(e: El): El {
+        const c: El = { ...e, id: newId("e") }
+        if (e.children) c.children = e.children.map(reId)
+        return c
+    }
+
+    // ── bounds ──────────────────────────────────────────────────────────
+
+    function boxOf(e: El): Rect {
+        if (e.kind == "line") {
+            const x = Math.min(e.x1 ?? 0, e.x2 ?? 0), y = Math.min(e.y1 ?? 0, e.y2 ?? 0)
+            return { x: x, y: y, w: Math.abs((e.x2 ?? 0) - (e.x1 ?? 0)), h: Math.abs((e.y2 ?? 0) - (e.y1 ?? 0)) }
+        }
+        if (e.kind == "group") return unionOf((e.children ?? []).map(boxOf))
+        return { x: e.x ?? 0, y: e.y ?? 0, w: e.width ?? 0, h: e.height ?? 0 }
+    }
+    function unionOf(rs: Rect[]): Rect {
+        if (rs.length == 0) return { x: 0, y: 0, w: 0, h: 0 }
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+        for (const r of rs) {
+            x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y)
+            x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h)
+        }
+        return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+    }
+    function boundsOf(els: El[]): Rect { return unionOf(els.map(boxOf)) }
+
+    // ── finding ─────────────────────────────────────────────────────────
+
+    function findEl(els: El[], id: string): El | null {
+        for (const e of els) {
+            if (e.id == id) return e
+            if (e.children) { const f = findEl(e.children, id); if (f) return f }
+        }
+        return null
+    }
+    function findAll(els: El[], ids: string[]): El[] {
+        return ids.map((id) => findEl(els, id)).filter((e) => e != null) as El[]
+    }
+
+    // The ids from the top of the slide down to `id`: [group, …, id].
+    function pathTo(els: El[], id: string): string[] {
+        for (const e of els) {
+            if (e.id == id) return [e.id]
+            if (e.children) { const p = pathTo(e.children, id); if (p.length > 0) return [e.id, ...p] }
+        }
+        return []
+    }
+
+    // Every leaf under an element (itself, when it is not a group).
+    function leaves(e: El): El[] {
+        return e.kind == "group" ? (e.children ?? []).flatMap(leaves) : [e]
+    }
+
+    // ── hit-testing ─────────────────────────────────────────────────────
+    //
+    // `tol` is in slide points: a few screen pixels, divided by the zoom.
+
+    function distToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+        const dx = bx - ax, dy = by - ay
+        const len = dx * dx + dy * dy
+        const t = len == 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len))
+        return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+    }
+    function hitsLeaf(e: El, px: number, py: number, tol: number): boolean {
+        if (e.kind == "line") {
+            return distToSegment(px, py, e.x1 ?? 0, e.y1 ?? 0, e.x2 ?? 0, e.y2 ?? 0) <= tol + (e.stroke?.width ?? 1) / 2
+        }
+        const b = boxOf(e)
+        if (e.kind == "ellipse") {
+            const rx = b.w / 2 + tol, ry = b.h / 2 + tol
+            const nx = (px - (b.x + b.w / 2)) / rx, ny = (py - (b.y + b.h / 2)) / ry
+            return nx * nx + ny * ny <= 1
+        }
+        return px >= b.x - tol && px <= b.x + b.w + tol && py >= b.y - tol && py <= b.y + b.h + tol
+    }
+
+    // The path to the frontmost leaf under the point, or [] for empty slide.
+    function hitPath(els: El[], px: number, py: number, tol: number): string[] {
+        for (let i = els.length - 1; i >= 0; i--) {
+            const e = els[i]
+            if (e.kind == "group") {
+                const p = hitPath(e.children ?? [], px, py, tol)
+                if (p.length > 0) return [e.id, ...p]
+            } else if (hitsLeaf(e, px, py, tol)) return [e.id]
+        }
+        return []
+    }
+
+    function intersects(a: Rect, b: Rect): boolean {
+        return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h
+    }
+
+    // ── changing elements ───────────────────────────────────────────────
+
+    function moveEl(e: El, dx: number, dy: number): El {
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => moveEl(c, dx, dy)) }
+        if (e.kind == "line") return { ...e, x1: (e.x1 ?? 0) + dx, y1: (e.y1 ?? 0) + dy, x2: (e.x2 ?? 0) + dx, y2: (e.y2 ?? 0) + dy }
+        return { ...e, x: (e.x ?? 0) + dx, y: (e.y ?? 0) + dy }
+    }
+
+    // Maps an element from the box `a` to the box `b`: every position and size
+    // scales with the box. A corner radius is a length, so it stays as it is;
+    // a text keeps its type size and only its box changes.
+    function fitEl(e: El, a: Rect, b: Rect): El {
+        const sx = a.w == 0 ? 1 : b.w / a.w, sy = a.h == 0 ? 1 : b.h / a.h
+        const mx = (v: number) => b.x + (v - a.x) * sx
+        const my = (v: number) => b.y + (v - a.y) * sy
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => fitEl(c, a, b)) }
+        if (e.kind == "line") return { ...e, x1: mx(e.x1 ?? 0), y1: my(e.y1 ?? 0), x2: mx(e.x2 ?? 0), y2: my(e.y2 ?? 0) }
+        const x = mx(e.x ?? 0), y = my(e.y ?? 0)
+        return { ...e, x: x, y: y, width: Math.max(1, (e.width ?? 0) * sx), height: Math.max(1, (e.height ?? 0) * sy) }
+    }
+
+    // Replaces elements by id, wherever they are in the tree.
+    function replaceEls(els: El[], byId: Record<string, El>): El[] {
+        return els.map((e) => {
+            const r = byId[e.id]
+            if (r) return r
+            if (e.children) {
+                const kids = replaceEls(e.children, byId)
+                return kids.some((k, i) => k !== e.children![i]) ? { ...e, children: kids } : e
+            }
+            return e
+        })
+    }
+
+    // Removes elements by id. A group left with fewer than two children is
+    // dissolved into what remains, as the format requires.
+    function removeEls(els: El[], ids: string[]): El[] {
+        const out: El[] = []
+        for (const e of els) {
+            if (ids.includes(e.id)) continue
+            if (e.kind == "group") {
+                const kids = removeEls(e.children ?? [], ids)
+                if (kids.length >= 2) out.push(kids.length == (e.children ?? []).length && kids.every((k, i) => k === e.children![i]) ? e : { ...e, children: kids })
+                else out.push(...kids)
+            } else out.push(e)
+        }
+        return out
+    }
+
+    // ── reordering, grouping ────────────────────────────────────────────
+    //
+    // Order works among siblings: each selected element moves within the
+    // list that holds it.
+
+    function siblingsOf(els: El[], id: string): El[] | null {
+        if (els.some((e) => e.id == id)) return els
+        for (const e of els) if (e.children) { const s = siblingsOf(e.children, id); if (s) return s }
+        return null
+    }
+    function reorderIn(list: El[], ids: string[], how: string): El[] {
+        const picked = list.filter((e) => ids.includes(e.id))
+        if (picked.length == 0) return list
+        if (how == "front") return [...list.filter((e) => !ids.includes(e.id)), ...picked]
+        if (how == "back") return [...picked, ...list.filter((e) => !ids.includes(e.id))]
+        const out = [...list]
+        if (how == "forward") {
+            for (let i = out.length - 2; i >= 0; i--) {
+                if (ids.includes(out[i].id) && !ids.includes(out[i + 1].id)) { const t = out[i]; out[i] = out[i + 1]; out[i + 1] = t }
+            }
+        } else {
+            for (let i = 1; i < out.length; i++) {
+                if (ids.includes(out[i].id) && !ids.includes(out[i - 1].id)) { const t = out[i]; out[i] = out[i - 1]; out[i - 1] = t }
+            }
+        }
+        return out
+    }
+    function reorderEls(els: El[], ids: string[], how: string): El[] {
+        let out = reorderIn(els, ids, how)
+        return out.map((e) => e.children ? { ...e, children: reorderEls(e.children, ids, how) } : e)
+    }
+
+    // Groups the selected elements that share one parent list; the group
+    // takes the place of the frontmost of them.
+    function groupEls(els: El[], ids: string[], groupId: string): El[] {
+        const here = els.filter((e) => ids.includes(e.id))
+        if (here.length >= 2) {
+            const last = Math.max(...here.map((e) => els.indexOf(e)))
+            const out: El[] = []
+            els.forEach((e, i) => {
+                if (i == last) out.push({ id: groupId, kind: "group", children: here })
+                else if (!ids.includes(e.id)) out.push(e)
+            })
+            return out
+        }
+        return els.map((e) => e.children ? { ...e, children: groupEls(e.children, ids, groupId) } : e)
+    }
+    function ungroupEls(els: El[], ids: string[]): El[] {
+        const out: El[] = []
+        for (const e of els) {
+            if (e.kind == "group" && ids.includes(e.id)) out.push(...(e.children ?? []))
+            else if (e.children) out.push({ ...e, children: ungroupEls(e.children, ids) })
+            else out.push(e)
+        }
+        return out
+    }
+
+    // ── aligning and distributing ───────────────────────────────────────
+
+    function alignEls(sel: El[], how: string): Record<string, El> {
+        const all = boundsOf(sel)
+        const out: Record<string, El> = {}
+        for (const e of sel) {
+            const b = boxOf(e)
+            let dx = 0, dy = 0
+            if (how == "left") dx = all.x - b.x
+            else if (how == "center") dx = all.x + all.w / 2 - (b.x + b.w / 2)
+            else if (how == "right") dx = all.x + all.w - (b.x + b.w)
+            else if (how == "top") dy = all.y - b.y
+            else if (how == "middle") dy = all.y + all.h / 2 - (b.y + b.h / 2)
+            else if (how == "bottom") dy = all.y + all.h - (b.y + b.h)
+            out[e.id] = moveEl(e, dx, dy)
+        }
+        return out
+    }
+
+    // Equal gaps between neighbours, the outermost two staying put.
+    function distributeEls(sel: El[], axis: string): Record<string, El> {
+        const h = axis == "across"
+        const items = sel.map((e) => ({ e: e, b: boxOf(e) }))
+            .sort((p, q) => h ? p.b.x - q.b.x : p.b.y - q.b.y)
+        const out: Record<string, El> = {}
+        if (items.length < 3) return out
+        const first = items[0].b, last = items[items.length - 1].b
+        const span = h ? last.x + last.w - first.x : last.y + last.h - first.y
+        const used = items.reduce((n, p) => n + (h ? p.b.w : p.b.h), 0)
+        const gap = (span - used) / (items.length - 1)
+        let at = h ? first.x : first.y
+        for (const p of items) {
+            const d = at - (h ? p.b.x : p.b.y)
+            out[p.e.id] = h ? moveEl(p.e, d, 0) : moveEl(p.e, 0, d)
+            at = at + (h ? p.b.w : p.b.h) + gap
+        }
+        return out
+    }
+
+    // ── resizing ────────────────────────────────────────────────────────
+    //
+    // `hx`, `hy` say which handle: -1 the left or top edge, 1 the right or
+    // bottom, 0 neither. The opposite edge stays where it was.
+
+    function resizeBox(a: Rect, hx: number, hy: number, dx: number, dy: number, keep: boolean): Rect {
+        let w = a.w + hx * dx, h = a.h + hy * dy
+        w = Math.max(1, w); h = Math.max(1, h)
+        if (keep && a.w > 0 && a.h > 0) {
+            const ratio = a.w / a.h
+            if (hx != 0 && hy != 0) {
+                if (w / a.w > h / a.h) h = w / ratio
+                else w = h * ratio
+            } else if (hx != 0) h = w / ratio
+            else w = h * ratio
+        }
+        let x = hx < 0 ? a.x + a.w - w : hx > 0 ? a.x : a.x + (a.w - w) / 2
+        let y = hy < 0 ? a.y + a.h - h : hy > 0 ? a.y : a.y + (a.h - h) / 2
+        if (hx == 0 && !keep) { x = a.x; w = a.w }
+        if (hy == 0 && !keep) { y = a.y; h = a.h }
+        return { x: x, y: y, w: w, h: h }
+    }
+
+    // Whether resizing keeps an element's proportions without a key held:
+    // its own setting, or, for a group, every part's.
+    function keepsProportions(e: El): boolean {
+        if (e.kind == "group") {
+            const ls = leaves(e).filter((l) => l.kind != "line")
+            return ls.length > 0 && ls.every((l) => l.keepProportions == true)
+        }
+        return e.keepProportions == true
+    }
+
+    // ── snapping ────────────────────────────────────────────────────────
+    //
+    // The candidate lines a dragged box can snap to: the slide's edges and
+    // middle, and every other element's edges and middle.
+
+    function snapLines(others: Rect[]): { v: number[], h: number[] } {
+        const v = [0, SLIDE_W / 2, SLIDE_W], h = [0, SLIDE_H / 2, SLIDE_H]
+        for (const r of others) {
+            v.push(r.x, r.x + r.w / 2, r.x + r.w)
+            h.push(r.y, r.y + r.h / 2, r.y + r.h)
+        }
+        return { v: v, h: h }
+    }
+
+    // The smallest move (within `tol`) that lands one of `edges` on one of
+    // `lines`, and the line it lands on; `off` 0 and `at` NaN when none.
+    function snapAxis(edges: number[], lines: number[], tol: number): { off: number, at: number } {
+        let best = { off: 0, at: NaN }
+        let bestD = tol + 1
+        for (const e of edges) for (const l of lines) {
+            const d = Math.abs(l - e)
+            if (d <= tol && d < bestD) { bestD = d; best = { off: l - e, at: l } }
+        }
+        return best
+    }
+
+    // ── colours ─────────────────────────────────────────────────────────
+
+    function rgbOf(s: string): number { return parseInt(s.replace("#", "").slice(0, 6), 16) || 0 }
+    function alphaOf(s: string): number { return s.length == 9 ? parseInt(s.slice(7, 9), 16) : 255 }
+    function hexOf(rgb: number): string { return "#" + (rgb & 0xFFFFFF).toString(16).toUpperCase().padStart(6, "0") }
+
+    // A hex typed by a person: "#abc", "abc", "aabbcc" or "aabbccdd". Null
+    // when it isn't one.
+    function parseHex(s: string): string | null {
+        let h = s.trim().replace(/^#/, "")
+        if (/^[0-9a-fA-F]{3}$/.test(h)) h = h.split("").map((c) => c + c).join("")
+        if (!/^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(h)) return null
+        return "#" + h.toUpperCase()
+    }
+
+    // Light or dark: which ink reads on top of a colour.
+    function isLight(s: string): boolean {
+        const n = rgbOf(s)
+        const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255
+        return (0.299 * r + 0.587 * g + 0.114 * b) > 160
+    }
+
+    // ── time ────────────────────────────────────────────────────────────
+
+    function whenEdited(iso: string, now: number): string {
+        const t = Date.parse(iso)
+        if (isNaN(t)) return ""
+        const s = Math.max(0, (now - t) / 1000)
+        if (s < 45) return "Edited just now"
+        if (s < 3600) return "Edited " + Math.round(s / 60) + " min ago"
+        if (s < 86400) return "Edited " + Math.round(s / 3600) + " h ago"
+        const d = new Date(t)
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        const sameYear = d.getFullYear() == new Date(now).getFullYear()
+        return "Edited " + d.getDate() + " " + months[d.getMonth()] + (sameYear ? "" : " " + d.getFullYear())
+    }
+
+    // ── the wire ────────────────────────────────────────────────────────
+    //
+    // A copy holding only the fields the format defines (the service
+    // refuses any other), with positions rounded to a hundredth of a point.
+
+    function r2(n: number): number { return Math.round(n * 100) / 100 }
+    function wireEl(e: El): El {
+        if (e.kind == "group") return { id: e.id, kind: "group", children: (e.children ?? []).map(wireEl) }
+        if (e.kind == "line") return { id: e.id, kind: "line", x1: r2(e.x1 ?? 0), y1: r2(e.y1 ?? 0), x2: r2(e.x2 ?? 0), y2: r2(e.y2 ?? 0),
+            stroke: e.stroke ?? { color: "#1F2328", width: 2 } }
+        const box = { x: r2(e.x ?? 0), y: r2(e.y ?? 0), width: r2(Math.max(0, e.width ?? 0)), height: r2(Math.max(0, e.height ?? 0)),
+            keepProportions: e.keepProportions == true }
+        if (e.kind == "text") return { id: e.id, kind: "text", ...box, text: e.text }
+        if (e.kind == "ellipse") return { id: e.id, kind: "ellipse", ...box, fill: e.fill ?? null, stroke: e.stroke ?? null }
+        return { id: e.id, kind: "rect", ...box, fill: e.fill ?? null, stroke: e.stroke ?? null, cornerRadius: r2(Math.max(0, e.cornerRadius ?? 0)) }
+    }
+    }

@@ -1,0 +1,15 @@
+// A Button's label size: fontSize set on the Button, and on a container.
+App [ width = 400, height = 120, fill = white,
+    layout: SimpleLayout [ axis = x, spacing = 10 ],
+    a: Button [ label = "Default" ],
+    b: Button [ label = "Thirteen", fontSize = 13 ],
+    View [ fontSize = 11, c: Button [ label = "Eleven" ] ]
+    ]
+
+/* ── against the local tree, 2026-11-12:
+app.a.width = 87
+app.b.width = 84
+app.2.c.width = 68
+-- npx declare-help Button.fontSize:
+Button has no member 'fontSize' and nothing near it — the member table: declare-help Button
+*/

@@ -1,0 +1,15 @@
+schema R3 [ id: number, f: string ]
+class Store extends Dataset [ schema = [ rows[]: R3 ],
+    _m: Map<string, number> = { new Map() },
+    onInit() { this.set([], ({ rows: [({ id: 0, f: "" }), ({ id: 1, f: "" })] })) },
+    put(k: string) { _m.set(k, 1); this.set(["rows", 0, "f"], k) },
+    keys() -> number { return _m.size }
+    ]
+
+App [ width = 400, height = 200,
+    s: Store { { "rows": [] } },
+    list: View [ datapath = { app.s.value },
+        layout: SimpleLayout [ axis = y ],
+        Text [ datapath = :rows[], text = { :f } ]
+        ]
+    ]

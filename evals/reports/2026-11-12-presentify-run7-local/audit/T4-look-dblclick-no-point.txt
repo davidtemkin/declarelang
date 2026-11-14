@@ -1,0 +1,5 @@
+$ npx declare-look <app> --dblclick app.stage 300,420
+declare-look: 300,420 is not an option — see --help   (from the run, 27.7 min)
+  --dblclick PATH              double-click the view at PATH (a double tap with --touch)
+  --click-at PATH X,Y          press at (X, Y) inside it, from its top-left — a part of a
+  --press PATH [X,Y]           put the pointer down on it (at X,Y inside it) and keep it down

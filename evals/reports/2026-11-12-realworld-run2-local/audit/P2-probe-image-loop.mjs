@@ -1,0 +1,14 @@
+import { launchChrome } from "~/Code/Declare/tools/internal/chrome.mjs";
+const url = process.argv[2];
+const browser = await launchChrome({ headless: true, args: ["--no-sandbox"] });
+const page = await browser.newPage();
+let reqs = {};
+page.on("request", (r) => { const u = r.url().slice(0, 50); reqs[u] = (reqs[u] ?? 0) + 1; });
+page.goto(url, { timeout: 0 }).catch(() => {});
+await new Promise((r) => setTimeout(r, 6000));
+const t0 = Date.now();
+const res = await Promise.race([page.evaluate(() => { const n = window.__declare?.find?.("app.a"); return n ? { source: n.source, failed: n.failed, loaded: n.loaded } : "no runtime"; }), new Promise((r) => setTimeout(() => r("evaluate timed out after 5 s: main thread busy"), 5000))]);
+console.log("app.a:", JSON.stringify(res), `(${Date.now() - t0} ms)`);
+console.log("requests in 6 s:", JSON.stringify(reqs));
+await browser.close().catch(() => {});
+process.exit(0);

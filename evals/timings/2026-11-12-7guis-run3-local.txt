@@ -1,0 +1,47 @@
+# eval-7guis-3
+total 13.2 min · 88 turns · output 66217 tokens (thinking 22159)
+phases: reading 2.5 · writing 0.7 · checking 10.0 min
+tool time 2.6 min · model time 10.6 min
+tools:
+  look      12×   1.19 min  (median 6.6 s)
+  verify     9×   1.03 min  (median 2.0 s)
+  help      10×   0.20 min  (median 0.8 s)
+  bash      19×   0.17 min  (median 0.0 s)
+  read      15×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after write     9×   2.64 min  (median 6.1 s)
+  after help     10×   2.30 min  (median 4.4 s)
+  after bash     18×   1.79 min  (median 2.6 s)
+  after image    13×   1.40 min  (median 6.4 s)
+  after read     15×   1.21 min  (median 1.5 s)
+  after verify    9×   0.66 min  (median 4.5 s)
+  after look     12×   0.31 min  (median 1.3 s)
+app: 8 .declare files, 812 non-blank lines · 22 snapshots changed them: 1118 lines added, 150 removed
+verify results mentioning accessibility: 1
+source reads: library 4 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/textinput.declare
+            library  library/segmented.declare
+            library  library/tabbar.declare
+            library  library/table.declare
+diagnostic codes, by tool results reporting them: DECLARE4025 2, DECLARE4013 1, DECLARE2000 1, DECLARE5000 1, DECLARE4018 1, DECLARE1002 1, DECLARE4035 1
+inside the agent's verify and look calls:
+   1.54 min    19×  R5 behavior, in all
+   1.33 min    19×  script: the assert script, in all
+   0.61 min   217×  drive.settleMotion
+   0.39 min   232×  check: scrolling come to rest
+   0.39 min   116×  drive.click
+   0.31 min    24×  compile (R1–R3)
+   0.16 min    38×  drive.selectAll
+   0.15 min    26×  page: load, compile in the page and boot
+   0.14 min    19×  open: the app loaded and arrived, in all
+   0.08 min    93×  drive.key
+   0.06 min    18×  drive.clickAt
+   0.06 min    63×  drive.type
+   0.05 min     7×  R4 boot, in all
+   0.03 min   232×  check: the layout questions
+   0.03 min    26×  page: a new page
+   0.03 min    15×  end: layout questions at the end of the script
+   0.03 min     4×  drive.drag
+   0.02 min     1×  drive.wheel
+   0.01 min    26×  chrome: a browser (shared between calls)
+   0.01 min     3×  drive.dblclick

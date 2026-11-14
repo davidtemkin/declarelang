@@ -1,0 +1,14 @@
+class K1 [ width = 50, height = 20, a: string? = null, m: boolean = { classroot.a == null },
+    fill = { classroot.m == true ? 0xFF0000 : 0x00AA00 } ]
+class K2 [ width = 50, height = 20, a: string? = null, m: number = { classroot.a == null ? 1 : 0 },
+    fill = { classroot.m == 1 ? 0xFF0000 : 0x00AA00 } ]
+class K3 [ width = 50, height = 20, a: string? = null, m: boolean = { classroot.a == null },
+    cornerRadius = { classroot.m ? 9 : 2 } ]
+class K4 [ width = 50, height = 20, a: string? = null, m: boolean = { classroot.a == null },
+    fill = { classroot.m ? 0xFF0000 : 0x00AA00 }, opacity = { classroot.m ? 0.5 : 1 } ]
+class K5 [ width = 50, height = 20, a: string? = null, m: boolean = { classroot.a == null },
+    c: Color = { classroot.m ? 0xFF0000 : 0x00AA00 } ]
+App [ width = 300, height = 200,
+    k1: K1 [ a = { "x" } ], k2: K2 [ y = 25, a = { "x" } ], k3: K3 [ y = 50, a = { "x" } ],
+    k4: K4 [ y = 75, a = { "x" } ], k5: K5 [ y = 100, a = { "x" } ]
+    ]

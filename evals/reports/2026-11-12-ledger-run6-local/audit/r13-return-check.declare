@@ -1,0 +1,7 @@
+// Is a method's `return` checked against its declared return type? Three cases.
+schema Pair [ name: string, message: string ]
+App [ width = 300, height = 100,
+    a() -> number { return "x" },
+    b() -> Pair[] { return [ ({ field: "f", message: "m" }) ] },
+    c() -> Pair { return ({ field: "f", message: "m" }) }
+    ]

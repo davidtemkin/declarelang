@@ -1,0 +1,11 @@
+# T1: declare-help routes a real method name to a CSS hint
+$ npx declare-help tabOrder
+'tabOrder' is not a Declare name — the CSS instinct: a border is 'stroke = { stroke(1, 0xE2E5E9) }' — drawn inside the box
+$ npx declare-help View.method.tabOrder
+View.method.tabOrder — method
+  tabOrder(): View[]
+  The members keyboard traversal descends into from this view. **Override it to gate
+$ npx declare-help tabDefault
+'tabDefault' appears in 3 reference entries:
+  View.method.tabOrder — The members keyboard traversal descends into from this view.
+  View.method.tabDefault — The default traversal list — visible children in source order.

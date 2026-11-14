@@ -1,0 +1,4 @@
+// Lead: a check that steps a Stepper by path. Its +/− are internal (_more/_less); what does a
+// path miss suggest, and is there a public way (accessibilityIncrement via the keyboard)?
+App [ width = 300, height = 100, n: number = 1,
+    q: Stepper [ value <-> app.n, accessibilityLabel = "Quantity" ] ]

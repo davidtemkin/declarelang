@@ -1,0 +1,39 @@
+// A program keeps the old slides (an undo snapshot), then replaces them
+// immutably. A derived Dataset that shows the same slides (so a view can point
+// a datapath at them, as DECLARE's own message advises) merges each new
+// record INTO the object it adopted, which is the object the snapshot holds.
+schema El [ id: string, x?: number ]
+schema Sl [ id: string, elements[]: El ]
+
+App [ width = 300, height = 200, fill = white,
+    slides: Sl[] = [],
+    kept: Sl[] = [],
+    withDataset: boolean = true,
+    shown: Dataset [ contents = { app.withDataset ? { slides: app.slides } : { slides: [] } } ],
+    keptX: number = -1,
+    liveX: number = -1,
+    onInit() {
+        slides = [ ({ id: "s1", elements: [ ({ id: "e1", x: 100 }) ] }) ]
+        afterSettle(() => {
+            kept = slides                                   // the snapshot: the old array
+            slides = slides.map((s) => ({ ...s, elements: s.elements.map((e) => ({ ...e, x: 160 })) }))
+            afterSettle(() => {
+                keptX = kept[0].elements[0].x ?? -2         // expected 100
+                liveX = slides[0].elements[0].x ?? -2       // 160
+                })
+            })
+        },
+    pic: View [ datapath = { app.shown.value?.slides[0] ?? null }, width = 100, height = 40,
+        Text [ text = { "x = " + (:elements[0].x ?? "") } ] ]
+    ]
+
+/* ── against the local tree, 2026-11-12:
+app.keptX = 160
+app.liveX = 160
+-- the same with withDataset = false (no derived Dataset):
+app.keptX = 100
+app.liveX = 160
+-- without the datapath view (Dataset alone):
+app.keptX = 160
+app.liveX = 160
+*/

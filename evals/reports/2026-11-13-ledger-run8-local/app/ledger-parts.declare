@@ -1,0 +1,273 @@
+/*
+# Ledger: the parts
+
+The look of Ledger, kept apart from how it works: the two themes and the small
+pieces every screen is made of — a category's chip, an amount, a filter chip,
+a button that opens a menu, a headline figure with its sparkline, and a ranked
+bar. `ledger.declare` includes this file.
+*/
+
+// ── colours ─────────────────────────────────────────────────────────────────
+//
+// Laid over the library's SanFrancisco preset, so the library's controls read
+// the same palette. `cats` is one colour per category, indexed by the
+// category's stable `colour` (0–11), so a category keeps its colour on every
+// chart; `catTints` are the same hues, quiet, behind a chip's text. `good`
+// and `bad` say which way a change went where that means something.
+
+theme LedgerLight [
+    background = #FFFFFF, surface = #F7F7F5, card = #FFFFFF, sidebar = #F3F3F0,
+    line = #E7E6E2, lineStrong = #D5D4CF, hover = #F2F2EF, selection = #E9EEF9,
+    text = #1C1C1E, textMuted = #66666D, textFaint = #8D8D94,
+    accent = #2F5BD3, accentHovered = #284FBA, accentPressed = #22449F, linkColor = #2F5BD3,
+    good = #1E8A4C, bad = #C23B2E, warn = #B26A00, warnTint = #FFF4E0, badTint = #FDECEA,
+    income = #2F7D62, expense = #C2603A, net = #2F5BD3, compare = #9A9AA2, partial = #EFEFEB,
+    mark = #FFF0B3,
+    cats = [#2F7D62, #3E9A84, #6B8E2F, #8A6A2F, #C08A2E, #3A78B8, #7B5BB6, #2F5BD3, #C2603A, #B5487A, #6D7480, #8D8D94],
+    catTints = [#E3F1EB, #E2F3EF, #EDF3E2, #F3EDE2, #FAF0DE, #E3EEF8, #EEE9F7, #E6ECFA, #F8E8E1, #F6E5EE, #ECEDEF, #EFEFF1]
+    ]
+
+
+theme LedgerDark [
+    background = #161618, surface = #1D1D20, card = #222226, sidebar = #1A1A1D,
+    line = #2E2E33, lineStrong = #3D3D43, hover = #26262A, selection = #23314F,
+    text = #F2F2F4, textMuted = #A3A3AB, textFaint = #7A7A82,
+    accent = #6E95F5, accentHovered = #82A4F7, accentPressed = #5A84EE, linkColor = #6E95F5,
+    good = #4CC38A, bad = #FF7A6B, warn = #F0A33A, warnTint = #3A2E17, badTint = #3D1F1C,
+    income = #4CB892, expense = #F0875C, net = #6E95F5, compare = #75757D, partial = #26262A,
+    mark = #5A4A12,
+    cats = [#4CB892, #5BC2AA, #93B85A, #C29A5A, #E5AE4C, #64A0DE, #A386E0, #6E95F5, #F0875C, #E07AA6, #9AA0AB, #7A7A82],
+    catTints = [#183129, #19322D, #26301A, #322A1C, #392D17, #172A3B, #2A2340, #1D2742, #3B2219, #3A1E2B, #2A2C30, #2A2A2E]
+    ]
+
+
+// ── text ────────────────────────────────────────────────────────────────────
+
+// An amount: digits line up in columns, money out has a true minus sign.
+
+class Amount extends Text [ wrap = false, numeralWidth = tabular, textAlign = right,
+    cents: number = 0,
+    signed: boolean = true,
+    text = { classroot.signed ? money(classroot.cents) : money(Math.abs(classroot.cents)) }
+    ]
+
+
+// a small caption over a section
+
+class Caption extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 0.3, wrap = false,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+// ── a category, as a coloured chip ──────────────────────────────────────────
+//
+// "Split (3)" for a split expense, and "Uncategorised" marked as needing
+// attention. The colour is never the only carrier: the name is always there.
+
+class CatChip [ height = 22, cornerRadius = 11, padding = [0, 9, 0, 8],
+    catId: string? = null,
+    parts: number = 0,
+    kind: string = "expense",
+    uncategorised: boolean = { classroot.catId == null && classroot.parts == 0 },
+    colour: number = { app.books.catColour(classroot.catId) },
+    label: string = { classroot.parts > 0 ? "Split (" + classroot.parts + ")" : app.books.catName(classroot.catId) },
+    fill = { classroot.colour >= 0 ? provided("theme").catTints[classroot.colour] : provided("theme").hover },
+    State [ applied = { classroot.uncategorised }, fill = { provided("theme").warnTint } ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    dot: View [ width = 7, height = 7, cornerRadius = 4,
+        fill = { classroot.uncategorised ? provided("theme").warn : classroot.colour >= 0 ? provided("theme").cats[classroot.colour] : provided("theme").textFaint } ],
+    Text [ fontSize = 12, fontWeight = medium, wrap = false, maxLines = 1,
+        textColor = { classroot.uncategorised ? provided("theme").warn : provided("theme").text },
+        text = { classroot.uncategorised ? "Uncategorised" : classroot.label } ]
+    ]
+
+
+// ── controls ────────────────────────────────────────────────────────────────
+
+// An active filter: its value, and a way to remove it.
+
+class FilterChip extends Control [ height = { app.phone ? 44 : 28 }, cornerRadius = 14, padding = [0, 6, 0, 12],
+    label: string = "",
+    accessibilityLabel = { "Remove filter " + classroot.label },
+    fill = { hovered ? provided("theme").hover : provided("theme").surface },
+    stroke = { stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    TextLabel [ fontSize = 12.5, fontWeight = medium, wrap = false, text = { classroot.label } ],
+    CloseIcon [ iconSize = 10, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// A button that opens a menu or a popover: a label and a chevron. `on`
+// marks a filter that is set.
+
+class DropButton extends Control [ height = { app.phone ? 44 : 32 }, cornerRadius = 8, padding = [0, 8, 0, 11],
+    label: string = "",
+    on: boolean = false,
+    fill = { classroot.on ? provided("theme").selection : hovered || pressed ? provided("theme").hover : null },
+    stroke = { stroke(1, classroot.on ? provided("theme").accent : provided("theme").line) },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    TextLabel [ fontSize = 13, wrap = false, fontWeight = { classroot.on ? "semibold" : "normal" }, text = { classroot.label } ],
+    ChevronIcon [ iconSize = 10, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// A square button with one mark: the date range's arrows.
+
+class StepButton extends Control [ width = { app.phone ? 44 : 32 }, height = { app.phone ? 44 : 32 }, cornerRadius = 8,
+    dir: "left" | "right" = "left",
+    fill = { hovered || pressed ? provided("theme").hover : null },
+    stroke = { stroke(1, provided("theme").line) },
+    ChevronIcon [ x = center, y = center, iconSize = 11, dir = { classroot.dir }, ink = { provided("theme").text } ]
+    ]
+
+
+// A place in the app: the sidebar on a desk, the tab bar on a phone. A link,
+// so following it writes the App's `location` and Back undoes it.
+
+class NavItem [ height = 36, cornerRadius = 8, padding = [0, 12, 0, 12],
+    place: string = "",
+    label: string = "",
+    here: boolean = { app.screen == classroot.place },
+    link = { "#" + classroot.place },
+    accessibilityCurrent = { classroot.here ? "page" : "none" },
+    fill = { classroot.here ? provided("theme").selection : hovered ? provided("theme").hover : null },
+    layout: SimpleLayout [ axis = x, align = center ],
+    TextLabel [ fontSize = 14, wrap = false, fontWeight = { classroot.here ? "semibold" : "normal" },
+        textColor = { classroot.here ? provided("theme").accent : provided("theme").text },
+        text = { classroot.label } ]
+    ]
+
+
+// ── a sparkline: the last periods of one measure, drawn ─────────────────────
+
+class Spark [ height = 28,
+    values: number[] = [],
+    tone: Color = gray,
+    draw(d: DrawContext) {
+        const v = values
+        if (v.length < 2) return
+        const lo = Math.min(0, ...v), hi = Math.max(...v, lo + 1)
+        const step = d.w / (v.length - 1)
+        d.strokeStyle = tone
+        d.lineWidth = 1.5
+        d.lineJoin = "round"
+        d.beginPath()
+        v.forEach((n, i) => {
+            const y = d.h - 2 - (n - lo) / (hi - lo) * (d.h - 4)
+            if (i == 0) { d.moveTo(0, y) } else { d.lineTo(i * step, y) }
+            })
+        d.stroke()
+        d.fillStyle = tone
+        d.beginPath()
+        d.arc((v.length - 1) * step, d.h - 2 - (v[v.length - 1] - lo) / (hi - lo) * (d.h - 4), 2.5, 0, 6.3)
+        d.fill()
+        }
+    ]
+
+
+// ── a headline figure ───────────────────────────────────────────────────────
+//
+// Its value, its change against the comparison period (an arrow, the signed
+// change and words, coloured good or bad where that means something), and a
+// small line of the last twelve periods. Pressing it opens its records.
+
+class Figure extends Control [ flexes = true, minWidth = 190, cornerRadius = 12, padding = 16,
+    title: string = "",
+    value: string = "",
+    delta: number? = null,         // the change, in percent (or points, for a percentage)
+    unit: string = "%",
+    vs: string = "",
+    upIsGood: boolean = true,
+    spark: number[] = [],
+    tone: Color = gray,
+    dim: boolean = false,
+    good: boolean = { classroot.delta != null && (classroot.delta > 0) == classroot.upIsGood && classroot.delta != 0 },
+    size: string = { classroot.unit == "%" ? pctText(classroot.delta ?? 0) : Math.abs(classroot.delta ?? 0).toFixed(1) + " pts" },
+    arrow: string = { (classroot.delta ?? 0) > 0 ? "▲ " : "▼ " },
+    changeText: string = { classroot.delta == null ? "No comparison"
+        : classroot.delta == 0 ? "No change vs " + classroot.vs : classroot.arrow + classroot.size + " vs " + classroot.vs },
+    accessibilityLabel = { classroot.title + ", " + classroot.value + ", " + classroot.changeText + ". Open its transactions" },
+    fill = { hovered ? provided("theme").hover : provided("theme").card },
+    stroke = { stroke(1, provided("theme").line) },
+    opacity = { classroot.dim ? 0.55 : 1 },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    Caption [ text = { classroot.title } ],
+    Text [ fontSize = 26, fontWeight = semibold, wrap = false, numeralWidth = tabular, text = { classroot.value } ],
+    Text [ fontSize = 12.5, wrap = false, fontWeight = medium,
+        textColor = { classroot.delta == null || classroot.delta == 0 ? provided("theme").textMuted
+            : classroot.good ? provided("theme").good : provided("theme").bad },
+        text = { classroot.changeText } ],
+    Spark [ width = 100%, values = { classroot.spark }, tone = { classroot.tone } ]
+    ]
+
+
+// ── a ranked bar: a category, a product or a customer ───────────────────────
+//
+// The name, a bar as long as its share of the largest, the amount and, where
+// there is one, its change. Pressing it opens its records. The rows of a
+// RankList are replicated over RankData.
+
+class RankBar extends Control [ width = 100%, height = 34, cornerRadius = 6, padding = [0, 8, 0, 8],
+    peak: number = 1,
+    showChange: boolean = false,
+    colour: number = { :colour ?? -1 },
+    accessibilityLabel = { (:label ?? "") + ", " + money(:amount ?? 0) + ", " + count(:count ?? 0) + " transactions" },
+    fill = { hovered ? provided("theme").hover : null },
+    press() { app.openRank(:key ?? "", :id ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    name: Text [ width = { app.phone ? 104 : 150 }, fontSize = 13, wrap = false, maxLines = 1, text = { :label ?? "" } ],
+    track: View [ flexes = true, height = 10,
+        View [ height = 10, cornerRadius = 3,
+            width = { Math.max(2, parent.width * (:amount ?? 0) / Math.max(1, classroot.peak)) },
+            fill = { classroot.colour >= 0 ? provided("theme").cats[classroot.colour] : provided("theme").accent } ]
+        ],
+    Amount [ width = 96, fontSize = 13, cents = { :amount ?? 0 } ],
+    share: Text [ visible = { !app.phone }, width = 44, fontSize = 12, wrap = false, textAlign = right, numeralWidth = tabular,
+        textColor = { provided("theme").textMuted }, text = { Math.round((:share ?? 0) * 100) + "%" } ],
+    change: Text [ visible = { classroot.showChange }, width = 64, fontSize = 12, wrap = false, textAlign = right,
+        numeralWidth = tabular, textColor = { provided("theme").textMuted },
+        text = { :change == null ? "—" : ((:change ?? 0) >= 0 ? "▲ " : "▼ ") + pctText(:change ?? 0) } ]
+    ]
+
+
+class RankList [ width = 100%,
+    data: RankData? = null,
+    showChange: boolean = false,
+    peak: number = { Math.max(1, ...(classroot.data?.rows ?? []).map((r) => r.amount)) },
+    datapath = { classroot.data },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    RankBar [ datapath = :rows[], peak = { classroot.peak }, showChange = { classroot.showChange } ]
+    ]
+
+
+// ── a section of a screen: a title over its content, on a card ─────────────
+
+class Panel [ width = 100%, cornerRadius = 12, padding = 16,
+    defaultPlacement = body,
+    title: string = "",
+    note: string = "",
+    fill = { provided("theme").card },
+    stroke = { stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    head: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 2, align = baseline ],
+        Text [ fontSize = 15, fontWeight = semibold, accessibilityRole = heading, text = { classroot.title } ],
+        Text [ fontSize = 12.5, textColor = { provided("theme").textMuted }, wrap = false, text = { classroot.note } ]
+        ],
+    body: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ]
+        ]
+    ]
+
+
+// what a section says while its data has not come, or could not come
+
+class LoadState [ width = 100%, height = 64,
+    source: DataSource? = null,
+    visible = { classroot.source != null && (!classroot.source.loaded || classroot.source.failed) },
+    TextLabel [ x = center, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { classroot.source?.failed ? "Couldn't load this." : "Loading…" } ],
+    Button [ x = end, y = center, height = 28, label = "Retry", visible = { classroot.source?.failed ?? false },
+        onClick() { classroot.source?.fetch() }
+        ]
+    ]

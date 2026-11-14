@@ -1,0 +1,573 @@
+/*
+# Ledger
+
+The books of a small business that makes and sells things: what came in, what
+went out, and how the business is doing. Four screens over one service —
+Overview, Transactions, Insights and Budgets — and one editor for recording
+a sale, a refund or an expense.
+
+How it is put together:
+
+- **The service is the truth.** Every record and every total comes from the
+  Ledger API (task/api/API.md); `Books` (ledger-model.declare) holds the
+  lookups, `Writes` every change. Each accepted write bumps
+  `writes.revision`, which every read's address carries, so every list,
+  chart and total re-reads at once.
+- **One set of filters**, on the App: the date range and its comparison,
+  search, amount, kind, category, contact (and product, which a chart can
+  set). `fq` is that filter as a query string, and every read is addressed
+  by it, so every screen agrees and every total reconciles with the list.
+  A newer request supersedes an older one, so an answer for filters since
+  replaced is never shown; the previous answer stays on screen, dimmed,
+  until the new one lands.
+- **Where the person is**, on the App: the page (in the URL), the
+  selection, what is open, the Insights tab. Opening a chart's figure sets
+  the filters to exactly its records and goes to Transactions; `back`
+  remembers where it came from so Back returns to the chart as it was.
+- **The files**: ledger-model.declare (schemas, `Books`, `Writes`),
+  ledger-screens.declare (the shell, the filter bar, Transactions and its
+  cells and detail), ledger-reports.declare (Overview, Insights, Budgets),
+  ledger-filters.declare (the filter panels), ledger-charts.declare,
+  ledger-editor.declare (recording), ledger-parts.declare (themes and small
+  parts), and ledger-format.ts (money, dates, ranges, CSV — pure functions).
+*/
+
+include [ "ledger-model.declare" ]
+
+include [ "ledger-parts.declare" ]
+
+include [ "ledger-charts.declare" ]
+
+include [ "ledger-screens.declare" ]
+
+include [ "ledger-reports.declare" ]
+
+include [ "ledger-filters.declare" ]
+
+include [ "ledger-editor.declare" ]
+
+use [ DateCell, DescCell, CatCell, ChannelCell, AmountCell, MoneyCell, PlainCell, PctCell ]
+
+// The one thing a script does here that the language doesn't: hand the
+// browser a file to save.
+
+script [ host = browser ] {
+    function saveFile(name: string, text: string, type: string) {
+        const url = URL.createObjectURL(new Blob([text], { type: type }))
+        const a = document.createElement("a")
+        a.href = url
+        a.download = name
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
+    }
+
+// What the filters were, so Back from a drill-down can restore them
+
+schema FilterState [ page: string, preset: string, from: string, to: string, q: string, min: number, max: number,
+    kinds[]: string, cats[]: string, contacts[]: string, products[]: string, tab: string, label: string ]
+
+
+App [ appName = "Ledger", minWidth = 340,
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    fontFamily = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+
+    // ── appearance: follows the system until the person picks one
+
+    themeMode: "auto" | "light" | "dark" = "auto",
+    dark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
+    theme = { app.dark ? ({ ...SanFranciscoDark, ...LedgerDark }) : ({ ...SanFrancisco, ...LedgerLight }) },
+
+    // ── sizes
+
+    wide: boolean = { app.width >= 900 },
+    phone: boolean = { app.width < 700 },
+    tap: number = { app.touchFirst ? 44 : 30 },
+
+    // ── the service
+
+    base: string = "http://127.0.0.1:8370",
+    books: Books [ base = { app.base } ],
+    writes: Writes [ base = { app.base } ],
+    today: string = { app.books.today },
+    ready: boolean = { app.books.loaded },
+    rev: number = { app.writes.revision },
+
+    // ── where the person is: the page is in the URL
+
+    location = "overview",
+    page: string = { ["overview", "transactions", "insights", "budgets"].includes(app.location) ? app.location : "overview" },
+    go(p: string) { location = p },
+    pageTitle: string = { ({ overview: "Overview", transactions: "Transactions", insights: "Insights", budgets: "Budgets" } as any)[app.page] ?? "" },
+
+    // ── the filters: one set, shared by every screen
+    //
+    // The date range is a preset ("this-month") or, with preset "", two
+    // dates. "Clear all" returns to this month and nothing else.
+
+    fPreset: string = "this-month",
+    fFrom: string = "",
+    fTo: string = "",
+    fCompare: "previous" | "year" | "none" = "previous",
+    fQ: string = "",
+    fMin: number = -1,                  // cents; -1 = no bound
+    fMax: number = -1,
+    fKinds: string[] = [],
+    fCats: string[] = [],               // "none" = uncategorised
+    fContacts: string[] = [],           // "none" = no contact
+    fProducts: string[] = [],           // set by opening a product's figure
+
+    range: Range = { app.fPreset != "" ? presetRange(app.fPreset, app.today, app.books.first) : ({ from: app.fFrom, to: app.fTo }) },
+    from: string = { app.range.from },
+    to: string = { app.range.to },
+    cmp: Range? = { compareRange(app.from, app.to, app.fCompare) },
+    rangeName: string = { app.fPreset != "" ? (PRESETS.find((p) => p.id == app.fPreset)?.label ?? "") : rangeLabel(app.from, app.to) },
+    cmpName: string = { app.cmp == null ? "" : shortRangeLabel(app.cmp.from, app.cmp.to) },
+
+    // the filter as the service reads it, with and without its dates
+
+    spec(from: string, to: string) -> FilterSpec {
+        return ({ from: from, to: to, q: fQ, min: fMin, max: fMax, kinds: fKinds, cats: fCats,
+            contacts: fContacts, products: fProducts, ids: [] })
+        },
+    fq: string = { filterQuery(app.spec(app.from, app.to)) },
+    fqUndated: string = { filterQuery(app.spec("", "")) },
+    fqCompare: string = { app.cmp == null ? "" : filterQuery(app.spec(app.cmp.from, app.cmp.to)) },
+
+    // anything beyond the dates: every screen says the figures are filtered
+
+    filtered: boolean = { app.fQ.trim() != "" || app.fMin >= 0 || app.fMax >= 0 || app.fKinds.length > 0 ||
+        app.fCats.length > 0 || app.fContacts.length > 0 || app.fProducts.length > 0 },
+
+    clearAll() {
+        fPreset = "this-month"; fQ = ""; fMin = -1; fMax = -1
+        fKinds = []; fCats = []; fContacts = []; fProducts = []
+        back = null
+        },
+    setPreset(id: string) { fPreset = id },
+    setDates(from: string, to: string) {
+        if (from == "" || to == "") return
+        fPreset = ""
+        fFrom = from <= to ? from : to
+        fTo = from <= to ? to : from
+        },
+    stepDates(dir: number) {
+        const r = stepRange(from, to, dir)
+        this.setDates(r.from, r.to)
+        },
+    toggleIn(list: string[], v: string) -> string[] { return list.includes(v) ? list.filter((x) => x != v) : [...list, v] },
+
+    // ── opening a figure's records
+    //
+    // A figure opens Transactions filtered to exactly the records behind it:
+    // its dates, its kinds, its category, product or contact. What the
+    // filters were is kept in `back`, so returning puts the chart back.
+
+    back: FilterState? = null,
+    insightsTab: string = "trends",
+    snapshot(label: string) -> FilterState {
+        return ({ page: page, preset: fPreset, from: from, to: to, q: fQ, min: fMin, max: fMax, kinds: [...fKinds],
+            cats: [...fCats], contacts: [...fContacts], products: [...fProducts], tab: insightsTab, label: label })
+        },
+
+    // kinds both the filter and the figure allow
+
+    narrowKinds(kinds: string[]) -> string[] {
+        if (kinds.length == 0) return fKinds
+        if (fKinds.length == 0) return kinds
+        const both = kinds.filter((k) => fKinds.includes(k))
+        return both.length > 0 ? both : kinds
+        },
+    drill(from: string, to: string, kinds: string[], cats: string[]?, contacts: string[]?, products: string[]?) {
+        back = this.snapshot(pageTitle)
+        if (from != "" && to != "") this.setDates(from, to)
+        fKinds = this.narrowKinds(kinds)
+        if (cats != null) fCats = cats
+        if (contacts != null) fContacts = contacts
+        if (products != null) fProducts = products
+        selection = []
+        detailOpen = false
+        location = "transactions"
+        },
+    goBack() {
+        const s = back
+        if (s == null) return
+        fPreset = s.preset; fFrom = s.from; fTo = s.to; fQ = s.q; fMin = s.min; fMax = s.max
+        fKinds = s.kinds; fCats = s.cats; fContacts = s.contacts; fProducts = s.products
+        insightsTab = s.tab
+        back = null
+        location = s.page
+        },
+
+    // every uncategorised record, whenever it was
+
+    drillAll(cats: string[]) {
+        back = this.snapshot(pageTitle)
+        fPreset = "all"
+        fKinds = []
+        fCats = cats
+        selection = []
+        detailOpen = false
+        location = "transactions"
+        },
+
+    // a chart's period and series: revenue, expenses or net
+
+    openPeriod(p: ChartPeriod, series: string) {
+        const kinds = series == "revenue" ? ["sale", "refund"] : series == "expenses" ? ["expense"] : series == "sales" ? ["sale"] : []
+        this.drill(p.from, p.to, kinds, null, null, null)
+        },
+
+    // one transaction, opened beside the list
+
+    openTxn(t: Txn) {
+        location = "transactions"
+        selection = [t]
+        detailOpen = true
+        },
+
+    // a range dragged across a chart, offered as the date filter
+
+    offered: Range? = null,
+    offerRange(from: string, to: string) {
+        offered = ({ from: from, to: to })
+        toast.say("Selected " + rangeLabel(from, to), ({ id: "range", label: "Use as date filter" }))
+        },
+
+    // ── Insights: where the person is in it, kept while they look elsewhere
+
+    insightsBy: string = "",
+    insightsTable: boolean = false,
+    breakdownSide: string = "expense",
+    trendMeasure: string = "revenue",
+    measures: Measure2[] = { [
+        ({ id: "revenue", name: "Revenue", unit: "money", kinds: ["sale", "refund"], up: "good" }),
+        ({ id: "expenses", name: "Expenses", unit: "money", kinds: ["expense"], up: "bad" }),
+        ({ id: "net", name: "Net profit", unit: "money", kinds: [], up: "good" }),
+        ({ id: "margin", name: "Gross margin %", unit: "percent", kinds: ["sale", "refund"], up: "good" }),
+        ({ id: "sales", name: "Number of sales", unit: "count", kinds: ["sale"], up: "good" })
+        ] },
+    measureMenu: Menu [
+        items = { app.measures.map((m) => ({ id: m.id, label: m.name, checked: app.trendMeasure == m.id })) },
+        picked(id: string) { app.trendMeasure = id }
+        ],
+    openTrend(measure: string) {
+        trendMeasure = measure
+        insightsTab = "trends"
+        location = "insights"
+        },
+
+    // ── the one plain sentence each chart opens with
+
+    peakSentence(name: string, values: number[], periods: ChartPeriod[], unit: string, cost: boolean) -> string {
+        const full = values.map((v, i) => ({ v: v, i: i })).filter((x) => !(periods[x.i]?.partial ?? false))
+        const pool = full.length > 0 ? full : values.map((v, i) => ({ v: v, i: i }))
+        if (pool.length < 2) return pool.length == 0 ? "Too little data in this range to draw a trend." : "Only one period in this range — widen the dates to see a trend."
+        const best = pool.reduce((a, b) => b.v > a.v ? b : a)
+        const fmt = unit == "percent" ? percent(best.v) : unit == "count" ? count(best.v) : money(best.v)
+        const verb = name.endsWith("s") && unit != "count" ? " were " : " was "
+        return name + verb + "highest in " + (periods[best.i]?.long ?? "") + " (" + fmt + ")" + (full.length < values.length ? "; the last period isn't over yet." : ".")
+        },
+    incomeSentence(ps: Period[]) -> string {
+        if (ps.length == 0) return ""
+        const net = ps.reduce((n, p) => n + p.net.amount, 0)
+        const best = ps.reduce((a, b) => b.net.amount > a.net.amount ? b : a)
+        return "Over these " + ps.length + " months, net profit was " + money(net) + "; the best month was " + periodLabel(best.period, "month", true) + " (" + money(best.net.amount) + ")."
+        },
+    breakEvenSentence(running: number[], periods: ChartPeriod[]) -> string {
+        if (running.length == 0) return "Nothing in this range yet."
+        const last = running[running.length - 1]
+        let i = running.length - 1
+        while (i > 0 && running[i - 1] >= 0) i = i - 1
+        if (last < 0) return "Net profit is " + money(last) + " over the range: not yet broken even."
+        if (running.every((v) => v >= 0)) return "In profit from " + (periods[0]?.long ?? "the start") + " on: " + money(last) + " net over the range."
+        return "The running total of net profit passed zero in " + (periods[i]?.long ?? "") + " — the business broke even then, and stands at " + money(last) + "."
+        },
+
+    // ── the transactions matching the filters
+    //
+    // All of them, in the order asked for: a few thousand rows at most, so
+    // scrolling and jumping to the end never wait on the service.
+
+    sortOn: string = "date",
+    sortDir: string = "desc",
+    txns: Read [ schema = TxnPage, path = { "/api/transactions?" + app.fq + "&sort=" + app.sortOn + "&dir=" + app.sortDir + "&limit=10000" } ],
+    rows: Txn[] = { app.txns.value?.rows ?? [] },
+    summary: Summary? = { app.txns.value?.summary ?? null },
+
+    // ── the selection: records, held here so it survives scrolling and sorts.
+    //    "Select all" is every transaction the filters match.
+
+    selection: Txn[] = [],
+    allMatching: boolean = { app.selection.length > 1 && app.selection.length == app.rows.length },
+    selected: Txn? = { app.selection.length > 0 ? app.selection[app.selection.length - 1] : null },
+    detailOpen: boolean = false,
+    openId: string = { app.detailOpen && app.selected != null ? app.selected.id : "" },
+
+    // a refreshed list keeps the selection on the same records
+
+    trackChanges = ["rows", "fq"],
+    onChange(e: ChangeEvent) {
+        if (e.changed.some((c) => c.name == "fq")) { selection = []; return }
+        const ids = new Set(selection.map((t) => t.id))
+        selection = rows.filter((t) => ids.has(t.id))
+        },
+    selectAll() { selection = [...rows] },
+
+    // a press inside a row's cell: the table's click protocol (⌘ toggles,
+    // Shift extends), and a plain click opens the detail
+
+    grid: TxnGrid? = { app.page == "transactions" ? app.shell.main.pages.transactions?.body.listCol.grid ?? null : null },
+    rowPressed(t: Txn, e: PointerEvent) {
+        const g = grid
+        if (g == null) return
+        const i = rows.findIndex((r) => r.id == t.id)
+        g.rowClick(i, t, e.meta || e.ctrl, e.shift)
+        g.activeIndex = i
+        g.activeItem = t
+        Focus.focus(g)                  // the arrows are the table's
+        if (e.meta || e.ctrl || e.shift) return
+        // Opening the detail narrows the table, so when it isn't open yet it
+        // waits out a double-click — which edits the cell instead.
+        if (detailOpen) return
+        afterDelay(280, () => { if (Date.now() - app.editStartedAt > 400 && app.selection.length == 1) app.detailOpen = true })
+        },
+    editStartedAt: number = 0,
+
+    // the summary line: what is shown, or the selection
+
+    selSummary: Summary = { app.sumOf(app.selection) },
+    sumOf(list: Txn[]) -> Summary {
+        let a = 0
+        let b = 0
+        for (const t of list) { if (t.inFilter > 0) a = a + t.inFilter; else b = b - t.inFilter }
+        return ({ count: list.length, in: a, out: b, net: a - b })
+        },
+    summaryLine(s: Summary?) -> string {
+        if (s == null) return ""
+        return count(s.count) + (s.count == 1 ? " transaction" : " transactions") + " · In " + money(s.in) + " · Out " + money(s.out) + " · Net " + money(s.net)
+        },
+
+    // ── bulk changes on the selection, each with Undo
+
+    where() -> object {
+        return allMatching ? filterQuery(this.spec(from, to)) : ({ ids: selection.map((t) => t.id) })
+        },
+    bulkCategorise(id: string?) {
+        writes.runBulk(({ action: "categorise", categoryId: id, where: this.where(), expectedCount: selection.length }), "Categorised")
+        },
+    bulkContact(id: string?) {
+        writes.runBulk(({ action: "set-contact", contactId: id, where: this.where(), expectedCount: selection.length }), "Set the contact on")
+        },
+    bulkDelete() {
+        writes.runBulk(({ action: "delete", where: this.where(), expectedCount: selection.length }), "Deleted")
+        selection = []
+        detailOpen = false
+        },
+
+    // ── in-place edits
+    //
+    // An edit is sent at once; until the service answers, and if it
+    // refuses, the cell keeps what was typed, marked as not saved, and the
+    // bar under the list offers Retry.
+
+    unsavedId: string = "",
+    unsavedField: string = "",
+    unsavedText: string = "",
+    saveEdit(t: Txn, field: string, value: object, shown: string) {
+        unsavedId = t.id
+        unsavedField = field
+        unsavedText = shown
+        writes.update(t.id, ({ [field]: value }), "Saved")
+        },
+    unsaved(t: Txn, field: string) -> string {
+        return unsavedId == t.id && unsavedField == field && (writes.patch.loading || writes.patch.failed) ? unsavedText : ""
+        },
+    editFailed: boolean = { app.unsavedId != "" && app.writes.patch.failed },
+    retryEdit() { writes.patch.fetch() },
+    dropEdit() { unsavedId = ""; writes.patch.clear() },
+
+    // the category or contact chooser: one popover, opened at a cell (or for
+    // the selection, from the bulk bar)
+
+    pickWhat: "category" | "contact" = "category",
+    pickTxn: Txn? = null,
+    choose(what: "category" | "contact", t: Txn?, at: View) {
+        pickWhat = what
+        pickTxn = t
+        pickPop.showFor(at)
+        },
+    chosen(id: string?) {
+        const t = pickTxn
+        pickPop.close()
+        if (t == null) {
+            if (pickWhat == "category") this.bulkCategorise(id); else this.bulkContact(id)
+            return
+            }
+        if (pickWhat == "category") writes.update(t.id, ({ categoryId: id }), "Saved")
+        else writes.update(t.id, ({ contactId: id }), "Saved")
+        },
+
+    // ── what the toast says, with Undo; ⌘Z undoes the last change too
+
+    announceChange(words: string, undoable: boolean) {
+        if (undoable) toast.say(words, ({ id: "undo", label: "Undo" }))
+        else toast.say(words)
+        },
+
+    // ── export: the filtered transactions, or the selection, as CSV
+
+    exportCSV() {
+        const list = selection.length > 0 ? selection : rows
+        const csv = toCSV(list.map((t) => ({ id: t.id, date: t.date, kind: t.kind, description: t.description,
+            contactName: t.contactName ?? null,
+            category: t.split != null ? t.split.categoryIds.map((c) => books.catName(c)).join(" + ") : t.categoryId == null ? "" : books.catName(t.categoryId),
+            channel: books.channelName(t.channel ?? null), inFilter: t.inFilter })))
+        saveFile("ledger-" + from + "-to-" + to + (selection.length > 0 ? "-selection" : "") + ".csv", csv, "text/csv")
+        toast.say("Exported " + count(list.length) + (list.length == 1 ? " transaction" : " transactions"))
+        },
+
+    // ── recording
+
+    editorKind: "expense" | "sale" | "refund" = "expense",
+    editorOpen: boolean = false,
+    refundFor: string = "",            // the sale a refund starts from
+    record(kind: "expense" | "sale" | "refund") {
+        editorKind = kind
+        if (kind != "refund") refundFor = ""
+        editorOpen = true
+        },
+    refund(saleId: string) { refundFor = saleId; editorKind = "refund"; editorOpen = true },
+
+    // ── the keyboard
+
+    shortcuts: Shortcuts [ title = "Ledger",
+        items = { [
+            ({ id: "expense", key: "e", label: "New expense" }),
+            ({ id: "sale", key: "s", label: "New sale" }),
+            ({ id: "search", key: "/", label: "Search" }),
+            ({ id: "prev", key: "[", label: "Previous date range" }),
+            ({ id: "next", key: "]", label: "Next date range" }),
+            ({ id: "overview", key: "1", label: "Overview" }),
+            ({ id: "transactions", key: "2", label: "Transactions" }),
+            ({ id: "insights", key: "3", label: "Insights" }),
+            ({ id: "budgets", key: "4", label: "Budgets" }),
+            ({ id: "undo", key: "⌘Z", label: "Undo the last change", enabled: app.writes.lastChange != "" }),
+            ({ id: "selectAll", key: "⌘A", label: "Select all matching", enabled: app.page == "transactions" }),
+            ({ id: "export", key: "⇧⌘E", label: "Export CSV" }),
+            ] },
+        picked(id: string) {
+            if (id == "expense" || id == "sale") app.record(id)
+            else if (id == "search") Focus.focus(app.searchField)
+            else if (id == "prev") app.stepDates(-1)
+            else if (id == "next") app.stepDates(1)
+            else if (id == "undo") app.writes.undo()
+            else if (id == "selectAll") app.selectAll()
+            else if (id == "export") app.exportCSV()
+            else app.go(id)
+            }
+        ],
+    keyBindings = { [ ({ key: "Escape", command: "escape" }) ] },
+    escape() -> boolean {
+        if (detailOpen) { detailOpen = false; return true }
+        if (selection.length > 0) { selection = []; return true }
+        if (back != null && page == "transactions") { this.goBack(); return true }
+        return false
+        },
+
+    // ── the filter menus and panels
+
+    dateMenu: Menu [
+        items = { [
+            ...PRESETS.map((p) => ({ id: p.id, label: p.label, checked: app.fPreset == p.id })),
+            ({ divider: true }),
+            ({ id: "custom", label: "Choose dates…", checked: app.fPreset == "" }),
+            ] },
+        picked(id: string) { if (id == "custom") app.datesPop.showFor(app.shell.main.bar.filters.controls.dates); else app.setPreset(id) }
+        ],
+    datesPop: Popover [ accessibilityLabel = "Choose dates",
+        DateRangeForm [ exists = { app.datesPop.present } ]
+        ],
+    compareMenu: Menu [
+        items = { [
+            ({ id: "previous", label: "Previous period", checked: app.fCompare == "previous" }),
+            ({ id: "year", label: "Same period last year", checked: app.fCompare == "year" }),
+            ({ id: "none", label: "No comparison", checked: app.fCompare == "none" }),
+            ] },
+        picked(id: string) { app.fCompare = id as "previous" | "year" | "none" }
+        ],
+    kindMenu: Menu [
+        items = { [
+            ({ id: "sale", label: "Sales", checked: app.fKinds.includes("sale") }),
+            ({ id: "refund", label: "Refunds", checked: app.fKinds.includes("refund") }),
+            ({ id: "expense", label: "Expenses", checked: app.fKinds.includes("expense") }),
+            ] },
+        picked(id: string) { app.fKinds = app.toggleIn(app.fKinds, id) }
+        ],
+    amountPop: Popover [ accessibilityLabel = "Amount",
+        AmountFilter [ exists = { app.amountPop.present }, width = 340 ]
+        ],
+    catPop: Popover [ accessibilityLabel = "Categories",
+        CategoryFilter [ exists = { app.catPop.present }, width = 300 ]
+        ],
+    contactPop: Popover [ accessibilityLabel = "Contacts",
+        ContactFilter [ exists = { app.contactPop.present }, width = 300 ]
+        ],
+
+    // columns of the table a person has hidden
+
+    hiddenCols: string[] = [],
+    columnsMenu: Menu [
+        items = { [["date", "Date"], ["category", "Category"], ["channel", "Channel"]].map((c) => ({ id: c[0], label: c[1], checked: !app.hiddenCols.includes(c[0]) })) },
+        picked(id: string) { app.hiddenCols = app.toggleIn(app.hiddenCols, id) }
+        ],
+
+    confirmDelete: Dialog [ ],
+    askDelete(n: number) {
+        confirmDelete.open(n == 1 ? "Delete this transaction?" : "Delete " + count(n) + " transactions?",
+            "You can undo this for a few seconds afterwards.",
+            [ ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "delete", label: "Delete", default: true }) ],
+            "destructive", (id: string) => { if (id == "delete") app.deleteChosen() })
+        },
+    deleteChosen() {
+        if (selection.length == 1) { writes.remove(selection[0].id); selection = []; detailOpen = false }
+        else if (selection.length > 1) this.bulkDelete()
+        else if (openId != "") writes.remove(openId)
+        },
+
+    // views reached from far away, named once
+
+    searchField: TextInput = { app.shell.main.bar.filters.controls.search },
+
+    // ── the screen ──────────────────────────────────────────────────────────
+
+    layout: SimpleLayout [ axis = x ],
+
+    shell: Shell [ flexes = true, height = { app.height } ],
+
+    // the category / contact chooser
+
+    pickPop: Popover [ accessibilityLabel = { app.pickWhat == "category" ? "Choose a category" : "Choose a contact" },
+        Chooser [ exists = { app.pickPop.present }, width = 280, what = { app.pickWhat }, txn = { app.pickTxn },
+            picked(id: string?) { app.chosen(id) }
+            ]
+        ],
+
+    // the editor: a panel at the side on a desk, a sheet from the bottom on a phone
+
+    editor: Sheet [ edge = { app.phone ? "bottom" : "end" }, sheetWidth = 460, accessibilityLabel = "Record a transaction",
+        shown = { app.editorOpen },
+        commit(open: boolean) { app.editorOpen = open },
+        Editor [ exists = { app.editor.present }, kind = { app.editorKind }, refundOf = { app.refundFor } ]
+        ],
+
+    toast: Toast [ duration = 6000,
+        picked(id: string) {
+            if (id == "undo") app.writes.undo()
+            else if (id == "range" && app.offered != null) app.setDates(app.offered.from, app.offered.to)
+            }
+        ]
+    ]

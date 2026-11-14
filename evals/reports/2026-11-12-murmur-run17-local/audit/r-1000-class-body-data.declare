@@ -1,0 +1,5 @@
+schema H [ me: string ]
+class S extends Dataset [ schema = H ] {
+    { "me": "p1" }
+    }
+App [ s: S [ ], Text [ text = { app.s.value?.me ?? "" } ] ]

@@ -1,0 +1,19 @@
+schema M [ id: string, from: string ]
+schema T [ id: string, seen: string, msgs[]: M ]
+class Row extends View [ height = 20,
+    t: T = { :@ },
+    n: number = { classroot.t.msgs.length },
+    u: number = { app.count(classroot.t) },
+    label: Text [ text = { classroot.t.id + " n=" + classroot.n + " u=" + classroot.u } ] ]
+App [ width = 400, height = 300,
+    s: Dataset { { "threads": [ { "id": "t1", "seen": "m1", "msgs": [ { "id": "m1", "from": "a" } ] },
+                                { "id": "t2", "seen": "", "msgs": [] } ] } },
+    inbox: Dataset [ contents = { { rows: [...(app.s.value?.threads ?? [])] } } ],
+    count(t: T) -> number {
+        let n = 0
+        for (let i = t.msgs.length - 1; i >= 0 && t.msgs[i].id != t.seen; i--) n++
+        return n
+        },
+    add() { app.s.insert(["threads", 0, "msgs"], 1, { id: "m2", from: "b" }) },
+    list: View [ layout: SimpleLayout [ axis = y ], datapath = { app.s.value },
+        Row [ datapath = :threads[] ] ] ]
