@@ -1,0 +1,44 @@
+# eval-venue-35
+total 23.5 min · 98 turns · output 120348 tokens (thinking 51993)
+phases: reading 5.2 · writing 6.0 · checking 12.3 min
+tool time 4.5 min · model time 19.0 min
+tokens: input 166 · cache write 350633 · cache read 20599773 · output 120348 · thinking 51993
+rate: 6336 output tokens per model-minute
+tools:
+  verify    25×   3.65 min  (median 5.7 s)
+  look       7×   0.47 min  (median 3.0 s)
+  help      11×   0.24 min  (median 1.2 s)
+  bash      20×   0.12 min  (median 0.0 s)
+model turns, by what came before:
+  after write     5×   5.68 min  (median 52.5 s)
+  after bash     20×   3.17 min  (median 2.6 s)
+  after verify   24×   3.03 min  (median 5.4 s)
+  after help     11×   2.99 min  (median 4.4 s)
+  after image    18×   2.80 min  (median 2.6 s)
+  after look      7×   0.62 min  (median 2.3 s)
+  after read     11×   0.33 min  (median 1.9 s)
+app: 5 .declare files, 1456 non-blank lines · 26 snapshots changed them: 1812 lines added, 127 removed
+verify results mentioning accessibility: 2
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+diagnostic codes, by tool results reporting them: DECLARE1002 2, DECLARE4027 2, DECLARE5001 1, DECLARE2000 1, DECLARE5000 1, DECLARE4002 1, DECLARE4005 1, DECLARE4025 1, DECLARE4013 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   3.01 min    33×  R5 behavior, in all
+   2.49 min    31×  script: the assert script, in all
+   0.88 min    82×  locator.click
+   0.56 min    56×  page: load, compile in the page and boot
+   0.44 min    33×  open: the app loaded and arrived, in all
+   0.31 min   188×  check: scrolling come to rest
+   0.28 min   112×  drive.settleMotion
+   0.27 min    34×  compile (R1–R3)
+   0.22 min    21×  R4 boot, in all
+   0.20 min    85×  drive.key
+   0.19 min    50×  drive.settleData
+   0.17 min    22×  drive.click
+   0.17 min    65×  locator.fill
+   0.16 min   302×  locator: wait a tick for it
+   0.10 min   152×  expect(locator), in all
+   0.08 min     3×  drive.waitReal
+   0.07 min    56×  page: a new page
+   0.05 min    45×  drive.tab
+   0.05 min     8×  drive.clickAt
+   0.05 min   188×  check: the layout questions

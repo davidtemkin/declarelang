@@ -105,6 +105,14 @@ successful compile, at its first boot, before and after each fix.
 
 ## Scoring
 
+**The audit is the result; the hidden drive is a guard.** By November 2026 every run passes
+its drive, so a pass says little. What a run teaches is in its audit: the refusals, the source
+reads, the workarounds, the idiom, and where the time went. Compare runs only at the same
+level (a `light` run against a `standard` one measures the level, not the platform), and read
+time beside tokens: `runs.py` lists every timed run with each kind of token and the model's
+output per model-minute, the API's rate that hour. Keep the run's `logs/` until its audit is
+written; the stream is the only record of why the time went where it did.
+
 The app is scored from the main tree — `verify` against the file in the run directory,
 never an edit inside it — and the report, the app, its assert script and screenshots are
 filed under `evals/reports/<date>-<app>-run<N>/`. An app with a hidden drive is scored twice:

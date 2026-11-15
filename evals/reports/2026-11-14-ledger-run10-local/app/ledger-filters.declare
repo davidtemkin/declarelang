@@ -1,0 +1,426 @@
+/*
+# Ledger: the filter and the frame
+
+The one set of filters every screen shares, and the frame around the screens:
+the sidebar (a desk), the bars at the top and foot (a phone), the filter bar
+with its date range, comparison and search, the chips that show every active
+filter, and the panel that sets the rest (kind, amount, category, contact).
+*/
+
+// ── Navigation ──────────────────────────────────────────────────────────────
+
+class NavItem [ width = 100%, height = 34, cornerRadius = 8, padding = [0, 10, 0, 10],
+    where: string = "",
+    name: string = "",
+    glyph: string = "",
+    key: string = "",
+    here: boolean = { app.screen == classroot.where },
+    link = { "#" + classroot.where },
+    accessibilityCurrent = { classroot.here ? "page" : "none" },
+    fill = { hovered ? provided("theme").hover : null },
+    State [ applied = { classroot.here }, fill = { provided("theme").selection } ],
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Glyph [ shape = { classroot.glyph }, iconSize = 15, weight = 1.7,
+        ink = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ],
+    Text [ flexes = true, fontSize = 14, fontWeight = { classroot.here ? "semibold" : "medium" }, wrap = false, text = { classroot.name } ],
+    Text [ fontSize = 11, textColor = { provided("theme").textFaint }, text = { classroot.key } ]
+    ]
+
+
+class SideNav [ padding = [18, 12, 16, 12], accessibilityRole = navigation, accessibilityLabel = "Screens",
+    fill = { provided("theme").sunken }, stroke = { [null, stroke(1, provided("theme").line), null, null] },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    brand: View [ width = 100%, padding = [2, 8, 18, 8],
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 19, fontWeight = bold, letterSpacing = -0.3, text = "Ledger" ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "Clay & Paper" ]
+        ],
+    NavItem [ where = "overview", name = "Overview", glyph = "overview", key = "1" ],
+    NavItem [ where = "transactions", name = "Transactions", glyph = "list", key = "2" ],
+    NavItem [ where = "insights", name = "Insights", glyph = "chart", key = "3" ],
+    NavItem [ where = "budgets", name = "Budgets", glyph = "budget", key = "4" ],
+    View [ width = 100%, height = 18 ],
+    newBtn: Button [ width = 100%, primary = true, label = "New expense", accessibilityLabel = "New expense (N)",
+        onClick() { app.record("expense") }
+        ],
+    View [ width = 100%, height = 6 ],
+    Button [ width = 100%, label = "New sale",
+        onClick() { app.record("sale") }
+        ],
+    Spacer [ ],
+    appearance: Segmented [ width = 100%, accessibilityLabel = "Appearance",
+        value = { app.themeMode },
+        items = { [ ({ id: "light", label: "Light" }), ({ id: "dark", label: "Dark" }), ({ id: "auto", label: "Auto" }) ] },
+        commit(v: object) { app.themeMode = v as "auto" | "light" | "dark" }
+        ]
+    ]
+
+
+// A phone: the screen's name and the date range along the top, and search.
+
+class PhoneTop [ width = 100%, padding = { [app.safeTop + 8, 8, 6, 14] },
+    fill = { provided("theme").background },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    row: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        Text [ flexes = true, accessibilityRole = heading, fontSize = 22, fontWeight = bold, wrap = false,
+            text = { app.screen == "transactions" ? "Transactions" : app.screen == "insights" ? "Insights" : app.screen == "budgets" ? "Budgets" : "Overview" } ],
+        IconButton [ glyph = "search", accessibilityLabel = "Search",
+            press() { app.focusSearch() }
+            ],
+        IconButton [ glyph = "filter", accessibilityLabel = "Filters",
+            press() { app.filtersOpen = true }
+            ]
+        ],
+    dates: DateStepper [ width = 100% ],
+    search: SearchField [ exists = { app.phoneSearch || app.searchText != "" }, width = 100%, height = 44, fontSize = 16,
+        placeholder = "Search descriptions, contacts, amounts", accessibilityLabel = "Search",
+        value = { app.searchText },
+        commit(v: string) { app.typed(v) }
+        ]
+    ]
+
+
+// A phone's foot: the two screens, and recording.
+
+class PhoneTab extends Control [ flexes = true, height = 56,
+    where: string = "",
+    name: string = "",
+    glyph: string = "",
+    here: boolean = { app.screen == classroot.where },
+    accessibilityLabel = { classroot.name },
+    accessibilitySelected = { classroot.here },
+    press() { app.go(classroot.where) },
+    layout: SimpleLayout [ axis = y, spacing = 3, align = center ],
+    View [ height = 6 ],
+    Glyph [ shape = { classroot.glyph }, iconSize = 20, weight = 1.8,
+        ink = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ],
+    Text [ fontSize = 11, fontWeight = medium, text = { classroot.name },
+        textColor = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ]
+    ]
+
+
+class PhoneTabs [ width = 100%, padding = { [0, 8, app.safeBottom, 8] }, accessibilityRole = navigation, accessibilityLabel = "Screens",
+    fill = { provided("theme").surface }, stroke = { [stroke(1, provided("theme").line), null, null, null] },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    PhoneTab [ where = "overview", name = "Overview", glyph = "overview" ],
+    PhoneTab [ where = "transactions", name = "Transactions", glyph = "list" ],
+    expense: Control [ flexes = true, height = 56, accessibilityLabel = "New expense",
+        press() { app.record("expense") },
+        View [ x = center, y = center, width = 48, height = 40, cornerRadius = 12, fill = { provided("theme").accent },
+            Glyph [ x = center, y = center, shape = "plus", iconSize = 20, weight = 2.2, ink = { provided("theme").onAccent } ]
+            ]
+        ],
+    sale: Control [ flexes = true, height = 56, accessibilityLabel = "New sale",
+        press() { app.record("sale") },
+        layout: SimpleLayout [ axis = y, spacing = 3, align = center ],
+        View [ height = 6 ],
+        Text [ fontSize = 18, fontWeight = bold, textColor = { provided("theme").income }, text = "$" ],
+        Text [ fontSize = 11, fontWeight = medium, textColor = { provided("theme").textMuted }, text = "New sale" ]
+        ]
+    ]
+
+
+// ── The date range ──────────────────────────────────────────────────────────
+
+// Arrows to step the range, and a button naming it that opens the presets.
+
+class DateStepper [
+    layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+    prev: IconButton [ glyph = "left", accessibilityLabel = "Previous period ([)", disabled = { app.f.from == "" },
+        press() { app.stepDates(-1) }
+        ],
+    range: Pill [ glyph = "calendar", trailing = "down", label = { app.rangeText },
+        accessibilityLabel = { "Date range: " + app.rangeText },
+        menu = { app.rangeMenu } ],
+    next: IconButton [ glyph = "right", accessibilityLabel = "Next period (])", disabled = { app.f.from == "" },
+        press() { app.stepDates(1) }
+        ],
+    cmp: Pill [ trailing = "down",
+        label = { app.compareMode == "none" ? "No comparison" : app.cmpText },
+        accessibilityLabel = { "Compare with: " + (app.compareMode == "none" ? "nothing" : app.compareMode == "year" ? "same period last year" : "previous period") },
+        menu = { app.compareMenu } ]
+    ]
+
+
+class RangeMenu extends Menu [
+    items = { [
+        ({ id: "this-month", label: "This month", group: "r", checked: app.preset == "this-month" }),
+        ({ id: "last-month", label: "Last month", group: "r", checked: app.preset == "last-month" }),
+        ({ id: "last-30", label: "Last 30 days", group: "r", checked: app.preset == "last-30" }),
+        ({ id: "this-quarter", label: "This quarter", group: "r", checked: app.preset == "this-quarter" }),
+        ({ id: "last-quarter", label: "Last quarter", group: "r", checked: app.preset == "last-quarter" }),
+        ({ id: "this-year", label: "This year", group: "r", checked: app.preset == "this-year" }),
+        ({ id: "last-year", label: "Last year", group: "r", checked: app.preset == "last-year" }),
+        ({ id: "last-12", label: "Last 12 months", group: "r", checked: app.preset == "last-12" }),
+        ({ id: "all", label: "All time", group: "r", checked: app.preset == "all" }),
+        ({ divider: true }),
+        ({ id: "custom", label: "Custom range…", group: "r", checked: app.preset == "custom" })
+        ] },
+    picked(id: string) {
+        if (id == "custom") { app.customOpen = true; return }
+        app.setRange(id)
+        }
+    ]
+
+
+class CompareMenu extends Menu [
+    items = { [
+        ({ id: "previous", label: "Previous period", group: "c", checked: app.compareMode == "previous" }),
+        ({ id: "year", label: "Same period last year", group: "c", checked: app.compareMode == "year" }),
+        ({ id: "none", label: "No comparison", group: "c", checked: app.compareMode == "none" })
+        ] },
+    picked(id: string) { app.compareMode = id as "previous" | "year" | "none" }
+    ]
+
+
+// Two dates of the person's own.
+
+class CustomRange [ width = 300, padding = 4,
+    from: string = { app.f.from == "" ? monthStart(app.today) : app.f.from },
+    to: string = { app.f.to == "" ? app.today : app.f.to },
+    bad: boolean = { classroot.from == "" || classroot.to == "" || classroot.from > classroot.to },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 14, fontWeight = semibold, text = "Custom range" ],
+    Field [ label = "From", labelWidth = 50,
+        DatePicker [ width = 200, accessibilityLabel = "From", value = { classroot.from },
+            commit(v: string) { classroot.from = v }
+            ]
+        ],
+    Field [ label = "To", labelWidth = 50,
+        DatePicker [ width = 200, accessibilityLabel = "To", value = { classroot.to },
+            commit(v: string) { classroot.to = v }
+            ]
+        ],
+    Text [ visible = { classroot.bad }, fontSize = 12, textColor = { provided("theme").bad }, text = "The start must come before the end." ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Spacer [ ],
+        Button [ label = "Cancel",
+            onClick() { app.customOpen = false }
+            ],
+        Button [ label = "Apply", primary = true, disabled = { classroot.bad },
+            onClick() { app.setDates(classroot.from, classroot.to); app.customOpen = false }
+            ]
+        ]
+    ]
+
+
+// ── The filter bar: dates, comparison, search, the rest ─────────────────────
+
+class FilterBar [ width = 100%, padding = [12, 20, 10, 20],
+    accessibilityRole = search, accessibilityLabel = "Filters",
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: WrappingLayout [ spacing = 10, rowSpacing = 8, align = center ],
+    dates: DateStepper [ ],
+    search: SearchField [ width = { Math.max(200, Math.min(360, app.main.width - 640)) }, height = 30,
+        placeholder = "Search   /", accessibilityLabel = "Search descriptions, contacts, products and amounts",
+        value = { app.searchText },
+        commit(v: string) { app.typed(v) },
+        onKeyDown(e: KeyEvent) {
+            if (e.key == "Escape" && app.searchText != "") { app.typed(""); return }
+            super.onKeyDown(e)
+            }
+        ],
+    more: Pill [ glyph = "filter", label = { app.filterCount == 0 ? "Filters" : "Filters · " + app.filterCount },
+        on = { app.filterCount > 0 }, accessibilityLabel = "More filters: kind, amount, category, contact",
+        press() { app.filterPop.showFor(this) }
+        ],
+    busy: SlowNote [ visible = { app.slow } ]
+    ]
+
+
+// Every active filter as a chip, a way to clear them, and a word that the figures are filtered.
+
+class ChipRow [ width = 100%, padding = { app.phone ? [0, 12, 8, 12] : [8, 20, 0, 20] },
+    visible = { app.narrowed || app.back != null },
+    layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+    backBtn: Pill [ visible = { app.back != null && app.screen == "transactions" }, glyph = "back",
+        label = { "Back" + ((app.back?.label ?? "") != "" ? " to " + (app.back?.label ?? "") : "") },
+        press() { app.goBack() }
+        ],
+    note: View [ visible = { app.narrowed }, height = 28, padding = [0, 8, 0, 8], cornerRadius = 6, fill = { provided("theme").warnTint },
+        TextLabel [ y = center, fontSize = 12, fontWeight = semibold, textColor = { provided("theme").warn }, text = "Filtered figures" ]
+        ],
+    chips: View [ datapath = { app.chipData.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        FilterChip [ datapath = :chips[], label = { :label ?? "" },
+            press() { app.dropChip(:@ as Chip) }
+            ]
+        ],
+    clear: Pill [ visible = { app.narrowed }, label = "Clear all", accessibilityLabel = "Clear all filters",
+        press() { app.clearAll() }
+        ]
+    ]
+
+
+// ── The rest of the filter: kind, amount, category, contact ─────────────────
+
+class KindToggle extends Control [ height = { app.tap }, cornerRadius = 8, padding = [0, 12, 0, 12],
+    kind: string = "",
+    name: string = "",
+    on: boolean = { app.f.kinds.includes(classroot.kind) },
+    accessibilityRole = toggle, accessibilityPressed = { classroot.on }, accessibilityLabel = { classroot.name },
+    stroke = { stroke(1, classroot.on ? provided("theme").accent : provided("theme").line) },
+    fill = { classroot.on ? provided("theme").controlSelected : hovered ? provided("theme").hover : null },
+    press() { app.setFilter(({ kinds: app.toggleIn(app.f.kinds, classroot.kind) })) },
+    TextLabel [ y = center, fontSize = 13, fontWeight = medium, text = { classroot.name } ]
+    ]
+
+
+class CatOption [ width = 100%, height = { app.tap }, padding = [0, 4, 0, 0],
+    catId: string = "",
+    name: string = "",
+    colour: number = -1,
+    count: number = 0,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    box: Checkbox [ flexes = true, label = { classroot.name }, accessibilityLabel = { classroot.name },
+        checked = { app.f.cats.includes(classroot.catId) },
+        commit(v: boolean) { app.setFilter(({ cats: app.toggleIn(app.f.cats, classroot.catId) })) }
+        ],
+    View [ width = 8, height = 8, cornerRadius = 4,
+        fill = { classroot.colour >= 0 ? provided("theme").cats[classroot.colour] : provided("theme").warn } ],
+    Text [ width = 44, textAlign = right, numeralWidth = tabular, fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { classroot.count.toLocaleString("en-US") } ]
+    ]
+
+
+class FilterPanel [ padding = { app.phone ? [4, 4, 16, 4] : 4 },
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = center ],
+        Text [ flexes = true, accessibilityRole = heading, fontSize = 16, fontWeight = semibold, text = "Filters" ],
+        Pill [ visible = { app.narrowed }, label = "Clear all",
+            press() { app.clearAll() }
+            ]
+        ],
+    dates: View [ visible = { app.phone }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "DATES" ],
+        DateStepper [ ]
+        ],
+    kinds: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "KIND" ],
+        View [ layout: SimpleLayout [ axis = x, spacing = 6 ],
+            KindToggle [ kind = "sale", name = "Sales" ],
+            KindToggle [ kind = "refund", name = "Refunds" ],
+            KindToggle [ kind = "expense", name = "Expenses" ]
+            ]
+        ],
+    amount: AmountFilter [ width = 100% ],
+    cats: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "CATEGORY" ],
+        list: View [ width = 100%, datapath = { app.catCountData.value },
+            layout: SimpleLayout [ axis = y ],
+            CatOption [ datapath = :rows[], catId = { :id ?? "" }, name = { :name ?? "" }, colour = { :colour ?? -1 }, count = { :count ?? 0 } ]
+            ]
+        ],
+    contacts: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "CONTACT" ],
+        Combobox [ width = 100%, placeholder = "Customer or vendor", accessibilityLabel = "Add a contact to the filter",
+            items = { app.contacts.map((c) => ({ id: c.id, label: c.name })) },
+            value = { null },
+            commit(v: object) { if (v != null && !app.f.contacts.includes(v.id)) app.setFilter(({ contacts: [...app.f.contacts, v.id] })) }
+            ],
+        View [ width = 100%, datapath = { app.chipData.value },
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            FilterChip [ datapath = :contactChips[], label = { :label ?? "" },
+                press() { app.dropChip(:@ as Chip) }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── Amount: a two-handled slider on a skewed scale, over a histogram ────────
+//
+// The slider's positions are indexes into friendly stops (amountStops in the
+// model): $5, $10 … $1k, $5k. The low thumb at the start means "no minimum",
+// the high one at the end "no maximum". The two fields take exact cents.
+
+class AmountFilter [
+    stops: number[] = { amountStops() },
+    last: number = { classroot.stops.length - 1 },
+    lowAt: number = { stopIndexFor(app.f.min, false) },
+    highAt: number = { stopIndexFor(app.f.max, true) },
+    frac(cents: number) -> number {
+        const s = stops
+        if (cents >= s[last]) return 1
+        for (let i = 0; i < last; i++) if (cents < s[i + 1]) return (i + (cents - s[i]) / (s[i + 1] - s[i])) / last
+        return 1
+        },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "AMOUNT" ],
+
+    // how the transactions matching the other filters spread by amount
+
+    hist: Histogram [ width = 100%, height = 44, accessibilityHidden = true ],
+    slider: RangeSlider [ width = 100%, height = { app.phone ? 44 : 28 }, min = 0, max = { classroot.last }, step = 1,
+        accessibilityLabel = "Amount",
+        value = { ({ low: classroot.lowAt, high: classroot.highAt }) },
+        valueText(v: number) -> string {
+            if (v <= 0) return "no minimum"
+            if (v >= classroot.last) return "no maximum"
+            return dollars(classroot.stops[v])
+            },
+        commit(v: object) {
+            app.setFilter(({ min: v.low <= 0 ? null : classroot.stops[v.low], max: v.high >= classroot.last ? null : classroot.stops[v.high] }))
+            }
+        ],
+    ticks: View [ width = 100%, height = 16, accessibilityHidden = true, datapath = { app.tickData.value },
+        View [ datapath = :ticks[], y = 0, x = { 9 + (parent.width - 18) * :f - 14 }, width = 28,
+            Text [ width = 28, textAlign = center, fontSize = 10.5, numeralWidth = tabular, textColor = { provided("theme").textFaint }, text = { :label ?? "" } ]
+            ]
+        ],
+    fields: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        lo: TextInput [ flexes = true, height = { app.tap }, placeholder = "Min $", accessibilityLabel = "Minimum amount, dollars", purpose = decimal,
+            commitOn = "end",
+            value = { app.f.min == null ? "" : centsText(app.f.min) },
+            admit(t: string) -> string? { return /^[$\d,]*\.?\d{0,2}$/.test(t) ? t : null },
+            commit(t: string) { const c = parseCents(t); app.setFilter(({ min: c < 0 ? null : c })) }
+            ],
+        Text [ textColor = { provided("theme").textMuted }, text = "to" ],
+        hi: TextInput [ flexes = true, height = { app.tap }, placeholder = "Max $", accessibilityLabel = "Maximum amount, dollars", purpose = decimal,
+            commitOn = "end",
+            value = { app.f.max == null ? "" : centsText(app.f.max) },
+            admit(t: string) -> string? { return /^[$\d,]*\.?\d{0,2}$/.test(t) ? t : null },
+            commit(t: string) { const c = parseCents(t); app.setFilter(({ max: c < 0 ? null : c })) }
+            ]
+        ]
+    ]
+
+
+// The histogram above the slider: a bar per bucket, on the slider's own scale,
+// the chosen range in the accent.
+
+class Histogram [
+    buckets: Bucket[] = { app.amountSrc.value?.buckets ?? [] },
+    owner: AmountFilter? = { parent as AmountFilter },
+    lo: number = { app.f.min ?? 0 },
+    hi: number = { app.f.max ?? 100000000 },
+    draw(d: DrawContext) {
+        const o = this.owner
+        if (o == null) return
+        const w = this.width - 18
+        const h = this.height
+        const peak = Math.max(1, ...this.buckets.map((b) => b.count))
+        const t = provided("theme")
+        for (const b of this.buckets) {
+            const top = b.max ?? 500000
+            const x0 = 9 + w * o.frac(b.min)
+            const x1 = 9 + w * o.frac(Math.max(b.min + 1, b.max == null ? 600000 : top))
+            const bh = b.count == 0 ? 0 : Math.max(2, (h - 2) * Math.sqrt(b.count / peak))
+            const inside = b.min >= this.lo && (b.max ?? 100000000) <= this.hi + 1
+            d.fillStyle = inside ? t.accent : t.lineStrong
+            d.globalAlpha = inside ? 0.85 : 0.6
+            d.beginPath()
+            d.roundRect(x0 + 1, h - bh, Math.max(1, x1 - x0 - 2), bh, 2)
+            d.fill()
+            }
+        d.globalAlpha = 1
+        }
+    ]

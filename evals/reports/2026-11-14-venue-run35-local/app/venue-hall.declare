@@ -1,0 +1,370 @@
+/*
+# The Venue: the hall
+
+The Grand Hall drawn as a room: the stage at the top, four sections behind it,
+each row an arc facing the stage, seats along it with two aisles. A seat is a
+control: pressed, it joins or leaves the person's choice. Free, theirs and
+gone are three shapes — a ring, a filled disc with a tick, a small dot — so
+they read apart without colour.
+
+The same hall serves a desk and a phone. At a desk it is drawn at a size that
+fits the window. On a phone it is drawn at a finger's size (every seat 44
+points) on a surface that starts zoomed out to the whole house; a tap zooms in
+about where it landed, a drag pans, a pinch zooms, and only then do seats take
+presses — so a thumb never lands on the wrong one.
+*/
+
+
+// ── A row: a letter at each end, the seats between, along an arc ────────────
+//
+// Every row shares one arc (`curve`, about the hall's centre line), so the
+// rows nest like the rows of a real house: a short row's ends sit lower than a
+// long row's. The arc's depth at the widest point is `sag`; the row's box is
+// that much taller than a seat, and the rows overlap by it (the section's
+// spacing), so neighbouring arcs sit one seat apart all along.
+
+class ArcRow extends Layout [
+    pitch: number = 20,
+    curve: number = 0,
+    reach: number = 300,          // half the widest row, from the hall's centre line
+    place() {
+        const kids = this.laid()
+        const p = this.pitch
+        const n = kids.length - 2                 // the seats; the first and last child are the letters
+        const aisleA = Math.round(n * 0.25)
+        const aisleB = n - Math.round(n * 0.25)
+        const gap = p * 0.7
+        const xs: number[] = []
+        let x = p * 1.3                           // after the left letter
+        for (let i = 0; i < n; i++) {
+            if (i == aisleA || i == aisleB) x = x + gap
+            xs.push(x)
+            x = x + p
+            }
+        const width = x + p * 0.3 + p
+        const mid = width / 2
+        const arc = (cx: number) => this.curve * (this.reach * this.reach - (cx - mid) * (cx - mid))
+        return kids.map((c, i) => {
+            if (i == 0) return ({ x: 0, y: arc(p * 0.5) })
+            if (i == kids.length - 1) return ({ x: width - p, y: arc(width - p * 0.5) })
+            return ({ x: xs[i - 1], y: arc(xs[i - 1] + p / 2) })
+            })
+        }
+    ]
+
+
+// ── A seat ──────────────────────────────────────────────────────────────────
+//
+// Its section's name, price and tone, and its row's letter, are provided by
+// the views it sits in. `pop` springs to 1 when the seat is chosen; it
+// overshoots a little, so the disc lands with a small bounce.
+
+class Seat extends Control [ width = { provided("pitch") }, height = { provided("pitch") },
+    seatId: string = { :id ?? "" },
+    sold: boolean = { :status == "sold" },
+    mine: boolean = { app.chosen.includes(classroot.seatId) },
+    free: boolean = { !classroot.sold && !classroot.mine },
+    tone: Color = { provided("tone") },
+
+    // On a phone's zoomed-out house the seats are a picture: the surface's
+    // "Zoom in" takes the press, and the seats wait until they are a finger's size.
+
+    asleep: boolean = { provided("asleep") },
+    disabled = { classroot.sold || classroot.asleep },
+    onFocus() { app.phoneHall.reveal(this) },
+    accessibilityRole = toggle,
+    accessibilityPressed = { classroot.mine },
+    accessibilityLabel = { provided("sectionName") + ", row " + provided("rowName") + ", seat " + :number },
+    accessibilityHint = { money(provided("sectionPrice")) + (classroot.sold ? ", taken" : classroot.mine ? ", in your choice" : ", available") },
+    focusShape() -> object {
+        const r = provided("pitch") * 0.37 + 3
+        return ({ x: this.width / 2 - r, y: this.height / 2 - r, w: 2 * r, h: 2 * r, rad: r })
+        },
+    press() { app.toggleSeat(classroot.seatId) },
+
+    pop: number = 0,
+    Spring [ attribute = pop, to = { classroot.mine ? 1 : 0 }, stiffness = 520, damping = 15 ],
+
+    disc: View [ x = center, y = center,
+        width = { provided("pitch") * (classroot.sold ? 0.3 : 0.74) }, height = { this.width },
+        cornerRadius = { this.width / 2 },
+        pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+        fill = { provided("theme").seatFace },
+        stroke = { stroke(Math.max(1.2, Math.min(2, provided("pitch") * 0.075)), classroot.tone) },
+        State [ applied = { classroot.free && (classroot.hovered || classroot.pressed) },
+            fill = { provided("theme").accentTint }, stroke = { stroke(Math.max(1.4, Math.min(2.4, provided("pitch") * 0.09)), provided("theme").accent) } ],
+        State [ applied = { classroot.mine }, fill = { provided("theme").accent }, stroke = null,
+            scale = { 0.55 + 0.45 * classroot.pop } ],
+        State [ applied = { classroot.sold }, fill = { provided("theme").seatGone }, stroke = null ],
+        Tick [ visible = { classroot.mine }, x = center, y = center, iconSize = { parent.width * 0.62 }, weight = 2, ink = white ]
+        ]
+    ]
+
+
+// A seat's tick: one stroke, drawn.
+
+class Tick extends Icon [
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(3.5, 8.5)
+        d.lineTo(6.8, 11.6)
+        d.lineTo(12.6, 4.8)
+        d.stroke()
+        }
+    ]
+
+
+// A row letter at either end. A seat says its row, so the letters are only
+// for the eye.
+
+class RowLetter extends Text [ width = { provided("pitch") }, height = { provided("pitch") },
+    accessibilityHidden = true, textAlign = center,
+    fontSize = { Math.max(9, provided("pitch") * 0.42) }, fontWeight = medium,
+    textColor = { provided("theme").textFaint },
+    text = { provided("rowName") }
+    ]
+
+
+class SeatRow [
+    rowName: string = { :name ?? "" },
+    layout: ArcRow [ pitch = { provided("pitch") }, curve = { provided("curve") }, reach = { provided("reach") } ],
+    RowLetter [ ],
+    Seat [ datapath = :seats[] ],
+    RowLetter [ ]
+    ]
+
+
+// ── A section: its name and price over its rows ─────────────────────────────
+
+class SectionBlock [
+    sectionName: string = { :name ?? "" },
+    sectionPrice: number = { :priceCents ?? 0 },
+    tone: Color = { provided("theme").tiers[Math.min(3, rowIndex)] },
+    free: number = { (:rows ?? []).reduce((n, r) => n + r.seats.filter((s) => s.status == "available").length, 0) },
+    accessibilityRole = group,
+    accessibilityLabel = { classroot.sectionName + ", " + money(classroot.sectionPrice) + " a seat, " + classroot.free + " free" },
+    layout: SimpleLayout [ axis = y, align = center, spacing = { provided("pitch") * 0.15 } ],
+    head: View [ accessibilityHidden = true,
+        layout: SimpleLayout [ axis = x, spacing = { Math.max(6, provided("pitch") * 0.4) }, align = baseline ],
+        Text [ fontSize = { Math.max(10, provided("pitch") * 0.5) }, fontWeight = semibold, letterSpacing = 1.2,
+            textColor = { classroot.tone }, text = { classroot.sectionName.toUpperCase() } ],
+        Text [ fontSize = { Math.max(10, provided("pitch") * 0.5) }, numeralWidth = tabular,
+            textColor = { provided("theme").textMuted }, text = { money(classroot.sectionPrice) } ]
+        ],
+    rows: View [
+        layout: SimpleLayout [ axis = y, align = center, spacing = { provided("pitch") * 0.06 - provided("sag") } ],
+        SeatRow [ datapath = :rows[], identityKey = :name ]
+        ]
+    ]
+
+
+// ── The hall: the stage, then the sections, front to back ───────────────────
+//
+// `pitch` is a seat's size; everything else in the drawing is measured from
+// it. Up and Down move the keyboard between rows (Left and Right move along
+// a row, the hall being one Tab stop).
+
+class Hall [
+    pitch: number = 20,
+    asleep: boolean = false,
+    reach: number = { this.pitch * 17.6 },
+    curve: number = { 0.0042 / this.pitch },
+    sag: number = { this.curve * this.reach * this.reach },
+    datapath = { app.seats.value },
+    focusScope = stop,
+    accessibilityRole = group, accessibilityLabel = "Seats in the Grand Hall",
+    keyBindings = { [ ({ key: "ArrowUp", command: "rowStep", args: [-1] }),
+                      ({ key: "ArrowDown", command: "rowStep", args: [1] }) ] },
+    rowStep(dir: number) {
+        const at = Focus.getFocus()
+        const id = at == null ? "" : ((at as Seat).seatId ?? "")
+        const target = app.seatAbove(id, dir)
+        if (target == "") return
+        const v = this.seatView(this, target)
+        if (v != null) Focus.focus(v)
+        },
+    seatView(v: View, id: string) -> View? {
+        if ((v as Seat).seatId == id) return v
+        for (const c of v.childViews) {
+            const f = this.seatView(c, id)
+            if (f != null) return f
+            }
+        return null
+        },
+    layout: SimpleLayout [ axis = y, align = center, spacing = { classroot.pitch * 0.6 } ],
+    stage: View [ width = { classroot.pitch * 15 }, height = { classroot.pitch * 1.5 },
+        cornerRadius = { [2, 2, classroot.pitch * 4, classroot.pitch * 4] },
+        fill = { provided("theme").stage },
+        accessibilityHidden = true,
+        TextLabel [ x = center, y = center, fontSize = { Math.max(9, classroot.pitch * 0.46) }, fontWeight = semibold,
+            letterSpacing = { classroot.pitch * 0.25 }, textColor = { provided("theme").stageText }, text = "STAGE" ]
+        ],
+    SectionBlock [ datapath = :sections[], identityKey = :key ]
+    ]
+
+
+// ── The legend: the three states, as they are drawn ─────────────────────────
+
+class LegendMark [ height = 24,
+    kind: string = "free",
+    word: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    View [ width = 18, height = 18,
+        View [ x = center, y = center, width = { classroot.kind == "gone" ? 6 : 14 }, height = { this.width },
+            cornerRadius = { this.width / 2 },
+            fill = { classroot.kind == "mine" ? provided("theme").accent : classroot.kind == "gone" ? provided("theme").seatGone : provided("theme").seatFace },
+            stroke = { classroot.kind == "free" ? stroke(1.4, provided("theme").tiers[0]) : null },
+            Tick [ visible = { classroot.kind == "mine" }, x = center, y = center, iconSize = 9, weight = 1.6, ink = white ]
+            ]
+        ],
+    Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.word } ]
+    ]
+
+
+class Legend [
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+    LegendMark [ kind = "free", word = "Free" ],
+    LegendMark [ kind = "mine", word = "Yours" ],
+    LegendMark [ kind = "gone", word = "Taken" ]
+    ]
+
+
+// ── The phone's surface: the hall at a finger's size, zoomed and panned ─────
+//
+// Three springs carry the view — `zoom`, and the hall's place `panX`, `panY`
+// — toward targets that a tap, a drag, a pinch or a button writes. A drag
+// writes a value and its target together, so the hall stays under the finger;
+// a tap writes only targets, and the hall glides. Zoomed out, a sheet over
+// the seats takes the tap (`catcher`), so no seat can be hit by accident; it
+// zooms in about the point tapped, and from there the seats are 44 points.
+
+class ZoomSurface [ clip = true,
+    hallW: number = { this.hall.width },
+    hallH: number = { this.hall.height },
+    fit: number = { Math.max(0.05, Math.min(1, (this.width - 24) / Math.max(1, this.hallW), (this.height - 24) / Math.max(1, this.hallH))) },
+    zoomTo: number = 0.3,
+    panXTo: number = 0,
+    panYTo: number = 0,
+    zoom: number = 0.3,
+    panX: number = 0,
+    panY: number = 0,
+    close: boolean = false,              // zoomed in to a finger's size
+    perf: string = { app.perfId },
+    Spring [ attribute = zoom, to = { classroot.zoomTo }, stiffness = 210, damping = 26 ],
+    Spring [ attribute = panX, to = { classroot.panXTo }, stiffness = 210, damping = 26 ],
+    Spring [ attribute = panY, to = { classroot.panYTo }, stiffness = 210, damping = 26 ],
+
+    // Where the hall sits at zoom z, kept on the surface: centred when it is
+    // narrower than the window, never pulled past its edges otherwise.
+
+    clampX(x: number, z: number) -> number {
+        const w = this.hallW * z
+        if (w <= this.width) return (this.width - w) / 2
+        return Math.min(12, Math.max(this.width - w - 12, x))
+        },
+    clampY(y: number, z: number) -> number {
+        const h = this.hallH * z
+        if (h <= this.height) return (this.height - h) / 2
+        return Math.min(12, Math.max(this.height - h - 12, y))
+        },
+    goTo(z: number, x: number, y: number) {
+        close = z > this.fit * 1.5
+        zoomTo = z
+        panXTo = this.clampX(x, z)
+        panYTo = this.clampY(y, z)
+        },
+
+    // Zoom to z keeping the hall's point under (sx, sy) where it is.
+
+    zoomAbout(sx: number, sy: number, z: number) {
+        const hx = (sx - panX) / zoom
+        const hy = (sy - panY) / zoom
+        this.goTo(z, sx - hx * z, sy - hy * z)
+        },
+
+    // Zoom right in, bringing the tapped point to the middle.
+
+    closeIn(sx: number, sy: number) {
+        const hx = (sx - panX) / zoom
+        const hy = (sy - panY) / zoom
+        this.goTo(1, this.width / 2 - hx, this.height * 0.45 - hy)
+        },
+    wholeHouse() { this.goTo(this.fit, 0, 0) },
+    jump(z: number, x: number, y: number) {
+        this.goTo(z, x, y)
+        zoom = zoomTo
+        panX = panXTo
+        panY = panYTo
+        },
+
+    // The first layout of a hall: the whole house in view.
+
+    trackChanges = ["fit", "perf"],
+    onChange(e: ChangeEvent) {
+        if (e.changed.some((c) => c.name == "perf") || !this.close) this.jump(this.fit, 0, 0)
+        else this.jump(this.zoomTo, this.panXTo, this.panYTo)
+        },
+
+    claim = both,
+    grabX: number = 0,
+    grabY: number = 0,
+    grabZ: number = 1,
+    onDragStart(e: PointerEvent) { grabX = panX; grabY = panY },
+    onDrag(e: PointerEvent) {
+        panXTo = this.clampX(grabX + e.deltaX, zoomTo)
+        panYTo = this.clampY(grabY + e.deltaY, zoomTo)
+        panX = panXTo
+        panY = panYTo
+        },
+    onPinchStart(e: PinchEvent) { grabZ = zoom },
+    onPinch(e: PinchEvent) {
+        const z = Math.max(this.fit, Math.min(1.2, grabZ * e.scale))
+        this.zoomAbout(e.x, e.y, z)
+        zoom = zoomTo
+        panX = panXTo
+        panY = panYTo
+        },
+
+    // A seat the keyboard moves to is brought into view.
+
+    reveal(v: View) {
+        if (!this.close) return
+        let x = v.width / 2
+        let y = v.height / 2
+        let at: View? = v
+        while (at != null && at != this.hall) { x = x + at.x; y = y + at.y; at = at.parent as View | null }
+        if (at == null) return
+        const sx = panXTo + x * zoomTo
+        const sy = panYTo + y * zoomTo
+        const m = 56
+        if (sx < m || sx > this.width - m || sy < m || sy > this.height - m)
+            this.goTo(zoomTo, this.width / 2 - x * zoomTo, this.height / 2 - y * zoomTo)
+        },
+
+    hall: Hall [ pitch = 44, asleep = { !classroot.close }, x = { classroot.panX }, y = { classroot.panY },
+        scale = { classroot.zoom }, pivotX = 0, pivotY = 0 ],
+
+    // Zoomed out, a tap anywhere zooms in there.
+
+    catcher: Control [ visible = { !classroot.close }, width = 100%, height = 100%,
+        accessibilityLabel = "Zoom in to choose seats",
+        tapX: number = 0,
+        tapY: number = 0,
+        onPointerDown(e: PointerEvent) { tapX = e.x; tapY = e.y },
+        press() {
+            const x = this.tapX == 0 && this.tapY == 0 ? classroot.width / 2 : this.tapX
+            const y = this.tapX == 0 && this.tapY == 0 ? classroot.height / 3 : this.tapY
+            classroot.closeIn(x, y)
+            }
+        ],
+    hint: View [ visible = { !classroot.close }, x = center, y = { classroot.height - this.height - 16 }, padding = [8, 14, 8, 14], cornerRadius = 18,
+        pointerEvents = "none",
+        fill = { provided("theme").ink }, opacity = 0.88,
+        Text [ fontSize = 14, fontWeight = medium, textColor = { provided("theme").paper }, text = "Tap where you’d like to sit" ]
+        ]
+    ]

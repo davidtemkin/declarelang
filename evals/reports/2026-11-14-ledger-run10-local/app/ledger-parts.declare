@@ -1,0 +1,192 @@
+/*
+# Ledger: the parts
+
+The look of Ledger, kept apart from how it works: the two themes, the drawn
+icons, and the small pieces screens are made of (chips, pills, figures, cards).
+`ledger.declare` includes this file.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// Laid over the library's SanFrancisco preset, so library controls and our own
+// views read one palette. A category's colour is `cats[colour]`, its chip's
+// tint `catTints[colour]`; the service gives every category a stable index, so
+// a category keeps its colour on every chart. `income`, `expense` and `net`
+// are the three series every chart shares.
+
+theme LedgerLight [
+    background = #F6F5F2, surface = #FFFFFF, raised = #FFFFFF, sunken = #EFEEEA,
+    line = #E3E1DC, lineStrong = #CFCCC5, hover = #F1F0EC, selection = #E4ECFB,
+    text = #1D1F22, textMuted = #62666C, textFaint = #8C9096,
+    accent = #2F62D8, accentHovered = #2A58C4, accentPressed = #254EAE, linkColor = #2F62D8,
+    control = #EDECE8, controlHovered = #E4E3DE, controlPressed = #D8D7D2, controlSelected = #DCE6FA,
+    good = #1F8A55, bad = #C6372E, warn = #A86400, goodTint = #E3F3EA, badTint = #FBE8E6, warnTint = #FBF0DC,
+    income = #2F8F6B, expense = #D9824B, net = #2B3A55, compare = #9AA0A8, partial = #B9BEC6,
+    focusTint = #DCE6FA, highlight = #FFE9A8, onAccent = #FFFFFF,
+    gridRowHeight = 52, gridHeaderHeight = 34, gridFontSize = 13.5,
+    cats = [#2F8F6B, #3C9DB5, #7B8C3A, #C0663A, #B8913A, #5A7FCB, #8A5BBF, #C04E7A, #D08A2E, #4F9C8E, #7D8590, #A4746A],
+    catTints = [#E2F2EC, #E1F1F6, #EEF2DD, #F8E8DF, #F6EEDC, #E5ECF9, #EEE6F7, #F8E4EC, #FAEEDD, #E1F0ED, #ECEEF0, #F2E9E7],
+    catInks = [#1E6E50, #23708A, #57651F, #94461F, #7F6014, #3A5DA8, #6A3D9C, #9A3157, #925B10, #2E7366, #565D66, #7A4F45]
+    ]
+
+
+theme LedgerDark [
+    background = #16181B, surface = #1E2125, raised = #24282D, sunken = #121417,
+    line = #30353B, lineStrong = #434951, hover = #262A30, selection = #23324F,
+    text = #EDEEF0, textMuted = #A3A8AF, textFaint = #7A8088,
+    accent = #6F9BFF, accentHovered = #82A9FF, accentPressed = #5C88EC, linkColor = #82A9FF, accentTextColor = #0E1420,
+    control = #2A2E34, controlHovered = #33383F, controlPressed = #3B4148, controlSelected = #2A3A5C,
+    good = #4CC38A, bad = #FF7A6E, warn = #F0B24A, goodTint = #173326, badTint = #3A1F1C, warnTint = #3A2D15,
+    income = #4CC39A, expense = #F0A06E, net = #C9D3E6, compare = #6E747C, partial = #4A5058,
+    focusTint = #23324F, highlight = #5A4A12, onAccent = #0E1420,
+    gridRowHeight = 52, gridHeaderHeight = 34, gridFontSize = 13.5,
+    cats = [#4CC39A, #5BB8D0, #A4B85A, #E58B5C, #D9B25A, #7FA2EC, #AE85E0, #E07AA2, #EBA94F, #6CC0B0, #9AA2AC, #C4958A],
+    catTints = [#173326, #16303A, #283019, #3A2519, #352C17, #1E2A40, #2C2240, #3A1E2B, #3A2C15, #17322D, #2A2E33, #33261F],
+    catInks = [#7FDDB8, #8FD3E6, #C6D88A, #F2B08C, #EECF8C, #A9C2F5, #CDB0F0, #F0A9C5, #F5C887, #98DACC, #C2C8CF, #E0B7AC]
+    ]
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// One pen on the library's 16-unit grid; `shape` names the drawing.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "left") { d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13) }
+        else if (shape == "right") { d.moveTo(6, 3); d.lineTo(11, 8); d.lineTo(6, 13) }
+        else if (shape == "down") { d.moveTo(4, 6); d.lineTo(8, 10); d.lineTo(12, 6) }
+        else if (shape == "close") { d.moveTo(4, 4); d.lineTo(12, 12); d.moveTo(12, 4); d.lineTo(4, 12) }
+        else if (shape == "plus") { d.moveTo(8, 3); d.lineTo(8, 13); d.moveTo(3, 8); d.lineTo(13, 8) }
+        else if (shape == "search") { d.arc(7, 7, 4.5, 0, 6.3); d.moveTo(10.5, 10.5); d.lineTo(14, 14) }
+        else if (shape == "filter") { d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(4.5, 8); d.lineTo(11.5, 8); d.moveTo(6.5, 12); d.lineTo(9.5, 12) }
+        else if (shape == "calendar") { d.roundRect(2.5, 3.5, 11, 10, 2); d.moveTo(2.5, 6.8); d.lineTo(13.5, 6.8); d.moveTo(5.5, 2); d.lineTo(5.5, 4.5); d.moveTo(10.5, 2); d.lineTo(10.5, 4.5) }
+        else if (shape == "overview") { d.roundRect(2, 2, 5, 5, 1.2); d.roundRect(9, 2, 5, 5, 1.2); d.roundRect(2, 9, 5, 5, 1.2); d.roundRect(9, 9, 5, 5, 1.2) }
+        else if (shape == "list") { for (const y of [4, 8, 12]) { d.moveTo(5.5, y); d.lineTo(13.5, y) }; d.stroke(); d.beginPath(); for (const y of [4, 8, 12]) { d.moveTo(3.3, y); d.arc(2.6, y, 0.8, 0, 6.3) }; d.fill(); return }
+        else if (shape == "chart") { d.moveTo(2.5, 13.5); d.lineTo(13.5, 13.5); d.moveTo(4.5, 11); d.lineTo(4.5, 8); d.moveTo(8, 11); d.lineTo(8, 4); d.moveTo(11.5, 11); d.lineTo(11.5, 6.5) }
+        else if (shape == "budget") { d.arc(8, 8, 5.8, 0, 6.3); d.moveTo(8, 8); d.lineTo(8, 2.2); d.moveTo(8, 8); d.lineTo(12.6, 11.2) }
+        else if (shape == "export") { d.moveTo(8, 2.5); d.lineTo(8, 10); d.moveTo(5, 5.5); d.lineTo(8, 2.5); d.lineTo(11, 5.5); d.moveTo(3, 9); d.lineTo(3, 13.5); d.lineTo(13, 13.5); d.lineTo(13, 9) }
+        else if (shape == "up") { d.moveTo(8, 3); d.lineTo(13, 12); d.lineTo(3, 12); d.closePath(); d.fill(); return }
+        else if (shape == "downTri") { d.moveTo(8, 13); d.lineTo(13, 4); d.lineTo(3, 4); d.closePath(); d.fill(); return }
+        else if (shape == "check") { d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5) }
+        else if (shape == "dot") { d.arc(8, 8, 3, 0, 6.3); d.fill(); return }
+        else if (shape == "back") { d.moveTo(13, 8); d.lineTo(3, 8); d.moveTo(7, 4); d.lineTo(3, 8); d.lineTo(7, 12) }
+        else if (shape == "columns") { d.roundRect(2, 3, 12, 10, 1.5); d.moveTo(6, 3); d.lineTo(6, 13); d.moveTo(10, 3); d.lineTo(10, 13) }
+        else if (shape == "table") { d.roundRect(2, 3, 12, 10, 1.5); d.moveTo(2, 6.5); d.lineTo(14, 6.5); d.moveTo(2, 10); d.lineTo(14, 10); d.moveTo(6.5, 3); d.lineTo(6.5, 13) }
+        else if (shape == "sun") { d.arc(8, 8, 3, 0, 6.3); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; d.moveTo(8 + Math.cos(a) * 5, 8 + Math.sin(a) * 5); d.lineTo(8 + Math.cos(a) * 6.5, 8 + Math.sin(a) * 6.5) } }
+        else if (shape == "moon") { d.arc(8, 8, 5.5, 0.9, 5.4); d.arc(10.5, 6, 4, 4.2, 2.2, true) }
+        d.stroke()
+        }
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A quiet button: an optional glyph and a label. `on` marks a set choice.
+
+class Pill extends Control [ height = { app.tap }, cornerRadius = 8, padding = [0, 10, 0, 10],
+    label: string = "",
+    glyph: string = "",
+    trailing: string = "",
+    on: boolean = false,
+    tone: Color = { provided("theme").textMuted },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").control : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").controlSelected } ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Glyph [ visible = { classroot.glyph != "" }, shape = { classroot.glyph }, iconSize = 14, weight = 1.7, ink = { classroot.tone } ],
+    Text [ visible = { classroot.label != "" }, fontSize = 13, fontWeight = medium, wrap = false,
+        textColor = { classroot.on ? provided("theme").accent : provided("theme").text }, text = { classroot.label } ],
+    Glyph [ visible = { classroot.trailing != "" }, shape = { classroot.trailing }, iconSize = 11, weight = 1.7, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// A round icon-only button.
+
+class IconButton extends Control [ width = { app.tap }, height = { app.tap }, cornerRadius = 8,
+    glyph: string = "",
+    tone: Color = { provided("theme").textMuted },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").control : null },
+    Glyph [ x = center, y = center, shape = { classroot.glyph }, iconSize = 15, weight = 1.8, ink = { classroot.tone } ]
+    ]
+
+
+// An active filter, as a chip: what it is, and a × that removes it.
+
+class FilterChip extends Control [ height = { app.phone ? 44 : 28 }, cornerRadius = { this.height / 2 }, padding = [0, 4, 0, 11],
+    label: string = "",
+    accessibilityLabel = { "Remove filter " + classroot.label },
+    fill = { hovered || pressed ? provided("theme").controlSelected : provided("theme").focusTint },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    Text [ fontSize = 12.5, fontWeight = medium, wrap = false, textColor = { provided("theme").text }, text = { classroot.label } ],
+    View [ width = 22, height = 22, cornerRadius = 11,
+        Glyph [ x = center, y = center, shape = "close", iconSize = 10, weight = 1.8, ink = { provided("theme").textMuted } ]
+        ]
+    ]
+
+
+// A category as a coloured chip: "Software", "Split (3)", "Uncategorised".
+
+class CatChip [ height = 22, cornerRadius = 11, padding = [0, 9, 0, 8],
+    label: string = "",
+    colour: number = -1,             // -1: no category; -2: a split
+    warn: boolean = { classroot.colour == -1 },
+    fill = { classroot.colour >= 0 ? provided("theme").catTints[classroot.colour] : classroot.warn ? provided("theme").warnTint : provided("theme").control },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    View [ width = 7, height = 7, cornerRadius = 3.5, visible = { classroot.colour >= 0 },
+        fill = { classroot.colour >= 0 ? provided("theme").cats[classroot.colour] : null } ],
+    Text [ visible = { classroot.warn }, fontSize = 11, fontWeight = bold, textColor = { provided("theme").warn }, text = "!" ],
+    Text [ fontSize = 12, fontWeight = medium, wrap = false, maxLines = 1,
+        textColor = { classroot.colour >= 0 ? provided("theme").catInks[classroot.colour] : classroot.warn ? provided("theme").warn : provided("theme").textMuted },
+        text = { classroot.label } ]
+    ]
+
+
+// Money, set to the right, digits lining up.
+
+class MoneyText extends Text [ wrap = false, numeralWidth = tabular, textAlign = right,
+    cents: number = 0,
+    text = { money(classroot.cents) }
+    ]
+
+
+// A section of a screen: a titled card.
+
+class Panel [ cornerRadius = 12, padding = [16, 18, 18, 18],
+    title: string = "",
+    defaultPlacement = body,
+    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    head: View [ width = 100%, visible = { classroot.title != "" },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, accessibilityRole = heading, fontSize = 14, fontWeight = semibold, wrap = false, text = { classroot.title } ]
+        ],
+    body: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ]
+        ]
+    ]
+
+
+// A line that says a load failed, in place, with Retry.
+
+class LoadError [ width = 100%, padding = [10, 12, 10, 12], cornerRadius = 8,
+    what: string = "",
+    fill = { provided("theme").badTint },
+    retry() { },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Text [ flexes = true, fontSize = 13, textColor = { provided("theme").bad }, text = { "Couldn’t load " + classroot.what + "." } ],
+    Button [ label = "Retry",
+        onClick() { classroot.retry() }
+        ]
+    ]
+
+
+// "Still working…" — shown when the service is slow to answer.
+
+class SlowNote extends Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = "Still working…" ]

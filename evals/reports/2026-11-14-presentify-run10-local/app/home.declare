@@ -1,0 +1,136 @@
+/*
+# Presentify: the presentations
+
+The first screen: every presentation, each with its title, when it was last
+changed and a picture of its first slide. Opening one grows the editor out of
+its picture (see the App's `openT`).
+*/
+
+// As many columns as fit, every card the same width, each a slide's shape
+// with a caption under it.
+
+class DeckGrid extends Layout [
+    minW: number = 236,
+    gap: number = 28,
+    rowGap: number = 32,
+    place() {
+        const w = this.contentExtent("width")
+        const across = Math.max(1, Math.floor((w + this.gap) / (this.minW + this.gap)))
+        const cw = (w - (across - 1) * this.gap) / across
+        const ch = cw * 9 / 16 + 62
+        return this.laid().map((c, i) => ({ x: (i % across) * (cw + this.gap), y: Math.floor(i / across) * (ch + this.rowGap), w: cw, h: ch }))
+        }
+    ]
+
+
+// A presentation. Its first slide is fetched on its own, and fetched again
+// whenever the presentation has changed since (`updatedAt` is in the address).
+
+class DeckCard [
+    deckId: string = { :id ?? "" },
+    title: string = { :title ?? "" },
+    onContextMenu(e: PointerEvent) { app.menuDeckId = classroot.deckId; app.deckMenu.showAt(this, e) },
+    first: DataSource [ schema = Slide, autoFetch = true,
+        url = { (:thumbnailSlideId ?? "") == "" ? "" : app.api + "/api/slides/" + :thumbnailSlideId + "?at=" + encodeURIComponent(:updatedAt ?? "") } ],
+    lifted: number = 0,
+    Spring [ attribute = lifted, to = { classroot.opener.hovered ? 1 : 0 }, stiffness = 380, damping = 26 ],
+
+    // the picture and the words open it; the menu beside the words is its own
+
+    opener: Control [ width = 100%, height = 100%,
+        accessibilityLabel = { classroot.title },
+        press() { app.openDeck(classroot.deckId, classroot.opener.pic) },
+        pic: View [ width = 100%, height = { this.width * 9 / 16 }, cornerRadius = 12, clip = true,
+            y = { -3 * classroot.lifted },
+            fill = { provided("theme").line },
+            shadow = { shadow(0, 2 + 10 * classroot.lifted, 6 + 18 * classroot.lifted, colorWithAlpha(0x1D1A2F, Math.round(30 + 30 * classroot.lifted))) },
+            stroke = { stroke(1, colorWithAlpha(0x1D1A2F, 18)) },
+            SlideCanvas [ datapath = { classroot.first.value }, visible = { classroot.first.loaded }, scale = { parent.width / 1280 } ]
+            ],
+        words: View [ y = { parent.pic.height + 12 }, width = { parent.width - 40 },
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, maxLines = 1, fontSize = 15, fontWeight = 700, textColor = { provided("theme").text },
+                tooltipLabel = { classroot.title }, text = { classroot.title } ],
+            Text [ width = 100%, maxLines = 1, fontSize = 12.5, textColor = { provided("theme").textMuted },
+                text = { ago(:updatedAt ?? "", app.clock.now) + " · " + (:slideCount ?? 0) + ((:slideCount ?? 0) == 1 ? " slide" : " slides") } ]
+            ]
+        ],
+    more: IconButton [ x = end, y = { parent.width * 9 / 16 + 10 }, shape = "more", label = { "More for " + classroot.title },
+        tooltipLabel = "Rename or delete",
+        press() { app.menuDeckId = classroot.deckId; app.deckMenu.showFor(this) }
+        ]
+    ]
+
+
+// The first tile: a new presentation.
+
+class NewTile extends Control [
+    accessibilityLabel = "New presentation",
+    press() { app.newDeck(this.pic) },
+    pic: View [ width = 100%, height = { this.width * 9 / 16 }, cornerRadius = 12,
+        fill = { classroot.pressed ? provided("theme").controlSelected : classroot.hovered ? provided("theme").accentSoft : provided("theme").surface },
+        stroke = { stroke(1.5, classroot.hovered ? provided("theme").accent : provided("theme").lineStrong) },
+        layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+        Spacer [ ],
+        View [ width = 44, height = 44, cornerRadius = 22, fill = { provided("theme").accent },
+            Glyph [ x = center, y = center, iconSize = 18, weight = 2.2, shape = "plus", ink = white ]
+            ],
+        TextLabel [ fontSize = 14, fontWeight = 700, textColor = { provided("theme").accentInk },
+            text = { app.creating ? "Making it…" : "New presentation" } ],
+        Spacer [ ]
+        ]
+    ]
+
+
+class Skeleton [ fill = { provided("theme").line }, cornerRadius = 12, opacity = { 0.55 + 0.25 * Math.sin(app.pulse) } ]
+
+class Home [ fill = { provided("theme").background }, scrolls = y,
+    head: View [ width = 100%, height = 76, padding = [0, 40, 0, 40],
+        layout: SimpleLayout [ axis = x, align = center, spacing = 12 ],
+        Wordmark [ size = 24 ],
+        Spacer [ ],
+        PillButton [ label = "New presentation", shape = "plus", primary = true, disabled = { app.creating },
+            press() { app.newDeck(null) }
+            ]
+        ],
+    body: View [ x = center, y = 76, width = { Math.min(1240, parent.width - 80) }, padding = [8, 0, 64, 0],
+        layout: SimpleLayout [ axis = y, spacing = 26 ],
+        Text [ fontSize = 30, fontWeight = 800, letterSpacing = -0.6, textColor = { provided("theme").ink },
+            accessibilityRole = heading, text = "Your presentations" ],
+
+        // what the service said, while it says nothing useful
+
+        trouble: View [ visible = { app.decks.failed && !app.decks.loaded }, width = 100%, padding = 18, cornerRadius = 12,
+            fill = { provided("theme").warnSoft },
+            layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+            Glyph [ iconSize = 18, shape = "offline", ink = { provided("theme").warn } ],
+            Text [ flexes = true, fontSize = 14, textColor = { provided("theme").text },
+                text = "Can't reach the service, so your presentations can't be shown yet." ],
+            PillButton [ label = "Try again",
+                press() { app.decks.fetch() }
+                ]
+            ],
+        loading: View [ visible = { !app.decks.loaded && !app.decks.failed }, width = 100%,
+            layout: DeckGrid [ ],
+            Skeleton [ ],
+            Skeleton [ ],
+            Skeleton [ ],
+            Skeleton [ ]
+            ],
+        grid: View [ visible = { app.decks.loaded && app.deckCount > 0 }, width = 100%, datapath = { app.decks.value },
+            layout: DeckGrid [ ],
+            NewTile [ ],
+            DeckCard [ datapath = :decks[] ]
+            ],
+        empty: View [ visible = { app.decks.loaded && app.deckCount == 0 }, width = 100%, padding = [24, 0, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+            Fan [ width = 300, height = 200 ],
+            Text [ fontSize = 22, fontWeight = 800, textColor = { provided("theme").ink }, text = "Nothing here yet" ],
+            Text [ width = 360, textAlign = center, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = "A presentation is a few slides, some shapes and the right words. Start one, and it saves itself as you go." ],
+            PillButton [ label = "Make your first presentation", primary = true,
+                press() { app.newDeck(null) }
+                ]
+            ]
+        ]
+    ]

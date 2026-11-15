@@ -1,0 +1,53 @@
+# eval-ledger-10
+total 44.1 min · 176 turns · output 206006 tokens (thinking 45356)
+phases: reading 4.1 · writing 6.5 · checking 33.5 min
+tool time 14.3 min · model time 29.8 min
+tokens: input 298 · cache write 506597 · cache read 52280175 · output 206006 · thinking 45356
+rate: 6911 output tokens per model-minute
+tools:
+  verify    62×  12.15 min  (median 4.6 s)
+  look      16×   1.79 min  (median 6.7 s)
+  help      16×   0.30 min  (median 0.8 s)
+  bash      21×   0.03 min  (median 0.0 s)
+  read      14×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after verify   61×  10.43 min  (median 7.0 s)
+  after bash     21×   4.49 min  (median 2.7 s)
+  after image    21×   4.02 min  (median 5.0 s)
+  after write    18×   3.81 min  (median 1.7 s)
+  after help     16×   2.97 min  (median 3.5 s)
+  after edit      7×   1.80 min  (median 5.1 s)
+  after read     14×   1.49 min  (median 1.6 s)
+  after look     16×   0.48 min  (median 1.4 s)
+app: 8 .declare files, 3347 non-blank lines · 46 snapshots changed them: 4156 lines added, 349 removed
+verify results mentioning accessibility: 10
+source reads: library 7 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/rangeslider.declare
+            library  library/datagrid.declare
+            library  library
+            library  library/themes/*.declare
+            library  library/themes/sanfrancisco.declare
+            library  library/table.declare
+            library  library/combobox.declare
+diagnostic codes, by tool results reporting them: DECLARE4017 7, DECLARE4025 3, DECLARE1002 3, DECLARE2000 2, DECLARE4000 2, DECLARE6001 2, DECLARE5000 1, DECLARE2005 1, DECLARE4019 1, DECLARE4023 1
+inside the agent's verify and look calls:
+  10.72 min    82×  R5 behavior, in all
+   9.04 min    80×  script: the assert script, in all
+   3.37 min     8×  drive.profile
+   3.01 min   222×  drive.wheel
+   2.17 min   157×  page: load, compile in the page and boot
+   1.49 min    82×  open: the app loaded and arrived, in all
+   1.26 min   756×  check: scrolling come to rest
+   1.23 min   355×  drive.settleData
+   1.00 min   255×  locator.click
+   0.96 min    73×  R4 boot, in all
+   0.81 min    31×  drive.waitReal
+   0.79 min   339×  drive.settleMotion
+   0.76 min   176×  drive.click
+   0.70 min    45×  compile (R1–R3)
+   0.31 min   590×  locator: wait a tick for it
+   0.28 min   290×  drive.key
+   0.26 min   225×  expect(locator), in all
+   0.24 min    59×  locator.tap
+   0.19 min   157×  page: a new page
+   0.11 min    62×  end: layout questions at the end of the script

@@ -1,0 +1,287 @@
+/*
+# Cadence: the model
+
+What is true of the training history whoever is looking: the shape of a
+session, the helpers that turn days and minutes into words, and `Sessions`,
+the dataset class that loads the history from the service and makes every
+write to it. `cadence.declare` includes this file.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Plain functions of their arguments: day arithmetic and the house formats.
+// A day is a whole number (days since 1970-01-01, in the person's own
+// calendar), so "how far apart" is a subtraction.
+
+script {
+    const API = "http://127.0.0.1:8320/api"
+    const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+
+    function pad(n: number): string { return n < 10 ? "0" + n : "" + n }
+    function dayNum(iso: string): number {
+        const p = iso.split("-").map(Number)
+        return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000)
+    }
+    function isoOf(n: number): string {
+        const d = new Date(n * 86400000)
+        return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate())
+    }
+    // 0 is Monday
+    function weekdayOf(n: number): number { return (new Date(n * 86400000).getUTCDay() + 6) % 7 }
+    function dateOf(n: number): number { return new Date(n * 86400000).getUTCDate() }
+    function monthOf(n: number): number { return new Date(n * 86400000).getUTCMonth() }
+    function yearOf(n: number): number { return new Date(n * 86400000).getUTCFullYear() }
+    function monthName(m: number): string { return MONTHS[m] }
+    function monthShort(m: number): string { return MONTHS[m].slice(0, 3) }
+    function weekdayName(n: number): string { return WEEKDAYS[new Date(n * 86400000).getUTCDay()] }
+
+    // "3h 40m", "45m", "2h"
+    function fmtDur(min: number): string {
+        const m = Math.max(0, Math.round(min))
+        const h = Math.floor(m / 60)
+        const r = m % 60
+        if (h == 0) return r + "m"
+        return r == 0 ? h + "h" : h + "h " + r + "m"
+    }
+    function fmtKm(k: number): string { return k.toFixed(1) + " km" }
+    function plural(n: number, one: string, many: string): string { return n == 1 ? one : many }
+
+    // "Today", "Yesterday", "Tue 14 Oct", and the year once it isn't this one
+    function dayLabel(n: number, today: number): string {
+        if (n == today) return "Today"
+        if (n == today - 1) return "Yesterday"
+        const base = weekdayName(n).slice(0, 3) + " " + dateOf(n) + " " + monthShort(monthOf(n))
+        return yearOf(n) == yearOf(today) ? base : base + " " + yearOf(n)
+    }
+    function longDay(n: number): string {
+        return weekdayName(n) + " " + dateOf(n) + " " + monthName(monthOf(n)) + " " + yearOf(n)
+    }
+    // "12 May – 9 Aug 2026", "28 Dec 2025 – 3 Jan 2026"
+    function rangeLabel(a: number, b: number): string {
+        const end = dateOf(b) + " " + monthShort(monthOf(b)) + " " + yearOf(b)
+        if (a == b) return end
+        const start = dateOf(a) + " " + monthShort(monthOf(a)) + (yearOf(a) == yearOf(b) ? "" : " " + yearOf(a))
+        return start + " – " + end
+    }
+    function effortWord(e: number): string {
+        if (e <= 2) return "easy"
+        if (e <= 4) return "light"
+        if (e <= 6) return "steady"
+        if (e <= 8) return "hard"
+        return "all out"
+    }
+    function sportName(s: string): string {
+        return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "lift" ? "Lift" : s == "swim" ? "Swim" : s
+    }
+    function median(xs: number[]): number {
+        if (xs.length == 0) return 0
+        const s = [...xs].sort((a, b) => a - b)
+        return s[Math.floor(s.length / 2)]
+    }
+    // A color between two, t from 0 to 1 (colors are 0xRRGGBB numbers).
+    function mix(a: number, b: number, t: number): number {
+        const k = Math.max(0, Math.min(1, t))
+        const ch = (c: number, s: number) => (c >> s) & 255
+        const m = (s: number) => Math.round(ch(a, s) + (ch(b, s) - ch(a, s)) * k) << s
+        return m(16) | m(8) | m(0)
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Session [ id: string, date: string, sport: string, minutes: number,
+    distanceKm?: number, effort: number, heartAvg?: number, note?: string ]
+
+// The session in progress, as the service reports it.
+
+schema Live [ id: string, date: string, sport: string, startedSecondsAgo: number, minutes: number,
+    distanceKm?: number, heartNow: number, effort: number ]
+
+// One day on the year's surface: everything done that day, summed.
+// `id` is the day's biggest session, the one a tap opens.
+
+schema DayLoad [ day: number, minutes: number, effort: number, count: number, id: string ]
+
+// One day of this week's shape.
+
+schema WeekDay [ id: number, letter: string, minutes: number, effort: number, isToday: boolean, future: boolean ]
+
+// What a write sends: a new session, or the fields of a correction.
+
+schema Draft [ sport: string, date: string, minutes: number, distanceKm?: number, effort: number, note?: string ]
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+//
+// The whole history, held in memory, newest first. Everything on screen
+// derives from it, so a write here is everything updating. The service
+// replies to each write with the stored session, and that reply is what
+// lands in the history: what is shown is always what is stored.
+
+class Sessions extends DataSource [ url = { API + "/sessions" }, autoFetch = true,
+    schema = [ sessions[]: Session ],
+
+    todayN: number = 0,                     // the App sets it: what day it is
+
+    all() -> Session[] { return this.value?.sessions ?? [] },
+    byId(id: string) -> Session? { return this.all().find((s) => s.id == id) ?? null },
+
+    // ── what is true of the history
+
+    firstN: number = { this.all().reduce((m, s) => Math.min(m, dayNum(s.date)), this.todayN) },
+    days: number[] = { this.all().map((s) => dayNum(s.date)) },
+    latest: Session? = { this.all()[0] ?? null },
+
+    // Every day with something in it, oldest first.
+
+    loads: DayLoad[] = { this.dailyLoads() },
+    dailyLoads() -> DayLoad[] {
+        const by = new Map<number, DayLoad>()
+        let big = new Map<number, number>()
+        for (const s of this.all()) {
+            const n = dayNum(s.date)
+            const d = by.get(n)
+            if (d == null) {
+                by.set(n, ({ day: n, minutes: s.minutes, effort: s.effort, count: 1, id: s.id }))
+                big.set(n, s.minutes)
+            } else {
+                const bigger = s.minutes > (big.get(n) ?? 0)
+                if (bigger) big.set(n, s.minutes)
+                by.set(n, ({ day: n, minutes: d.minutes + s.minutes, effort: Math.max(d.effort, s.effort),
+                    count: d.count + 1, id: bigger ? s.id : d.id }))
+            }
+        }
+        return [...by.values()].sort((a, b) => a.day - b.day)
+        },
+    maxDayMinutes: number = { this.loads.reduce((m, d) => Math.max(m, d.minutes), 60) },
+
+    // Minutes per month, keyed year * 12 + month, and the biggest month.
+
+    monthly: Map<number, number> = { this.monthlyMinutes() },
+    monthlyMinutes() -> Map<number, number> {
+        const out = new Map<number, number>()
+        for (const L of this.loads) {
+            const k = yearOf(L.day) * 12 + monthOf(L.day)
+            out.set(k, (out.get(k) ?? 0) + L.minutes)
+        }
+        return out
+        },
+    hardestMonth: number = { this.biggestKey(this.monthly) },
+    biggestKey(m: Map<number, number>) -> number {
+        let best = -1
+        let most = 0
+        m.forEach((v, k) => { if (v > most) { most = v; best = k } })
+        return best
+        },
+
+    // ── this week, Monday to Sunday
+
+    weekStartN: number = { this.todayN - weekdayOf(this.todayN) },
+    thisWeek: Session[] = { this.between(this.weekStartN, this.todayN) },
+    weekCount: number = { this.thisWeek.length },
+    weekMinutes: number = { this.thisWeek.reduce((m, s) => m + s.minutes, 0) },
+    weekShape() -> WeekDay[] {
+        const letters = ["M", "T", "W", "T", "F", "S", "S"]
+        return letters.map((l, i) => {
+            const n = this.weekStartN + i
+            const mine = this.thisWeek.filter((s) => dayNum(s.date) == n)
+            return ({ id: i, letter: l, minutes: mine.reduce((m, s) => m + s.minutes, 0),
+                effort: mine.reduce((m, s) => Math.max(m, s.effort), 0),
+                isToday: n == this.todayN, future: n > this.todayN })
+            })
+        },
+
+    // ── the streak: consecutive days with a session, up to today. A day
+    //    with nothing yet doesn't end it until the day is over.
+
+    streak: number = { this.streakFrom(this.todayN, this.days) },
+    streakFrom(today: number, days: number[]) -> number {
+        const have = new Set(days)
+        let n = have.has(today) ? today : today - 1
+        let count = 0
+        while (have.has(n)) { count = count + 1; n = n - 1 }
+        return count
+        },
+
+    // ── queries
+
+    between(a: number, b: number) -> Session[] {
+        return this.all().filter((s) => { const n = dayNum(s.date); return n >= a && n <= b })
+        },
+    ofSport(sport: string) -> Session[] { return this.all().filter((s) => s.sport == sport) },
+
+    // Where a session sits: the share of sessions it outdoes on one measure.
+
+    shareBelow(xs: number[], v: number) -> number {
+        if (xs.length <= 1) return 0
+        return Math.round(100 * xs.filter((x) => x < v).length / (xs.length - 1))
+        },
+
+    // ── what someone most likely means: the sport they do on this weekday,
+    //    and what that sport usually takes
+
+    usualSport(day: number) -> string {
+        const recent = this.all().filter((s) => this.todayN - dayNum(s.date) <= 70)
+        const same = recent.filter((s) => weekdayOf(dayNum(s.date)) == weekdayOf(day))
+        const pool = same.length > 0 ? same : recent
+        const counts = new Map<string, number>()
+        pool.forEach((s) => counts.set(s.sport, (counts.get(s.sport) ?? 0) + 1))
+        let best = "run"
+        let most = 0
+        counts.forEach((c, k) => { if (c > most) { most = c; best = k } })
+        return best
+        },
+    usualMinutes(sport: string) -> number {
+        const m = median(this.ofSport(sport).slice(0, 12).map((s) => s.minutes))
+        return m == 0 ? 45 : Math.max(5, Math.round(m / 5) * 5)
+        },
+    usualPace(sport: string) -> number {
+        const xs = this.ofSport(sport).slice(0, 12).filter((s) => (s.distanceKm ?? 0) > 0)
+        return median(xs.map((s) => (s.distanceKm ?? 0) / s.minutes))
+        },
+    usualEffort(sport: string) -> number {
+        const e = median(this.ofSport(sport).slice(0, 12).map((s) => s.effort))
+        return e == 0 ? 5 : e
+        },
+
+    // ── the writes. Each is a request to the service; its reply is the
+    //    stored session, which then takes its place in the history.
+
+    target: string = "",
+    payload: object = { { } },
+    lastSaved: Session? = null,
+
+    creator: DataSource [ url = { API + "/sessions" }, method = "POST", body = { classroot.payload },
+        onLoad() { classroot.put(this.value as Session) }
+        ],
+    updater: DataSource [ url = { API + "/sessions/" + classroot.target }, method = "PUT", body = { classroot.payload },
+        onLoad() { classroot.put(this.value as Session) }
+        ],
+    remover: DataSource [ url = { API + "/sessions/" + classroot.target }, method = "DELETE",
+        onLoad() { classroot.drop(classroot.target) }
+        ],
+    failedWrite: string = { this.writeError() },
+    writeError() -> string {
+        for (const w of [this.creator, this.updater, this.remover]) {
+            if (w.failed) return (w.errorBody as { message?: string } | null)?.message ?? w.error
+        }
+        return ""
+        },
+
+    add(d: Draft) { this.payload = d; this.creator.fetch() },
+    change(id: string, d: Draft) { this.target = id; this.payload = d; this.updater.fetch() },
+    remove(id: string) { this.target = id; this.remover.fetch() },
+
+    // Newest first, then by id, so a corrected date moves the session to
+    // where it now belongs.
+
+    put(s: Session) {
+        const rest = this.all().filter((x) => x.id != s.id)
+        this.set(["sessions"], [...rest, s].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)))
+        this.lastSaved = s
+        },
+    drop(id: string) { this.set(["sessions"], this.all().filter((x) => x.id != id)) }
+    ]

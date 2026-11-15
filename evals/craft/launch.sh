@@ -66,7 +66,9 @@ if lsof -iTCP:"$PORT" -sTCP:LISTEN -P >/dev/null 2>&1; then echo "port $PORT is 
 # the run's own dev-server port: the agent's `npm start` serves there (PORT, which
 # the dev server reads), never on a port a person's own server or another run holds
 # (a port another run was given counts as taken: its agent may not have started its server yet)
-GIVEN="$(cat "$HOME"/Code/*/logs/started.txt 2>/dev/null | sed -n 's/^DEV_PORT=\([0-9]*\).*/\1/p' | tr '\n' ' ')"
+# (no run directories at all is the ordinary case after a cleanup: cat's failure then
+# must not end the script under pipefail, as it did, silently)
+GIVEN="$( { cat "$HOME"/Code/*/logs/started.txt 2>/dev/null || true; } | sed -n 's/^DEV_PORT=\([0-9]*\).*/\1/p' | tr '\n' ' ')"
 DEV_PORT=""
 for p in $(seq 8600 8699); do
   case " $GIVEN " in *" $p "*) continue;; esac

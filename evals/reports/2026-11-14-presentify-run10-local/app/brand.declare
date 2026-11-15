@@ -1,0 +1,401 @@
+/*
+# Presentify: the look
+
+The palette, the drawn marks and the small controls every screen is made of.
+`presentify.declare` includes this file.
+
+The identity in one line: a deep ink with an electric violet for what the
+person is doing (the tool, the selection, the slide being edited) and a warm
+coral spark for Presentify itself (the logo, presenting). The chrome stays
+quiet and cool so the slide is always the brightest thing on screen.
+*/
+
+// ── Colours ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's San Francisco preset (see the App's `theme`), so
+// library controls read the same palette.
+
+theme Presentify [
+    background = #F5F3F8, surface = #FFFFFF, card = #FFFFFF, desk = #E8E5EF, deskDeep = #DEDAE8,
+    line = #E4E0EB, lineStrong = #CEC8DA, hover = #F2EFF7, selection = #EEE9FF,
+    text = #1D1A2F, textMuted = #625D76, textFaint = #8F8AA3,
+    accent = #5B3DF5, accentHovered = #4C2FE6, accentPressed = #3F24CC, accentTextColor = #FFFFFF,
+    accentSoft = #ECE7FF, accentInk = #4426D6,
+    spark = #FF6A3D, sparkHovered = #F2582A, sparkPressed = #DE4A1E, sparkSoft = #FFE8DF,
+    ink = #1D1A2F, inkSoft = #2B2740,
+    danger = #D2372F, dangerSoft = #FDECEA, ok = #1E9C6A, warn = #B86A00, warnSoft = #FFF3DC,
+    control = #F2EFF7, controlHovered = #E9E5F1, controlPressed = #DED8EA, controlSelected = #E5DEFF,
+    guide = #FF2E7E, handleFill = #FFFFFF,
+    tooltipFill = #1D1A2F, tooltipTextColor = #FFFFFF,
+    focusRingColor = #5B3DF5
+    ]
+
+
+// ── Marks ────────────────────────────────────────────────────────────────────
+//
+// Every icon is drawn by one pen on the library's 16-unit grid: a 1.6 stroke
+// with round ends, fills only where a mark needs mass.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "select") {             // the arrow pointer
+            d.moveTo(4, 2.2); d.lineTo(4, 13.2); d.lineTo(6.8, 10.6); d.lineTo(8.7, 14.4); d.lineTo(10.4, 13.6)
+            d.lineTo(8.6, 9.9); d.lineTo(12.4, 9.6); d.closePath(); d.stroke()
+        } else if (shape == "rect") {
+            d.roundRect(2, 3.5, 12, 9, 1.6); d.stroke()
+        } else if (shape == "ellipse") {
+            d.ellipse(8, 8, 6.2, 5.2, 0, 0, Math.PI * 2); d.stroke()
+        } else if (shape == "line") {
+            d.moveTo(2.8, 13.2); d.lineTo(13.2, 2.8); d.stroke()
+        } else if (shape == "text") {        // a T
+            d.moveTo(3, 3.5); d.lineTo(13, 3.5); d.moveTo(8, 3.5); d.lineTo(8, 13.5); d.moveTo(6, 13.5); d.lineTo(10, 13.5); d.stroke()
+        } else if (shape == "undo") {
+            d.moveTo(5, 3.5); d.lineTo(2.5, 6); d.lineTo(5, 8.5); d.moveTo(2.8, 6); d.lineTo(9.5, 6)
+            d.bezierCurveTo(12.5, 6, 13.8, 8, 13.8, 10); d.bezierCurveTo(13.8, 12, 12.5, 13.5, 9.5, 13.5); d.lineTo(6.5, 13.5); d.stroke()
+        } else if (shape == "redo") {
+            d.moveTo(11, 3.5); d.lineTo(13.5, 6); d.lineTo(11, 8.5); d.moveTo(13.2, 6); d.lineTo(6.5, 6)
+            d.bezierCurveTo(3.5, 6, 2.2, 8, 2.2, 10); d.bezierCurveTo(2.2, 12, 3.5, 13.5, 6.5, 13.5); d.lineTo(9.5, 13.5); d.stroke()
+        } else if (shape == "play") {
+            d.moveTo(4.5, 2.8); d.lineTo(13, 8); d.lineTo(4.5, 13.2); d.closePath(); d.fill()
+        } else if (shape == "plus") {
+            d.moveTo(8, 2.5); d.lineTo(8, 13.5); d.moveTo(2.5, 8); d.lineTo(13.5, 8); d.stroke()
+        } else if (shape == "back") {        // a chevron to the left
+            d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (shape == "more") {
+            for (const x of [3.5, 8, 12.5]) { d.moveTo(x + 1.2, 8); d.arc(x, 8, 1.2, 0, Math.PI * 2) }
+            d.fill()
+        } else if (shape == "duplicate") {
+            d.roundRect(5.5, 5.5, 8.5, 8.5, 1.6); d.moveTo(10.5, 2.5); d.lineTo(3.8, 2.5)
+            d.quadraticCurveTo(2.5, 2.5, 2.5, 3.8); d.lineTo(2.5, 10.5); d.stroke()
+        } else if (shape == "trash") {
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke()
+        } else if (shape == "check") {
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (shape == "offline") {     // a cloud, struck through
+            d.moveTo(4.6, 12.5); d.bezierCurveTo(2.2, 12.5, 1.5, 9, 4.2, 8.4); d.bezierCurveTo(4.4, 5, 9.6, 3.8, 10.8, 7.2)
+            d.bezierCurveTo(14, 6.9, 15, 12.5, 11.5, 12.5); d.closePath()
+            d.moveTo(2.5, 2.5); d.lineTo(13.5, 14.5); d.stroke()
+        } else if (shape == "cloud") {
+            d.moveTo(4.6, 12.5); d.bezierCurveTo(2.2, 12.5, 1.5, 9, 4.2, 8.4); d.bezierCurveTo(4.4, 5, 9.6, 3.8, 10.8, 7.2)
+            d.bezierCurveTo(14, 6.9, 15, 12.5, 11.5, 12.5); d.closePath(); d.stroke()
+        } else if (shape == "alignLeft") {
+            d.moveTo(2.5, 2); d.lineTo(2.5, 14); d.stroke(); d.beginPath(); d.roundRect(4.5, 4, 9, 3, 0.8); d.roundRect(4.5, 9, 5.5, 3, 0.8); d.fill()
+        } else if (shape == "alignCenter") {
+            d.moveTo(8, 2); d.lineTo(8, 14); d.stroke(); d.beginPath(); d.roundRect(3, 4, 10, 3, 0.8); d.roundRect(5, 9, 6, 3, 0.8); d.fill()
+        } else if (shape == "alignRight") {
+            d.moveTo(13.5, 2); d.lineTo(13.5, 14); d.stroke(); d.beginPath(); d.roundRect(2.5, 4, 9, 3, 0.8); d.roundRect(6, 9, 5.5, 3, 0.8); d.fill()
+        } else if (shape == "alignTop") {
+            d.moveTo(2, 2.5); d.lineTo(14, 2.5); d.stroke(); d.beginPath(); d.roundRect(4, 4.5, 3, 9, 0.8); d.roundRect(9, 4.5, 3, 5.5, 0.8); d.fill()
+        } else if (shape == "alignMiddle") {
+            d.moveTo(2, 8); d.lineTo(14, 8); d.stroke(); d.beginPath(); d.roundRect(4, 3, 3, 10, 0.8); d.roundRect(9, 5, 3, 6, 0.8); d.fill()
+        } else if (shape == "alignBottom") {
+            d.moveTo(2, 13.5); d.lineTo(14, 13.5); d.stroke(); d.beginPath(); d.roundRect(4, 2.5, 3, 9, 0.8); d.roundRect(9, 6, 3, 5.5, 0.8); d.fill()
+        } else if (shape == "distributeX") {
+            d.moveTo(2, 2.5); d.lineTo(2, 13.5); d.moveTo(14, 2.5); d.lineTo(14, 13.5); d.stroke()
+            d.beginPath(); d.roundRect(6.5, 4, 3, 8, 0.8); d.fill()
+        } else if (shape == "distributeY") {
+            d.moveTo(2.5, 2); d.lineTo(13.5, 2); d.moveTo(2.5, 14); d.lineTo(13.5, 14); d.stroke()
+            d.beginPath(); d.roundRect(4, 6.5, 8, 3, 0.8); d.fill()
+        } else if (shape == "front") {       // to front: a square over another, filled
+            d.roundRect(2, 2, 7.5, 7.5, 1.2); d.stroke(); d.beginPath(); d.roundRect(6.5, 6.5, 7.5, 7.5, 1.2); d.fill()
+        } else if (shape == "forward") {
+            d.moveTo(8, 13.5); d.lineTo(8, 3); d.moveTo(4, 7); d.lineTo(8, 3); d.lineTo(12, 7); d.stroke()
+        } else if (shape == "backward") {
+            d.moveTo(8, 2.5); d.lineTo(8, 13); d.moveTo(4, 9); d.lineTo(8, 13); d.lineTo(12, 9); d.stroke()
+        } else if (shape == "toBack") {
+            d.roundRect(6.5, 6.5, 7.5, 7.5, 1.2); d.stroke(); d.beginPath(); d.roundRect(2, 2, 7.5, 7.5, 1.2); d.fill()
+        } else if (shape == "group") {
+            d.roundRect(1.8, 1.8, 12.4, 12.4, 2); d.stroke(); d.beginPath(); d.roundRect(4.2, 4.2, 4.2, 4.2, 0.8); d.roundRect(7.6, 7.6, 4.2, 4.2, 0.8); d.fill()
+        } else if (shape == "ungroup") {
+            d.roundRect(2.5, 2.5, 5.5, 5.5, 1); d.roundRect(8, 8, 5.5, 5.5, 1); d.fill()
+        } else if (shape == "italic") {
+            d.moveTo(6.5, 3); d.lineTo(12, 3); d.moveTo(4, 13); d.lineTo(9.5, 13); d.moveTo(9.5, 3); d.lineTo(6.5, 13); d.stroke()
+        } else if (shape == "textLeft") {
+            for (const [y, w] of [[3.5, 12], [6.5, 8], [9.5, 12], [12.5, 7]]) { d.moveTo(2, y); d.lineTo(2 + w, y) }
+            d.stroke()
+        } else if (shape == "textCenter") {
+            for (const [y, w] of [[3.5, 12], [6.5, 8], [9.5, 12], [12.5, 7]]) { d.moveTo(8 - w / 2, y); d.lineTo(8 + w / 2, y) }
+            d.stroke()
+        } else if (shape == "textRight") {
+            for (const [y, w] of [[3.5, 12], [6.5, 8], [9.5, 12], [12.5, 7]]) { d.moveTo(14 - w, y); d.lineTo(14, y) }
+            d.stroke()
+        } else if (shape == "lock") {        // keep proportions: a chain link
+            d.moveTo(6.5, 9.5); d.lineTo(9.5, 6.5)
+            d.moveTo(7.2, 4.6); d.lineTo(8.6, 3.2); d.bezierCurveTo(10, 1.8, 12.4, 1.8, 13.4, 2.8); d.bezierCurveTo(14.2, 3.6, 14.2, 6, 12.8, 7.4); d.lineTo(11.4, 8.8)
+            d.moveTo(8.8, 11.4); d.lineTo(7.4, 12.8); d.bezierCurveTo(6, 14.2, 3.6, 14.2, 2.8, 13.4); d.bezierCurveTo(1.8, 12.4, 1.8, 10, 3.2, 8.6); d.lineTo(4.6, 7.2)
+            d.stroke()
+        } else if (shape == "slides") {      // the empty slide
+            d.roundRect(1.5, 3, 13, 10, 1.8); d.stroke(); d.beginPath(); d.moveTo(4.5, 7); d.lineTo(9, 7); d.moveTo(4.5, 9.8); d.lineTo(11.5, 9.8); d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke()
+        } else if (shape == "pencil") {
+            d.moveTo(2.5, 13.5); d.lineTo(3.2, 10.6); d.lineTo(10.8, 3); d.lineTo(13, 5.2); d.lineTo(5.4, 12.8); d.closePath(); d.stroke()
+        } else if (shape == "none") {        // no colour: a slash
+            d.moveTo(3, 13); d.lineTo(13, 3); d.stroke()
+        } else if (shape == "edit") {        // the edit menu: three short lines and a caret
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(2.5, 8); d.lineTo(10, 8); d.moveTo(2.5, 12); d.lineTo(8, 12); d.stroke()
+        } else if (shape == "arrange") {     // the arrange menu: stacked squares
+            d.roundRect(2, 2, 8, 8, 1.4); d.stroke(); d.beginPath(); d.roundRect(6, 6, 8, 8, 1.4); d.fill()
+        }
+        }
+    ]
+
+
+// The mark: a slide in violet, a coral sun rising on it, two lines of words.
+// It is the app's icon, and the first thing on every screen.
+
+class LogoMark [ width = 30, height = 30,
+    draw(d: DrawContext) {
+        const s = d.w / 30
+        d.scale(s, s)
+        d.fillStyle = 0x5B3DF5
+        d.beginPath(); d.roundRect(1, 3, 28, 22, 6); d.fill()
+        d.fillStyle = 0xFF6A3D
+        d.beginPath(); d.arc(21, 11.5, 4.6, 0, Math.PI * 2); d.fill()
+        d.fillStyle = 0xFFFFFF
+        d.beginPath(); d.roundRect(6, 9, 9, 3, 1.5); d.roundRect(6, 14.5, 13, 3, 1.5); d.fill()
+        d.fillStyle = 0x1D1A2F
+        d.beginPath(); d.roundRect(10, 26.5, 10, 2.5, 1.25); d.fill()
+        }
+    ]
+
+
+class Wordmark [
+    size: number = 22,
+    layout: SimpleLayout [ axis = x, spacing = { classroot.size * 0.42 }, align = center ],
+    LogoMark [ width = { classroot.size * 1.35 }, height = { this.width } ],
+    Text [ fontSize = { classroot.size }, fontWeight = 800, letterSpacing = { -0.03 * classroot.size },
+        textColor = { provided("theme").ink }, text = "Presentify", accessibilityRole = heading ]
+    ]
+
+
+// The empty state's picture: three slides fanned out, the front one being
+// made. Drawn, so it costs nothing to load and follows the palette.
+
+class Fan [ width = 300, height = 200,
+    draw(d: DrawContext) {
+        const s = d.w / 300
+        d.scale(s, s)
+        const card = (x: number, y: number, a: number, fill: number) => {
+            d.save(); d.translate(x, y); d.rotate(a)
+            d.fillStyle = 0x1D1A2F18
+            d.beginPath(); d.roundRect(-92, -48, 184, 104, 12); d.fill()
+            d.fillStyle = fill
+            d.beginPath(); d.roundRect(-92, -54, 184, 104, 12); d.fill()
+            d.restore()
+            }
+        card(110, 112, -0.16, 0xECE7FF)
+        card(190, 108, 0.12, 0xFFE8DF)
+        d.save(); d.translate(150, 96)
+        d.fillStyle = 0x1D1A2F22
+        d.beginPath(); d.roundRect(-104, -52, 208, 124, 14); d.fill()
+        d.fillStyle = 0xFFFFFF
+        d.beginPath(); d.roundRect(-104, -60, 208, 124, 14); d.fill()
+        d.fillStyle = 0x5B3DF5
+        d.beginPath(); d.roundRect(-84, -40, 92, 12, 6); d.fill()
+        d.fillStyle = 0xD9D3E6
+        d.beginPath(); d.roundRect(-84, -20, 64, 8, 4); d.roundRect(-84, -6, 76, 8, 4); d.fill()
+        d.fillStyle = 0xFF6A3D
+        d.beginPath(); d.arc(52, -8, 26, 0, Math.PI * 2); d.fill()
+        d.strokeStyle = 0x5B3DF5
+        d.lineWidth = 2
+        d.beginPath(); d.roundRect(-88, 18, 60, 30, 6); d.stroke()
+        d.fillStyle = 0x5B3DF5
+        for (const [x, y] of [[-88, 18], [-28, 18], [-88, 48], [-28, 48]]) { d.beginPath(); d.rect(x - 3.5, y - 3.5, 7, 7); d.fill() }
+        d.restore()
+        }
+    ]
+
+
+// ── Small controls ───────────────────────────────────────────────────────────
+//
+// Something a person presses is a Control: focus, Space and Enter, `disabled`.
+// Each says what it does to a pointer resting on it (`tooltipLabel`) and to a
+// screen reader (`accessibilityLabel`).
+
+class IconButton extends Control [ width = 34, height = 34, cornerRadius = 9,
+    shape: string = "",
+    label: string = "",
+    tone: Color = { provided("theme").text },
+    accessibilityLabel = { classroot.label },
+    tooltipLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    opacity = { disabled ? 0.38 : 1 },
+    mark: Glyph [ x = center, y = center, iconSize = 16, weight = 1.6, shape = { classroot.shape }, ink = { classroot.tone } ]
+    ]
+
+
+// A button that stays in while it is on, and says so to a screen reader.
+
+class ToggleIcon extends IconButton [ accessibilityRole = toggle,
+    on: boolean = false,
+    accessibilityPressed = { classroot.on },
+    tone = { classroot.on ? provided("theme").accentInk : provided("theme").text },
+    State [ applied = { classroot.on }, fill = { provided("theme").accentSoft } ]
+    ]
+
+
+// A drawing tool. Its own name for a screen reader; its name and key to a pointer.
+
+class ToolChoice extends ToggleIcon [ width = 38, height = 34,
+    tool: string = "select",
+    key: string = "",
+    on = { app.tool == classroot.tool },
+    tooltipLabel = { classroot.label + "  " + classroot.key },
+    press() { app.ed.chooseTool(classroot.tool) }
+    ]
+
+
+// A labelled button: the main action of a screen is `primary`, in violet;
+// presenting is `spark`, in coral.
+
+class PillButton extends Control [ height = 34, cornerRadius = 17, padding = [0, 16, 0, 13],
+    label: string = "",
+    shape: string = "",
+    primary: boolean = false,
+    spark: boolean = false,
+    accessibilityLabel = { classroot.label },
+    lit: boolean = { classroot.primary || classroot.spark },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.primary },
+        fill = { pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent } ],
+    State [ applied = { classroot.spark },
+        fill = { pressed ? provided("theme").sparkPressed : hovered ? provided("theme").sparkHovered : provided("theme").spark } ],
+    opacity = { disabled ? 0.45 : 1 },
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+    Glyph [ visible = { classroot.shape != "" }, iconSize = 14, weight = 1.9, shape = { classroot.shape },
+        ink = { classroot.lit ? 0xFFFFFF : provided("theme").text } ],
+    TextLabel [ fontSize = 14, fontWeight = 600, wrap = false,
+        textColor = { classroot.lit ? 0xFFFFFF : provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// A menu's button in the top bar: a word and a chevron.
+
+class MenuButton extends Control [ height = 34, cornerRadius = 9, padding = [0, 10, 0, 10],
+    label: string = "",
+    shape: string = "",
+    accessibilityLabel = { classroot.label },
+    fill = { pressed || menuOpen ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Glyph [ iconSize = 15, shape = { classroot.shape }, ink = { provided("theme").text } ],
+    TextLabel [ fontSize = 14, fontWeight = 500, wrap = false, textColor = { provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// A colour, shown and chosen. `value` is "#RRGGBB", or "" for none; `mixed`
+// says the selection's things differ, and then shows that rather than one of
+// them. Pressing it opens the one colour picker (the App's `colors`), which
+// reads its opener to know what it is choosing for.
+
+class ColorWell extends ValueControl [ width = 44, height = 30, cornerRadius = 8,
+    value: string = "",
+    fieldValue = { value },
+    commit(v: string) { value = v },
+    mixed: boolean = false,
+    allowsNone: boolean = true,
+    label: string = "Colour",
+    accessibilityLabel = { classroot.label + ": " + (classroot.mixed ? "mixed" : classroot.value == "" ? "none" : classroot.value) },
+    tooltipLabel = { classroot.label },
+    fill = { hovered ? provided("theme").controlHovered : provided("theme").control },
+    stroke = { stroke(1, this.picking ? provided("theme").accent : provided("theme").line) },
+    picking: boolean = { app.colors.shown && app.colors.opener == this },
+    press() { app.colors.showFor(this) },
+    chip: View [ x = 4, y = 4, width = 36, height = 22, cornerRadius = 5, clip = true,
+        fill = { classroot.mixed ? null : colorOf(classroot.value) },
+        stroke = { stroke(1, 0x1D1A2F1F) },
+
+        // none: a red slash on white; mixed: four quarters
+
+        Glyph [ visible = { !classroot.mixed && classroot.value == "" }, x = center, y = center, iconSize = 18, weight = 1.6,
+            shape = "none", ink = { provided("theme").danger } ],
+        View [ visible = { classroot.mixed }, width = 18, height = 11, fill = #5B3DF5 ],
+        View [ visible = { classroot.mixed }, x = 18, width = 18, height = 11, fill = #FF6A3D ],
+        View [ visible = { classroot.mixed }, y = 11, width = 18, height = 11, fill = #1E9C6A ],
+        View [ visible = { classroot.mixed }, x = 18, y = 11, width = 18, height = 11, fill = #F2C94C ]
+        ]
+    ]
+
+
+// A swatch in the colour picker.
+
+class Swatch extends Control [ width = 24, height = 24, cornerRadius = 6,
+    hex: string = "",
+    chosen: boolean = false,
+    accessibilityLabel = { classroot.hex },
+    accessibilityPressed = { classroot.chosen },
+    tooltipLabel = { classroot.hex },
+    fill = { colorOf(classroot.hex) },
+    stroke = { classroot.chosen ? stroke(2, provided("theme").accent) : stroke(1, 0x1D1A2F1A) },
+    scale = { hovered ? 1.12 : 1 }, pivotX = 12, pivotY = 12,
+    View [ visible = { classroot.chosen }, x = center, y = center, width = 8, height = 8, cornerRadius = 4,
+        fill = { isDarkHex(classroot.hex) ? 0xFFFFFF : 0x1D1A2F } ]
+    ]
+
+
+// A number typed or stepped with the arrow keys. Empty, with "Mixed" in
+// grey, when the selection's things differ.
+
+class NumberBox extends TextInput [ width = 64, height = 30, fontSize = 13, padding = [0, 8, 0, 8],
+    number: number = 0,
+    mixed: boolean = false,
+    lo: number = 0,
+    hi: number = 1000,
+    unit: string = "",
+    put(v: number) { },
+    placeholder = { classroot.mixed ? "Mixed" : "" },
+    value = { classroot.mixed ? "" : "" + Math.round(classroot.number * 10) / 10 },
+    commitOn = "end",
+    admit(t: string) -> string? { return /^[0-9]*\.?[0-9]*$/.test(t) ? t : null },
+    commit(t: string) {
+        const v = parseFloat(t)
+        if (!isNaN(v)) classroot.put(Math.max(classroot.lo, Math.min(classroot.hi, v)))
+        },
+    keyBindings = { [ ({ key: "ArrowUp", command: "bump", args: [1] }), ({ key: "ArrowDown", command: "bump", args: [-1] }),
+        ({ key: "Shift+ArrowUp", command: "bump", args: [10] }), ({ key: "Shift+ArrowDown", command: "bump", args: [-10] }),
+        ({ key: "Enter", command: "finish" }) ] },
+
+    // Return: done here, back to the slide (leaving the field is what commits it)
+
+    finish() { app.takeCanvasFocus() },
+    bump(d: number) { classroot.put(Math.max(classroot.lo, Math.min(classroot.hi, classroot.number + d))) }
+    ]
+
+
+// A panel's heading, quiet and small.
+
+class PanelHead extends Text [ fontSize = 11, fontWeight = 700, letterSpacing = 0.6, textTransform = uppercase,
+    textColor = { provided("theme").textFaint }
+    ]
+
+
+// A labelled row in the inspector: words on the left, controls on the right.
+
+class Row [ width = 100%, height = 34,
+    label: string = "",
+    defaultPlacement = tools,
+    TextLabel [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    tools: View [ x = end, height = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ]
+        ]
+    ]
+
+
+// The alignment choices' marks, named for the Segmented that shows them.
+
+class AlignLeftGlyph extends Glyph [ shape = "textLeft" ]
+
+class AlignCenterGlyph extends Glyph [ shape = "textCenter" ]
+
+class AlignRightGlyph extends Glyph [ shape = "textRight" ]
+
+use [ AlignLeftGlyph, AlignCenterGlyph, AlignRightGlyph ]

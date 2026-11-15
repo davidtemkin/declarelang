@@ -1,0 +1,174 @@
+/*
+# The Venue: formats and checks
+
+Plain functions of their arguments: how money, dates and times are written,
+and what a card number, an expiry, a security code and a postal code may be.
+Nothing here is reactive; a constraint that calls one depends only on what it
+passes. `venue.declare` includes this file.
+*/
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    // ── Amounts: integer cents, written $1,240.00
+
+    function money(cents: number): string {
+        const whole = Math.floor(Math.abs(cents) / 100)
+        const part = Math.abs(cents) % 100
+        return (cents < 0 ? "-" : "") + "$" + whole.toLocaleString("en-US") + "." + (part < 10 ? "0" : "") + part
+    }
+
+    function seatCount(n: number): string { return n == 1 ? "1 seat" : n + " seats" }
+
+    // ── The hall's local time, as the service writes it: "2026-11-13T19:30"
+
+    function stamp(iso: string): number[] {
+        const [d, t] = iso.split("T")
+        const [y, m, day] = d.split("-").map(Number)
+        const [h, min] = (t ?? "0:0").split(":").map(Number)
+        return [y, m, day, h, min]
+    }
+    function dayName(iso: string): string {
+        const p = stamp(iso)
+        return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()]
+    }
+    function dateLabel(iso: string): string {             // Fri 13 Nov
+        const p = stamp(iso)
+        return dayName(iso) + " " + p[2] + " " + MONTHS[p[1] - 1]
+    }
+    function monthLabel(iso: string): string { return MONTHS[stamp(iso)[1] - 1] }
+    function dayOfMonth(iso: string): string { return "" + stamp(iso)[2] }
+    function timeLabel(iso: string): string {             // 7:30pm
+        const p = stamp(iso)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + (p[4] < 10 ? "0" : "") + p[4] + (p[3] < 12 ? "am" : "pm")
+    }
+    function isMatinee(iso: string): boolean { return stamp(iso)[3] < 17 }
+
+    // ── Cards
+
+    function digitsOf(t: string): string { return t.replace(/[^0-9]/g, "") }
+
+    function cardBrand(d: string): string {
+        if (/^4/.test(d)) return "visa"
+        if (/^(5[1-5]|2[2-7])/.test(d)) return "mastercard"
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        if (b == "visa") return "Visa"
+        if (b == "mastercard") return "Mastercard"
+        if (b == "amex") return "American Express"
+        if (b == "discover") return "Discover"
+        return ""
+    }
+    function cardLengths(b: string): number[] {
+        if (b == "amex") return [15]
+        if (b == "visa") return [13, 16, 19]
+        if (b == "mastercard") return [16]
+        if (b == "discover") return [16, 19]
+        return [16]
+    }
+    function cardMaxLength(b: string): number { const l = cardLengths(b); return l[l.length - 1] }
+
+    // Grouped as it is printed: 4 6 5 for American Express, fours for the rest.
+    function groupCard(d: string): string {
+        const groups = cardBrand(d) == "amex" ? [4, 6, 5] : [4, 4, 4, 4, 3]
+        const out: string[] = []
+        let at = 0
+        for (const g of groups) {
+            if (at >= d.length) break
+            out.push(d.slice(at, at + g))
+            at = at + g
+        }
+        return out.join(" ")
+    }
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum = sum + n
+        }
+        return d.length > 0 && sum % 10 == 0
+    }
+    function cardProblem(t: string): string {
+        const d = digitsOf(t)
+        if (!cardLengths(cardBrand(d)).includes(d.length) || !luhn(d)) return "That isn't a valid card number. Check the digits."
+        return ""
+    }
+    function codeLengthFor(b: string): number { return b == "amex" ? 4 : 3 }
+
+    // Expiry: typed as MMYY, shown MM/YY. A first digit above 1 can only be a month on its own.
+    function groupExpiry(t: string): string {
+        let d = digitsOf(t)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        d = d.slice(0, 4)
+        return d.length > 2 ? d.slice(0, 2) + "/" + d.slice(2) : d
+    }
+    function expiryParts(t: string): number[] {
+        const d = digitsOf(t)
+        return [Number(d.slice(0, 2)), 2000 + Number(d.slice(2, 4))]
+    }
+    function expiryProblem(t: string): string {
+        const d = digitsOf(t)
+        if (d.length != 4) return "Enter the expiry as MM/YY, as it is printed on the card."
+        const [m, y] = expiryParts(t)
+        if (m < 1 || m > 12) return "There is no month " + d.slice(0, 2) + ". Use 01 to 12."
+        const now = new Date()
+        if (y < now.getFullYear() || (y == now.getFullYear() && m < now.getMonth() + 1)) return "That date has passed. Check the card's expiry."
+        return ""
+    }
+    function cardExpired(month: number, year: number): boolean {
+        const now = new Date()
+        return year < now.getFullYear() || (year == now.getFullYear() && month < now.getMonth() + 1)
+    }
+    function twoDigits(n: number): string { return (n < 10 ? "0" : "") + n }
+
+    // ── Postal codes, by country
+
+    function postalProblem(v: string, country: string): string {
+        const t = v.trim().toUpperCase()
+        if (country == "US") return /^[0-9]{5}(-[0-9]{4})?$/.test(t) ? "" : "Enter a 5-digit ZIP code, like 94103."
+        if (country == "CA") return /^[A-Z][0-9][A-Z] ?[0-9][A-Z][0-9]$/.test(t) ? "" : "Enter a postal code like K1A 0B1."
+        if (country == "GB") return /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/.test(t) ? "" : "Enter a postcode like EC1A 1BB."
+        return ""
+    }
+    function tidyPostal(v: string, country: string): string {
+        const t = v.trim().toUpperCase().replace(/\s+/g, "")
+        if ((country == "GB" || country == "CA") && t.length > 3) return t.slice(0, t.length - 3) + " " + t.slice(t.length - 3)
+        return country == "US" ? v.trim() : t
+    }
+
+    // ── The ticket's code, drawn as Code 39: nine elements a character, bar
+    //    and space alternating, a 1 wide and a 0 narrow, framed by *.
+
+    const CODE39: Record<string, string> = {
+        "0": "000110100", "1": "100100001", "2": "001100001", "3": "101100000", "4": "000110001",
+        "5": "100110000", "6": "001110000", "7": "000100101", "8": "100100100", "9": "001100100",
+        "A": "100001001", "B": "001001001", "C": "101001000", "D": "000011001", "E": "100011000",
+        "F": "001011000", "G": "000001101", "H": "100001100", "I": "001001100", "J": "000011100",
+        "K": "100000011", "L": "001000011", "M": "101000010", "N": "000010011", "O": "100010010",
+        "P": "001010010", "Q": "000000111", "R": "100000110", "S": "001000110", "T": "000010110",
+        "U": "110000001", "V": "011000001", "W": "111000000", "X": "010010001", "Y": "110010000",
+        "Z": "011010000", "-": "010000101", ".": "110000100", " ": "011000100", "*": "010010100"
+    }
+    // The bars as [start, width] in narrow units, and the total width.
+    function code39(text: string): number[] {
+        const out: number[] = []
+        let x = 0
+        for (const ch of ("*" + text.toUpperCase() + "*").split("")) {
+            const p = CODE39[ch] ?? CODE39["-"]
+            for (let i = 0; i < 9; i++) {
+                const w = p[i] == "1" ? 3 : 1
+                if (i % 2 == 0) { out.push(x); out.push(w) }
+                x = x + w
+            }
+            x = x + 1
+        }
+        out.push(x)
+        return out
+    }
+    }

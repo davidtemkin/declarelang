@@ -1,0 +1,127 @@
+/*
+# Presentify: a slide, drawn
+
+One class draws a slide wherever it appears: the slide being edited, the
+pictures in the slide list and on the presentations screen, and the screen
+while presenting. So a slide looks the same in all of them, by construction.
+
+A `SlideCanvas` is always 1280 × 720 points; `scale` fits it to its place. It
+stands on a slide record (`datapath`), and one view per element replicates
+over `:elements[]`, the class picked by kind. A group is a view holding its
+children's views; its children keep their own slide coordinates.
+
+On the editor's canvas (`mode = "edit"`) each shape also takes its own
+presses and hands them to the editor's gesture (`app.gesture`); elsewhere the
+canvas takes none.
+*/
+
+class SlideCanvas [ width = 1280, height = 720, clip = true, pivotX = 0, pivotY = 0,
+    mode: string = "thumb",              // "thumb" | "edit" | "show": provided to every element below
+    canvasMode: string = { classroot.mode },
+    fill = { colorOf(:background ?? "#FFFFFF") },
+    pointerEvents = { classroot.mode == "edit" ? "auto" : "none" },
+
+    // a picture of a slide, in a list or on a card, says nothing of its own:
+    // what holds it is named ("Slide 3", the presentation's title)
+
+    accessibilityHidden = { classroot.mode == "thumb" },
+    ElView [ datapath = :elements[], classFor = { ({ rect: RectEl, ellipse: EllipseEl, line: LineEl, text: TextEl, group: GroupEl })[:kind ?? "rect"] } ]
+    ]
+
+
+// The base every element view shares: which element it is.
+
+class ElView [
+    elId: string = { :id ?? "" }
+    ]
+
+
+// A group: its children, drawn in order. It takes no presses itself; its
+// children do, and the editor turns a press on one into the group.
+
+class GroupEl extends ElView [ width = 1280, height = 720,
+    ElView [ datapath = :children[], classFor = { ({ rect: RectEl, ellipse: EllipseEl, line: LineEl, text: TextEl, group: GroupEl })[:kind ?? "rect"] } ]
+    ]
+
+
+// A shape on the editor's canvas hands what the pointer does to the gesture.
+
+class ShapeEl extends ElView [
+    live: boolean = { provided("canvasMode") == "edit" },
+    cursor = { this.live ? app.gesture.shapeCursor : "" },
+    onPointerDown(e: PointerEvent) { if (this.live) app.gesture.press(this.elId, e) },
+    onClick(e: PointerEvent) { if (this.live) app.gesture.click(e) },
+    onDoubleClick(e: PointerEvent) { if (this.live) app.gesture.doubleClick(this.elId) },
+    onDragStart(e: PointerEvent) { if (this.live) app.gesture.dragStart(e) },
+    onDrag(e: PointerEvent) { if (this.live) app.gesture.drag(e) },
+    onDragEnd(e: DragEndEvent) { if (this.live) app.gesture.dragEnd(e) },
+    onContextMenu(e: PointerEvent) { if (this.live) app.gesture.context(this.elId, this, e) }
+    ]
+
+
+class RectEl extends ShapeEl [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    fill = { colorOf(:fill) },
+    cornerRadius = { Math.max(0, Math.min(:cornerRadius ?? 0, (:width ?? 0) / 2, (:height ?? 0) / 2)) },
+    stroke = { :stroke == null || (:stroke?.width ?? 0) <= 0 ? null : stroke(:stroke?.width ?? 0, colorOf(:stroke?.color)) }
+    ]
+
+
+// An ellipse paints itself, and takes presses only inside its outline.
+
+class EllipseEl extends ShapeEl [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    clip = { ellipsePath(this.width, this.height) },
+    draw(d: DrawContext) {
+        const sw = (:stroke?.width ?? 0)
+        const rx = Math.max(0, d.w / 2 - sw / 2), ry = Math.max(0, d.h / 2 - sw / 2)
+        d.beginPath()
+        d.ellipse(d.w / 2, d.h / 2, rx, ry, 0, 0, Math.PI * 2)
+        if (:fill != null) { d.fillStyle = colorOf(:fill); d.fill() }
+        if (:stroke != null && sw > 0) { d.strokeStyle = colorOf(:stroke?.color); d.lineWidth = sw; d.stroke() }
+        }
+    ]
+
+
+// A line is a thin view turned along it: drawn as thick as its stroke, and
+// pressed anywhere a pointer can reasonably aim at it.
+
+class LineEl extends ShapeEl [
+    dx: number = { (:x2 ?? 0) - (:x1 ?? 0) },
+    dy: number = { (:y2 ?? 0) - (:y1 ?? 0) },
+    sw: number = { :stroke?.width ?? 1 },
+    hit: number = { classroot.live ? Math.max(classroot.sw, 14 / app.k) : classroot.sw },
+    x = { :x1 ?? 0 }, y = { (:y1 ?? 0) - classroot.hit / 2 },
+    width = { Math.hypot(classroot.dx, classroot.dy) }, height = { classroot.hit },
+    pivotX = 0, pivotY = { classroot.hit / 2 },
+    rotation = { Math.atan2(classroot.dy, classroot.dx) * 180 / Math.PI },
+    bar: View [ y = center, width = 100%, height = { classroot.sw }, fill = { colorOf(:stroke?.color) } ]
+    ]
+
+
+// A text box: one block, one style, wrapped to its width and as tall as its
+// lines. While it is being edited the field over it (the editor's) shows the
+// words instead. On the canvas it reports its height, which is what the
+// editor's handles and snapping measure it by.
+
+class TextEl extends ShapeEl [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 },
+    editing: boolean = { classroot.live && app.editingId == classroot.elId },
+    words: Text [ width = 100%, text = { :text?.content ?? "" },
+        opacity = { classroot.editing ? 0 : 1 },
+        fontFamily = { [:text?.font ?? "Helvetica Neue", "Helvetica", "sans-serif"] },
+        fontSize = { :text?.size ?? 32 }, fontWeight = { :text?.weight ?? 400 }, italic = { :text?.italic ?? false },
+        textColor = { colorOf(:text?.color ?? "#1D1A2F") }, textAlign = { :text?.align ?? "left" },
+        minHeight = { (:text?.size ?? 32) * 1.15 } ],
+    trackChanges = ["height"],
+    onChange() { if (classroot.live) app.measured(classroot.elId, this.height) },
+    onInit() { if (classroot.live) afterSettle(() => app.measured(this.elId, this.height)) }
+    ]
+
+
+script {
+    function ellipsePath(w: number, h: number): string {
+        const rx = w / 2, ry = h / 2
+        return "M 0 " + ry + " A " + rx + " " + ry + " 0 1 0 " + w + " " + ry + " A " + rx + " " + ry + " 0 1 0 0 " + ry + " Z"
+    }
+    }

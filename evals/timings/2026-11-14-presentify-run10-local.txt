@@ -1,0 +1,46 @@
+# eval-presentify-10
+total 51.3 min · 153 turns · output 220564 tokens (thinking 92709)
+phases: reading 4.4 · writing 0.0 · checking 46.9 min
+tool time 17.9 min · model time 33.4 min
+tokens: input 272 · cache write 507617 · cache read 47957140 · output 220564 · thinking 92709
+rate: 6603 output tokens per model-minute
+tools:
+  verify    55×  16.11 min  (median 6.9 s)
+  look       9×   0.78 min  (median 5.1 s)
+  bash      34×   0.62 min  (median 0.0 s)
+  help       8×   0.41 min  (median 3.4 s)
+  read      10×   0.02 min  (median 0.1 s)
+model turns, by what came before:
+  after write     8×   9.00 min  (median 69.0 s)
+  after image    27×   6.82 min  (median 5.5 s)
+  after help      8×   6.79 min  (median 4.5 s)
+  after verify   55×   5.35 min  (median 3.9 s)
+  after bash     33×   4.50 min  (median 3.6 s)
+  after read     10×   0.47 min  (median 2.0 s)
+  after look      9×   0.26 min  (median 1.1 s)
+  after edit      1×   0.02 min  (median 1.2 s)
+app: 7 .declare files, 2886 non-blank lines · 37 snapshots changed them: 3627 lines added, 394 removed
+verify results mentioning accessibility: 7
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+diagnostic codes, by tool results reporting them: DECLARE4017 4, DECLARE1002 3, DECLARE4022 3, DECLARE4035 3, DECLARE4015 2, DECLARE5000 2, DECLARE2000 2, DECLARE4020 1, DECLARE4025 1, DECLARE6001 1, DECLARE4026 1, DECLARE2007 1, DECLARE1000 1
+inside the agent's verify and look calls:
+  15.06 min    51×  R5 behavior, in all
+  14.43 min    51×  script: the assert script, in all
+   4.20 min   658×  drive.moveBy
+   2.77 min   814×  drive.settleMotion
+   1.78 min  1065×  check: scrolling come to rest
+   0.95 min    10×  drive.profile
+   0.79 min   129×  drive.click
+   0.79 min    97×  page: load, compile in the page and boot
+   0.77 min   218×  drive.press
+   0.71 min   176×  locator.click
+   0.64 min   221×  drive.settleData
+   0.50 min    51×  open: the app loaded and arrived, in all
+   0.46 min    46×  R4 boot, in all
+   0.41 min    29×  compile (R1–R3)
+   0.36 min   108×  drive.clickAt
+   0.29 min   342×  drive.key
+   0.29 min   157×  drive.wait
+   0.22 min    10×  drive.waitReal
+   0.19 min   218×  drive.release
+   0.13 min    97×  page: a new page

@@ -1,0 +1,738 @@
+/*
+# Presentify: editing
+
+The verbs on the open presentation (`Ed`) and what the pointer is doing on
+the canvas (`Gesture`). Both are classes with no view: the canvas, the
+handles, the inspector, the menus and the keys all call them, and they write
+the working copy (`app.doc`) and the user's place (`app.curId`, `app.sel`,
+`app.tool`, `app.editingId`). Everything on screen follows.
+
+Every change is one step of undo: `begin()` keeps the state before it,
+`record(key)` files it once the change is done (and drops it when nothing
+changed), and asks `Sync` to save.
+*/
+
+script {
+    type Seg2 = string | number
+
+    // A slide's elements without these ids. A group left with one child
+    // becomes that child; one left empty goes.
+    function removeIds(list: Elt[], ids: string[]): Elt[] {
+        const out: Elt[] = []
+        for (const e of list) {
+            if (ids.includes(e.id)) continue
+            if (e.kind == "group") {
+                const kids = removeIds(e.children ?? [], ids)
+                if (kids.length == 0) continue
+                if (kids.length == 1) { out.push(kids[0]); continue }
+                out.push({ ...e, children: kids })
+            } else out.push(e)
+        }
+        return out
+    }
+
+    // The selected top-level elements, gathered into one group where the
+    // frontmost of them was.
+    function groupIds(list: Elt[], ids: string[], gid: string): Elt[] {
+        const members = list.filter((e) => ids.includes(e.id))
+        if (members.length < 2) return list
+        let last = -1
+        list.forEach((e, i) => { if (ids.includes(e.id)) last = i })
+        const out: Elt[] = []
+        list.forEach((e, i) => {
+            if (i == last) out.push({ id: gid, kind: "group", children: members })
+            else if (!ids.includes(e.id)) out.push(e)
+        })
+        return out
+    }
+
+    // Each selected group replaced by its children, where it was.
+    function ungroupIds(list: Elt[], ids: string[]): Elt[] {
+        const out: Elt[] = []
+        for (const e of list) {
+            if (e.kind == "group" && ids.includes(e.id)) out.push(...(e.children ?? []))
+            else if (e.kind == "group") out.push({ ...e, children: ungroupIds(e.children ?? [], ids) })
+            else out.push(e)
+        }
+        return out
+    }
+
+    // Stacking: forward, backward, front or back, among each one's siblings.
+    function reorder(list: Elt[], ids: string[], how: string): Elt[] {
+        let arr = list.map((e) => e.kind == "group" ? { ...e, children: reorder(e.children ?? [], ids, how) } : e)
+        const picked = arr.filter((e) => ids.includes(e.id))
+        if (picked.length == 0) return arr
+        if (how == "front") return [...arr.filter((e) => !ids.includes(e.id)), ...picked]
+        if (how == "back") return [...picked, ...arr.filter((e) => !ids.includes(e.id))]
+        if (how == "forward") {
+            for (let i = arr.length - 2; i >= 0; i--) {
+                if (ids.includes(arr[i].id) && !ids.includes(arr[i + 1].id)) { const t = arr[i]; arr[i] = arr[i + 1]; arr[i + 1] = t }
+            }
+        } else {
+            for (let i = 1; i < arr.length; i++) {
+                if (ids.includes(arr[i].id) && !ids.includes(arr[i - 1].id)) { const t = arr[i]; arr[i] = arr[i - 1]; arr[i - 1] = t }
+            }
+        }
+        return arr
+    }
+
+    // The ids among `ids` that can be grouped: on the slide itself.
+    function topLevel(list: Elt[], ids: string[]): string[] { return list.filter((e) => ids.includes(e.id)).map((e) => e.id) }
+
+    function newSlideId(): string { return "n" + Math.random().toString(36).slice(2, 10) }
+    }
+
+
+class Ed extends Node [
+
+    // ── the slide being edited, and what is selected on it
+
+    idx: number = { app.doc.indexOf(app.curId) },
+    slide: Slide? = { app.doc.slideById(app.curId) },
+    els: El[] = { this.slide?.elements ?? [] },
+    selEls: El[] = { app.sel.map((id) => findEl(this.els, id)).filter((e) => e != null) as El[] },
+    selFrame: Frame? = { framesOf(this.selEls, app.textH) },
+    leaves: El[] = { leavesOf(this.selEls) as El[] },
+    count: number = { this.selEls.length },
+    lone: El? = { this.selEls.length == 1 ? this.selEls[0] : null },
+    loneLine: boolean = { this.lone?.kind == "line" },
+    loneText: boolean = { this.lone?.kind == "text" },
+    loneRect: boolean = { this.lone?.kind == "rect" },
+    editingEl: El? = { app.editingId == "" ? null : findEl(this.els, app.editingId) },
+    canGroup: boolean = { topLevel(this.els, app.sel).length >= 2 },
+    canUngroup: boolean = { this.selEls.some((e) => e.kind == "group") },
+
+    // ── undo: one step per thing the person did
+
+    snap() -> Snap { return ({ doc: structuredClone(app.doc.value), cur: app.curId, sel: [...app.sel] }) },
+    before: Snap? = null,
+    begin() { if (before == null) before = snap() },
+    record(key: string) {
+        const b = before
+        before = null
+        if (b == null || JSON.stringify(b.doc) == JSON.stringify(app.doc.value)) return
+        app.hist.push(b, key)
+        app.sync.poke()
+        },
+    act(key: string, fn: () => void) { begin(); fn(); record(key) },
+    restore(s: Snap) {
+        app.editingId = ""
+        app.doc.set([], structuredClone(s.doc))
+        app.curId = app.doc.slideById(s.cur) != null ? s.cur : (app.doc.slides()[0]?.id ?? "")
+        app.sel = [...s.sel]
+        app.sync.poke()
+        },
+    undo() {
+        if (app.editingId != "") endEditing()
+        const s = app.hist.takeUndo(snap())
+        if (s != null) restore(s)
+        },
+    redo() {
+        if (app.editingId != "") endEditing()
+        const s = app.hist.takeRedo(snap())
+        if (s != null) restore(s)
+        },
+
+    // ── writing elements
+
+    pathOf(id: string) ->(string | number)[] {
+        const p = pathTo(els, id)
+        return p == null ? [] : ["slides", idx, "elements", ...p]
+        },
+    put(e: El) { const p = pathOf(e.id); if (p.length > 0) app.doc.set(p, e) },
+    setElements(list: El[]) { if (idx >= 0) app.doc.set(["slides", idx, "elements"], list) },
+    taken() -> string[] { return idsIn(els) },
+
+    // ── the selection
+
+    chooseTool(t: string) {
+        if (app.editingId != "") endEditing()
+        app.tool = t
+        },
+    selectAll() { if (app.editingId == "") { app.tool = "select"; app.sel = els.map((e) => e.id) } },
+    clear() { if (app.editingId != "") endEditing(); app.sel = [] },
+
+    // What a press on an element selects: the group it is in, unless the
+    // person is already working inside that group.
+
+    targetFor(id: string) -> string {
+        const top = topIdOf(els, id)
+        if (top == id || top == "") return id
+        const sibs = siblingsOf(els, id)
+        return app.sel.some((s) => s != top && sibs.includes(s)) ? id : top
+        },
+    doubleClick(id: string) {
+        const e = findEl(els, id)
+        if (e == null) return
+        if (topIdOf(els, id) != id && !app.sel.includes(id)) { app.sel = [id]; return }
+        if (e.kind == "text") beginEditing(id, false)
+        },
+    editSelected() { if (loneText && lone != null) beginEditing(lone.id, false) },
+
+    // ── text, edited in place
+
+    editFresh: boolean = false,
+    beginEditing(id: string, fresh: boolean) {
+        app.sel = [id]
+        app.tool = "select"
+        begin()
+        editFresh = fresh
+        app.editingId = id
+        afterSettle(() => app.focusTextField(fresh))
+        },
+    typed(v: string) {
+        const e = editingEl
+        if (e != null && e.text != null) put({ ...e, text: { ...e.text, content: v } })
+        },
+    endEditing() {
+        const id = app.editingId
+        if (id == "") return
+        app.editingId = ""
+        const e = findEl(els, id)
+        if (e != null && (e.text?.content ?? "").trim() == "") {
+            setElements(removeIds(els, [id]) as El[])
+            app.sel = app.sel.filter((s) => s != id)
+        } else if (e != null && app.textH[id] != null) {
+            put({ ...e, height: Math.round(app.textH[id]) })
+        }
+        record("typing")
+        },
+
+    // ── new things
+
+    defaults(kind: string, id: string, x: number, y: number, w: number, h: number, keep: boolean) -> El {
+        const dark = isDarkHex(slide?.background ?? "#FFFFFF")
+        if (kind == "line") return ({ id: id, kind: "line", x1: x, y1: y, x2: x + w, y2: y + h,
+            stroke: ({ color: dark ? "#FFFFFF" : "#1D1A2F", width: 4 }) })
+        if (kind == "text") return ({ id: id, kind: "text", x: x, y: y, width: Math.max(40, w), height: 44, keepProportions: false,
+            text: ({ content: "", font: "Helvetica Neue", size: 36, weight: 400, italic: false,
+                color: dark ? "#FFFFFF" : "#1D1A2F", align: "left" }) })
+        if (kind == "ellipse") return ({ id: id, kind: "ellipse", x: x, y: y, width: w, height: h,
+            fill: dark ? "#FF6A3D" : "#5B3DF5", stroke: null, keepProportions: keep })
+        return ({ id: id, kind: "rect", x: x, y: y, width: w, height: h,
+            fill: dark ? "#FF6A3D" : "#5B3DF5", stroke: null, cornerRadius: 0, keepProportions: keep })
+        },
+    add(e: El) { setElements([...els, e]) },
+
+    // ── the selection's verbs
+
+    deleteSel() {
+        if (app.sel.length == 0 || app.editingId != "") return
+        act("delete", () => { setElements(removeIds(els, app.sel) as El[]); app.sel = [] })
+        },
+    duplicate() {
+        if (app.sel.length == 0 || app.editingId != "") return
+        act("duplicate", () => {
+            const t = taken()
+            const copies = selEls.map((e) => shifted(withFreshIds(e, t), 20, 20) as El)
+            setElements([...els, ...copies])
+            app.sel = copies.map((c) => c.id)
+            })
+        },
+    copy() {
+        if (selEls.length == 0) return
+        app.clipboard = structuredClone(selEls)
+        app.pastes = 0
+        },
+    cut() { copy(); deleteSel() },
+    paste() {
+        if (app.clipboard.length == 0 || idx < 0) return
+        act("paste", () => {
+            app.pastes = app.pastes + 1
+            const t = taken()
+            const d = 20 * app.pastes
+            const copies = app.clipboard.map((e) => shifted(withFreshIds(e, t), d, d) as El)
+            setElements([...els, ...copies])
+            app.tool = "select"
+            app.sel = copies.map((c) => c.id)
+            })
+        },
+    group() {
+        if (!canGroup) return
+        act("group", () => {
+            const gid = freshId(taken())
+            setElements(groupIds(els, topLevel(els, app.sel), gid) as El[])
+            app.sel = [gid]
+            })
+        },
+    ungroup() {
+        if (!canUngroup) return
+        act("ungroup", () => {
+            const kids = selEls.filter((e) => e.kind == "group").flatMap((g) => (g.children ?? []).map((c) => c.id))
+            const rest = selEls.filter((e) => e.kind != "group").map((e) => e.id)
+            setElements(ungroupIds(els, app.sel) as El[])
+            app.sel = [...rest, ...kids]
+            })
+        },
+    order(how: string) {
+        if (app.sel.length == 0) return
+        act("order", () => setElements(reorder(els, app.sel, how) as El[]))
+        },
+    nudge(dx: number, dy: number) -> boolean {
+        if (app.editingId != "") return false
+        if (app.sel.length == 0) {
+            if (dy != 0 || dx != 0) step(dy + dx > 0 ? 1 : -1)
+            return true
+        }
+        act("nudge", () => selEls.forEach((e) => put(shifted(e, dx, dy) as El)))
+        return true
+        },
+
+    // Align to the selection's own edges; one thing alone aligns to the slide.
+
+    align(how: string) {
+        if (selEls.length == 0) return
+        const all = selFrame
+        if (all == null) return
+        const box = selEls.length == 1 ? ({ x: 0, y: 0, w: 1280, h: 720 }) : all
+        act("align", () => selEls.forEach((e) => {
+            const f = frameOf(e, app.textH)
+            let dx = 0, dy = 0
+            if (how == "left") dx = box.x - f.x
+            else if (how == "center") dx = box.x + box.w / 2 - (f.x + f.w / 2)
+            else if (how == "right") dx = box.x + box.w - (f.x + f.w)
+            else if (how == "top") dy = box.y - f.y
+            else if (how == "middle") dy = box.y + box.h / 2 - (f.y + f.h / 2)
+            else dy = box.y + box.h - (f.y + f.h)
+            if (dx != 0 || dy != 0) put(shifted(e, dx, dy) as El)
+            }))
+        },
+
+    // Equal gaps between neighbours, the outermost two staying put.
+
+    distribute(axis: string) {
+        if (selEls.length < 3) return
+        const items = selEls.map((e) => ({ e: e, f: frameOf(e, app.textH) }))
+        const lo = (f: Frame) => axis == "x" ? f.x : f.y
+        const size = (f: Frame) => axis == "x" ? f.w : f.h
+        items.sort((a, b) => (lo(a.f) + size(a.f) / 2) - (lo(b.f) + size(b.f) / 2))
+        const first = lo(items[0].f)
+        const end = Math.max(...items.map((i) => lo(i.f) + size(i.f)))
+        const total = items.reduce((s, i) => s + size(i.f), 0)
+        const gap = (end - first - total) / (items.length - 1)
+        act("distribute", () => {
+            let at = first
+            items.forEach((i) => {
+                const d = at - lo(i.f)
+                if (Math.abs(d) > 0.01) put(shifted(i.e, axis == "x" ? d : 0, axis == "x" ? 0 : d) as El)
+                at = at + size(i.f) + gap
+                })
+            })
+        },
+
+    // ── style, from the inspector: each change one step, on every thing it
+    //    applies to (inside groups too)
+
+    style(key: string, kinds: string[], fn: (e: El) => El) {
+        act(key, () => leaves.forEach((e) => { if (kinds.includes(e.kind)) put(fn(e)) }))
+        },
+    setFill(c: string) { style("fill", ["rect", "ellipse"], (e) => ({ ...e, fill: c == "" ? null : c })) },
+    setOutline(c: string) {
+        style("outline", ["rect", "ellipse", "line"], (e) => {
+            if (c == "") return e.kind == "line" ? e : ({ ...e, stroke: null })
+            return ({ ...e, stroke: ({ color: c, width: e.stroke?.width ?? 3 }) })
+            })
+        },
+    setOutlineWidth(w: number) {
+        style("outlineWidth", ["rect", "ellipse", "line"], (e) => {
+            if (w <= 0 && e.kind != "line") return ({ ...e, stroke: null })
+            return ({ ...e, stroke: ({ color: e.stroke?.color ?? "#1D1A2F", width: Math.max(e.kind == "line" ? 1 : 0, w) }) })
+            })
+        },
+    setRadius(r: number) { style("radius", ["rect"], (e) => ({ ...e, cornerRadius: Math.round(Math.max(0, r)) })) },
+    setKeep(b: boolean) { style("keep", ["rect", "ellipse", "text"], (e) => ({ ...e, keepProportions: b })) },
+    setText(field: string, v: object) {
+        style("text-" + field, ["text"], (e) => e.text == null ? e : ({ ...e, text: ({ ...e.text, [field]: v }) as TextSpec }))
+        },
+    setBackground(c: string) {
+        if (idx < 0 || c == "") return
+        act("background", () => app.doc.set(["slides", idx, "background"], c))
+        },
+    rename(t: string) {
+        const title = t.trim() == "" ? "Untitled presentation" : t.trim()
+        if (title == app.doc.title()) return
+        act("title", () => app.doc.set(["title"], title))
+        },
+
+    // ── slides
+
+    goTo(id: string) {
+        if (id == app.curId) return
+        if (app.editingId != "") endEditing()
+        app.curId = id
+        app.sel = []
+        app.sync.check(id)
+        },
+    step(d: number) {
+        const s = app.doc.slides()
+        const i = Math.max(0, Math.min(s.length - 1, idx + d))
+        if (s[i] != null) goTo(s[i].id)
+        },
+    addSlide() {
+        if (app.editingId != "") endEditing()
+        act("addSlide", () => {
+            const id = newSlideId()
+            app.doc.insert(["slides"], idx + 1, ({ id: id, background: "#FFFFFF", elements: [] }))
+            app.curId = id
+            app.sel = []
+            })
+        app.revealCurrent(false)
+        },
+    duplicateSlide(id: string) {
+        const i = app.doc.indexOf(id)
+        const s = app.doc.slideById(id)
+        if (s == null) return
+        if (app.editingId != "") endEditing()
+        act("duplicateSlide", () => {
+            const nid = newSlideId()
+            // its own element ids, so nothing on it is mistaken for the original's
+            const taken: string[] = []
+            app.doc.insert(["slides"], i + 1, ({ id: nid, background: s.background, elements: s.elements.map((e) => withFreshIds(e, taken) as El) }))
+            app.curId = nid
+            app.sel = []
+            })
+        app.revealCurrent(false)
+        },
+    deleteSlide(id: string) {
+        const all = app.doc.slides()
+        const i = app.doc.indexOf(id)
+        if (all.length <= 1 || i < 0) return
+        if (app.editingId != "") endEditing()
+        act("deleteSlide", () => {
+            const next = all[i + 1] ?? all[i - 1]
+            app.doc.removeAt(["slides"], i)
+            if (app.curId == id) { app.curId = next.id; app.sel = [] }
+            })
+        },
+    moveSlide(from: number, to: number) {
+        // `to` is a gap between slides: 0 before the first, n after the last
+        const n = app.doc.slides().length
+        const dest = to > from ? to - 1 : to
+        if (from < 0 || from >= n || dest == from) return
+        act("moveSlide", () => app.doc.move(["slides"], from, Math.max(0, Math.min(n - 1, dest))))
+        }
+    ]
+
+
+// ── The pointer on the canvas ──────────────────────────────────────────────
+//
+// A press on a shape, on the slide's background or on a handle, and the drag
+// that may follow. Positions are slide points, worked out from where the
+// canvas sits on screen (`ox`, `oy`) and its scale (`app.k`).
+
+class Gesture extends Node [
+    mode: string = "",        // "", "move", "resize", "radius", "end1", "end2", "marquee", "draw", "noop"
+    handle: string = "",
+    ox: number = 0,
+    oy: number = 0,
+    sx: number = 0,           // where the press was
+    sy: number = 0,
+    pressedId: string = "",
+    originals: El[] = [],
+    f0: Frame? = null,
+    drawId: string = "",
+    baseSel: string[] = [],
+    marquee: Frame? = null,
+    guideX: number = -1,      // a snap guide, in slide points, or -1
+    guideY: number = -1,
+    targetsX: number[] = [],
+    targetsY: number[] = [],
+    shapeCursor: string = { app.tool == "select" ? "move" : "crosshair" },
+    active: boolean = { this.mode != "" && this.mode != "noop" },
+
+    at(e: PointerEvent) -> number[] { return [(e.rootX - ox) / app.k, (e.rootY - oy) / app.k] },
+    anchor(e: PointerEvent) {
+        const o = app.canvasOrigin()
+        ox = o.x
+        oy = o.y
+        const p = at(e)
+        sx = p[0]
+        sy = p[1]
+        },
+
+    // What else on the slide a moving thing can line up with: the slide's
+    // edges and middle, and every other thing's edges and middle.
+
+    collectTargets() {
+        const xs = [0, 640, 1280]
+        const ys = [0, 360, 720]
+        app.ed.els.forEach((e) => {
+            if (app.sel.includes(e.id)) return
+            const f = frameOf(e, app.textH)
+            xs.push(f.x, f.x + f.w / 2, f.x + f.w)
+            ys.push(f.y, f.y + f.h / 2, f.y + f.h)
+            })
+        targetsX = xs
+        targetsY = ys
+        },
+    tol() -> number { return 6 / app.k },
+
+    // ── presses
+
+    press(id: string, e: PointerEvent) {
+        anchor(e)
+        pressedId = id
+        mode = ""
+        app.takeCanvasFocus()
+        if (app.editingId != "" && id != app.editingId) app.ed.endEditing()
+        if (app.tool != "select" || id == "" || id == app.editingId) {
+            if (id == "" && app.tool == "select" && !e.shift) app.sel = []
+            return
+        }
+        const t = app.ed.targetFor(id)
+        if (e.shift) {
+            const had = app.sel.includes(t)
+            app.sel = had ? app.sel.filter((s) => s != t) : [...app.sel, t]
+            if (had) mode = "noop"
+        } else if (!app.sel.includes(t)) app.sel = [t]
+        },
+    grab(kind: string, e: PointerEvent) {
+        anchor(e)
+        app.takeCanvasFocus()
+        app.ed.begin()
+        originals = structuredClone(app.ed.selEls)
+        f0 = app.ed.selFrame
+        handle = kind
+        mode = kind == "radius" ? "radius" : kind == "end1" ? "end1" : kind == "end2" ? "end2" : "resize"
+        collectTargets()
+        },
+    click(e: PointerEvent) {
+        if (app.tool == "select" || mode != "") return
+        const p = at(e)
+        const kind = app.tool
+        app.ed.begin()
+        const id = freshId(app.ed.taken())
+        if (kind == "text") {
+            app.ed.add(app.ed.defaults("text", id, p[0], p[1] - 22, 480, 0, false))
+            app.ed.beginEditing(id, true)
+            return
+        }
+        const w = kind == "line" ? 240 : 240
+        const h = kind == "line" ? 0 : kind == "ellipse" ? 240 : 160
+        app.ed.add(app.ed.defaults(kind, id, p[0] - w / 2, p[1] - h / 2, w, h, kind == "ellipse"))
+        app.sel = [id]
+        app.tool = "select"
+        app.ed.record("draw")
+        },
+    doubleClick(id: string) { if (app.tool == "select") app.ed.doubleClick(id) },
+    context(id: string, v: View, e: PointerEvent) {
+        if (app.editingId != "") return
+        const t = app.ed.targetFor(id)
+        if (!app.sel.includes(t)) app.sel = [t]
+        app.elMenu.showAt(v, e)
+        },
+
+    // ── drags
+
+    dragStart(e: PointerEvent) {
+        if (app.tool != "select") { beginDraw(e); return }
+        if (mode == "noop" || pressedId == app.editingId && pressedId != "") return
+        if (mode != "") return          // a handle's drag, begun at the press
+        if (pressedId == "") {
+            mode = "marquee"
+            baseSel = e.shift ? [...app.sel] : []
+            return
+        }
+        app.ed.begin()
+        originals = structuredClone(app.ed.selEls)
+        f0 = app.ed.selFrame
+        mode = "move"
+        collectTargets()
+        },
+    drag(e: PointerEvent) {
+        const p = at(e)
+        if (mode == "move") moveTo(p[0], p[1], e.shift)
+        else if (mode == "resize") resizeTo(p[0], p[1], e.shift)
+        else if (mode == "radius") radiusTo(p[0], p[1])
+        else if (mode == "end1" || mode == "end2") endTo(p[0], p[1], e.shift)
+        else if (mode == "marquee") marqueeTo(p[0], p[1])
+        else if (mode == "draw") drawTo(p[0], p[1], e.shift)
+        },
+    dragEnd(e: DragEndEvent) {
+        const m = mode
+        mode = ""
+        guideX = -1
+        guideY = -1
+        marquee = null
+        if (m == "" || m == "noop") return
+        if (e.canceled && m != "marquee") {
+            if (m == "draw") app.ed.setElements(removeIds(app.ed.els, [drawId]) as El[])
+            else originals.forEach((o) => app.ed.put(o))
+            app.ed.record("")
+            return
+        }
+        if (m == "draw") {
+            app.tool = "select"
+            const d = findEl(app.ed.els, drawId)
+            if (d?.kind == "text") { app.ed.beginEditing(drawId, true); return }
+            app.ed.record("draw")
+            return
+        }
+        if (m != "marquee") app.ed.record(m)
+        },
+
+    moveTo(px: number, py: number, shift: boolean) {
+        const f = f0
+        if (f == null) return
+        let dx = px - sx
+        let dy = py - sy
+        if (shift) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0 }
+        const nx = f.x + dx, ny = f.y + dy
+        const s1 = snapTo([nx, nx + f.w / 2, nx + f.w], targetsX, tol())
+        const s2 = snapTo([ny, ny + f.h / 2, ny + f.h], targetsY, tol())
+        if (s1 != null) dx = dx + s1[0]
+        if (s2 != null) dy = dy + s2[0]
+        guideX = s1 == null ? -1 : s1[1]
+        guideY = s2 == null ? -1 : s2[1]
+        originals.forEach((o) => app.ed.put(shifted(o, dx, dy) as El))
+        },
+
+    // A handle names the edges it moves: n, s, e, w, or two of them.
+
+    resizeTo(px: number, py: number, shift: boolean) {
+        const f = f0
+        if (f == null) return
+        const h = handle
+        const dx = px - sx, dy = py - sy
+        let x0 = f.x, y0 = f.y, x1 = f.x + f.w, y1 = f.y + f.h
+        if (h.includes("w")) x0 = x0 + dx
+        if (h.includes("e")) x1 = x1 + dx
+        if (h.includes("n")) y0 = y0 + dy
+        if (h.includes("s")) y1 = y1 + dy
+        // line up a moving edge with something
+        const sxp = h.includes("w") ? snapTo([x0], targetsX, tol()) : h.includes("e") ? snapTo([x1], targetsX, tol()) : null
+        const syp = h.includes("n") ? snapTo([y0], targetsY, tol()) : h.includes("s") ? snapTo([y1], targetsY, tol()) : null
+        if (sxp != null) { if (h.includes("w")) x0 = x0 + sxp[0]; else x1 = x1 + sxp[0] }
+        if (syp != null) { if (h.includes("n")) y0 = y0 + syp[0]; else y1 = y1 + syp[0] }
+        guideX = sxp == null ? -1 : sxp[1]
+        guideY = syp == null ? -1 : syp[1]
+        const min = 4
+        if (x1 - x0 < min) { if (h.includes("w")) x0 = x1 - min; else x1 = x0 + min }
+        if (y1 - y0 < min) { if (h.includes("n")) y0 = y1 - min; else y1 = y0 + min }
+        let w = x1 - x0, hh = y1 - y0
+        // proportions: kept by the things themselves, or by shift; shift on
+        // something that keeps them lets it change them once
+        const keeps = originals.length > 0 && originals.every((o) => o.keepProportions == true)
+        if (keeps != shift && f.w > 0 && f.h > 0 && !app.ed.loneText) {
+            const r = f.w / f.h
+            const horiz = h.includes("e") || h.includes("w")
+            const vert = h.includes("n") || h.includes("s")
+            if (horiz && vert) {
+                if (w / f.w > hh / f.h) hh = w / r; else w = hh * r
+            } else if (horiz) hh = w / r
+            else w = hh * r
+            if (h.includes("w")) x0 = x1 - w
+            if (h.includes("n")) y0 = y1 - hh
+            if (!vert) y0 = f.y + (f.h - hh) / 2
+            if (!horiz) x0 = f.x + (f.w - w) / 2
+            guideX = -1
+            guideY = -1
+        }
+        const to = ({ x: x0, y: y0, w: w, h: hh })
+        originals.forEach((o) => app.ed.put(refit(o, f, to) as El))
+        },
+    radiusTo(px: number, py: number) {
+        const o = originals[0]
+        const f = f0
+        if (o == null || f == null) return
+        const r = Math.max(0, Math.min(Math.min(f.w, f.h) / 2, ((px - f.x) + (py - f.y)) / 2))
+        app.ed.put({ ...o, cornerRadius: Math.round(r) })
+        },
+    endTo(px: number, py: number, shift: boolean) {
+        const o = originals[0]
+        if (o == null) return
+        const first = mode == "end1"
+        const ax = first ? (o.x2 ?? 0) : (o.x1 ?? 0)
+        const ay = first ? (o.y2 ?? 0) : (o.y1 ?? 0)
+        let x = px, y = py
+        if (shift) {
+            // straight across, straight down, or at forty-five degrees
+            const a = Math.round(Math.atan2(y - ay, x - ax) / (Math.PI / 4)) * (Math.PI / 4)
+            const len = Math.hypot(x - ax, y - ay)
+            x = ax + Math.cos(a) * len
+            y = ay + Math.sin(a) * len
+            guideX = -1
+            guideY = -1
+        } else {
+            const s1 = snapTo([x], targetsX, tol())
+            const s2 = snapTo([y], targetsY, tol())
+            if (s1 != null) x = x + s1[0]
+            if (s2 != null) y = y + s2[0]
+            guideX = s1 == null ? -1 : s1[1]
+            guideY = s2 == null ? -1 : s2[1]
+        }
+        x = Math.round(x * 10) / 10
+        y = Math.round(y * 10) / 10
+        app.ed.put(first ? { ...o, x1: x, y1: y } : { ...o, x2: x, y2: y })
+        },
+    marqueeTo(px: number, py: number) {
+        const f = ({ x: Math.min(sx, px), y: Math.min(sy, py), w: Math.abs(px - sx), h: Math.abs(py - sy) })
+        marquee = f
+        const hits = app.ed.els.filter((e) => touches(frameOf(e, app.textH), f)).map((e) => e.id)
+        app.sel = [...baseSel.filter((s) => !hits.includes(s)), ...hits]
+        },
+
+    beginDraw(e: PointerEvent) {
+        app.ed.begin()
+        drawId = freshId(app.ed.taken())
+        mode = "draw"
+        collectTargets()
+        app.ed.add(app.ed.defaults(app.tool, drawId, sx, sy, 0, 0, false))
+        app.sel = [drawId]
+        },
+    drawTo(px: number, py: number, shift: boolean) {
+        const kind = app.tool
+        let x = px, y = py
+        if (!shift) {
+            const s1 = snapTo([x], targetsX, tol())
+            const s2 = snapTo([y], targetsY, tol())
+            if (s1 != null) x = x + s1[0]
+            if (s2 != null) y = y + s2[0]
+            guideX = s1 == null ? -1 : s1[1]
+            guideY = s2 == null ? -1 : s2[1]
+        }
+        let w = x - sx, h = y - sy
+        if (kind == "line") {
+            if (shift) {
+                const a = Math.round(Math.atan2(h, w) / (Math.PI / 4)) * (Math.PI / 4)
+                const len = Math.hypot(w, h)
+                w = Math.cos(a) * len
+                h = Math.sin(a) * len
+            }
+            app.ed.put(app.ed.defaults("line", drawId, sx, sy, Math.round(w), Math.round(h), false))
+            return
+        }
+        if (shift && kind != "text") {
+            const m = Math.max(Math.abs(w), Math.abs(h))
+            w = Math.sign(w || 1) * m
+            h = Math.sign(h || 1) * m
+        }
+        const fx = Math.round(Math.min(sx, sx + w)), fy = Math.round(Math.min(sy, sy + h))
+        app.ed.put(app.ed.defaults(kind, drawId, fx, fy, Math.round(Math.abs(w)), Math.round(Math.abs(h)), shift))
+        }
+    ]
+
+
+// ── Dragging a slide in the list ────────────────────────────────────────────
+//
+// The list doesn't move under the pointer while a slide is carried: a ghost
+// follows the pointer and a line shows where it will go. On release the slide
+// moves, and the list glides to its new order.
+
+class RailDrag extends Node [
+    from: number = -1,
+    to: number = -1,
+    slideId: string = "",
+    grabX: number = 0,
+    grabY: number = 0,
+    moving: boolean = { this.from >= 0 },
+    begin(i: number, id: string, gx: number, gy: number) { from = i; to = i; slideId = id; grabX = gx; grabY = gy },
+    follow(rootY: number) { to = app.railGapAt(rootY) },
+    drop(canceled: boolean) {
+        const f = from
+        const t = to
+        from = -1
+        to = -1
+        if (!canceled && f >= 0 && t >= 0) app.ed.moveSlide(f, t)
+        }
+    ]

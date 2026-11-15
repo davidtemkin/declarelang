@@ -1,0 +1,462 @@
+/*
+# Eval runs
+
+Every timed craft run, one bar each, in date order: how long it took and what the
+time went to. Built from `runs.json`, which `evals/craft/runs.py --json` writes from
+the timing records.
+
+How it is made:
+
+- **Each run is a view.** A bar is a `Control`: it takes its own press, carries its
+  own tooltip and its own accessibility label, and lights when hovered. Nothing works
+  out from coordinates which run is under the pointer.
+- **One chart, four measures.** Minutes (reading, writing, checking), turns (by what
+  came before each), tokens (output and thinking) and pace (model time against what
+  the run's turns and output predict). Each bar holds five segments that spring to
+  the chosen measure's heights, so a change of measure moves every bar from where it
+  is, and the pace bars grow from a line at 1.00.
+- **The arrangement moves.** The bars are replicated from a derived dataset of the
+  runs the filters keep; `Bars` is a `TweenLayout`, so a filter folds bars away and
+  slides the rest into place.
+- **The table is the same records**, for reading exact figures and for a screen
+  reader; choosing a row chooses its bar.
+*/
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Run [ id: string, date: string, app: string, run: number, level: string, tree: string,
+    total: number, model?: number, tool?: number, read?: number, write?: number, check?: number,
+    turns?: number, t_verify: number, t_help: number, t_image: number, t_bash: number,
+    out?: number, think?: number, cread?: number, cwrite?: number, rate?: number, pace?: number ]
+schema Fit [ perTurn?: number, tokensPerSec?: number ]
+schema Shown [ bars[]: Run ]
+schema Key [ id: string, label: string, k: number ]
+schema Keys [ items[]: Key ]
+
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// The five series slots are the dataviz reference palette's first five, validated
+// as a set in both modes (adjacent CVD ΔE ≥ 9.1 light, ≥ 8.4 dark). Three light slots
+// sit under 3:1 on the surface, so every bar carries a tooltip and the table gives
+// every figure as text.
+
+theme RunsLight [
+    background = #F6F6F4, surface = #FCFCFB, card = #FCFCFB,
+    line = #E6E5E1, grid = #ECEBE7, hover = #F0EFEB, selection = #E3E7F0,
+    text = #0B0B0B, textMuted = #52514E, textFaint = #84837E,
+    series = [#2A78D6, #EB6834, #1BAF7A, #EDA100, #E87BA4], unsplit = #A9A8A2
+    ]
+
+
+theme RunsDark [
+    background = #121211, surface = #1A1A19, card = #1A1A19,
+    line = #2C2C2A, grid = #252523, hover = #232321, selection = #26303F,
+    text = #F0EFEC, textMuted = #C3C2B7, textFaint = #8A8981,
+    series = [#3987E5, #D95926, #199E70, #C98500, #D55181], unsplit = #5E5D58
+    ]
+
+
+// ── The bars' layout ────────────────────────────────────────────────────────
+//
+// One column per run, side by side, each the plot's full height. A `TweenLayout`
+// glides its children when they arrive, leave or reorder, so a filter's change moves
+// the bars rather than redrawing them.
+
+class Bars extends TweenLayout [ duration = 380,
+    place() {
+        const w = this.contentExtent("width"), h = this.contentExtent("height")
+        const kids = this.laid(), n = Math.max(1, kids.length)
+        const gap = n > 36 ? 2 : 4
+        // where the run's group changes (a new day, or a new app), a wider gap
+        const breaks = kids.map((c, i) => i > 0 && (c as Bar).group != (kids[i - 1] as Bar).group)
+        const extra = breaks.filter((b) => b).length * app.groupGap
+        const bw = Math.max(2, (w - gap * (n - 1) - extra) / n)
+        let x = 0
+        return kids.map((c, i) => {
+            if (breaks[i]) x = x + app.groupGap
+            const box = { x: x, y: 0, w: bw, h: h }
+            x = x + bw + gap
+            return box
+            })
+        }
+    ]
+
+
+// ── A run's bar ─────────────────────────────────────────────────────────────
+//
+// A segment springs to its height (`h`) and sits on the segments below it (`base`,
+// which its bar wires from them). The top one rounds its end; the others leave a
+// 2px gap of surface between them.
+
+class Seg [
+    v: number = 0,
+    base: number = 0,
+    tone: Color = gray,
+    top: boolean = false,
+    lower: boolean = false,
+    h: number = 0,
+    Spring [ attribute = h, to = { classroot.v * app.pxPer }, stiffness = 180, damping = 24 ],
+    x = 0, width = { parent.width },
+    y = { app.plotH - classroot.base - classroot.h },
+    height = { Math.max(0, classroot.h - (classroot.lower ? 2 : 0)) },
+    cornerRadius = { classroot.top ? [3, 3, 0, 0] : 0 },
+    fill = { classroot.tone }
+    ]
+
+
+class Bar extends Control [ height = { app.plotH + 22 },
+    rec: Run = { :@ },
+    parts: number[] = { app.partsOf(classroot.rec, app.measure) },
+    topK: number = { app.lastNonZero(classroot.parts) },
+    chosen: boolean = { app.chosen?.id == classroot.rec.id },
+    group: string = { app.groupOf(classroot.rec) },
+
+    accessibilityLabel = { app.describe(classroot.rec) },
+    accessibilityPressed = { classroot.chosen },
+    tooltipLabel = { app.describe(classroot.rec) },
+    press() { app.choose(classroot.rec.id) },
+
+    // the column behind the marks: lit on hover, tinted when chosen
+
+    col: View [ width = 100%, height = { app.plotH }, cornerRadius = 3,
+        fill = { classroot.chosen ? provided("theme").selection : classroot.hovered ? provided("theme").hover : null } ],
+
+    s0: Seg [ v = { classroot.parts[0] ?? 0 }, base = 0, top = { classroot.topK == 0 },
+        tone = { app.toneOf(0) } ],
+    s1: Seg [ v = { classroot.parts[1] ?? 0 }, base = { classroot.s0.h }, top = { classroot.topK == 1 }, lower = true,
+        tone = { app.toneOf(1) } ],
+    s2: Seg [ v = { classroot.parts[2] ?? 0 }, base = { classroot.s0.h + classroot.s1.h }, top = { classroot.topK == 2 }, lower = true,
+        tone = { app.toneOf(2) } ],
+    s3: Seg [ v = { classroot.parts[3] ?? 0 }, base = { classroot.s0.h + classroot.s1.h + classroot.s2.h },
+        top = { classroot.topK == 3 }, lower = true, tone = { app.toneOf(3) } ],
+    s4: Seg [ v = { classroot.parts[4] ?? 0 }, base = { classroot.s0.h + classroot.s1.h + classroot.s2.h + classroot.s3.h },
+        top = { classroot.topK == 4 }, lower = true, tone = { app.toneOf(4) } ],
+
+    // pace: a bar from the 1.00 line, up for a run slower than its work predicts,
+    // down for a faster one
+
+    paceBar: View [ width = 100%,
+        p: number = 0,
+        Spring [ attribute = p, to = { app.measure == "pace" ? ((classroot.rec.pace ?? 1) - 1) * app.pacePx : 0 },
+            stiffness = 180, damping = 24 ],
+        y = { app.plotH / 2 - Math.max(this.p, 0) },
+        height = { Math.abs(this.p) },
+        cornerRadius = { this.p >= 0 ? [3, 3, 0, 0] : [0, 0, 3, 3] },
+        fill = { this.p >= 0 ? app.toneOf(1) : app.toneOf(0) }
+        ],
+
+    // under the axis, the first run of a group names it: its day, or its app
+
+    label: Text [ y = end, visible = { app.labelIds.includes(classroot.rec.id) }, fontSize = 11, wrap = false,
+        textColor = { provided("theme").textFaint },
+        text = { app.order == "app" ? app.appLabel(classroot.rec.app) : app.dayLabel(classroot.rec.date) } ]
+    ]
+
+
+// ── Pieces of the page ──────────────────────────────────────────────────────
+
+class LegendKey [ height = 20,
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    View [ width = 10, height = 10, cornerRadius = 2, fill = { app.toneOf(:k ?? 0) } ],
+    Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = { :label ?? "" } ]
+    ]
+
+
+class Stat [ width = 100%, height = 24,
+    label: string = "",
+    value: string = "",
+    layout: SimpleLayout [ axis = x, align = center ],
+    Text [ flexes = true, fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    Text [ fontSize = 13, fontWeight = semibold, text = { classroot.value } ]
+    ]
+
+
+// The axis behind the bars: gridlines at round values, labelled at the left. Drawn,
+// because it is one picture with nothing in it to press.
+
+class Gridlines [
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        d.font = "11px -apple-system, system-ui, sans-serif"
+        d.textAlign = "right"
+        d.textBaseline = "middle"
+        for (const tick of app.ticks) {
+            const y = Math.round(tick.y) + 0.5
+            d.strokeStyle = tick.base ? t.textFaint : t.grid
+            d.lineWidth = 1
+            d.beginPath(); d.moveTo(app.axisW, y); d.lineTo(this.width, y); d.stroke()
+            d.fillStyle = t.textFaint
+            d.fillText(tick.label, app.axisW - 6, y)
+            }
+        }
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "Eval runs", minWidth = 340,
+    theme = { app.systemDark ? ({ ...SanFranciscoDark, ...RunsDark }) : ({ ...SanFrancisco, ...RunsLight }) },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    fontFamily = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+
+    // ── the records
+
+    data: DataSource [ url = "runs.json", autoFetch = true, schema = [ fit: Fit, runs[]: Run ] ],
+    runs: Run[] = { app.data.value?.runs ?? [] },
+
+    // ── where the user is
+
+    measure: "minutes" | "turns" | "tokens" | "pace" = "minutes",
+    appFilter: string = "all",
+    levelFilter: string = "any",
+    chosenId: string = "",
+    order: "date" | "app" = "date",
+
+    // ── what the chart shows
+
+    shown: Dataset [ schema = Shown, contents = { app.arrange() } ],
+    bars: Run[] = { app.shown.value?.bars ?? [] },
+    arrange() -> Shown {
+        const keep = app.runs.filter((r) => (app.appFilter == "all" || r.app == app.appFilter)
+            && (app.levelFilter == "any" || r.level == app.levelFilter))
+        if (app.order == "app") keep.sort((a, b) => a.app.localeCompare(b.app) || a.date.localeCompare(b.date) || a.run - b.run)
+        return ({ bars: keep })
+        },
+    groupOf(r: Run) -> string { return app.order == "app" ? r.app : r.date },
+    groupGap: number = { app.order == "app" ? 10 : 0 },
+
+    // a group's label shows where there is room for it since the last one shown
+
+    barsW: number = { app.page.body.chart.plot.scroller.bars.width },
+    barStep: number = { app.barsW / Math.max(1, app.bars.length) },
+    labelIds: string[] = { app.pickLabels() },
+    pickLabels() -> string[] {
+        // each group's label starts at its first bar; the largest groups are placed
+        // first, and a smaller one only where it runs into none already placed
+        // (about 6.5 px a character at 11 px)
+        const groups: { id: string, x: number, w: number, n: number }[] = []
+        let gaps = 0
+        app.bars.forEach((r, i) => {
+            const first = i == 0 || app.groupOf(app.bars[i - 1]) != app.groupOf(r)
+            if (first && i > 0) gaps = gaps + 1
+            const text = app.order == "app" ? app.appLabel(r.app) : app.dayLabel(r.date)
+            if (first) groups.push({ id: r.id, x: i * app.barStep + gaps * app.groupGap, w: text.length * 6.5, n: 0 })
+            groups[groups.length - 1].n = groups[groups.length - 1].n + 1
+            })
+        const placed: { x: number, w: number }[] = []
+        const out: string[] = []
+        for (const g of [...groups].sort((p, q) => q.n - p.n)) {
+            if (placed.every((p) => g.x >= p.x + p.w + 8 || g.x + g.w + 8 <= p.x)) { placed.push(g); out.push(g.id) }
+            }
+        return out
+        },
+    chosen: Run? = { app.bars.find((r) => r.id == app.chosenId) ?? app.bars[app.bars.length - 1] ?? null },
+    choose(id: string) { chosenId = id },
+
+    apps: string[] = { [...new Set(app.runs.map((r) => r.app))] },
+    levels: string[] = { [...new Set(app.runs.map((r) => r.level))].filter((l) => l != "–") },
+
+    // ── the measures: each run's parts, and what each part is called
+
+    partsOf(r: Run, m: string) -> number[] {
+        if (m == "minutes") return r.read != null ? [r.read ?? 0, r.write ?? 0, r.check ?? 0, 0, 0] : [0, 0, 0, r.total, 0]
+        if (m == "turns") {
+            const known = r.t_verify + r.t_help + r.t_image + r.t_bash
+            return [r.t_verify, r.t_help, r.t_image, r.t_bash, Math.max(0, (r.turns ?? 0) - known)]
+            }
+        if (m == "tokens") {
+            const o = (r.out ?? 0) / 1000, th = (r.think ?? 0) / 1000
+            return [Math.max(0, o - th), th, 0, 0, 0]
+            }
+        return [0, 0, 0, 0, 0]
+        },
+    lastNonZero(p: number[]) -> number {
+        let k = -1
+        p.forEach((v, i) => { if (v > 0) k = i })
+        return k
+        },
+    toneOf(k: number) -> Color {
+        if (app.measure == "minutes" && k == 3) return provided("theme").unsplit
+        return provided("theme").series[k] ?? provided("theme").unsplit
+        },
+    keys: Dataset [ schema = Keys, contents = { app.keysFor(app.measure) } ],
+    keysFor(m: string) -> Keys {
+        const names: Record<string, string[]> = {
+            minutes: ["Reading", "Writing", "Checking", "Not split"],
+            turns: ["After a check", "After a lookup", "After a screenshot", "After a shell command", "Other"],
+            tokens: ["Output", "Thinking"],
+            pace: ["Faster than its work predicts", "Slower"]
+            }
+        const order = m == "pace" ? [0, 1] : (names[m] ?? []).map((_, i) => i)
+        const shownKeys = m == "minutes" && !app.bars.some((r) => r.read == null) ? [0, 1, 2] : order
+        return ({ items: shownKeys.map((i) => ({ id: m + i, label: (names[m] ?? [])[i] ?? "", k: i })) })
+        },
+    unit: string = { ({ minutes: "minutes", turns: "turns", tokens: "thousand tokens", pace: "pace" } as Record<string, string>)[app.measure] ?? "" },
+
+    // ── the scale: round steps, at least the tallest bar
+
+    plotH: number = { app.wide ? 300 : 220 },
+    axisW: number = 40,
+    peak: number = { Math.max(1, ...app.bars.map((r) => app.partsOf(r, app.measure).reduce((a, b) => a + b, 0))) },
+    step: number = { app.niceStep(app.peak / 4) },
+    yMax: number = { Math.ceil(app.peak / app.step) * app.step },
+    pxPer: number = { app.plotH / app.yMax },
+    paceDev: number = { Math.max(0.05, Math.ceil(Math.max(0, ...app.bars.map((r) => Math.abs((r.pace ?? 1) - 1))) * 20) / 20) },
+    pacePx: number = { (app.plotH / 2) / app.paceDev },
+    niceStep(raw: number) -> number {
+        const p = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1e-9))))
+        for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= raw) return m * p
+        return 10 * p
+        },
+    ticks: array = { app.measure == "pace" ? app.paceTicks() : app.valueTicks() },
+    valueTicks() -> array {
+        const out = []
+        for (let v = 0; v <= app.yMax + 1e-9; v = v + app.step)
+            out.push(({ y: app.plotH - v * app.pxPer, label: app.fmt(v), base: v == 0 }))
+        return out
+        },
+    paceTicks() -> array {
+        const out = []
+        for (const f of [-1, -0.5, 0, 0.5, 1]) {
+            const v = 1 + f * app.paceDev
+            out.push(({ y: app.plotH / 2 - f * app.paceDev * app.pacePx, label: v.toFixed(2), base: f == 0 }))
+            }
+        return out
+        },
+
+    // ── words
+
+    fmt(v: number) -> string { return v >= 1000 ? Math.round(v / 100) / 10 + "k" : "" + Math.round(v * 10) / 10 },
+    dayLabel(iso: string) -> string {
+        const p = iso.split("-").map(Number)
+        return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][p[1] - 1] + " " + p[2]
+        },
+    levelLabel(l: string) -> string { return l == "–" ? "before levels" : l == "" ? "level unrecorded" : l + " level" },
+    appLabel(a: string) -> string { return a.charAt(0).toUpperCase() + a.slice(1) },
+    title(r: Run) -> string { return app.appLabel(r.app) + " " + r.run },
+    tokens(n: number?) -> string { return n == null ? "–" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : Math.round(n / 1000) + "k" },
+    mins(n: number?) -> string { return n == null ? "–" : n.toFixed(1) + " min" },
+    describe(r: Run) -> string {
+        return app.title(r) + ", " + app.dayLabel(r.date) + ", " + app.levelLabel(r.level) + ": "
+            + app.mins(r.total) + ", " + (r.turns ?? 0) + " turns, " + app.tokens(r.out) + " output, pace "
+            + (r.pace == null ? "–" : r.pace.toFixed(2))
+        },
+    summary: string = {
+        app.runs.length == 0 ? "" : app.runs.length + " runs, " + app.dayLabel(app.runs[0].date) + " to "
+            + app.dayLabel(app.runs[app.runs.length - 1].date)
+        },
+    fitLine: string = {
+        app.data.value?.fit?.perTurn == null ? "" : "Pace: model time against " + app.data.value?.fit?.perTurn
+            + " s a turn plus output at " + app.data.value?.fit?.tokensPerSec + " tokens a second, fitted on every run."
+        },
+
+    // ── sizes
+
+    wide: boolean = { app.width >= 880 },
+    pageW: number = { Math.min(1160, app.width - (app.wide ? 64 : 32)) },
+    sideW: number = 300,
+    minStep: number = { app.wide && !app.touchFirst ? 6 : 14 },
+
+    appMenu: Menu [
+        items = { [({ id: "all", label: "All apps", group: "app", checked: app.appFilter == "all" }),
+            ...app.apps.map((a) => ({ id: a, label: app.appLabel(a),
+                group: "app", checked: app.appFilter == a }))] },
+        picked(id: string) { app.appFilter = id }
+        ],
+    levelMenu: Menu [
+        items = { [({ id: "any", label: "Any level", group: "level", checked: app.levelFilter == "any" }),
+            ...app.levels.map((l) => ({ id: l, label: l, group: "level", checked: app.levelFilter == l }))] },
+        picked(id: string) { app.levelFilter = id }
+        ],
+
+    // ── the page
+
+    page: View [ x = center, width = { app.pageW }, padding = { [app.wide ? 40 : 24, 0, 48, 0] },
+        layout: SimpleLayout [ axis = y, spacing = 20 ],
+
+        head: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Text [ accessibilityRole = heading, fontSize = { app.wide ? 28 : 24 }, fontWeight = bold, letterSpacing = -0.4,
+                text = "Eval runs" ],
+            Text [ width = 100%, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = { app.summary == "" ? "Loading…" : app.summary + ". One bar per run; choose one for its figures." } ]
+            ],
+
+        controls: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 10, rowSpacing = 10, align = center ],
+            Segmented [ width = { app.wide ? 360 : app.pageW }, value = { app.measure },
+                items = { [({ id: "minutes", label: "Minutes" }), ({ id: "turns", label: "Turns" }),
+                    ({ id: "tokens", label: "Tokens" }), ({ id: "pace", label: "Pace" })] },
+                commit(v: string) { app.measure = v as "minutes" | "turns" | "tokens" | "pace" }
+                ],
+            Segmented [ width = 180, value = { app.order },
+                items = { [({ id: "date", label: "By date" }), ({ id: "app", label: "By app" })] },
+                commit(v: string) { app.order = v as "date" | "app" }
+                ],
+            Button [ label = { app.appFilter == "all" ? "All apps" : app.appLabel(app.appFilter) },
+                menu = { app.appMenu } ],
+            Button [ label = { app.levelFilter == "any" ? "Any level" : "Level: " + app.levelFilter }, menu = { app.levelMenu } ]
+            ],
+
+        body: View [ width = 100%,
+            layout: SimpleLayout [ axis = { app.wide ? "x" : "y" }, spacing = 16 ],
+
+            chart: Card [ width = { app.wide ? app.pageW - app.sideW - 16 : app.pageW },
+                Text [ fontSize = 13, fontWeight = semibold, textColor = { provided("theme").textMuted },
+                    text = { app.measure == "pace" ? "Pace, 1.00 is an ordinary run" : "Per run, in " + app.unit } ],
+                legend: View [ width = 100%, datapath = { app.keys.value },
+                    layout: WrappingLayout [ spacing = 14, rowSpacing = 4 ],
+                    LegendKey [ datapath = :items[] ]
+                    ],
+                plot: View [ width = 100%, height = { app.plotH + 22 },
+                    grid: Gridlines [ width = 100%, height = { app.plotH } ],
+                    scroller: View [ x = { app.axisW + 4 }, width = { parent.width - app.axisW - 4 }, height = { app.plotH + 22 },
+                        scrolls = x,
+                        bars: View [ width = { Math.max(parent.width, app.bars.length * app.minStep) }, height = { app.plotH + 22 },
+                            datapath = { app.shown.value },
+                            layout: Bars [ ],
+                            Bar [ datapath = :bars[] ]
+                            ]
+                        ]
+                    ],
+                Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textFaint }, text = { app.fitLine } ]
+                ],
+
+            detail: Card [ width = { app.wide ? app.sideW : app.pageW },
+                Text [ fontSize = 18, fontWeight = bold, text = { app.chosen == null ? "" : app.title(app.chosen) } ],
+                Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+                    text = { app.chosen == null ? "" : app.dayLabel(app.chosen.date) + " · " + app.levelLabel(app.chosen.level)
+                        + " · " + (app.chosen.tree == "" ? "tree unrecorded" : app.chosen.tree) } ],
+                Stat [ label = "Total", value = { app.mins(app.chosen?.total) } ],
+                Stat [ label = "Model · tools", value = { app.mins(app.chosen?.model) + " · " + app.mins(app.chosen?.tool) } ],
+                Stat [ label = "Reading · writing · checking",
+                    value = { app.chosen?.read == null ? "–" : (app.chosen?.read ?? 0) + " · " + (app.chosen?.write ?? 0) + " · " + (app.chosen?.check ?? 0) } ],
+                Stat [ label = "Turns", value = { "" + (app.chosen?.turns ?? "–") } ],
+                Stat [ label = "Output · thinking", value = { app.tokens(app.chosen?.out) + " · " + app.tokens(app.chosen?.think) } ],
+                Stat [ label = "Cache read · write", value = { app.tokens(app.chosen?.cread) + " · " + app.tokens(app.chosen?.cwrite) } ],
+                Stat [ label = "Output per model-minute", value = { app.chosen?.rate == null ? "–" : "" + app.chosen?.rate } ],
+                Stat [ label = "Pace", value = { app.chosen?.pace == null ? "–" : (app.chosen?.pace ?? 1).toFixed(2) } ]
+                ]
+            ],
+
+        table: Card [ width = 100%,
+            Text [ fontSize = 13, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "Every run" ],
+            DataGrid [ width = 100%, height = 420, selects = "single",
+                items = { app.bars },
+                columns = { [ { id: "date", title: "Date", width: 100 }, { id: "app", title: "App", width: 110 },
+                              { id: "run", title: "Run", width: 56 }, { id: "level", title: "Level", width: 84 },
+                              { id: "total", title: "Min", width: 64 }, { id: "model", title: "Model", width: 66 },
+                              { id: "tool", title: "Tools", width: 64 }, { id: "turns", title: "Turns", width: 64 },
+                              { id: "out", title: "Output", width: 84 }, { id: "think", title: "Thinking", width: 84 },
+                              { id: "pace", title: "Pace", width: 64 } ] },
+                commit(sel: object) {
+                    super.commit(sel)
+                    const first = ((sel ?? []) as Run[])[0]
+                    if (first != null) app.choose(first.id)
+                    }
+                ]
+            ]
+        ]
+    ]

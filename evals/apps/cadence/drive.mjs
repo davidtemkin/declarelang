@@ -191,7 +191,9 @@ const SCENARIOS = {
     const del = await button(page, /delete|remove/i, { timeout: 6000 });
     await press(page, del);
     await sleep(500);
-    const sure = await maybe(button(page, /^(delete|remove|yes|confirm)\b/i, { timeout: 1500 }));
+    // the confirmation: a dialog's button, or the same control asking again
+    // ("Tap again to delete"), so the name is matched anywhere, not at its start
+    const sure = await maybe(button(page, /\b(delete|remove|yes|confirm)\b/i, { timeout: 1500 }));
     if (sure) { await press(page, sure); await sleep(500); }
     const gone = (await writes()).find((r) => r.method === "DELETE" && r.path.includes(before.last.id));
     if (!gone) throw new Error(`the session ${before.last.id} was not deleted at the service`);

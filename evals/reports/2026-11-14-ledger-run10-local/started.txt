@@ -1,0 +1,13 @@
+STARTED=2026-11-14T21:05:25Z
+APP=ledger
+MODEL=claude-opus-5-5
+SUBJECT=local tree at ab1dfad6 derived artifacts + 4 changed, 7 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=standard
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-ledger-10/work (logs outside it)
+PORT=8370 (the brief names 8370)
+DEV_PORT=8603 (the agent's dev server: PORT in its environment)
+SERVICE=node task/api/server.mjs --port=8370
+AGENT_PID=47487

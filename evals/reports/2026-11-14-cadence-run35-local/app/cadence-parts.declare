@@ -1,0 +1,184 @@
+/*
+# Cadence: the parts
+
+The look of the training log, kept apart from how it works: the palette, the
+two faces, and the small pieces every screen is built from — a label, a
+figure, a chip, a nudge button, the effort scale. `cadence.declare` includes
+this file; read that one first.
+
+The design rule these parts carry: ink on paper, type doing the work that
+boxes usually do, and one colour — `hard` — that only ever means effort.
+*/
+
+// ── Colour ──────────────────────────────────────────────────────────────────
+//
+// Laid over a library preset, so library controls read the same palette.
+// `accent` (what library buttons and pickers use) is ink, not a colour: the
+// one colour in the app is `hard`, and it is reserved for effort.
+
+theme CadenceInk [
+    background = #F1EEE6, surface = #F7F5EF, card = #F7F5EF,
+    text = #15130F, textMuted = #6E695F, textFaint = #A29D92,
+    line = #DCD7CB, lineStrong = #15130F,
+    ink = #15130F, paper = #F1EEE6,
+    accent = #15130F, accentHovered = #2B2822, accentPressed = #000000, accentTextColor = #F7F5EF,
+    linkColor = #15130F,
+    control = #E6E2D8, controlHovered = #DDD8CC, controlPressed = #D2CCBE, controlSelected = #DDD8CC,
+    hard = #EC3D12, hardSoft = #F6CDBE,
+    scrimFill = #15130F, scrimOpacity = 0.28,
+    tooltipFill = #15130F, tooltipTextColor = #F1EEE6
+    ]
+
+
+// ── Type ────────────────────────────────────────────────────────────────────
+//
+// Two families: a heavy grotesque for figures and names, a monospace for the
+// small labels. The scale between them is the design: a figure is many times
+// its label. (The faces themselves are on the App, `app.sans` and `app.mono`.)
+
+// A small label in capitals: what a figure is, or where you are.
+
+class Label extends Text [ fontFamily = { app.mono }, fontSize = 12, letterSpacing = 1.3, textTransform = uppercase,
+    wrap = false,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+// A number set large. Tabular, so a figure that is counting doesn't jitter.
+
+class Figure extends Text [ fontFamily = { app.sans }, fontWeight = black, numeralWidth = tabular, wrap = false,
+    letterSpacing = { -0.045 * this.fontSize },
+    textColor = { provided("theme").ink }
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+//
+// Each is a Control: focus, Space and Enter, and pressed come with it, and the
+// use site says what pressing does in its own `press()`. Every one is at least
+// 44 high: these are pressed by thumbs.
+
+// One of a few: a period, a day, a length. Ink outline; filled when chosen.
+// A direct child of a ChoiceControl, which holds the choice, says "2 of 4" to
+// a screen reader and moves the arrows between them.
+
+class Pick extends ChoiceItem [ height = 44, cornerRadius = 22, padding = [0, 16, 0, 16],
+    label: string = "",
+    accessibilityLabel = { label },
+    stroke = { stroke(1.5, on ? provided("theme").ink : provided("theme").line) },
+    fill = { on ? provided("theme").ink : pressed ? provided("theme").control : null },
+    layout: SimpleLayout [ axis = x, align = center ],
+    TextLabel [ fontFamily = { app.mono }, fontSize = 13, letterSpacing = 0.8, textTransform = uppercase, wrap = false,
+        textColor = { classroot.on ? provided("theme").paper : provided("theme").ink },
+        text = { classroot.label } ]
+    ]
+
+
+// The same look as an action rather than a choice.
+
+class Chip extends Control [ height = 44, cornerRadius = 22, padding = [0, 16, 0, 16],
+    label: string = "",
+    accessibilityLabel = { label },
+    stroke = { stroke(1.5, provided("theme").ink) },
+    fill = { pressed ? provided("theme").control : null },
+    layout: SimpleLayout [ axis = x, align = center ],
+    TextLabel [ fontFamily = { app.mono }, fontSize = 13, letterSpacing = 0.8, textTransform = uppercase, wrap = false,
+        textColor = { provided("theme").ink }, text = { classroot.label } ]
+    ]
+
+
+// A round − or + that nudges a value by a step.
+
+class Nudge extends Control [ width = 56, height = 56, cornerRadius = 28,
+    sign: string = "+",
+    accessibilityLabel = { sign == "+" ? "More" : "Less" },
+    stroke = { stroke(1.5, provided("theme").ink) },
+    fill = { pressed ? provided("theme").control : null },
+    scale = { pressed ? 0.94 : 1 }, pivotX = 28, pivotY = 28,
+    draw(d: DrawContext) {
+        d.strokeStyle = provided("theme").ink
+        d.lineWidth = 2.4
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(19, 28); d.lineTo(37, 28)
+        if (sign == "+") { d.moveTo(28, 19); d.lineTo(28, 37) }
+        d.stroke()
+        }
+    ]
+
+
+// The primary action: a wide ink bar with its words in paper.
+
+class InkButton extends Control [ height = 56, cornerRadius = 28,
+    width = { this.words.width + 48 },
+    label: string = "",
+    accessibilityLabel = { label },
+    fill = { provided("theme").ink },
+    opacity = { disabled ? 0.45 : pressed ? 0.86 : 1 },
+    words: TextLabel [ x = center, fontFamily = { app.sans }, fontSize = 17, fontWeight = bold, wrap = false,
+        textColor = { provided("theme").paper }, text = { classroot.label } ]
+    ]
+
+
+// A quiet action: words with no box.
+
+class TextButton extends Control [ height = 44, padding = [0, 4, 0, 4],
+    label: string = "",
+    tone: Color = { provided("theme").ink },
+    accessibilityLabel = { label },
+    opacity = { pressed ? 0.6 : 1 },
+    layout: SimpleLayout [ axis = x, align = center ],
+    TextLabel [ fontFamily = { app.mono }, fontSize = 13, letterSpacing = 1, textTransform = uppercase, wrap = false,
+        underline = true, textColor = { classroot.tone }, text = { classroot.label } ]
+    ]
+
+
+// ── Effort ──────────────────────────────────────────────────────────────────
+//
+// Ten segments, filled to the effort. In ink while it is easy or steady; in
+// the one colour once it is hard (7 and up). `EffortBar` only shows it;
+// `EffortScale` is the same picture as a control: tap a segment, or drag
+// along it, and the arrow keys step it.
+
+class EffortBar [ height = 10,
+    level: number = 0,
+    draw(d: DrawContext) {
+        const gap = 3
+        const w = (d.w - gap * 9) / 10
+        const hot = level >= 7
+        for (let i = 0; i < 10; i++) {
+            d.fillStyle = i < level ? (hot ? provided("theme").hard : provided("theme").ink) : provided("theme").line
+            d.fillRect(i * (w + gap), 0, w, d.h)
+            }
+        }
+    ]
+
+
+class EffortScale extends ValueControl [ height = 48,
+    value: number = 5,
+    fieldValue = { value },
+    accessibilityRole = slider,
+    accessibilityLabel = "Effort",
+    accessibilityValue = { shown },
+    accessibilityMin = 1,
+    accessibilityMax = 10,
+    accessibilityStep = 1,
+    commit(v: number) { value = v },
+
+    // Which segment a point along the scale is.
+
+    at(x: number) -> number { return Math.max(1, Math.min(10, Math.floor(x / this.width * 10) + 1)) },
+
+    // A tap sets it; a sideways drag scrubs it. Up and down stay the sheet's.
+
+    claim = x,
+    grabX: number = 0,
+    onClick(e: PointerEvent) { edit(at(e.x)) },
+    onDragStart(e: PointerEvent) { grabX = e.x - e.deltaX; beginEdit() },
+    onDrag(e: PointerEvent) { edit(at(grabX + e.deltaX)) },
+    onDragEnd(e: DragEndEvent) { if (e.canceled) { cancelEdit() } else { endEdit() } },
+    accessibilityIncrement() { edit(Math.min(10, shown + 1)) },
+    accessibilityDecrement() { edit(Math.max(1, shown - 1)) },
+
+    bar: EffortBar [ y = center, width = 100%, height = 30, level = { classroot.shown } ]
+    ]

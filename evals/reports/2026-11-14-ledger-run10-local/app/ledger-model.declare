@@ -1,0 +1,398 @@
+/*
+# Ledger: the model
+
+What the books are, whoever is looking at them: the shapes the service sends
+(schemas), and the plain functions every screen uses to say a number or a date
+the same way — money in whole cents, dates as calendar days, the filter as a
+query string. `ledger.declare` includes this file.
+
+Nothing here holds state. Script functions are functions of their arguments,
+so a constraint that calls one re-runs only when what it passes changes.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+script {
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const LONG_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+    const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MINUS = "−"
+
+    // ── money: whole cents in, words out
+
+    function groupDigits(n: number): string { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",") }
+
+    // "$1,204.50", or "−$45.00" for money out
+    function money(cents: number): string {
+        const c = Math.round(cents)
+        const a = Math.abs(c)
+        return (c < 0 ? MINUS : "") + "$" + groupDigits(Math.floor(a / 100)) + "." + String(a % 100).padStart(2, "0")
+    }
+
+    // "+$1,204.50" — a change, always signed
+    function signedMoney(cents: number): string { return (cents > 0 ? "+" : "") + money(cents) }
+
+    // whole dollars, for friendly labels: "$1,200"
+    function dollars(cents: number): string {
+        const c = Math.round(cents / 100)
+        return (c < 0 ? MINUS : "") + "$" + groupDigits(Math.abs(c))
+    }
+
+    // compact, for chart axes only: "$1.2k"
+    function compactMoney(cents: number): string {
+        const d = cents / 100
+        const a = Math.abs(d)
+        const s = d < 0 ? MINUS : ""
+        if (a >= 1000000) return s + "$" + trimZero((a / 1000000).toFixed(1)) + "m"
+        if (a >= 1000) return s + "$" + trimZero((a / 1000).toFixed(1)) + "k"
+        return s + "$" + Math.round(a)
+    }
+    function trimZero(t: string): string { return t.endsWith(".0") ? t.slice(0, -2) : t }
+
+    // "12.4%" and a signed "+12%" for changes
+    function percent(p: number | null): string { return p == null ? "—" : p.toFixed(1) + "%" }
+    function signedPercent(p: number): string {
+        const r = Math.round(p)
+        return (r > 0 ? "+" : r < 0 ? MINUS : "") + Math.abs(r) + "%"
+    }
+
+    // What a person typed as money, as cents: "42.5", "$1,204.50" → 4250, 120450.
+    // -1 when it is not an amount.
+    function parseCents(t: string): number {
+        const s = t.replace(/[$,\s]/g, "")
+        if (s == "") return -1
+        if (!/^\d*(\.\d{0,2})?$/.test(s) || s == ".") return -1
+        const [w, f] = s.split(".")
+        return Number(w || "0") * 100 + Number(((f ?? "") + "00").slice(0, 2))
+    }
+    function centsText(c: number): string { return c < 0 ? "" : (c / 100).toFixed(2) }
+
+    // ── dates: "YYYY-MM-DD", never instants. Arithmetic in UTC so no time zone moves a day.
+
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+    function iso(y: number, m: number, d: number): string {
+        const dt = new Date(Date.UTC(y, m - 1, d))
+        return dt.getUTCFullYear() + "-" + pad2(dt.getUTCMonth() + 1) + "-" + pad2(dt.getUTCDate())
+    }
+    function ymd(s: string): number[] { return s.split("-").map(Number) }
+    function addDays(s: string, n: number): string { const p = ymd(s); return iso(p[0], p[1], p[2] + n) }
+    function addMonths(s: string, n: number): string { const p = ymd(s); return iso(p[0], p[1] + n, 1) }
+    function monthStart(s: string): string { const p = ymd(s); return iso(p[0], p[1], 1) }
+    function monthEnd(s: string): string { const p = ymd(s); return iso(p[0], p[1] + 1, 0) }
+    function dayCount(a: string, b: string): number {
+        const p = ymd(a), q = ymd(b)
+        return Math.round((Date.UTC(q[0], q[1] - 1, q[2]) - Date.UTC(p[0], p[1] - 1, p[2])) / 86400000) + 1
+    }
+    function weekday(s: string): number { const p = ymd(s); return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() }
+
+    // "14 Nov 2026"; "Fri 14 Nov"; "Nov 2026"; "November 2026"
+    function dayLabel(s: string): string { if (s == "") return ""; const p = ymd(s); return p[2] + " " + MONTHS[p[1] - 1] + " " + p[0] }
+    function shortDay(s: string): string { if (s == "") return ""; const p = ymd(s); return p[2] + " " + MONTHS[p[1] - 1] }
+    function weekdayLabel(s: string): string { const p = ymd(s); return WEEKDAYS[weekday(s)] + " " + p[2] + " " + MONTHS[p[1] - 1] }
+    function monthLabel(s: string): string { const p = ymd(s); return MONTHS[p[1] - 1] + " " + p[0] }
+    function longMonth(s: string): string { const p = ymd(s); return LONG_MONTHS[p[1] - 1] + " " + p[0] }
+    function shortMonth(s: string): string { const p = ymd(s); return MONTHS[p[1] - 1] }
+
+    // A period from the service ("2026-11", "2026-Q4", a day, a week's Monday), said for a person.
+    function periodLabel(period: string, by: string): string {
+        if (by == "month") return monthLabel(period + "-01")
+        if (by == "quarter") return period.replace("-", " ")
+        if (by == "week") return "Week of " + shortDay(period)
+        return weekdayLabel(period)
+    }
+    function periodTick(period: string, by: string): string {
+        if (by == "month") return shortMonth(period + "-01")
+        if (by == "quarter") return period.slice(5)
+        return shortDay(period)
+    }
+
+    // What a person typed as a date: "yesterday", "today", "3 nov", "nov 3", "3/11",
+    // "2026-11-03". The year is today's, or last year's when that would be in the future.
+    function parseDay(t: string, today: string): string {
+        const s = t.trim().toLowerCase()
+        if (s == "" || s == "today") return today
+        if (s == "yesterday") return addDays(today, -1)
+        if (s == "tomorrow") return addDays(today, 1)
+        if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) { const p = ymd(s); return valid(p[0], p[1], p[2]) }
+        const mi = (w: string) => MONTHS.findIndex((m) => w.startsWith(m.toLowerCase())) + 1
+        let d = 0, m = 0, y = 0
+        let r = s.match(/^(\d{1,2})\s*([a-z]+)\.?\s*(\d{4})?$/)
+        if (r != null) { d = Number(r[1]); m = mi(r[2]); y = r[3] != null ? Number(r[3]) : 0 }
+        r = s.match(/^([a-z]+)\.?\s*(\d{1,2})(?:,?\s*(\d{4}))?$/)
+        if (r != null) { d = Number(r[2]); m = mi(r[1]); y = r[3] != null ? Number(r[3]) : 0 }
+        r = s.match(/^(\d{1,2})[\/.](\d{1,2})(?:[\/.](\d{4}))?$/)
+        if (r != null) { d = Number(r[1]); m = Number(r[2]); y = r[3] != null ? Number(r[3]) : 0 }
+        if (m < 1 || d < 1) return ""
+        if (y == 0) {
+            const ty = ymd(today)[0]
+            y = iso(ty, m, d) > today ? ty - 1 : ty
+        }
+        return valid(y, m, d)
+    }
+    function valid(y: number, m: number, d: number): string {
+        if (m < 1 || m > 12 || d < 1 || d > 31) return ""
+        const s = iso(y, m, d)
+        return ymd(s)[2] == d ? s : ""
+    }
+
+    // ── the date range: presets, stepping, the comparison period
+
+    function presetRange(id: string, today: string): string[] {
+        const p = ymd(today)
+        const q = Math.floor((p[1] - 1) / 3)
+        switch (id) {
+            case "this-month": return [iso(p[0], p[1], 1), monthEnd(today)]
+            case "last-month": return [iso(p[0], p[1] - 1, 1), iso(p[0], p[1], 0)]
+            case "last-30": return [addDays(today, -29), today]
+            case "this-quarter": return [iso(p[0], q * 3 + 1, 1), iso(p[0], q * 3 + 4, 0)]
+            case "last-quarter": return [iso(p[0], q * 3 - 2, 1), iso(p[0], q * 3 + 1, 0)]
+            case "this-year": return [iso(p[0], 1, 1), iso(p[0], 12, 31)]
+            case "last-year": return [iso(p[0] - 1, 1, 1), iso(p[0] - 1, 12, 31)]
+            case "last-12": return [iso(p[0], p[1] - 11, 1), monthEnd(today)]
+            case "all": return ["", ""]
+        }
+        return [iso(p[0], p[1], 1), monthEnd(today)]
+    }
+
+    // whole months: [from, to] covers months exactly
+    function isWholeMonths(from: string, to: string): boolean {
+        return from != "" && to != "" && ymd(from)[2] == 1 && addDays(to, 1).endsWith("-01")
+    }
+    function monthsIn(from: string, to: string): number {
+        const a = ymd(from), b = ymd(to)
+        return (b[0] - a[0]) * 12 + b[1] - a[1] + 1
+    }
+
+    // The range of the same length, `dir` steps before (-1) or after (1).
+    function stepRange(from: string, to: string, dir: number): string[] {
+        if (from == "" || to == "") return [from, to]
+        if (isWholeMonths(from, to)) {
+            const n = monthsIn(from, to)
+            const start = addMonths(from, n * dir)
+            return [start, monthEnd(addMonths(start, n - 1))]
+        }
+        const n = dayCount(from, to) * dir
+        return [addDays(from, n), addDays(to, n)]
+    }
+
+    // The comparison period for a range: the one before it, or the same one a year earlier.
+    function compareRange(from: string, to: string, mode: string): string[] {
+        if (mode == "none" || from == "" || to == "") return ["", ""]
+        if (mode == "year") {
+            const a = ymd(from), b = ymd(to)
+            return [valid(a[0] - 1, a[1], a[2]) || iso(a[0] - 1, a[1], 28), valid(b[0] - 1, b[1], b[2]) || iso(b[0] - 1, b[1] + 1, 0)]
+        }
+        return stepRange(from, to, -1)
+    }
+
+    // What the range is, in words: "Nov 2026", "Q3 2026", "2025", "3 Oct – 1 Nov 2026"
+    function rangeLabel(from: string, to: string): string {
+        if (from == "" && to == "") return "All time"
+        if (from == "") return "Until " + dayLabel(to)
+        if (to == "") return "From " + dayLabel(from)
+        if (isWholeMonths(from, to)) {
+            const n = monthsIn(from, to)
+            const a = ymd(from)
+            if (n == 1) return monthLabel(from)
+            if (n == 12 && a[1] == 1) return "" + a[0]
+            if (n == 3 && (a[1] - 1) % 3 == 0) return "Q" + ((a[1] - 1) / 3 + 1) + " " + a[0]
+            return shortMonth(from) + (ymd(from)[0] != ymd(to)[0] ? " " + a[0] : "") + " – " + monthLabel(to)
+        }
+        if (from == to) return dayLabel(from)
+        return shortDay(from) + (ymd(from)[0] != ymd(to)[0] ? " " + ymd(from)[0] : "") + " – " + dayLabel(to)
+    }
+
+    // the comparison period, briefly: "vs Oct", "vs Nov 2025", "vs Q2"
+    function compareLabel(from: string, to: string): string {
+        if (from == "") return ""
+        if (isWholeMonths(from, to)) {
+            const n = monthsIn(from, to)
+            if (n == 1) return "vs " + shortMonth(from)
+            if (n == 3 && (ymd(from)[1] - 1) % 3 == 0) return "vs Q" + ((ymd(from)[1] - 1) / 3 + 1)
+            if (n == 12 && ymd(from)[1] == 1) return "vs " + ymd(from)[0]
+        }
+        return "vs " + rangeLabel(from, to)
+    }
+
+    // the natural granularity for a range
+    function grainFor(from: string, to: string): string {
+        const n = from == "" || to == "" ? 800 : dayCount(from, to)
+        if (n <= 31) return "day"
+        if (n <= 120) return "week"
+        if (n <= 800) return "month"
+        return "quarter"
+    }
+
+    // ── the filter, as the service's query string
+
+    function filterQuery(f: any, without: string[]): string {
+        const out: string[] = []
+        const put = (k: string, v: string) => { if (!without.includes(k) && v != "") out.push(k + "=" + encodeURIComponent(v)) }
+        put("from", f.from ?? "")
+        put("to", f.to ?? "")
+        put("q", (f.q ?? "").trim())
+        if (f.min != null) put("min", "" + f.min)
+        if (f.max != null) put("max", "" + f.max)
+        put("kind", (f.kinds ?? []).join(","))
+        put("category", (f.cats ?? []).join(","))
+        put("contact", (f.contacts ?? []).join(","))
+        put("product", (f.products ?? []).join(","))
+        return out.join("&")
+    }
+
+    // the filter as a record of strings, as the bulk endpoint's `where` takes it
+    function filterWhere(f: any): any {
+        const w: any = {}
+        for (const part of filterQuery(f, []).split("&")) {
+            if (part == "") continue
+            const i = part.indexOf("=")
+            w[part.slice(0, i)] = decodeURIComponent(part.slice(i + 1))
+        }
+        return w
+    }
+
+    // the kinds an aggregate counts, narrowed by the kinds the filter already has
+    function bothKinds(mine: string[], filtered: string[]): string[] {
+        if (filtered.length == 0) return mine
+        const both = mine.filter((k) => filtered.includes(k))
+        return both.length == 0 ? ["none"] : both
+    }
+
+    // ── search: the words the list highlights
+
+    function searchWords(q: string): string[] {
+        return q.trim().toLowerCase().split(/\s+/).filter((w) => w != "" && !/^\$?[\d,]+(\.\d+)?$/.test(w))
+    }
+
+    function htmlSafe(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") }
+
+    // The text as markup with every searched word lit (a `Hit` span).
+    function highlighted(text: string, words: string[]): string {
+        if (words.length == 0) return htmlSafe(text)
+        const lower = text.toLowerCase()
+        const marks = new Array(text.length).fill(false)
+        for (const w of words) {
+            let at = lower.indexOf(w)
+            while (at >= 0) { for (let i = at; i < at + w.length; i++) marks[i] = true; at = lower.indexOf(w, at + 1) }
+        }
+        let out = ""
+        let open = false
+        for (let i = 0; i < text.length; i++) {
+            if (marks[i] && !open) { out += "<span class='Hit'>"; open = true }
+            if (!marks[i] && open) { out += "</span>"; open = false }
+            out += htmlSafe(text[i])
+        }
+        return open ? out + "</span>" : out
+    }
+
+    // ── export
+
+    function csvCell(v: string): string { return /[",\n]/.test(v) ? "\"" + v.replace(/"/g, "\"\"") + "\"" : v }
+    function centsPlain(c: number): string { return (c < 0 ? "-" : "") + (Math.abs(c) / 100).toFixed(2) }
+
+    // ── the amount slider: a skewed scale, so its positions are friendly values
+
+    const AMOUNT_STOPS = [0, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7500, 10000, 12500, 15000,
+        20000, 25000, 30000, 40000, 50000, 75000, 100000, 150000, 200000, 300000, 500000]
+    function amountStops(): number[] { return AMOUNT_STOPS }
+    function stopIndexFor(cents: number | null | undefined, top: boolean): number {
+        if (cents == null) return top ? AMOUNT_STOPS.length - 1 : 0
+        let best = 0
+        for (let i = 0; i < AMOUNT_STOPS.length; i++) if (Math.abs(AMOUNT_STOPS[i] - cents) < Math.abs(AMOUNT_STOPS[best] - cents)) best = i
+        return best
+    }
+    }
+
+// The browser's own: a file handed to the person.
+
+script [ host = browser ] {
+    function saveTextFile(name: string, text: string, type: string) {
+        const url = URL.createObjectURL(new Blob([text], { type: type }))
+        const a = document.createElement("a")
+        a.href = url
+        a.download = name
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 4000)
+    }
+    }
+
+// A searched word, lit where it matches.
+
+style Hit [ fontWeight = bold, underline = true ]
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Category [ id: string, name: string, kind: "income" | "expense", colour: number, archived: boolean ]
+schema Channel [ id: string, name: string ]
+schema Product [ id: string, name: string, price: number, unitCost: number, archived: boolean ]
+schema Contact [ id: string, name: string, type: "customer" | "vendor", usualCategoryId?: string,
+    transactionCount: number, lastDate?: string ]
+
+// One row of the list, as the service sends it.
+
+schema Split [ parts: number, categoryIds[]: string ]
+schema Txn [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, split?: Split, channel?: string,
+    amount: number, signed: number, inFilter?: number, lineCount: number, refundOf?: string, refunded?: number ]
+schema Summary [ count: number, in: number, out: number, net: number ]
+schema TxnPage [ total: number, summary: Summary, rows[]: Txn ]
+
+// One transaction opened: its lines, parts, refunds.
+
+schema Line [ id: string, productId?: string, description: string, quantity: number, unitPrice: number,
+    amount: number, unitCost?: number, refunded?: number, refundedQuantity?: number, refundable?: number,
+    refundableQuantity?: number, saleLineId?: string ]
+schema Part [ categoryId: string, amount: number ]
+schema RefundRef [ id: string, date: string, amount: number, description: string ]
+schema SaleRef [ id: string, date: string, description: string, amount: number, channel?: string ]
+schema TxnDetail [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, channel?: string, amount: number,
+    signed: number, lineCount: number, refundOf?: string, refunded?: number,
+    parts[]?: Part, lines[]?: Line, refunds[]?: RefundRef, sale?: SaleRef,
+    refundable?: number, cost?: number, margin?: number ]
+schema TxnReply [ transaction: TxnDetail, changeId: string ]
+
+// The totals the service computes over any filter.
+
+schema Measure [ amount: number, count: number ]
+schema Margin [ amount: number, percent?: number, count: number ]
+schema Period [ period: string, start: string, end: string, from: string, to: string, partial: boolean,
+    revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema PeriodTotal [ revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema Periods [ by: string, from: string, to: string, periods[]: Period, total: PeriodTotal ]
+schema CatAmount [ categoryId?: string, amount: number, count: number ]
+schema CatAgg [ side: string, categories[]: CatAmount, total: Measure ]
+schema ProductAgg [ productId?: string, units: number, revenue: number, cost: number, margin: number,
+    marginPercent?: number, count: number ]
+schema ContactAmount [ contactId?: string, contactName?: string, amount: number, count: number ]
+schema ContactAgg [ side: string, contacts[]: ContactAmount, total: Measure ]
+schema Bucket [ min: number, max?: number, count: number ]
+schema AmountAgg [ buckets[]: Bucket, count: number, lowest?: number, highest?: number ]
+schema CatCount [ categoryId?: string, count: number ]
+schema CatCounts [ categories[]: CatCount, total: number ]
+schema Budget [ categoryId: string, amount: number, spent: number, remaining: number, count: number ]
+schema Budgets [ month: string, from: string, to: string, budgets[]: Budget ]
+
+// The shared filter: what every list, chart and summary is shaped by.
+
+// An active filter, as its chip says it, and the filter without it.
+
+schema Chip [ id: string, label: string, without: any ]
+
+schema Filter [ from: string, to: string, q: string, min?: number, max?: number,
+    kinds[]: string, cats[]: string, contacts[]: string, products[]: string ]
+
+// The way back from a figure's records: where the person was, and the filter they had.
+
+schema Back [ location: string, f: Filter, preset: string, label: string ]
+
+// One point of a chart: what it is, its value, how it compares, and how to open its records.
+
+schema Point [ key: string, label: string, tick: string, value: number, prior?: number, count: number,
+    partial: boolean, from: string, to: string, kinds[]: string, money: boolean ]
+schema Series [ id: string, name: string, style: "bar" | "line" | "dashed", tone: number, points[]: Point ]

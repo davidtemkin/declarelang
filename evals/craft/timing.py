@@ -124,6 +124,15 @@ if first_write and first_verify:
     print(f"phases: reading {mins(first_write):.1f} · writing {mins(first_verify) - mins(first_write):.1f} · checking {total - mins(first_verify):.1f} min")
 tt = sum(sum(v) for v in tool.values()) / 60
 print(f"tool time {tt:.1f} min · model time {total - tt:.1f} min")
+# every kind of token, from the run's own final figures; and how fast the model answered,
+# as output per minute of model time: the API's rate varies by the hour, so a slow run
+# with an ordinary token count was served slowly, not worked longer
+out = u.get("output_tokens") or 0
+print(f"tokens: input {u.get('input_tokens') or 0} · cache write {u.get('cache_creation_input_tokens') or 0} · "
+      f"cache read {u.get('cache_read_input_tokens') or 0} · output {out} · "
+      f"thinking {u.get('output_tokens_details', {}).get('thinking_tokens') or 0}")
+mt = total - tt
+if mt > 0: print(f"rate: {out / mt:.0f} output tokens per model-minute")
 print("tools:")
 for k, v in sorted(tool.items(), key=lambda x: -sum(x[1])):
     if sum(v) >= 1: print(f"  {k:8s} {len(v):3d}×  {sum(v)/60:5.2f} min  (median {st.median(v):.1f} s)")

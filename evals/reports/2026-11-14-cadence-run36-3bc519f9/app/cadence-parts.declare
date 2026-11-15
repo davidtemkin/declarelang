@@ -1,0 +1,695 @@
+/*
+# Cadence: the parts
+
+The look of Cadence and the pieces its screen is made of. Ink and paper, one
+color that means effort, and two families: a condensed face for figures and
+the system face for words. `cadence.declare` includes this file.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over a library preset, so library controls (the date picker, the
+// sheets, the toast) read the same paper. `accent` is ink here: the library's
+// primary controls are black on paper. The one color is `effort`; the App's
+// `effortTone(e)` mixes it into paper by how hard a session was, so a hard
+// session is a loud block and an easy one barely shows.
+
+theme Paper [
+    background = #F1EEE6, surface = #FAF8F3, card = #FAF8F3,
+    line = #DCD7CB, lineStrong = #B9B3A5, hover = #E9E5DB,
+    text = #141312, textMuted = #5C5850, textFaint = #8A857A,
+    accent = #141312, accentHovered = #2B2926, accentPressed = #000000, accentTextColor = #F1EEE6,
+    control = #E6E2D8, controlHovered = #DDD8CC, controlPressed = #D1CBBD, controlSelected = #D1CBBD,
+    linkColor = #141312,
+    effort = #EE4A10, onEffort = #FFF8F2
+    ]
+
+
+theme PaperDark [
+    background = #131210, surface = #1C1B18, card = #1C1B18,
+    line = #34322D, lineStrong = #4D4A43, hover = #23221F,
+    text = #F1EEE6, textMuted = #A9A396, textFaint = #7A756B,
+    accent = #F1EEE6, accentHovered = #FFFFFF, accentPressed = #D9D5CC, accentTextColor = #131210,
+    control = #26251F, controlHovered = #2E2C27, controlPressed = #3A3832, controlSelected = #3A3832,
+    linkColor = #F1EEE6,
+    effort = #FF5A1E, onEffort = #FFF8F2
+    ]
+
+
+// ── Figures ─────────────────────────────────────────────────────────────────
+//
+// A figure is a number set large in the condensed face with its unit small
+// beside it, sitting on one baseline: "4 sessions", "12 days", "8.2 km".
+
+class Figure [
+    value: string = "",
+    unit: string = "",
+    size: number = 96,
+    tone: Color = { provided("theme").text },
+    unitTone: Color = { provided("theme").textMuted },
+    accessibilityRole = group,
+    accessibilityLabel = { classroot.value + " " + classroot.unit },
+    baseline: number = { classroot.num.y + classroot.num.baseline },
+    layout: SimpleLayout [ axis = x, spacing = { Math.round(classroot.size * 0.07) }, align = baseline ],
+    num: Text [ fontFamily = { app.figureFace }, fontSize = { classroot.size }, fontWeight = bold,
+        letterSpacing = { -classroot.size * 0.012 }, numeralWidth = tabular, wrap = false,
+        textColor = { classroot.tone }, text = { classroot.value } ],
+    unitText: Text [ visible = { classroot.unit != "" }, fontSize = { Math.max(13, Math.round(classroot.size * 0.17)) },
+        fontWeight = semibold, wrap = false, textColor = { classroot.unitTone }, text = { classroot.unit } ]
+    ]
+
+
+// A duration as figures: "3h 40m" is a 3 and a 40, large, with h and m small.
+
+class DurFigure [
+    minutes: number = 0,
+    size: number = 96,
+    tone: Color = { provided("theme").text },
+    whole: number = { Math.max(0, Math.round(classroot.minutes)) },
+    hours: number = { Math.floor(classroot.whole / 60) },
+    rest: number = { classroot.whole % 60 },
+    accessibilityRole = group,
+    accessibilityLabel = { fmtDur(classroot.whole) },
+    baseline: number = { classroot.mins.y + classroot.mins.baseline },
+    layout: SimpleLayout [ axis = x, spacing = { Math.round(classroot.size * 0.08) }, align = baseline ],
+    Figure [ visible = { classroot.hours > 0 }, size = { classroot.size }, tone = { classroot.tone },
+        value = { "" + classroot.hours }, unit = "h" ],
+    mins: Figure [ visible = { classroot.hours == 0 || classroot.rest > 0 }, size = { classroot.size }, tone = { classroot.tone },
+        value = { "" + classroot.rest }, unit = "m" ]
+    ]
+
+
+// A small label set in capitals above a figure: THIS WEEK, STREAK.
+
+class Eyebrow extends Text [ fontSize = 13, fontWeight = bold, letterSpacing = 1.4, textTransform = uppercase,
+    wrap = false, textColor = { provided("theme").textMuted }
+    ]
+
+
+// A fact in a session: a small label over a middling figure.
+
+class Fact [
+    label: string = "",
+    value: string = "",
+    unit: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Eyebrow [ text = { classroot.label } ],
+    Figure [ size = 40, value = { classroot.value }, unit = { classroot.unit } ]
+    ]
+
+
+// ── Today ───────────────────────────────────────────────────────────────────
+
+// One day of this week: a block as tall as the time spent, as loud as the
+// effort, over the day's letter. The height travels when a session lands.
+
+class WeekBar [ flexes = true, height = { app.barArea + 34 },
+    minutes: number = { :minutes ?? 0 },
+    effort: number = { :effort ?? 0 },
+    isToday: boolean = { :isToday ?? false },
+    future: boolean = { :future ?? false },
+    accessibilityRole = group,
+    accessibilityLabel = { (:letter ?? "") + ": " + (classroot.minutes > 0 ? fmtDur(classroot.minutes) : "nothing") },
+    h: number = 0,
+    rise: Spring [ attribute = h, to = { classroot.minutes / app.weekScale * app.barArea }, stiffness = 140, damping = 20 ],
+    shown: number = { Math.max(classroot.h, 3) },
+    amount: Text [ x = center, y = { Math.max(0, app.barArea - classroot.shown - 20) }, fontSize = 13, fontWeight = semibold,
+        wrap = false, visible = { classroot.minutes > 0 && parent.width >= 34 },
+        textColor = { provided("theme").textMuted }, text = { fmtDur(classroot.minutes) } ],
+    bar: View [ x = center, y = { app.barArea - classroot.shown }, width = { Math.max(6, Math.min(parent.width - 6, 56)) },
+        height = { classroot.shown }, cornerRadius = 2,
+        fill = { classroot.minutes > 0 ? app.effortTone(classroot.effort) : classroot.future ? null : provided("theme").line },
+        stroke = { classroot.future ? stroke(1, provided("theme").line) : null } ],
+    letter: Text [ x = center, y = { app.barArea + 10 }, fontSize = 14, wrap = false,
+        fontWeight = { classroot.isToday ? "bold" : "medium" },
+        textColor = { classroot.isToday ? provided("theme").text : provided("theme").textFaint }, text = { :letter ?? "" } ],
+    todayMark: View [ x = center, y = { app.barArea + 30 }, width = 4, height = 4, cornerRadius = 2,
+        visible = { classroot.isToday }, fill = { provided("theme").text } ]
+    ]
+
+
+// The session in progress: a pulse that beats with each fresh reading, and
+// the clock running. It lives where the week is read, above everything.
+
+class LiveBlock extends Control [ width = 100%, padding = 18, cornerRadius = 6,
+    fill = { provided("theme").surface },
+    stroke = { stroke(2, provided("theme").effort) },
+    live: Live? = null,
+    secs: number = { classroot.live?.startedSecondsAgo ?? 0 },
+    clock: string = { Math.floor(classroot.secs / 60) + ":" + ("" + (classroot.secs % 60)).padStart(2, "0") },
+    accessibilityLabel = { "Running now: " + sportName(classroot.live?.sport ?? "") + ", " + classroot.clock },
+    press() { },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    head: View [ layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        dot: View [ width = 12, height = 12, cornerRadius = 6, fill = { provided("theme").effort },
+            beat: number = 1,
+            opacity = { this.beat },
+            Spring [ attribute = beat, to = { classroot.secs % 2 == 0 ? 1 : 0.25 }, stiffness = 90, damping = 14 ]
+            ],
+        Eyebrow [ textColor = { provided("theme").effort },
+            text = { "In progress · " + sportName(classroot.live?.sport ?? "") } ]
+        ],
+    row: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 28, rowSpacing = 4, align = baseline ],
+        Figure [ size = { app.wide ? 88 : 72 }, value = { classroot.clock }, unit = "elapsed" ],
+        Figure [ size = 40, value = { "" + (classroot.live?.heartNow ?? 0) }, unit = "bpm now" ],
+        Figure [ size = 40, visible = { (classroot.live?.distanceKm ?? 0) > 0 },
+            value = { (classroot.live?.distanceKm ?? 0).toFixed(1) }, unit = "km" ]
+        ]
+    ]
+
+
+// The last session: what, when, how it went. Pressing it opens it.
+
+class LastBlock extends Control [ cornerRadius = 4,
+    rec: Session? = null,
+    accessibilityLabel = { "Last session: " + sportName(classroot.rec?.sport ?? "") },
+    fill = { hovered ? provided("theme").hover : null },
+    press() { if (classroot.rec != null) app.openSession(classroot.rec.id) },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Eyebrow [ text = { "Last session · " + (classroot.rec == null ? "" : dayLabel(dayNum(classroot.rec.date), app.todayN)) } ],
+    top: View [ layout: SimpleLayout [ axis = x, spacing = 16, align = baseline ],
+        Text [ fontFamily = { app.figureFace }, fontSize = 56, fontWeight = bold, wrap = false,
+            text = { sportName(classroot.rec?.sport ?? "") } ],
+        DurFigure [ size = 56, minutes = { classroot.rec?.minutes ?? 0 } ]
+        ],
+    facts: View [ layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        EffortChip [ effort = { classroot.rec?.effort ?? 0 } ],
+        Text [ fontSize = 15, fontWeight = medium, wrap = false, textColor = { provided("theme").textMuted },
+            text = { app.factLine(classroot.rec) } ]
+        ]
+    ]
+
+
+// Effort as a small block of its own tone, the number on it.
+
+class EffortChip [ width = 34, height = 34, cornerRadius = 3,
+    effort: number = 0,
+    fill = { app.effortTone(classroot.effort) },
+    accessibilityRole = group,
+    accessibilityLabel = { "effort " + classroot.effort },
+    Text [ x = center, y = center, fontFamily = { app.figureFace }, fontSize = 22, fontWeight = bold,
+        textColor = { app.inkOn(classroot.effort) }, text = { "" + classroot.effort } ]
+    ]
+
+
+// ── The year ────────────────────────────────────────────────────────────────
+//
+// The whole history as one surface the hand moves: a drag pushes it through
+// the months, a pinch (or a trackpad pinch, or ⌘-scroll) opens it to a
+// fortnight or closes it to a season. The App holds the window onto it —
+// `viewStart` (in days from today) and `viewSpan` (days shown) — and every
+// gesture writes those two, so the drawing, the period's name and its totals
+// all follow. The point under the hand stays under the hand.
+
+class YearSurface [ width = 100%, height = { app.wide ? 320 : 260 }, clip = true,
+    accessibilityRole = image,
+    accessibilityLabel = { "Sessions from " + app.periodLabel },
+    claim = x,                                  // sideways is the surface's; up and down still scroll the page
+    grabStart: number = 0,
+    grabSpan: number = 0,
+    onDragStart(e: PointerEvent) { grabStart = app.viewStart },
+    onDrag(e: PointerEvent) { app.setView(grabStart - e.deltaX * app.viewSpan / this.width, app.viewSpan, false) },
+    onPinchStart(e: PinchEvent) { grabStart = app.viewStart; grabSpan = app.viewSpan },
+    onPinch(e: PinchEvent) { app.zoomAbout(e.x, this.width, grabStart, grabSpan, grabSpan / e.scale) },
+    onWheel(e: WheelEvent) {
+        if (e.pinch || e.ctrl || e.meta) app.zoomAbout(e.x, this.width, app.viewStart, app.viewSpan, app.viewSpan * Math.exp(e.deltaY * 0.01))
+        else app.setView(app.viewStart + (e.deltaX + (e.shift ? e.deltaY : 0)) * app.viewSpan / this.width, app.viewSpan, false)
+        },
+
+    // A tap opens the day's session nearest the finger.
+
+    onClick(e: PointerEvent) {
+        const rel = app.viewStart + e.x / this.width * app.viewSpan
+        const tol = Math.max(0.7, 14 * app.viewSpan / this.width)
+        let best = ""
+        let bestD = 1e9
+        for (const L of app.sessions.loads) {
+            const dd = Math.abs(L.day - app.todayN + 0.5 - rel)
+            if (dd < bestD) { bestD = dd; best = L.id }
+        }
+        if (best != "" && bestD <= tol) app.openSession(best)
+        },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const w = d.w
+        const h = d.h
+        const s = app.viewStart
+        const span = app.viewSpan
+        const base = app.todayN
+        const px = w / span
+        const top = 40
+        const foot = px >= 20 ? 44 : 14
+        const bottom = h - foot
+        const ph = bottom - top
+        const maxM = app.sessions.maxDayMinutes
+        const lo = Math.floor(s) - 1
+        const hi = Math.ceil(s + span) + 1
+        const small = ({ fontSize: 12, fontWeight: 600, textColor: t.textFaint })
+        const label = ({ fontSize: 13, fontWeight: 700, textColor: t.textMuted })
+        const strong = ({ fontSize: 13, fontWeight: 700, textColor: t.text })
+
+        // hour lines, so a bar's height can be read
+        d.lineWidth = 1
+        for (const hr of [1, 2, 3, 4]) {
+            if (hr * 60 > maxM) break
+            const y = Math.round(bottom - ph * hr * 60 / maxM) + 0.5
+            d.strokeStyle = t.line
+            d.beginPath(); d.moveTo(0, y); d.lineTo(w, y); d.stroke()
+            d.fillText(hr + "h", 4, y - 5, small)
+        }
+        d.strokeStyle = t.lineStrong
+        d.beginPath(); d.moveTo(0, bottom + 0.5); d.lineTo(w, bottom + 0.5); d.stroke()
+
+        // months: a rule at each start, its name and its hours; the month at
+        // the left edge keeps its name in view
+        const monthW = px * 30.4
+        let edgeLabelled = false
+        for (let r = lo; r <= hi; r++) {
+            const n = base + r
+            const atEdge = !edgeLabelled && r == lo + 1
+            if (dateOf(n) != 1 && !atEdge) continue
+            const x = Math.round((r - s) * px) + 0.5
+            if (x > w - 8) continue
+            const key = yearOf(n) * 12 + monthOf(n)
+            if (dateOf(n) == 1) {
+                d.strokeStyle = t.lineStrong
+                d.beginPath(); d.moveTo(x, 6); d.lineTo(x, bottom); d.stroke()
+            }
+            let lx = dateOf(n) == 1 ? x + 6 : 4
+            if (atEdge) {
+                edgeLabelled = true
+                const nextStart = (r + (31 - dateOf(n) + 1) - s) * px
+                if (dateOf(n) != 1 && nextStart < 96) continue
+            }
+            lx = Math.min(lx, w - 72)
+            const name = monthShort(monthOf(n)) + (monthOf(n) == 0 || r <= lo + 1 ? " " + yearOf(n) : "")
+            const hot = key == app.sessions.hardestMonth
+            d.fillText(name, lx, 18, hot ? strong : label)
+            if (monthW >= 64) {
+                const mins = app.sessions.monthly.get(key) ?? 0
+                d.fillText(fmtDur(mins), lx, 34, hot ? ({ fontSize: 12, fontWeight: 700, textColor: t.effort }) : small)
+            }
+        }
+
+        // today's edge
+        const tx = Math.round((1 - s) * px) + 0.5
+        d.strokeStyle = t.text
+        d.setLineDash([3, 3])
+        d.beginPath(); d.moveTo(tx, top - 4); d.lineTo(tx, bottom); d.stroke()
+        d.setLineDash([])
+
+        // the days: as tall as the time, as loud as the effort
+        const bw = Math.max(2, Math.min(px * 0.72, 64))
+        for (const L of app.sessions.loads) {
+            const r = L.day - base
+            if (r < lo || r > hi) continue
+            const x = (r - s) * px + (px - bw) / 2
+            const bh = Math.max(3, ph * L.minutes / maxM)
+            d.fillStyle = app.effortTone(L.effort)
+            d.fillRect(x, bottom - bh, bw, bh)
+            if (L.id == app.openId || (app.openRec != null && dayNum(app.openRec.date) == L.day)) {
+                d.strokeStyle = t.text
+                d.lineWidth = 2
+                d.strokeRect(x - 2, bottom - bh - 2, bw + 4, bh + 2)
+                d.lineWidth = 1
+            }
+            if (px >= 44 && bh + 34 < ph + top) {
+                const one = app.sessions.byId(L.id)
+                d.fillText(fmtDur(L.minutes), x, bottom - bh - 8, strong)
+                if (one != null) d.fillText(sportName(one.sport) + (L.count > 1 ? " +" + (L.count - 1) : ""), x, bottom - bh - 24, small)
+            }
+        }
+
+        // a fortnight open: every day named beneath
+        if (px >= 20) {
+            for (let r = lo; r <= hi; r++) {
+                const n = base + r
+                if (r > 0) continue
+                const x = (r - s) * px + px / 2 - 6
+                const st = r == 0 ? strong : label
+                d.fillText(weekdayName(n).slice(0, 1), x, bottom + 18, st)
+                d.fillText("" + dateOf(n), x, bottom + 36, r == 0 ? strong : small)
+            }
+        }
+        }
+    ]
+
+
+// A step through the year: a period to look at, chosen in one press.
+
+class RangeChip extends Control [ height = { app.touchFirst ? 44 : 36 }, cornerRadius = { this.height / 2 },
+    padding = [0, 16, 0, 16],
+    label: string = "",
+    on: boolean = false,
+    accessibilityRole = toggle,
+    accessibilityPressed = { on },
+    fill = { classroot.on ? provided("theme").text : hovered ? provided("theme").hover : null },
+    stroke = { classroot.on ? null : stroke(1, provided("theme").lineStrong) },
+    layout: SimpleLayout [ axis = x, align = center ],
+    TextLabel [ fontSize = 14, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").background : provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// A day to log against: Today, Yesterday, Mon 3.
+
+class DayChip extends ChoiceItem [ height = { app.touchFirst ? 44 : 36 }, cornerRadius = { this.height / 2 },
+    padding = [0, 16, 0, 16],
+    label: string = "",
+    fill = { classroot.on ? provided("theme").text : hovered ? provided("theme").hover : null },
+    stroke = { classroot.on ? null : stroke(1, provided("theme").lineStrong) },
+    layout: SimpleLayout [ axis = x, align = center ],
+    TextLabel [ fontSize = 14, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").background : provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// A session in the period's list: its effort block, what and when, how long.
+
+class SessionRow extends Control [ width = 100%, height = { app.touchFirst ? 64 : 56 }, padding = [0, 6, 0, 0],
+    accessibilityLabel = { sportName(:sport ?? "") + ", " + dayLabel(dayNum(:date ?? "1970-01-01"), app.todayN) + ", " + fmtDur(:minutes ?? 0) },
+    fill = { pressed ? provided("theme").hover : hovered ? provided("theme").hover : null },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    press() { app.openSession(:id ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+    EffortChip [ effort = { :effort ?? 0 } ],
+    what: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ fontSize = 17, fontWeight = semibold, wrap = false,
+            text = { sportName(:sport ?? "") + ((:distanceKm ?? 0) > 0 ? "  " + fmtKm(:distanceKm ?? 0) : "") } ],
+        Text [ width = 100%, fontSize = 14, maxLines = 1, textColor = { provided("theme").textMuted },
+            text = { dayLabel(dayNum(:date ?? "1970-01-01"), app.todayN) + ((:note ?? "") != "" ? " · " + (:note ?? "") : "") } ]
+        ],
+    DurFigure [ size = 30, minutes = { :minutes ?? 0 } ]
+    ]
+
+
+// ── A session ───────────────────────────────────────────────────────────────
+
+// Where a session sits: every session as a dot, by how long (across) and how
+// hard (up); its own sport darker, this one in the effort color.
+
+class SitsPlot [ width = 100%, height = 150,
+    rec: Session? = null,
+    accessibilityRole = image,
+    accessibilityLabel = "Every session by duration and effort, this one marked",
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const me = classroot.rec
+        if (me == null) return
+        const all = app.sessions.all()
+        const maxM = all.reduce((m, s) => Math.max(m, s.minutes), 60)
+        const left = 4
+        const bottom = d.h - 20
+        const xOf = (m: number) => left + (d.w - left - 8) * m / maxM
+        const yOf = (e: number) => bottom - (bottom - 10) * (e - 0.5) / 10
+        d.strokeStyle = t.line
+        d.lineWidth = 1
+        d.beginPath(); d.moveTo(0, bottom + 0.5); d.lineTo(d.w, bottom + 0.5); d.stroke()
+        for (const s of all) {
+            const mine = s.sport == me.sport
+            d.globalAlpha = mine ? 0.55 : 0.18
+            d.fillStyle = t.text
+            d.beginPath(); d.arc(xOf(s.minutes), yOf(s.effort), mine ? 3 : 2.5, 0, 6.3); d.fill()
+        }
+        d.globalAlpha = 1
+        d.fillStyle = app.effortTone(me.effort)
+        d.strokeStyle = t.text
+        d.lineWidth = 2
+        d.beginPath(); d.arc(xOf(me.minutes), yOf(me.effort), 8, 0, 6.3); d.fill(); d.stroke()
+        const cap = ({ fontSize: 12, fontWeight: 600, textColor: t.textFaint })
+        d.fillText("longer →", d.w - 64, d.h - 4, cap)
+        d.fillText("↑ harder", 6, 14, cap)
+        }
+    ]
+
+
+class SessionCard [ width = 100%,
+    rec: Session? = null,
+    sport: string = { classroot.rec?.sport ?? "" },
+    effort: number = { classroot.rec?.effort ?? 0 },
+    km: number = { classroot.rec?.distanceKm ?? 0 },
+    note: string = { classroot.rec?.note ?? "" },
+    layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+    Eyebrow [ width = 100%, wrap = true,
+        text = { sportName(classroot.sport) + " · " + (classroot.rec == null ? "" : longDay(dayNum(classroot.rec.date))) } ],
+    figures: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 28, rowSpacing = 0, align = baseline ],
+        DurFigure [ size = 96, minutes = { classroot.rec?.minutes ?? 0 } ],
+        Figure [ size = 96, visible = { classroot.km > 0 }, value = { classroot.km.toFixed(1) }, unit = "km" ]
+        ],
+
+    // How hard: a block of the effort's own tone. A hard one shouts.
+
+    band: View [ width = 100%, padding = [14, 18, 14, 18], cornerRadius = 4,
+        fill = { app.effortTone(classroot.effort) },
+        layout: SimpleLayout [ axis = x, spacing = 16, align = baseline ],
+        Figure [ size = 72, value = { "" + classroot.effort }, unit = "/ 10 effort",
+            tone = { app.inkOn(classroot.effort) }, unitTone = { app.inkOn(classroot.effort) } ],
+        Text [ fontSize = 22, fontWeight = bold, textTransform = uppercase, letterSpacing = 1, wrap = false,
+            textColor = { app.inkOn(classroot.effort) }, text = { effortWord(classroot.effort) } ]
+        ],
+    facts: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 36, rowSpacing = 14 ],
+        Fact [ visible = { (classroot.rec?.heartAvg ?? 0) > 0 }, label = "Average heart rate",
+            value = { "" + (classroot.rec?.heartAvg ?? 0) }, unit = "bpm" ],
+        Fact [ visible = { classroot.km > 0 }, label = { classroot.sport == "ride" ? "Speed" : "Pace" },
+            value = { app.paceOf(classroot.rec) }, unit = { classroot.sport == "ride" ? "km/h" : classroot.sport == "swim" ? "/100 m" : "/km" } ]
+        ],
+    noteText: Text [ visible = { classroot.note != "" }, width = 100%, fontSize = 19, lineHeight = 1.4,
+        text = { "“" + classroot.note + "”" } ],
+    sits: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Eyebrow [ text = "Against everything else" ],
+        Text [ width = 100%, fontSize = 17, lineHeight = 1.35, text = { app.sitsLine(classroot.rec) } ],
+        SitsPlot [ rec = { classroot.rec } ]
+        ],
+    actions: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Button [ label = "Correct", flexes = true, height = { app.touchFirst ? 52 : 44 },
+            onClick() { app.startEdit() }
+            ],
+        Button [ label = "Delete", flexes = true, height = { app.touchFirst ? 52 : 44 },
+            onClick() { app.deleteOpen() }
+            ]
+        ]
+    ]
+
+
+// ── Adding one ──────────────────────────────────────────────────────────────
+
+// A big press: a sport, a step of time, an effort.
+
+class Choice extends ChoiceItem [ height = { app.touchFirst ? 56 : 48 }, cornerRadius = 6, flexes = true,
+    label: string = "",
+    rest: Color = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    fill = { classroot.on ? provided("theme").text : classroot.rest },
+    TextLabel [ x = center, fontSize = 17, fontWeight = bold, wrap = false,
+        textColor = { classroot.on ? provided("theme").background : provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// A step: −5, +15, −0.5. Never selected; it nudges.
+
+class Step extends Control [ height = { app.touchFirst ? 56 : 44 }, cornerRadius = 6, flexes = true,
+    label: string = "",
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    TextLabel [ x = center, fontFamily = { app.figureFace }, fontSize = 24, fontWeight = bold, wrap = false,
+        text = { classroot.label } ]
+    ]
+
+
+// One effort, 1 to 10, wearing its own tone, so the row reads as a ramp.
+
+class EffortPick extends ChoiceItem [ height = { app.touchFirst ? 52 : 44 }, cornerRadius = 4, flexes = true,
+    n: number = { Number(classroot.choice) },
+    accessibilityLabel = { "effort " + classroot.n },
+    fill = { classroot.on ? app.effortTone(classroot.n) : provided("theme").control },
+    stroke = { classroot.on ? stroke(2, provided("theme").text) : null },
+    TextLabel [ x = center, fontFamily = { app.figureFace }, fontSize = 24, fontWeight = bold,
+        textColor = { classroot.on ? app.inkOn(classroot.n) : provided("theme").text }, text = { "" + classroot.n } ]
+    ]
+
+
+// The form. Everything starts at what the person most likely means — today,
+// the sport they do on this weekday, that sport's usual time, distance and
+// effort — as computed defaults: each follows its inputs until the person
+// changes it, and then it is theirs. Nothing here is typed unless they want
+// to: the note, or on a desk, a figure. It exists only while its sheet is up,
+// so every opening starts fresh. Correcting a session starts from that
+// session instead.
+
+class LogForm [ width = 100%,
+    rec: Session? = null,
+    sport: string = { classroot.rec?.sport ?? app.sessions.usualSport(app.todayN) },
+    day: number = { classroot.rec != null ? dayNum(classroot.rec.date) : app.todayN },
+    minutes: number = { classroot.rec?.minutes ?? app.sessions.usualMinutes(classroot.sport) },
+    km: number = { classroot.rec != null ? (classroot.rec.distanceKm ?? 0)
+        : Math.round(app.sessions.usualPace(classroot.sport) * classroot.minutes * 10) / 10 },
+    effort: number = { classroot.rec?.effort ?? app.sessions.usualEffort(classroot.sport) },
+    note: string = { classroot.rec?.note ?? "" },
+    hasKm: boolean = { classroot.sport != "lift" },
+    kmStep: number = { classroot.sport == "ride" ? 2 : classroot.sport == "swim" ? 0.1 : 0.5 },
+
+    nudgeMinutes(by: number) { minutes = Math.max(5, Math.min(720, minutes + by)) },
+    nudgeKm(by: number) { km = Math.max(0, Math.round((km + by) * 10) / 10) },
+    pickEffort(n: number) { effort = n },
+    draft() -> Draft {
+        return ({ sport: sport, date: isoOf(day), minutes: minutes,
+            distanceKm: hasKm && km > 0 ? km : null, effort: effort,
+            note: note.trim() == "" ? null : note.trim() })
+        },
+    save() { app.saveDraft(rec?.id ?? "", draft()) },
+    summary: string = { sportName(classroot.sport) + " · " + dayLabel(classroot.day, app.todayN) + " · " + fmtDur(classroot.minutes)
+        + (classroot.hasKm && classroot.km > 0 ? " · " + fmtKm(classroot.km) : "") + " · effort " + classroot.effort },
+
+    // On a desk the same form takes keys: the sheet opens on the sport, whose
+    // arrows (or its first letter) choose it, as the day's do; then + and − for time, a digit for
+    // effort, ⌘↩ (or Return, where no control takes it) to save. (A plain key stands down in the note field.)
+
+    keyBindings = { [
+        ({ key: "Enter", command: "save", label: "Save" }),
+        ({ key: "Ctrl+Enter", command: "save", label: "Save", everywhere: true }),
+        ({ key: "=", command: "nudgeMinutes", args: [5], label: "5 minutes more" }),
+        ({ key: "+", command: "nudgeMinutes", args: [5], label: "5 minutes more" }),
+        ({ key: "-", command: "nudgeMinutes", args: [-5], label: "5 minutes less" }),
+        ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => ({ key: "" + (n % 10), command: "pickEffort", args: [n] }))
+        ] },
+
+    dayName(back: number) -> string {
+        const n = app.todayN - back
+        return back == 0 ? "Today" : back == 1 ? "Yesterday" : weekdayName(n).slice(0, 3) + " " + dateOf(n)
+        },
+
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+
+    Eyebrow [ text = { classroot.rec == null ? "Log a session" : "Correct a session" } ],
+
+    sports: ChoiceControl [ width = 100%, accessibilityLabel = "Sport", value <-> classroot.sport,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Choice [ choice = "run", label = "Run" ],
+        Choice [ choice = "ride", label = "Ride" ],
+        Choice [ choice = "lift", label = "Lift" ],
+        Choice [ choice = "swim", label = "Swim" ]
+        ],
+
+    when: ChoiceControl [ width = 100%, height = { app.touchFirst ? 48 : 40 }, scrolls = x, hideScrollbars = true,
+        accessibilityLabel = "Day",
+
+        // each chip's choice is how many days back it is
+
+        value = { "" + (app.todayN - classroot.day) },
+        commit(v: string) { classroot.day = app.todayN - Number(v) },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        DayChip [ choice = "0", label = { classroot.dayName(0) } ],
+        DayChip [ choice = "1", label = { classroot.dayName(1) } ],
+        DayChip [ choice = "2", label = { classroot.dayName(2) } ],
+        DayChip [ choice = "3", label = { classroot.dayName(3) } ],
+        DayChip [ choice = "4", label = { classroot.dayName(4) } ],
+        DayChip [ choice = "5", label = { classroot.dayName(5) } ],
+        DayChip [ choice = "6", label = { classroot.dayName(6) } ],
+        DatePicker [ width = 140, height = { app.touchFirst ? 44 : 36 }, placeholder = "Earlier…",
+            accessibilityLabel = "Another day",
+            max = { app.today }, value = { isoOf(classroot.day) },
+            commit(v: string) { if (v != "" && dayNum(v) <= app.todayN) classroot.day = dayNum(v) }
+            ]
+        ],
+
+    time: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        head: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 12, align = baseline ],
+            Eyebrow [ text = "How long" ],
+            Spacer [ ],
+            minutesField: TextInput [ visible = { app.wide }, width = 90, height = 34, purpose = digits,
+                accessibilityLabel = "Minutes", placeholder = "min",
+                value = { "" + classroot.minutes },
+                admit(t: string) -> string | null { return /^[0-9]{0,3}$/.test(t) ? t : null },
+                commit(t: string) { if (Number(t) > 0) classroot.minutes = Number(t) },
+                onEnter() { classroot.save() }
+                ],
+            Text [ visible = { app.wide }, fontSize = 13, textColor = { provided("theme").textMuted }, text = "min" ]
+            ],
+        DurFigure [ size = { app.wide ? 96 : 84 }, minutes = { classroot.minutes } ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            Step [ label = "−15", accessibilityLabel = "15 minutes less",
+                press() { classroot.nudgeMinutes(-15) }
+                ],
+            Step [ label = "−5", accessibilityLabel = "5 minutes less",
+                press() { classroot.nudgeMinutes(-5) }
+                ],
+            Step [ label = "+5", accessibilityLabel = "5 minutes more",
+                press() { classroot.nudgeMinutes(5) }
+                ],
+            Step [ label = "+15", accessibilityLabel = "15 minutes more",
+                press() { classroot.nudgeMinutes(15) }
+                ]
+            ]
+        ],
+
+    distance: View [ visible = { classroot.hasKm }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Eyebrow [ text = "How far" ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Step [ label = "−", accessibilityLabel = "less distance",
+                press() { classroot.nudgeKm(-classroot.kmStep) }
+                ],
+            View [ flexes = true, height = 56,
+                Figure [ x = center, y = center, size = 44, value = { classroot.km.toFixed(1) }, unit = "km", visible = { !app.wide } ],
+                kmField: TextInput [ visible = { app.wide }, x = center, y = center, width = 110, height = 40, purpose = decimal,
+                    accessibilityLabel = "Kilometres", fontSize = 20,
+                    value = { classroot.km.toFixed(1) },
+                    admit(t: string) -> string | null { return /^[0-9]{0,3}([.][0-9]?)?$/.test(t) ? t : null },
+                    commit(t: string) { if (t != "" && !isNaN(Number(t))) classroot.km = Number(t) },
+                    onEnter() { classroot.save() }
+                    ]
+                ],
+            Step [ label = "+", accessibilityLabel = "more distance",
+                press() { classroot.nudgeKm(classroot.kmStep) }
+                ]
+            ]
+        ],
+
+    feel: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Eyebrow [ text = { "How it felt · " + classroot.effort + " " + effortWord(classroot.effort) } ],
+        grid: ChoiceControl [ width = 100%, accessibilityLabel = "Effort",
+            value = { "" + classroot.effort },
+            commit(v: string) { classroot.effort = Number(v) },
+            layout: WrappingLayout [ columns = { app.wide ? 10 : 5 }, spacing = 6, rowSpacing = 6 ],
+            EffortPick [ choice = "1" ],
+            EffortPick [ choice = "2" ],
+            EffortPick [ choice = "3" ],
+            EffortPick [ choice = "4" ],
+            EffortPick [ choice = "5" ],
+            EffortPick [ choice = "6" ],
+            EffortPick [ choice = "7" ],
+            EffortPick [ choice = "8" ],
+            EffortPick [ choice = "9" ],
+            EffortPick [ choice = "10" ]
+            ]
+        ],
+
+    noteField: TextInput [ width = 100%, height = 48, fontSize = 16, placeholder = "Add a note (optional)",
+        accessibilityLabel = "Note", value <-> classroot.note,
+        onEnter() { classroot.save() }
+        ],
+
+    // What will be saved, said in full on the button that saves it.
+
+    saveButton: Control [ width = 100%, height = 60, cornerRadius = 6, accessibilityLabel = { "Save: " + classroot.summary },
+        fill = { pressed ? provided("theme").accentPressed : provided("theme").text },
+        press() { classroot.save() },
+        layout: SimpleLayout [ axis = y, spacing = 0, align = center ],
+        padding = [10, 12, 8, 12],
+        TextLabel [ fontSize = 18, fontWeight = bold, textColor = { provided("theme").background },
+            text = { (classroot.rec == null ? "Save" : "Save correction") + (app.touchFirst ? "" : "   ⌘↩") } ],
+        Text [ width = 100%, textAlign = center, fontSize = 13, maxLines = 1, textColor = { provided("theme").background },
+            opacity = 0.8, text = { classroot.summary } ]
+        ]
+    ]
