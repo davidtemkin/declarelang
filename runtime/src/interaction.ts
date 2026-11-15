@@ -249,6 +249,45 @@ export function paintsAbove(a: InteractionView, b: InteractionView): boolean | n
   return kids.indexOf(pa[i]) > kids.indexOf(pb[i]);
 }
 
+/** What paints above `v`'s layer: at each level of the paint tree from the layer
+ *  `v` paints in out to its root, the views painted after its branch — a toast's
+ *  notice layer over a sheet's overlay layer. What an open modal leaves live
+ *  (semantics, focus); beside it, in its own layer, is what it blocks. */
+export function paintedAbove(v: InteractionView): InteractionView[] {
+  const out: InteractionView[] = [];
+  // a view, and the views painting in it or in anything it holds that are
+  // declared elsewhere (a layer's guests): a walk of its children never meets them
+  const within = (k: InteractionView): boolean => out.some((o) => { for (let n: unknown = k; isView(n); n = (n as InteractionView).parent) if (n === o) return true; return false; });
+  const take = (k: InteractionView): void => {
+    if (!within(k)) out.push(k);
+    const guests = (k as { $paintGuests?: InteractionView[] }).$paintGuests ?? [];
+    for (const g of guests) take(g);
+    for (const c of k.children) if (isView(c)) takeGuests(c);
+  };
+  const takeGuests = (k: InteractionView): void => {
+    for (const g of (k as { $paintGuests?: InteractionView[] }).$paintGuests ?? []) take(g);
+    for (const c of k.children) if (isView(c)) takeGuests(c);
+  };
+  // from the layer above the modal's own out: beside it, in its own layer, is
+  // what it blocks, whichever was written first
+  const own = paintParentOf(v);
+  for (let at: InteractionView | null = own, p = own !== null ? paintParentOf(own) : null; at !== null && p !== null; at = p, p = paintParentOf(p)) {
+    const kids = paintChildren(p);
+    for (let i = kids.indexOf(at) + 1; i > 0 && i < kids.length; i++) { const k = kids[i]; if (isView(k)) take(k); }
+  }
+  // only its own program's: a hosted program's dialog paints in its host's
+  // window layer, and the host's views above that are not the dialog's
+  const home = programOf(v);
+  return out.filter((k) => programOf(k) === home);
+}
+
+/** The root of the program a view is declared in. */
+function programOf(v: InteractionView): unknown {
+  let n: unknown = v;
+  while (isView(n) && isView((n as InteractionView).parent)) n = (n as InteractionView).parent;
+  return n;
+}
+
 /** A view's children as painted: its own, less those that paint elsewhere,
  *  then the views painting in it though declared elsewhere, in entry order. */
 function paintChildren(v: InteractionView): readonly unknown[] {

@@ -80,4 +80,26 @@ enum FileRecords {
         if let window { panel.beginSheetModal(for: window, completionHandler: finish) }
         else { panel.begin(completionHandler: finish) }
     }
+
+    /// `FilePicker.save`: the save panel, opening in Downloads with the name
+    /// filled in; the bytes written where the person chose. Answers whether
+    /// they were saved — false when the panel was cancelled or the write failed.
+    static func save(optionsJSON: String, base64: String, in window: NSWindow?, done: @escaping (Bool) -> Void) {
+        let o = (optionsJSON.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
+        let name = (o["name"] as? String) ?? "Untitled"
+        guard let data = Data(base64Encoded: base64) else { done(false); return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = name
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        let ext = (name as NSString).pathExtension
+        if !ext.isEmpty, let t = UTType(filenameExtension: ext) { panel.allowedContentTypes = [t] }
+        let finish: (NSApplication.ModalResponse) -> Void = { r in
+            guard r == .OK, let url = panel.url else { done(false); return }
+            do { try data.write(to: url, options: .atomic); done(true) } catch { done(false) }
+        }
+        if let window { panel.beginSheetModal(for: window, completionHandler: finish) }
+        else { panel.begin(completionHandler: finish) }
+    }
 }

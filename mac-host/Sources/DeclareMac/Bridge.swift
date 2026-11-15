@@ -542,6 +542,17 @@ final class Bridge {
             }
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "pickFiles")
 
+        // FilePicker.save: the save panel, as a sheet on this window, opening in
+        // Downloads; answered on __declareFileSaved with whether it was saved
+        host.setObject({ [weak self] (id: Int, optionsJSON: String, base64: String) in
+            DispatchQueue.main.async {
+                FileRecords.save(optionsJSON: optionsJSON, base64: base64, in: self?.view?.window) { ok in
+                    self?.call("__declareFileSaved", [id, ok])
+                    self?.needsFrame()
+                }
+            }
+        } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "saveFile")
+
         // Clipboard.copy: the representations written to the general pasteboard
         // (Clipboard.swift) — on main, where AppKit wants it
         host.setObject({ (json: String) in

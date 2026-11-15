@@ -7,6 +7,7 @@
 // checked by name and type, and the tree's code names no library class), and
 // none of it costs anything on a view that leaves it unset.
 import assert from "node:assert/strict";
+import { Clock, setClock } from "../runtime/dist/animate.js";
 import { readFileSync, readdirSync } from "node:fs";
 import { test, summarize } from "./harness.mjs";
 import { compileProgram } from "../compiler/dist/declarec.js";
@@ -271,13 +272,36 @@ App [ width = 400, height = 100, d: Dataset { { "rows": [] } },
   assert.deepEqual(list.children.slice(0, 2).map((r) => [r.name, r.rowIndex]), [["Item 0", 1], ["Item 1", 2]]);
 });
 
-await test("the tree: behind an open modal, everything is inert", async () => {
+await test("the tree: beside an open modal, written before it or after, everything is inert", async () => {
   const app = await boot(`App [ width = 400, height = 300, View [ accessibilityRole = button, accessibilityLabel = "Behind", press() { } ],
   dlg: View [ focusScope = modal, accessibilityRole = dialog, accessibilityLabel = "Confirm",
-    View [ accessibilityRole = button, accessibilityLabel = "OK", press() { } ] ] ]`);
+    View [ accessibilityRole = button, accessibilityLabel = "OK", press() { } ] ],
+  View [ accessibilityRole = button, accessibilityLabel = "Undo", press() { } ] ]`);
   assert.equal(tree(app), `application\n  dialog "Confirm" [modal]\n    button "OK" {press}`);
   app.dlg.visible = false; settle();
-  assert.equal(tree(app), `application\n  button "Behind" {press}`);
+  assert.equal(tree(app), `application\n  button "Behind" {press}\n  button "Undo" {press}`);
+});
+
+await test("the tree: a toast over an open sheet is read, though it is written before the sheet", async () => {
+  // the overlays come in on a clock: one driven here, so they arrive
+  let cb = null, last = 0;
+  const sched = { now: () => last, request(fn) { cb = fn; return 1; }, cancel() { cb = null; } };
+  const frames = (n) => { for (let i = 0; i < n; i++) { const fn = cb; cb = null; last = last + 16; if (fn) fn(last); settle(); } };
+  setClock(new Clock(sched));
+  try {
+    const app = await boot(`App [ width = 500, height = 400,
+      toast: Toast [ ],
+      View [ accessibilityRole = button, accessibilityLabel = "Behind", press() { } ],
+      sheet: Sheet [ edge = "end", accessibilityLabel = "Record", Button [ label = "Save" ] ] ]`);
+    app.sheet.show(); settle(); frames(60);
+    app.toast.say("Saved", { id: "undo", label: "Undo" }); settle(); frames(60);
+    const t = tree(app);
+    assert.match(t, /Save/, "the sheet is read");
+    assert.match(t, /Undo/, "and the toast above it");
+    assert.doesNotMatch(t, /Behind/, "and nothing under the sheet");
+  } finally {
+    setClock(new Clock());
+  }
 });
 
 await test("the tree: a rich document reads as headings, paragraphs, lists and links", async () => {

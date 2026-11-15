@@ -258,6 +258,42 @@ view paints identically as DOM, on a canvas, or in the native Mac host.
 - **Measure.** Drawing is cached, but a large drawn surface repainting every frame is where
   a smooth app slows down; check the frame rate.
 
+**A chart: a view for each shape a person presses.** Drawing suits a chart as well as any
+picture. What a view adds is everything about being pressed: the walk finds the one under the
+finger (hit testing), and it brings hover, a tooltip, keyboard focus and a name a screen reader
+says. So a bar, a point a person can pick or a slice of a pie is worth making a view, laid over
+the drawing, rather than finding it by comparing a press's coordinates with the data
+([Finding what is under the pointer](declare-docs:guide:pointer-and-keyboard@finding-what-is-under-the-pointer)).
+Here the gridlines are drawn and the bars are views:
+
+```declare
+class Bar extends Control [ width = 56, cornerRadius = 4,
+    x = { 24 + rowIndex * 96 },
+    height = { :out / 700 * parent.height },
+    y = { parent.height - height },
+    fill = { app.picked == :id ? 0x2E6FE0 : (hovered ? 0x6C9BEA : 0x9DBBEF) },
+    accessibilityLabel = { :id + ", $" + :out },
+    tooltipLabel = { "$" + :out + " out in " + :id },
+    press() { app.picked = :id } ]
+
+App [ width = 360, height = 220, fill = white, textColor = black, picked: string = "",
+    months: Dataset { { "rows": [ { "id": "Sep", "out": 420 }, { "id": "Oct", "out": 610 }, { "id": "Nov", "out": 380 } ] } },
+    chart: View [ x = 20, y = 20, width = 320, height = 150, datapath = { app.months.value },
+        draw(d: DrawContext) {
+            d.strokeStyle = 0xE3E7EC
+            d.lineWidth = 1
+            for (let i = 0; i <= 4; i++) { d.beginPath(); d.moveTo(0, i * d.h / 4); d.lineTo(d.w, i * d.h / 4); d.stroke() }
+            },
+        Bar [ datapath = :rows[] ] ],
+    Text [ x = 20, y = 186, text = { app.picked == "" ? "Press a month" : "Showing " + app.picked } ]
+    ]
+```
+
+Each bar is a `Control`, so it is a Tab stop, Space presses it, and a screen reader hears
+"Oct, $610, button". Its geometry is a constraint on its record and the chart's size, so a
+resize or a new month needs no redraw code. A position read *along* a drawing is a different
+thing: a line chart scrubbed by the pointer maps the pointer's `x` to the period under it.
+
 **Pictures in a drawing.** A bitmap comes in through an [`Image`](declare-docs:Image) view, which owns the
 loading and the `loaded` fact: `d.drawImage(pic, x, y, w, h)` takes the view (in any of
 Canvas2D's argument shapes) and draws nothing until the bitmap arrives. Reading

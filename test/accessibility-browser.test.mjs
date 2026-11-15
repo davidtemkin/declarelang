@@ -58,7 +58,8 @@ App [ width = 500, height = 500, presses: number = 0, open: boolean = false, pla
         card: TextInput [ width = 200, purpose = cardNumber, accessibilityLabel = "Card number" ] ],
     dlg: View [ x = 250, y = 10, width = 200, height = 120, visible = { app.open }, focusScope = modal,
         accessibilityRole = dialog, accessibilityLabel = "Confirm",
-        ok: Button [ x = 10, y = 10, label = "OK" ] ] ]`;
+        ok: Button [ x = 10, y = 10, label = "OK" ] ],
+    over: Text [ x = 250, y = 140, text = "Saved" ] ]`;
 
 const r = await compile(SOURCE);
 const page = await browser.newPage();
@@ -235,15 +236,19 @@ await test("a press a screen reader makes (a click with no pointer behind it) ru
   assert.equal(n, 1);
 });
 
-await test("an open modal leaves the rest of its app inert, and closing it gives it back", async () => {
+await test("an open modal leaves everything beside it in its layer inert, and closing it gives it back", async () => {
   const a = await page.evaluate(async () => {
     const { app, el, ready } = window.__t;
     app.open = true; await ready();
-    const open = { colInert: el(app.col).closest("[inert]") !== null, dialogInert: el(app.dlg).closest("[inert]") !== null };
+    const open = { colInert: el(app.col).closest("[inert]") !== null, dialogInert: el(app.dlg).closest("[inert]") !== null,
+      overInert: el(app.over).closest("[inert]") !== null };
     app.open = false; await ready();
     return { ...open, after: el(app.col).closest("[inert]") !== null };
   });
-  assert.deepEqual(a, { colInert: true, dialogInert: false, after: false });
+  // \`over\` is written after the dialog in its own layer: beside it, so the modal blocks it
+  // too (a layer painted above the modal's stays live: a toast over a sheet, tested in
+  // overlays.test and accessibility.test, and through declare-verify in reader-overlay-semantics.test)
+  assert.deepEqual(a, { colInert: true, dialogInert: false, overInert: true, after: false });
 });
 
 await test("a DOM focus on a view first shown after it was built reaches the focus service", async () => {

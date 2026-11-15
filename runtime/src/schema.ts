@@ -1203,6 +1203,9 @@ const DataSourceSchema: ClassSchema = {
     failure: REQUEST_FAILURE,
     statusCode: { kind: "number" },
     errorBody: { kind: "object" },
+    // the shape a refusal's body is declared to have: types `errorBody` and is
+    // checked against it on arrival, as `schema` is for `value`
+    errorSchema: { kind: "dataschema" },
     // the reply's headers, names lowercased; null before a reply
     responseHeaders: { kind: "object" },
   },

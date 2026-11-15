@@ -60,7 +60,7 @@ import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
 import { autoIncludableNames } from "../../runtime/dist/include.js";
 import { generateScaffold, PRELUDE_NAMES, memberSig, tsType, signatureTsType, shapeObjectText, themeTokenTypes } from "./scaffold.js";
 import { SCHEMAS, attrType, descendsFrom, type ClassSchema } from "../../runtime/dist/schema.js";
-import { declaredType, isAuthoredUnion, type AttrType } from "../../runtime/dist/value.js";
+import { declaredType, isAuthoredUnion, DECLARED_TYPE_NAMES, type AttrType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 
 /** TS primitives a Declare type name can resolve to — where "declare it" is
@@ -265,7 +265,18 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
   // Pass 2 — the check-blocks, typed by the instance types pass 1 assigned.
   for (const cls of rprog.classes) emitter.walkElement(cls.body, [], true);
   emitter.walkElement(rprog.root, [], false);
-  if (emitter.units.length === 0 && emitter.declTypePos.size === 0 && regions.length === 0) return { errors: scoped, oracle: null };
+  // A declared name one of Declare's own types holds: said whether or not the
+  // program has a body to check (a program of no { } bodies still declares
+  // names, and the structure check keeps such a class out of resolution).
+  const declared: [string, { name: string; pos: import("../../runtime/dist/errors.js").Pos }[]][] = [
+    ["class", rprog.classes], ["schema", rprog.shapes ?? []], ["theme", rprog.themes ?? []], ["style", rprog.styles ?? []],
+  ];
+  const takesDeclareType = (kind: string, name: string): boolean => PRELUDE_NAMES.has(name) || WORD_TYPES.has(name)
+    || (kind !== "theme" && THEME_PRESET_NAMES.includes(name)) || (/^[A-Z]/.test(name) && DECLARED_TYPE_NAMES.includes(name))
+  const declareTypeErrs: DeclareError[] = []
+  for (const [kind, list] of declared) for (const d of list)
+    if (takesDeclareType(kind, d.name)) declareTypeErrs.push(Diag.shadowsDeclareType(kind, d.name, prefix + d.name, d.pos))
+  if (emitter.units.length === 0 && emitter.declTypePos.size === 0 && regions.length === 0) return { errors: [...scoped, ...declareTypeErrs], oracle: null };
 
   const { diags, program: tsProgram } = runTsc(scaffold, emitter.caseSrc);
   const synthTags = emitter.synthTags;
@@ -278,14 +289,10 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
   // with it). A body's bare `Map` is the JS global when it runs, so the name
   // can't be the program's. One the library holds as a type alone (Pick,
   // Record) is the program's: its declarations shadow the library's (`$P`).
-  const declared: [string, { name: string; pos: import("../../runtime/dist/errors.js").Pos }[]][] = [
-    ["class", rprog.classes], ["schema", rprog.shapes ?? []], ["theme", rprog.themes ?? []], ["style", rprog.styles ?? []],
-  ];
   for (const [kind, list] of declared) for (const d of list) {
     const lib = globals.get(d.name);
     if (lib !== undefined && lib.value) out.push(Diag.shadowsTsGlobal(kind, d.name, lib.file, prefix + d.name, d.pos));
-    else if (PRELUDE_NAMES.has(d.name) || WORD_TYPES.has(d.name) || (kind !== "theme" && THEME_PRESET_NAMES.includes(d.name)))
-      out.push(Diag.shadowsDeclareType(kind, d.name, prefix + d.name, d.pos));
+    else if (takesDeclareType(kind, d.name)) out.push(Diag.shadowsDeclareType(kind, d.name, prefix + d.name, d.pos));
   }
   for (const pos of emitter.literalPaths) out.push(Diag.literalDatapath(pos));
   for (const d of diags) {
@@ -1047,6 +1054,8 @@ class CaseEmitter {
       // DataSource's — which arrives later — may be null
       const doc = this.docTypeOf(el);
       if (doc !== null) members.push(`  value: ${doc}${this.isDataSource(el) ? " | null" : ""};`);
+      const refusal = this.docTypeOf(el, "errorSchema");
+      if (refusal !== null) members.push(`  readonly errorBody: ${refusal} | null;`);
       if (members.length > 0) this.classExtras.set(el.tag, members);
       this.instType.set(el, el.tag);
       return el.tag;
@@ -1117,6 +1126,9 @@ class CaseEmitter {
     // a Dataset with a literal body or a `contents` constraint always has one.
     const doc = this.docTypeOf(el);
     if (doc !== null) members.push(`  value: ${doc}${this.valueAlwaysHeld(el) ? "" : " | null"};`);
+    // a refusal's declared shape types what the server said, as `schema` types the value
+    const refusal = this.docTypeOf(el, "errorSchema");
+    if (refusal !== null) members.push(`  readonly errorBody: ${refusal} | null;`);
     if (members.length === 0) {
       this.instType.set(el, el.tag);
       return el.tag;

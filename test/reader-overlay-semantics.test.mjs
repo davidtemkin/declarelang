@@ -70,6 +70,28 @@ export default async ({ drive, expect }) => {
   assert.match(out, /R5 ✓/, out);
 });
 
+await test("a toast over an open sheet is live: its action is pressed by the pointer, reached by Tab and named to a screen reader; the sheet stays open", () => {
+  // the toast is written before the sheet: what decides is the layer each paints in
+  const out = verify("toast-live", `App [ width = 560, height = 400, undone: number = 0,
+    toast: Toast [ picked(id: string) { app.undone = app.undone + 1 } ],
+    Button [ x = 20, y = 20, label = "Open", onClick() { app.prefs.show() } ],
+    prefs: Sheet [ edge = "end", accessibilityLabel = "Record",
+        Button [ label = "Save", onClick() { app.toast.say("Saved", ({ id: "undo", label: "Undo" })) } ] ] ]`, `export default async ({ drive, page, expect }) => {
+  await page.getByRole("button", { name: "Open" }).click(); await drive.settleMotion();
+  await page.getByRole("button", { name: "Save" }).click(); await drive.settleMotion();
+  await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+  await page.getByRole("button", { name: "Undo" }).click(); await drive.settleMotion();
+  await expect.attr("app", "undone", 1);
+  await page.getByRole("button", { name: "Save" }).click(); await drive.settleMotion();
+  await drive.key("Tab"); await drive.settleMotion();
+  expect(await page.evaluate(() => document.activeElement?.textContent?.trim())).toBe("Undo");
+  await drive.key("Tab"); await drive.settleMotion();
+  expect(await page.evaluate(() => document.activeElement?.textContent?.trim())).toBe("Save");
+  await expect.attr("app.prefs", "shown", true);
+};`);
+  assert.match(out, /R5 ✓/, out);
+});
+
 await test("styled runs are words: the semantic tree and expect.text read a figure set in its own style", () => {
   const out = verify("styled-runs", `App [ width = 400, height = 200,
     line: HTMLText [ x = 10, y = 10, width = 380, textStyles = { { fig: ({ fontSize: 40 }) } },

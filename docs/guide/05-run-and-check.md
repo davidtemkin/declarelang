@@ -21,9 +21,9 @@ npm install
 npm start
 ```
 
-The server prints its address, `http://127.0.0.1:8200/` by default. Write a program to
-`my-apps/hello.declare` and browse to `http://127.0.0.1:8200/my-apps/hello.declare`. The
-server compiles the file and returns the running app. There is no build step, no
+The server prints its address: `http://127.0.0.1:8200/` by default, another when `PORT` is set
+or 8200 is taken. Use the address it prints. Write a program to `my-apps/hello.declare` and
+browse to it under that address (`…/my-apps/hello.declare`). The server compiles the file and returns the running app. There is no build step, no
 project scaffold and no configuration: edit the file, reload, and the change is there.
 A directory whose program shares its name is the same address in short form —
 `…/apps/calendar/` means `…/apps/calendar/calendar.declare`. The

@@ -50,8 +50,10 @@ header to sort.
   leave it a cell along, wrapping rows). A column's
   `editor` names the class a cell becomes while it is edited, beside the `cell` it shows the
   rest of the time — `{ id: "state", cell: "StateText", editor: "StatePicker" }` — bound to
-  the row's record like the cell, with its first control given the keyboard. What your
-  editor does not answer of Escape, Enter and Tab leaves it.
+  the row's record like the cell, with its first control given the keyboard. A cell entered
+  by Enter or F2 starts with its text selected, in the grid's own field or a text field (a
+  combobox's included) in your editor, so what is typed replaces it; a second press puts the
+  caret where it landed. What your editor does not answer of Escape, Enter and Tab leaves it.
 - **`edit: true`** is the grid's own editor, a text field writing the record as you type:
   typing on a selected cell replaces its text and opens the edit — an accent, an Option
   letter or an input method's word composes there as in any field — Up and Down end it and
@@ -69,8 +71,7 @@ header to sort.
 - **Rows** are the theme's `gridRowHeight` tall (28), the header `gridHeaderHeight` (30), and
   the text `gridFontSize`: set them in a theme to change every grid.
 - **Selection** is `Table`'s (a press, Shift for a range, ⌘ or Ctrl to add one, the arrows,
-  ⌘-walk with Space). Select-all is not built in: a ⌘A of your own (`keyBindings`) or a
-  button calls `commit(records)` with the records it means, as every selection goes.
+  ⌘-walk with Space, ⌘A or Ctrl+A for every row). A Select All button calls `selectAll()`.
 
 ## items
 The records, one row each, in the order shown. Usually a dataset's list —
@@ -176,6 +177,14 @@ Whether the active cell is open in its column's editor. Moving the active cell e
 ## _isEditing()
 **Internal.** The `when` of the bindings that leave an editor of your own.
 
+## _keyed
+**Internal.** Whether the grid is being used from the keyboard: set by a key, cleared by a
+press on a row. A grid that is only read and selected outlines its active cell only then.
+
+## _editable
+**Internal.** Whether any column is editable (`edit: true`, or an `editor`): the active cell is
+then where typing goes, and is outlined whenever the grid has focus.
+
 ## _leaveHere()
 **Internal.** Escape from an editor of your own: leaves it on the same cell.
 
@@ -234,6 +243,9 @@ Left and Right move along the headers, Enter or Space sorts by the column, Down 
 
 ## activeCol
 The active cell's column — with Table's active row, the grid's keyboard position. Left and Right move it.
+The active cell is outlined while the grid has focus: always in a grid with an editable column,
+where it is where typing goes; in a grid that is only read and selected, while it is used from
+the keyboard, so a press shows the row it selects and no cell.
 
 ## _activeCell()
 **Internal.** The active cell, when its row is built.
@@ -411,6 +423,13 @@ class DataGrid extends Table [
 
     inHeader: boolean = false,
 
+    // whether the active cell is worth outlining: in a grid a person edits, it is
+    // where typing goes, so always; in one they only read and select, it is the
+    // keyboard's place, so while they use the keys (a press on a row clears it)
+
+    _keyed: boolean = false,
+    _editable: boolean = { this._colData.value.cols.some((c) => (c.editor ?? "") != "" || c.edit === true) },
+
     _firstRow() -> number {
         const n = this.itemCount()
         for (let i = 0; i < n; i = i + 1) { if (this.selectable(this.itemAt(i))) return i }
@@ -465,12 +484,19 @@ class DataGrid extends Table [
     _enterCell(cell: DataGridCell, typed: string) {
         if (cell._kind() == "editor") {
             editing = true
-            // the editor is built by this settle: its first control takes the focus
+            // the editor is built by this settle: its first control takes the focus,
+            // and a text field there starts with its value selected, so what is
+            // typed replaces it (a combobox's entry as much as a plain field)
             afterSettle(() => {
                 const ed = cell._editor()
-                if (ed != null) { Focus.focus(ed); ed.select("end"); return }
+                if (ed != null) { Focus.focus(ed); ed.select(0, ("" + ed.text).length); return }
                 const ctl = cell._firstControl()
-                if (ctl != null) Focus.focus(ctl)
+                if (ctl == null) return
+                Focus.focus(ctl)
+                afterSettle(() => {
+                    const f = Focus.getFocus()
+                    if (f instanceof TextInput) f.select(0, ("" + f.text).length)
+                    })
                 })
             return
             }
@@ -524,6 +550,7 @@ class DataGrid extends Table [
 
     onKeyDown(e: KeyEvent) {
         // the grid's own keys; the rest go on to Table's, and on through the walk
+        _keyed = true
         if (disabled) { super.onKeyDown(e); return }
         const n = this._colData.value.cols.length
         const plain = !e.meta && !e.ctrl && !e.alt
@@ -791,6 +818,7 @@ class DataGridRow extends TableRow [
         const g = this._grid
         const ci = e != null ? this._colAt(e.x) : -1
         _pressedActive = g != null && g._within && !g.inHeader && this.active && ci >= 0 && ci == g.activeCol
+        if (g != null) g._keyed = false
         super.onPointerDown()
         },
     onClick(e?: PointerEvent) {
@@ -915,6 +943,10 @@ Whether it is the cell being edited.
 ## activeHere
 Whether it is the grid's active cell while the grid has focus.
 
+## _outlined
+**Internal.** Whether the active cell is outlined: always in a grid with an editable column,
+and in one only read and selected, while it is used from the keyboard.
+
 ## _takeActive()
 **Internal.** Makes this the grid's active cell, as its edit field does when it takes the focus.
 
@@ -1025,8 +1057,15 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
     gridFocused: boolean = { this._dataGrid != null && this._dataGrid._within && !this._dataGrid.inHeader },
     _atCell: boolean = { this._row?.active == true && this._dataGrid?.activeCol == this._ci },
     activeHere: boolean = { this.gridFocused && this._atCell },
+
+    // the outline: always where typing goes (a grid with an editable column); in a
+    // grid only read and selected, while it is used from the keyboard, so a press
+    // shows the row it selects and no cell
+
+    _outlined: boolean = { this.activeHere
+        && (this._dataGrid?._editable == true || this._dataGrid?._keyed == true || this._dataGrid?.focusVisible == true) },
     editingHere: boolean = { this._atCell && this._dataGrid?.editing == true },
-    stroke = { this.activeHere ? stroke(2, provided("theme").accent) : null },
+    stroke = { this._outlined ? stroke(2, provided("theme").accent) : null },
     cornerRadius = { provided("theme").gridCellCornerRadius },
 
     // the active cell says so to its grid, which names it to a screen reader —
@@ -1173,6 +1212,14 @@ class DataGridEdit [ width = 100%, height = 100%,
             },
         commit(v: string) { classroot.write(v) },
 
+        // ⌘A on a selected cell is the grid's, every row; in an open edit it is
+        // the field's, its text. A field's own binding comes before its editing
+        // chords, which ⌘A is one of
+
+        keyBindings = { [ ({ key: "Ctrl+A", command: "_selectRows", when: "_rowsChord" }) ] },
+        _rowsChord() -> boolean { return !classroot.open && classroot._grid != null && classroot._grid.selects == "multi" },
+        _selectRows() { if (classroot._grid != null) classroot._grid.selectAll() },
+
         // a second press on the active cell opens the edit, the caret where it landed
 
         onPointerDown(e?: PointerEvent) {
@@ -1185,7 +1232,7 @@ class DataGridEdit [ width = 100%, height = 100%,
             const plain = !e.meta && !e.ctrl && !e.alt
             if (!classroot.open) {
                 // selected, not editing: the grid's keys move and enter; the rest is typing
-                if ((e.key == "Enter" || e.key == "F2") && plain) { g.editing = true; this.select("end"); return }
+                if ((e.key == "Enter" || e.key == "F2") && plain) { g.editing = true; this.select(0, ("" + this.text).length); return }
                 if (e.key == "ArrowUp" || e.key == "ArrowDown" || e.key == "ArrowLeft" || e.key == "ArrowRight" ||
                     e.key == "Home" || e.key == "End" || e.key == "PageUp" || e.key == "PageDown") {
                     Focus.focus(g)

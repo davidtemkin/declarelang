@@ -214,7 +214,15 @@ point of the attribute, since it separates "retry" from "report" without parsing
 What the server said when it refused — parsed if it was JSON, the raw text otherwise,
 `null` if the body was empty. This is the part that names *which* field failed or *when*
 the rate limit resets; a refusal reported as a status number alone throws it away.
-`value` is untouched by a failure, so the last good data is still there.
+`value` is untouched by a failure, so the last good data is still there. With `errorSchema`
+it is typed as that shape, so a handler reads `errorBody.message` with no cast.
+
+## errorSchema
+The shape a refusal's body is declared to have, as `schema` declares the value's:
+`errorSchema = Problem` with `schema Problem [ message: string, problems[]: [ field: string, message: string ] ]`.
+`errorBody` is then typed as `Problem`, read with no cast, and checked when it arrives: a
+body that does not match is not handed over (`errorBody` is `null`), and `error` says where
+it differs. Declare it once on a class every request to the service extends.
 
 ## responseHeaders
 The headers of the last reply, as a record with lowercased names —

@@ -337,7 +337,9 @@ Four facts make this work without choreography:
   data. A `body` that is an object is sent as JSON.
 - **`fetch()` never throws.** A refusal lands in `failed` and `error` and runs `onError()`, with the status in
   `statusCode` and whatever the server said in `errorBody` — its JSON parsed, if it sent
-  JSON, so a validation message can be shown next to the field it names. The reply's
+  JSON, so a validation message can be shown next to the field it names. Declare the
+  refusal's shape with [`errorSchema`](declare-docs:DataSource.errorSchema), as `schema`
+  declares the value's, and `errorBody` is typed as it, read with no cast. The reply's
   headers are in [`responseHeaders`](declare-docs:DataSource.responseHeaders), refusals' included — a paging link, a rate limit's
   `retry-after`. `fetch()` does return a promise, but the flags and `onLoad` are the
   idiom; a later `fetch()` on the same source supersedes an earlier one, and `clear()`
@@ -467,6 +469,10 @@ Button [ label = "Upload", disabled = { app.chosen.length == 0 }, onClick() { ap
 Nothing is sent until the program sends it, so it can show what arrived, let the person
 choose, read a file first (`url = { f.url }, format = "text"`), and upload a subset in its
 own order — one request per file, chained in `onLoad`, or a list of files in one field.
+
+`FilePicker.save(contents, { name: "rows.csv" })` goes the other way: it hands the person a file
+the program made, its text or a `Blob`'s bytes. A browser downloads it; the Mac shows its save
+panel, opening in Downloads. It resolves to whether the file was saved.
 
 ## Editing text, and forms
 

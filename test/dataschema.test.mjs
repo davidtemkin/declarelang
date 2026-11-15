@@ -376,6 +376,21 @@ await test("typed data: an array-root document (schema = Row[]) — validated ar
   assert.match(bad.errors[0].message, /'labl' is not a member of Row — did you mean 'label'/);
 });
 
+await test("typed data: errorSchema types a refusal's body, on an instance and on a class a request extends", async () => {
+  const ok = await compile(`
+    schema Problem [ message: string, problems[]: [ field: string, message: string ] ]
+    class Api extends DataSource [ errorSchema = Problem ]
+    App [ width=1, height=1, msg: string = "",
+      save: Api [ url = "/x", onError() { app.msg = (this.errorBody?.message ?? "") + (this.errorBody?.problems ?? []).map((p) => p.field).join(",") } ],
+      one: DataSource [ url = "/y", errorSchema = Problem, onError() { app.msg = this.errorBody?.message ?? "" } ] ]`);
+  assert.deepEqual(ok.errors.map((e) => e.message), []);
+  const bad = await compile(`
+    schema Problem [ message: string ]
+    App [ width=1, height=1, msg: string = "",
+      one: DataSource [ url = "/y", errorSchema = Problem, onError() { app.msg = this.errorBody?.mesage ?? "" } ] ]`);
+  assert.match(bad.errors[0].message, /'mesage' is not a member of Problem — did you mean 'message'/);
+});
+
 await test("typed data: the producer's wall — `contents` on a schema'd derived dataset checks against the document type", async () => {
   const bad = await compile(`
     schema Col [ name: string ]

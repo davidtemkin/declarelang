@@ -192,6 +192,13 @@ export function setOutsidePressHook(fn: OutsideHook | null, scroll: OutsideHook 
 let KEY_CONTEXT: (() => { $surface?: unknown } | null) | null = null;
 export function provideKeyContextTarget(fn: () => { $surface?: unknown } | null): void { KEY_CONTEXT = fn; }
 
+/** Each routed input's double-click pairing, forgotten on request: a test
+ *  harness's scripted click is one click, whatever came before it. Its clock
+ *  moves only when the script moves it, so two scripted clicks arrive 0 ms
+ *  apart, and paired by time they would read as a double-click. */
+const PAIRINGS = new Set<() => void>();
+export function freshClick(): void { for (const f of PAIRINGS) f(); }
+
 export function routeInput(
   alive: () => boolean,
   resolve: (e: MouseEvent) => HitTarget | null,
@@ -247,6 +254,9 @@ export function routeInput(
   let lastClickAt = 0;
   let lastClickX = 0;
   let lastClickY = 0;
+  const forget = (): void => { lastClickKey = null; };
+  PAIRINGS.add(forget);
+  offs.push(() => PAIRINGS.delete(forget));
   // The hold timer for the current press — armed at down on a view that wants
   // holds, disarmed by movement past slop, by release, or by cancellation.
   let holdTimer: ReturnType<typeof setTimeout> | null = null;

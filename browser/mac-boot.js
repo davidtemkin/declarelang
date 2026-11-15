@@ -39,13 +39,36 @@ provideHitPath((d, x, y) => H.pathHit(d, x, y));
 {
   let pickSeq = 1;
   const picks = new Map();
+  const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const toBase64 = (u8) => {
+    let s = "";
+    for (let i = 0; i < u8.length; i += 3) {
+      const a = u8[i], b = i + 1 < u8.length ? u8[i + 1] : 0, c = i + 2 < u8.length ? u8[i + 2] : 0;
+      s += B64[a >> 2] + B64[((a & 3) << 4) | (b >> 4)]
+        + (i + 1 < u8.length ? B64[((b & 15) << 2) | (c >> 6)] : "=") + (i + 2 < u8.length ? B64[c & 63] : "=");
+    }
+    return s;
+  };
   provideFilesHost({
     pick: (options) => new Promise((resolve) => {
       const id = pickSeq++;
       picks.set(id, resolve);
       H.pickFiles(id, JSON.stringify(options ?? {}));
     }),
+    // FilePicker.save: the save panel, opening in Downloads; the bytes cross as
+    // base64 and Swift writes them where the person chose
+    save: (bytes, options) => new Promise((resolve) => {
+      const id = pickSeq++;
+      picks.set(id, resolve);
+      H.saveFile(id, JSON.stringify(options), toBase64(bytes));
+    }),
   });
+  globalThis.__declareFileSaved = (id, ok) => {
+    const resolve = picks.get(id);
+    if (resolve === undefined) return;
+    picks.delete(id);
+    resolve(ok === true);
+  };
   globalThis.__declareFilesPicked = (id, json) => {
     const resolve = picks.get(id);
     if (resolve === undefined) return;

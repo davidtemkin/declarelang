@@ -50,6 +50,21 @@ await test("a refusal keeps its BODY — the part that says why", async () => {
   } finally { provideTransport(prev); }
 });
 
+await test("errorSchema: a refusal that matches it is handed over; one that does not is held back, and error says where", async () => {
+  const a = await app(`url = "/api/thing", errorSchema = [ message: string ]`);
+  let prev = provideTransport(() => reply(422, { message: "Refund exceeds the original sale" }));
+  try {
+    await a.ds.fetch();
+    assert.deepEqual(a.ds.errorBody, { message: "Refund exceeds the original sale" }, "the declared shape arrives as itself");
+  } finally { provideTransport(prev); }
+  prev = provideTransport(() => reply(422, { msg: 42 }));
+  try {
+    await a.ds.fetch();
+    assert.equal(a.ds.errorBody, null, "a body not of the declared shape is not handed over as it");
+    assert.match(a.ds.error, /HTTP 422 .*does not match errorSchema: .*message/, "and the message names where it differs");
+  } finally { provideTransport(prev); }
+});
+
 await test("a non-JSON refusal is handed back as TEXT, not swallowed", async () => {
   const a = await app();
   const prev = provideTransport(() => reply(503, "upstream down, retry after 30s", "text"));

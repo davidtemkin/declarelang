@@ -386,6 +386,34 @@ the edit ends. A field that is a choice, a date or anything else names an `edito
 beside its `cell`, a value control bound to the record: `{ id: "state", cell: "StateText",
 editor: "StatePicker" }`.
 
+An editor is a class like a cell, built in the cell when it is entered and gone when the edit
+ends, with the row's record as its data. Its first control takes the keyboard, and a text
+field there (a combobox's entry included) starts with the value selected, so typing replaces
+it. It writes the way any control does, in its `commit`: to the record, or, as here, through
+the program's own verb that sends the change to a service:
+
+```declare-fragment
+class CategoryCell [ width = 100%, height = 100%,
+    TextLabel [ x = 8, y = center, fontSize = { provided("theme").gridFontSize },
+        text = { app.categoryName(:categoryId) } ] ]
+
+class CategoryEditor [ width = 100%, height = 100%, padding = [0, 4, 0, 4],
+    pick: Combobox [ width = 100%, y = center, accessibilityLabel = "Category",
+        items = { app.categories.map((c) => ({ id: c.id, label: c.name })) },
+        value = { ({ id: :categoryId, label: app.categoryName(:categoryId) }) },
+        commit(v: object) { if (v != null && v.id != :categoryId) app.recategorize(:id, v.id) } ] ]
+
+DataGrid [ columns = { [ { id: "description", title: "Description", width: 280, edit: true },
+                        { id: "categoryId", title: "Category", width: 180,
+                          cell: "CategoryCell", editor: "CategoryEditor" } ] } ]
+```
+
+Typing "Adv" and Enter picks Advertising and commits it; the combobox answered that Enter, so
+the cell stays open, and the next Enter leaves it a row down. What the editor does not answer
+of Escape, Enter and Tab leaves the cell. An editor with two fields moves between them with a
+binding of its own (a Tab on the first that focuses the second); a field the focus leaves
+commits what was typed in it.
+
 Two things here are worth carrying to your own work.
 
 **Sorting names a derivation; it does not reorder anything.** Clicking a header delivers

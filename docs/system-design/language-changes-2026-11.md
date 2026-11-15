@@ -103,3 +103,73 @@ a press goes to what is beneath.
 
 Why: Presentify run 9 (Esc, then a press on the inspector reached a color chip of the
 closing popover). Test: overlays.test ("a closing overlay takes no presses on itself…").
+
+## A modal leaves live what paints above it
+
+An open modal (`focusScope = modal`) made every element beside it inert, up its ancestor
+chain, so a toast shown over a sheet painted but took no presses and was out of the
+accessibility tree: its Undo did nothing, and its message was not announced. The Toast's own
+reference promised the opposite ("it stays above an open dialog or sheet, its action still
+clickable"). Now what paints above the modal stays live, along the paint tree (an overlay
+paints in its layer, wherever it is written; the toast's notice layer is above the sheet's):
+
+- in the DOM, only what is under the modal goes inert;
+- in the runtime's semantic tree, which the Mac host reads, the toast is read with the sheet;
+- for the keys, the modal's Tab cycle goes on to the toast's action and back, never behind the
+  sheet; Tab there no longer closes the sheet (the menu rule, for an overlay focus has left),
+  and Space presses the action.
+
+Only the modal's own program counts: a hosted program's dialog in its host's window layer
+does not take in the host's views. (`paintedAbove`, `runtime/src/interaction.ts`.)
+
+Why: Ledger run 10 (`getByText` found no toast over the record sheet). Tests:
+accessibility-browser.test ("an open modal leaves what is under it inert…"), accessibility.test
+("a toast over an open sheet is read, though it is written before the sheet"), overlays.test
+("a toast over an open sheet is in the sheet's Tab cycle…").
+
+## A cell entered by Enter or F2 starts with its text selected
+
+A DataGrid cell entered by Enter or F2 put the caret after the value, and a combobox in an
+editor of your own got no selection at all, so typing appended: "Advert" became
+"SoftwareAdvert". Now the grid's own field, and the first text field in an editor of your own
+(a combobox's entry included), start with the value selected, as a table's edit does in
+AppKit, so what is typed replaces it. A second press still puts the caret where it landed.
+
+Why: Ledger run 10 (an in-place category edit appended; the agent wrote a select-on-focus
+helper into five editors). Test: datagrid-editing.test.
+
+## Select All in a table
+
+`Table.selectAll()`: in a `"multi"` table, ⌘A (Ctrl+A off the Mac) selects every item that can
+be selected, and a Select All button calls the method. In a DataGrid, ⌘A on a selected cell
+selects the rows; in an open edit it is the field's, its text. The reference had said
+select-all was not built in.
+
+Why: every Ledger run wrote its own. Tests: table.test ("⌘A or Ctrl+A selects every row…"),
+datagrid-editing.test.
+
+## `DataSource.errorSchema`
+
+A refusal's body can be declared, as the value is with `schema`: `errorSchema = Problem` types
+`errorBody` as `Problem | null`, so a handler reads `errorBody.message` with no cast. A body that
+does not match is not handed over (`errorBody` is `null`), and `error` names where it differs.
+Additive: a source without it is as before.
+
+Why: Ledger run 10 cast `errorBody as any` seven times, and four other Ledger runs share at
+least one of the same workarounds. Tests: dataschema.test ("errorSchema types a refusal's
+body…"), datasource-failure.test ("errorSchema: a refusal that matches it…").
+
+## `FilePicker.save`
+
+`FilePicker.save(contents, { name, type? })` hands the person a file the program made: its text
+or a `Blob`'s bytes. A browser downloads it to where its downloads go; the Mac host shows its
+save panel (`NSSavePanel`), opening in Downloads with the name filled in, and writes the bytes
+where the person chose. It resolves to whether the file was saved: `false` when the panel was
+cancelled; a browser does not say, and answers `true`. The type is the name extension's when
+not given. Declare makes no file format; the program makes the contents.
+
+Why: every Ledger run exported CSV through a browser-only script, which cannot run on the Mac
+host. Tests: verify-requests.test ("FilePicker.save downloads the file a press makes…"),
+files-save.test (what a native host is handed and answers). The Mac panel is not exercised by
+a test, since it would take the screen.
+

@@ -668,4 +668,27 @@ await test("a Dialog whose row of buttons is wider than it stacks them, default 
   assert.equal(app.narrow._laid, app.narrow.arrangement, "two short ones keep the theme's arrangement");
 });
 
+await test("a toast over an open sheet is in the sheet's Tab cycle: Tab reaches its action and comes back, Space presses it, the sheet stays open", async () => {
+  // the toast is written before the sheet: what decides is the layer each paints in
+  const app = await boot(`App [ width = 560, height = 400, undone: number = 0,
+    toast: Toast [ picked(id: string) { app.undone = app.undone + 1 } ],
+    Button [ x = 20, y = 20, label = "Open" ],
+    sheet: Sheet [ edge = "end", accessibilityLabel = "Record",
+        save: Button [ label = "Save", onClick() { app.toast.say("Saved", ({ id: "undo", label: "Undo" })) } ] ] ]`);
+  deliverKeys(Keys, Focus);
+  app.sheet.show(); settle(); await turns();
+  app.toast.say("Saved", { id: "undo", label: "Undo" }); settle(); await turns();
+  Focus.focus(app.sheet.save); settle();
+  press("Tab");
+  same(Focus.getFocus(), app.toast._row.act, "Tab: the toast's action");
+  assert.equal(app.sheet.shown, true, "the sheet stays open");
+  press("Tab");
+  same(Focus.getFocus(), app.sheet.save, "Tab again: back in the sheet, never behind it");
+  assert.equal(app.sheet.shown, true, "and still open");
+  press("Tab");
+  press(" ");
+  assert.equal(app.undone, 1, "Space on the action presses it");
+  app.sheet.close(); settle();
+});
+
 summarize("overlays");

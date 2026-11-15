@@ -63,22 +63,18 @@ await test("a write the script intercepts is reported as intercepted, not as sen
   assert.match(r.stdout, /intercepted 1 write in the page \(POST \/no-such-endpoint \(answered by the script\)\) — none reached the service/);
 });
 
-await test("drive.download answers the file a press saves; drive.chooseFiles picks files in the dialog a press opens", () => {
+await test("FilePicker.save downloads the file a press makes, and drive.download answers it; drive.chooseFiles picks files in the dialog a press opens", () => {
   const dir = tempDir("declare-verify-files-");
-  writeFileSync(join(dir, "save.ts"), `export function saveText(name: string, text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/csv" }))
-  const a = document.createElement("a"); a.href = url; a.download = name
-  document.body.appendChild(a); a.click(); a.remove()
-}`);
   const app = join(dir, "files.declare");
-  writeFileSync(app, `script [ "save.ts", host = browser ]
-App [ width = 400, height = 200, got: string = "",
-    save: Button [ x = 20, y = 20, label = "Export", onClick() { saveText("rows.csv", "a,b\\n1,2\\n") } ],
+  writeFileSync(app, `App [ width = 400, height = 200, got: string = "", saved: string = "",
+    save: Button [ x = 20, y = 20, label = "Export", onClick() { FilePicker.save("a,b\\n1,2\\n", ({ name: "rows.csv" })).then((ok) => { app.saved = "" + ok }) } ],
     open: Button [ x = 20, y = 70, label = "Open", onClick() { FilePicker.pick({ accept: [".txt"] }).then((fs) => { app.got = fs.map((f) => f.name + ":" + f.size).join(",") }) } ] ]`);
   const f = join(dir, "flow.mjs");
   writeFileSync(f, `export default async ({ drive, expect }) => {
     const file = await drive.download(() => drive.click("app.save"), { timeout: 15000 });   // real time: generous under a loaded machine
     if (file.name !== "rows.csv" || file.text !== "a,b\\n1,2\\n") throw new Error(JSON.stringify(file));
+    await drive.settleData();
+    await expect.attr("app", "saved", "true");
     await drive.chooseFiles([{ name: "notes.txt", text: "hello" }], () => drive.click("app.open"));
     await drive.settleData();
     await expect.attr("app", "got", "notes.txt:5");
@@ -109,8 +105,9 @@ export default async ({ page }) => {
 
 // Venue run 32: every double-click form sent three presses (a click, then
 // Puppeteer's click count 2, itself two), and the locator's waited for the
-// network between them. A double is two presses, a person's beat apart.
-await test("every double-click form is two presses, nothing between them: a request the first sends is still out at the second", () => {
+// network between them. A double is two presses, a person's beat apart. And
+// Presentify run 10: two drive.clicks, on a clock only the script moves, paired.
+await test("every double-click form is two presses, nothing between them: a request the first sends is still out at the second; two scripted clicks are two clicks", () => {
   const dir = tempDir("declare-verify-dbl-");
   const app = join(dir, "dbl.declare");
   writeFileSync(app, `App [ width = 400, height = 400,
@@ -142,6 +139,9 @@ await test("every double-click form is two presses, nothing between them: a requ
       ["page.mouse.dblclick, pair", () => page.mouse.dblclick(box.x + 10, box.y + 10), "2/1/1/"],
       ["drive.dblclick, sender", () => drive.dblclick("app.sender"), "0/0/0/back out"],
       ["locator dblclick, sender", () => page.getByRole("button", { name: "Sender" }).dblclick(), "0/0/0/back out"],
+      // two scripted clicks, no time between them: two clicks, never a pair
+      ["drive.click twice, pair", async () => { await drive.click("app.pair"); await drive.click("app.pair"); }, "2/2/0/"],
+      ["locator click twice, pair", async () => { await page.getByLabel("Pair").click(); await page.getByLabel("Pair").click(); }, "2/2/0/"],
     ];
     const wrong = [];
     for (const [label, fn, want] of forms) {

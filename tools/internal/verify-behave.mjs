@@ -998,7 +998,11 @@ bootHost(cfg);
         // (a request it made is announced by the frames just waited)
         if (inflight.size > 0) await quiet();
       };
+      // ONE CLICK: the program's clock moves only when the script moves it, so a
+      // click after another on the same view would arrive 0 ms after it and pair
+      // into a double-click. A scripted click is one click; drive.dblclick makes two
       const press = async (x, y) => {
+        await page.evaluate(() => window.__declare?.freshClick?.()).catch(() => {});
         if (touching()) await page.touchscreen.tap(x, y);
         else await page.mouse.click(x, y);
         await landed();
@@ -1125,6 +1129,17 @@ bootHost(cfg);
         frameSession = null;
         return frames;
       };
+      // a trace a failed script left recording is ended, unread: Chrome holds one
+      // trace at a time, shared by every page of the browser, so one left running
+      // refuses the next script's profile ("Tracing has already been started")
+      const endFrames = async () => {
+        if (frameSession === null) return;
+        const s = frameSession;
+        frameSession = null;
+        await s.send("Tracing.end").catch(() => {});
+        await Promise.race([frameDone, new Promise((r) => setTimeout(r, 2000))]);
+        await s.detach().catch(() => {});
+      };
       // the trace's frames, then the drawings measured alone on the GPU, then the report
       const finishProfile = async (drawings) => {
         const frames = await stopFrames();
@@ -1141,7 +1156,12 @@ bootHost(cfg);
           await startFrames();
           await page.evaluate((w) => window.__declare.profile.start({ mark: true, why: w, frames: false }), why);
           try { await fn(); }
-          finally { await page.evaluate(() => window.__declare.profile.stop()); }
+          catch (e) {
+            await page.evaluate(() => window.__declare.profile.stop()).catch(() => {});
+            await endFrames();
+            throw e;
+          }
+          await page.evaluate(() => window.__declare.profile.stop());
           return finishProfile(drawings);
         },
         /** Profile the program from its first settle: the page reloads with the
@@ -1663,9 +1683,10 @@ const expect = {
          *  built), `reranForNothing` (how many rules may re-run for nothing: ran often
          *  and almost never changed anything; 0 for none). Times
          *  hold on the machine they were set on: `turnMs` (the costliest turn),
-         *  `frameMs` (the 95th percentile between new pictures reaching the
-         *  screen, from Chrome's trace; the frames as the page saw them where
-         *  there is no trace). `settled: true` asks that nothing still moves or
+         *  `frameMs` (from Chrome's trace, at the 95th percentile: the time
+         *  a frame took to reach the screen, and the time between new pictures
+         *  while the page was drawing — a pause between the script's steps is
+         *  not counted; the frames as the page saw them where there is no trace). `settled: true` asks that nothing still moves or
          *  waits. Fails naming each budget passed and what spent it. */
         budget(profile, limits) {
           const r = profile?.report ?? profile;
@@ -1681,8 +1702,11 @@ const expect = {
           if (limits.reranForNothing !== undefined && r.reranForNothing.length > limits.reranForNothing) over.push(`${r.reranForNothing.length} rule${r.reranForNothing.length === 1 ? "" : "s"} re-ran for nothing, over ${limits.reranForNothing}: ${r.reranForNothing.slice(0, 3).map((f) => `${f.label}${f.source ? ` (${f.source})` : ""} ${f.runs} runs, ${f.unchanged} changing nothing`).join("; ")}`);
           const shown = profile?.frames ?? null;
           if (limits.frameMs !== undefined && shown != null && shown.presented > 0) {
+            if (shown.p95 > limits.frameMs) over.push(`a frame took ${shown.p95.toFixed(1)} ms to reach the screen at the 95th percentile, over ${limits.frameMs}`);
             if (shown.everyP95 > limits.frameMs) over.push(`a new picture reached the screen every ${shown.everyP95.toFixed(1)} ms at the 95th percentile, over ${limits.frameMs}`);
-          } else if (limits.frameMs !== undefined && r.frames != null && r.frames.withWork > 0 && r.frames.p95 > limits.frameMs) over.push(`frames came every ${r.frames.p95.toFixed(1)} ms at the 95th percentile, over ${limits.frameMs} (Declare ${r.frames.slowest[0]?.declare.toFixed(1) ?? "?"} ms of the slowest)`);
+          } else if (limits.frameMs !== undefined && r.frames != null && r.frames.withWork > 0) {
+            if (r.frames.p95 > limits.frameMs) over.push(`frames came every ${r.frames.p95.toFixed(1)} ms at the 95th percentile, over ${limits.frameMs} (Declare ${r.frames.slowest[0]?.declare.toFixed(1) ?? "?"} ms of the slowest)`);
+          } else if (limits.frameMs !== undefined) over.push(`frameMs: no frame reached the screen while profiling, so there was nothing to hold to it — profile a step that changes what is shown`);
           if (limits.settled === true && (r.unsettled.motion.length > 0 || r.unsettled.waiting.length > 0)) over.push(`not settled: ${[...r.unsettled.motion, ...r.unsettled.waiting].slice(0, 4).join("; ")}`);
           if (over.length > 0) fail(`over budget: ${over.join(" · ")}`);
           step(`budget ${Object.keys(limits).join(", ")} ✓`);
@@ -1830,7 +1854,7 @@ const expect = {
       // `expect` is both: Playwright's expect(locator / page / value), and the
       // driver's own asks by program path (expect.text, expect.attr, expect.request, …)
       const scriptExpect = Object.assign((target) => located.expect(target), expect);
-      return { page, scriptPage, drive, expect: scriptExpect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned, waited };
+      return { page, scriptPage, drive, expect: scriptExpect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned, waited, endFrames };
     };
 
     return await fn({ openApp });
@@ -2170,7 +2194,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     try {
       await timing.time("script: the assert script, in all", () => app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.scriptPage })));
     } catch (e) {
-      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned, waited: app.waited }; }
+      if (e?.lines !== undefined) { failures.push(...e.lines); await app.endFrames(); return { ok: false, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned, waited: app.waited }; }
       const where = app.log.length > 0 ? ` (after: ${app.log.slice(-3).join(" → ")})` : "";
       // For an unexpected error, the first stack frame is the difference
       // between "my assert threw here" and an anonymous page error a reader
@@ -2183,6 +2207,8 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
       if (left) failures.push(`the page left the program — it is now at ${app.page.url()}${where}: a press followed a link, or the program navigated away, and a flow ends where it leaves the program`);
       else failures.push(`${e instanceof VerifyAssertion ? "" : "unexpected error: "}${e?.message ?? e}${where}${frame ? `\n      at ${frame}` : ""}`);
     }
+    // a profile the script started and never read (it failed first) stops recording
+    await app.endFrames();
     if (failures.length === 0) {
       await timing.time("end: the network quiet after the script", () => app.quiet(2000));
       await timing.time("end: layout questions at the end of the script", () => app.checkHere("at the end of the script"));
@@ -2466,6 +2492,12 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
 // behind; when the GPU is behind, that wait grows, and it is named.
 const STAGES = ["BeginImplFrameToSendBeginMainFrame", "SendBeginMainFrameToCommit", "Commit", "EndCommitToActivation", "Activation", "EndActivateToSubmitCompositorFrame",
   "SubmitToReceiveCompositorFrame", "ReceiveCompositorFrameToStartDraw", "StartDrawToSwapStart", "BufferAvailableToBufferReady", "BufferReadyToLatch", "SubmitCompositorFrameToPresentationCompositorFrame"];
+// Chrome's later names for two stages: the compositor now submits a "display
+// tree" where it submitted a compositor frame. Read as the stages they replace.
+const RENAMED = {
+  EndActivateToSubmitUpdateDisplayTree: "EndActivateToSubmitCompositorFrame",
+  SubmitUpdateDisplayTreeToPresentationCompositorFrame: "SubmitCompositorFrameToPresentationCompositorFrame",
+};
 export function analyzeFrames(events) {
   const sorted = [...events].sort((a, b) => a.ts - b.ts);
   const marks = sorted.filter((e) => e.name === "declare settle");
@@ -2485,16 +2517,20 @@ export function analyzeFrames(events) {
       else if (e.ph === "e" && open.has(id)) { const f = open.get(id); open.delete(id); f.end = e.ts; frames.push(f); }
       continue;
     }
-    if (!STAGES.includes(e.name) || !open.has(id)) continue;
+    const name = RENAMED[e.name] ?? e.name;
+    if (!STAGES.includes(name) || !open.has(id)) continue;
     const f = open.get(id);
-    if (e.ph === "b") { f.at[e.name] = e.ts; if (e.name === "SendBeginMainFrameToCommit") f.breakdown = e.args?.send_begin_mainframe_to_commit_breakdown ?? null; }
-    else if (e.ph === "e" && f.at[e.name] !== undefined) {
-      f.st[e.name] = (f.st[e.name] ?? 0) + (e.ts - f.at[e.name]);
-      if (e.name === "EndActivateToSubmitCompositorFrame") f.submit = e.ts;
-      if (e.name === "SubmitCompositorFrameToPresentationCompositorFrame") f.presentedAt = e.ts;
-      if (e.name === "SendBeginMainFrameToCommit") f.mainSpan = [f.at[e.name], e.ts];
+    if (e.ph === "b") { f.at[name] = e.ts; if (name === "SendBeginMainFrameToCommit") f.breakdown = e.args?.send_begin_mainframe_to_commit_breakdown ?? null; }
+    else if (e.ph === "e" && f.at[name] !== undefined) {
+      f.st[name] = (f.st[name] ?? 0) + (e.ts - f.at[name]);
+      if (name === "EndActivateToSubmitCompositorFrame") f.submit = e.ts;
+      if (name === "SubmitCompositorFrameToPresentationCompositorFrame") f.presentedAt = e.ts;
+      if (name === "SendBeginMainFrameToCommit") f.mainSpan = [f.at[name], e.ts];
     }
   }
+  // a presented frame whose last stage Chrome marks as an instant, with no end:
+  // the frame's own reporter closes at the presentation
+  for (const f of frames) if (f.presentedAt === undefined && /PRESENTED/.test(f.state) && f.submit !== undefined && f.end !== null) f.presentedAt = f.end;
   // the GPU process's main thread and the display compositor's thread, as busy
   // spans (their top-level tasks): what a frame's wait after submission was spent on
   const names = {};
@@ -2552,9 +2588,18 @@ export function analyzeFrames(events) {
   for (const f of presentedAll) f.idleWait = f.toDraw - f.gpuBusy - f.vizBusy > 2 * display;
   const shown = presentedAll.filter((f) => !f.idleWait);
   const t = shown.map((f) => f.total);
-  // how often a new picture of the page reached the screen, while it was making them
-  const times = presentedAll.map((f) => f.presentedAt).sort((a, b) => a - b);
-  const gaps = []; for (let i = 1; i < times.length; i++) { const g = (times[i] - times[i - 1]) / 1000; if (g < 1000) gaps.push(g); }
+  // how often a new picture of the page reached the screen, while it was making
+  // them: a gap counts only when the next frame was already under way within two
+  // display intervals of the last picture. A frame that began later was asked
+  // for later: the page had nothing to draw in between (a pause between a
+  // script's steps), and that pause is not a slow frame
+  const byTime = [...presentedAll].sort((a, b) => a.presentedAt - b.presentedAt);
+  const gaps = [];
+  for (let i = 1; i < byTime.length; i++) {
+    const prev = byTime[i - 1].presentedAt, next = byTime[i];
+    if ((next.at - prev) / 1000 > 2 * display) continue;
+    gaps.push((next.presentedAt - prev) / 1000);
+  }
   return { pid, frames: out.length, withPage: made.length, presented: presentedAll.length, idle: presentedAll.length - shown.length, dropped: out.filter((f) => /DROPPED/.test(f.state)).length,
     display,
     median: pct(t, 0.5), p95: pct(t, 0.95), worst: t.length ? Math.max(...t) : 0,

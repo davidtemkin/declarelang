@@ -19,8 +19,9 @@ schema Task [ id: string, title: string, done: boolean, due: number, note?: stri
 
 A schema is a top-level declaration. Squint past the brackets and it is a TypeScript
 interface — and it is a real type: `Task` works in any type position, in a declared
-attribute (`sel: Task? = null`), a method signature (`advance(t: Task)`), or a field of
-another schema. A schema's brackets hold fields only — no defaults, no behavior.
+attribute (`sel: Task? = null`), a method signature (`advance(t: Task)`), a field of
+another schema, or a function in a `script` block (`function late(t: Task): boolean`), so a
+script's helpers take the program's records with no interface of their own. A schema's brackets hold fields only — no defaults, no behavior.
 
 Field types are the ones JSON can say: `string`, `number`, `boolean`, `any`, another
 schema's name, a nested `[ … ]` record, or a literal union (`"open" | "closed"`,

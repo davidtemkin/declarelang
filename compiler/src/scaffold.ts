@@ -479,8 +479,13 @@ declare const Commands: { run(name: string, from?: unknown): boolean; state(name
  *  or a whole folder. */
 interface FilePickOptions { accept?: string[]; multiple?: boolean; folder?: boolean }
 /** The person's files: \`pick\` opens the file dialog — from a press, as a browser allows
- *  one only then — and resolves to the files chosen, none if it was dismissed. */
-declare const FilePicker: { pick(options?: FilePickOptions): Promise<File[]> };
+ *  one only then — and resolves to the files chosen, none if it was dismissed. \`save\` hands
+ *  the person a file the program made, its text or a Blob's bytes: a browser downloads it to
+ *  where its downloads go; the Mac shows its save panel, opening in Downloads with the name
+ *  filled in. It resolves to whether the file was saved (false when the person cancelled;
+ *  a browser does not say, and answers true). The options are the file's name, with its
+ *  extension, and its MIME type (from the extension when left out). */
+declare const FilePicker: { pick(options?: FilePickOptions): Promise<File[]>; save(contents: string | Blob, options: { name: string; type?: string }): Promise<boolean> };
 /** What a program says to assistive technology with no view to say it from —
  *  "Message sent", "3 results": \`announce\` speaks it without moving the focus,
  *  \`polite\` (the default) at the next pause, \`assertive\` at once. A view whose

@@ -57,6 +57,25 @@ writeFileSync(join(DIR, "budget-over.mjs"), `export default async ({ drive, expe
   for (let i = 0; i < 4; i++) { await drive.click('app.."Next"'); await drive.wait(50); }
   expect.budget(await drive.profileReport(), { reranForNothing: 0, runsPerTurn: 1 });
 };`);
+// frames: pauses between a script's steps are not slow frames; a drawing that
+// takes well over 50 ms a frame (eight million sines) is
+writeFileSync(join(DIR, "budget-pauses.mjs"), `export default async ({ drive, expect }) => {
+  const p = await drive.profile(async () => { for (let i = 0; i < 4; i++) { await drive.click('app.."Next"'); await drive.wait(400); } });
+  // over the frames a busy machine draws, under the 400 ms pauses
+  expect.budget(p, { frameMs: 250 });
+};`);
+writeFileSync(join(DIR, "slow.declare"), `App [ width = 300, height = 300,
+  pane: View [ width = 300, height = 300, scrolls = y,
+    picture: View [ width = 300, height = 3000,
+      draw(d: DrawContext) {
+        let k = 0
+        for (let i = 0; i < 8000000; i++) k += Math.sin(i)
+        d.fillStyle = "#3366cc"; d.fillRect(10, app.pane.scrollY + 50, 20, 20)
+        } ] ] ]`);
+writeFileSync(join(DIR, "budget-slow.mjs"), `export default async ({ drive, expect }) => {
+  const p = await drive.profile(async () => { for (let i = 0; i < 20; i++) await drive.wheel("app.pane", 60); });
+  expect.budget(p, { frameMs: 50 });
+};`);
 
 // callbacks the program hands to script code and to a promise: the turns they open
 // are named by the program's code that wrote, never inside the script
@@ -150,6 +169,14 @@ await test("expect.budget passes a profile within its limits, and fails one past
   assert.notEqual(over.status, 0, "past its budget, the script fails");
   assert.match(over.stdout + over.stderr, /over budget: [^\n]*turn \d+ \([^\n]*\) ran \d+ rules, over 1/, "the runs per turn, and the turn that spent them");
   assert.match(over.stdout + over.stderr, /re-ran for nothing, over 0: [^\n]*Row\.lit/, "and what re-ran for nothing, by name");
+});
+
+await test("a frame budget counts the gaps while the page draws, not the pauses between a script's steps", () => {
+  const pauses = run("tools/verify.mjs", "fan.declare", "--assert", join(DIR, "budget-pauses.mjs"));
+  assert.equal(pauses.status, 0, pauses.stdout + pauses.stderr);
+  const slow = run("tools/verify.mjs", "slow.declare", "--assert", join(DIR, "budget-slow.mjs"));
+  assert.notEqual(slow.status, 0, "a slow drawing is over a 50 ms budget");
+  assert.match(slow.stdout + slow.stderr, /over budget: [^\n]*(to reach the screen|reached the screen every|frames came every)/);
 });
 
 summarize("profile");

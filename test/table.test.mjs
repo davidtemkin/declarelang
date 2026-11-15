@@ -91,6 +91,26 @@ await test("keyboard: arrows move-and-select, shift extends, the ⌘-walk + Spac
   assert.equal(t.activeItem.id, 5, "End jumps the position");
 });
 
+await test("⌘A or Ctrl+A selects every row of a multi table, and selectAll() does from a button; a single table ignores it", async () => {
+  const app = await makeApp();
+  const t = app.t;
+  t.onKeyDown(KEY("a", { meta: true }));
+  settle();
+  assert.deepEqual(t.selection.map((r) => r.id), [0, 1, 2, 3, 4, 5], "⌘A: every row");
+  t.clearSelection(); settle();
+  t.onKeyDown(KEY("a", { ctrl: true }));
+  settle();
+  assert.equal(t.selection.length, 6, "Ctrl+A: every row");
+  t.clearSelection(); settle();
+  t.selectAll(); settle();
+  assert.equal(t.selection.length, 6, "selectAll()");
+  const one = await makeApp();
+  one.t.selects = "single"; settle();
+  one.t.onKeyDown(KEY("a", { meta: true }));
+  settle();
+  assert.equal(one.t.selection, null, "a single-selection table selects nothing on ⌘A");
+});
+
 await test("the delivery seam: a use-site commit() owns the value; the default writes the slots", async () => {
   const app = await makeApp("", 6, 'commit(sel: object) { app.delivered = sel },');
   const rows = rowsOf(app.t);

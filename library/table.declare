@@ -78,6 +78,12 @@ land here; `selectedItem` is then yours to read from your value (the last of it)
 ## clearSelection()
 Delivers an empty selection through `commit`.
 
+## selectAll()
+Delivers every item that can be selected through `commit`, in a `"multi"` table: what ⌘A
+(Ctrl+A off the Mac) does while the table has the focus, and what a Select All button calls.
+The items are the ones the table holds; selecting everything a service would match, beyond
+what is loaded, is the program's (a selection that stands for a query).
+
 ## deleteRequested()
 **Delivery seam — the app declares what deleting is.** Fires on Delete or Backspace
 while there is a selection *and the table itself holds focus*, so a text field's
@@ -149,7 +155,8 @@ the focus.
 True when `selects` is `"multi"`, so a screen reader says more than one row can be chosen.
 
 ## onKeyDown
-Arrows, Home/End, Space (multi), Delete/Backspace and Enter. Every other key goes on
+Arrows, Home/End, Space (multi), ⌘A or Ctrl+A (multi: `selectAll`), Delete/Backspace and
+Enter. Every other key goes on
 through the walk, so Escape bound on the table, a container or the App is heard while the
 table has the focus. An override should call through or the table loses its keyboard.
 
@@ -230,6 +237,13 @@ class Table extends Control [
         },
 
     clearSelection() { commit(null) },
+
+    // every item that can be selected (⌘A, Ctrl+A); the anchor stays where it was
+
+    selectAll() {
+        if (selects != "multi" || disabled) return
+        commit((this.itemArray() ?? []).filter((m) => this.selectable(m)))
+        },
 
     // ── the item universe, read from data (never instances — the
     //    windowing contract). A replicated table reaches its array through
@@ -335,6 +349,10 @@ class Table extends Control [
                 const cur = selection ?? []
                 _anchorIndex = activeIndex
                 commit(this.isSelected(m) ? cur.filter(s => !this.same(s, m)) : cur.concat([m]))
+                return
+                }
+            if (selects == "multi" && (e.meta || e.ctrl) && !e.alt && !e.shift && (e.key == "a" || e.key == "A")) {
+                this.selectAll()
                 return
                 }
             if ((e.key == "Delete" || e.key == "Backspace") && (selection ?? []).length > 0) {

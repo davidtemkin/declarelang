@@ -273,10 +273,15 @@ function holdInert(modal: View, open: boolean): void {
   if (held !== undefined && !open) { const f = untracked(() => Focus.getFocus()); if (f !== null) follow(f); }
   const el = elementOf(modal);
   if (!open || el === null) return;
+  // Everything beside the modal in its own layer goes inert, and what is under
+  // its layer; a layer painted above it stays live (a toast's notice layer over
+  // a sheet's). Siblings paint in document order: further out, the ones after
+  // the branch the modal sits in are above it.
   const made: HTMLElement[] = [];
   for (let at: HTMLElement | null = el; at !== null && at.parentElement !== null; at = at.parentElement) {
     for (const sib of Array.from(at.parentElement.children)) {
-      if (sib !== at && sib instanceof HTMLElement && !sib.inert) { sib.inert = true; made.push(sib); }
+      if (sib === at) { if (at === el) continue; break; }
+      if (sib instanceof HTMLElement && !sib.inert) { sib.inert = true; made.push(sib); }
     }
     if (at.parentElement.dataset.declareApp !== undefined) break;
   }

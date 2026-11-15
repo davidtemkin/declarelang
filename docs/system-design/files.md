@@ -88,10 +88,11 @@ JSON text). Its multipart `Content-Type` is the platform's to set.
    hear its own drops (the DOM renderer's nested elements already give it them).
 9. **The `accept` mapping on the Mac** — MIME families beyond image/audio/video/text, and MIME
    types without a registered type.
-10. **Writing files back** — the browser's File System Access API (Chromium only: directory
-    handles, writable files). Not portable; a program that needs it uses a
-    `script [ host = browser ]` until a Declare form is designed — and a save dialog belongs
-    in the same design.
+10. **Writing files back** — handing the person a new file is `FilePicker.save(contents,
+    { name, type })`: a download in a browser, the save panel on the Mac (opening in
+    Downloads). Writing back to a file the person chose, in place, is not designed: the
+    browser's File System Access API is Chromium only (directory handles, writable files),
+    and a program that needs it uses a `script [ host = browser ]`.
 11. **Other drags** — text, links, images dragged from another page or app (not files).
 12. **Verification** — the Mac's real Finder drag and the open panel have been exercised only
     through their JavaScript entry points; a manual pass on the real gestures is owed.

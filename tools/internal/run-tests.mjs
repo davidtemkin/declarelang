@@ -68,6 +68,7 @@ const SUITE = [
   "test/overlays.test.mjs",        // overlays by kind, windows, hosted programs (planes.md §3, §8, §11, §12)
   "test/shortcuts.test.mjs",       // shortcuts as declared data, across islands (planes.md §9)
   "test/key-bindings.test.mjs",    // the walk: keyBindings layered by class, nearest first (key-bindings.md)
+  "test/datagrid-editing.test.mjs", // a cell entered by Enter or F2 starts with its text selected, in Chrome
   "test/key-matrix.test.mjs",      // every focused view × key × container, and a field in each context: what the docs promise
   "test/draw-quiet.test.mjs",      // a drawing no one can see is not re-recorded
   "test/drag-edge-scroll.test.mjs", // a drag in an edge band scrolls, under a finger as under a mouse
@@ -127,6 +128,7 @@ const SUITE = [
   "test/fetch-family.test.mjs",
   "test/script-host.test.mjs",
   "test/files-browser.test.mjs",
+  "test/files-save.test.mjs",      // FilePicker.save: what a native host is handed, and what it answers
   "test/clipboard-browser.test.mjs", // copy, cut and paste at the focused view, by the page's own events
   "test/island-browser.test.mjs",
   "test/two-way.test.mjs",         // the apps/two-way showcase: the whole embedder surface on one page

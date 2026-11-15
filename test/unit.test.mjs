@@ -456,6 +456,9 @@ await test("a declared name one of Declare's own types already holds is said pla
     // a word list, and a preset theme
     [`class AnimatorOrder extends View [ tint: number = 1 ]\nApp [ p: AnimatorOrder [ ], onClick() { p.tint = 2 } ]`, "class", "AnimatorOrder"],
     [`class Cupertino extends View [ tint: number = 1 ]\nApp [ p: Cupertino [ ], onClick() { p.tint = 2 } ]`, "class", "Cupertino"],
+    // a value enum the library's own attributes are typed by: refused at the
+    // declaration, not as "SimpleLayout.axis expects a Axis" inside library files
+    [`class Axis extends View [ tint: number = 1 ]\nApp [ layout: SimpleLayout [ axis = y ], p: Axis [ ], onClick() { p.tint = 2 } ]`, "class", "Axis"],
   ]) {
     const r = await compile(src, { mainId: "apps/cadence.declare" });
     const e = (r.errors ?? []).find((x) => x.code === "DECLARE4015");
@@ -463,6 +466,7 @@ await test("a declared name one of Declare's own types already holds is said pla
     assert.match(e.message, new RegExp(`${kind} ${name} takes the name of one of Declare's own types \\(npx declare-help ${name} says what it is\\)`));
     assert.match(e.message, new RegExp(`Rename yours, as 'Cadence${name}'`), "the app's name as the prefix");
     assert.equal(e.pos?.line, 1, "at the declaration");
+    assert.ok(!(r.errors ?? []).some((x) => /expects a/.test(x.message)), `${name}: nothing reported against the library's own attributes`);
   }
 });
 
