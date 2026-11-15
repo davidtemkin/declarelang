@@ -14,7 +14,7 @@
 import { View } from "./view.js";
 import { readRowIndex, isReplica } from "./view.js";
 import { blocksOf } from "./replicate.js";
-import { rootFrameBox } from "./interaction.js";
+import { rootFrameBox, paintedAbove } from "./interaction.js";
 import { untracked } from "./reactive.js";
 import { providedRead } from "./attributes.js";
 const documentOf = (v) => v.$parseSource({});
@@ -36,13 +36,19 @@ const fn = (v, m) => typeof v[m] === "function";
 /** The semantic tree of everything under `root`: a synthetic `application`
  *  node whose children are the program's top-level semantic nodes. Content
  *  behind an open modal is inert, as it is to focus: only the topmost modal's
- *  subtree is reported then. Read untracked — building it wakes nothing. */
+ *  subtree is reported then, with what paints above it (a toast over a sheet).
+ *  Read untracked — building it wakes nothing. */
 export function semanticTree(root) {
     return untracked(() => {
         const top = { id: semanticId(root), role: "application", name: String(root.title ?? ""), states: [], actions: [], children: [] };
         const modal = topModal(root);
         ACTIVE.clear();
         walk(modal ?? root, top.children);
+        // what paints above the modal stays live (a toast over a sheet): the views
+        // painted after its branch at each level of the paint tree
+        if (modal !== null)
+            for (const v of paintedAbove(modal))
+                walk(v, top.children);
         // the items composites name as the one the keyboard is on, wherever they sit
         if (ACTIVE.size > 0)
             markActive(top);

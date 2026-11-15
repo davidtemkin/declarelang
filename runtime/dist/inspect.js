@@ -9,6 +9,7 @@
 // Zero-dependency like the rest of the runtime; pay-per-use (nothing here
 // allocates until asked). The `__declare` page bridge is installed by boot.ts
 // for top-level apps.
+import { freshClick } from "./input.js";
 import { startProfile, stopProfile, profiling, profileReport, motionInFlight, profileText, measureDrawings, clearProfile } from "./profile.js";
 import { Node, authoredName } from "./node.js";
 import { findPath, pathOf, indexStep } from "./node-path.js";
@@ -621,6 +622,9 @@ export function bridgeFor(root) {
             return n !== null ? inspect(n, path ?? "app") : null;
         },
         find: (path) => find(root, path),
+        /** The next click is one click: what came before it pairs with nothing (a
+         *  harness's scripted clicks, on a clock only the script moves). */
+        freshClick,
         /** Bring the view an element is drawn for into view as focus does (Tab): each
          *  scroller that carries it scrolls the least that shows it, clear of the
          *  bars pinned over it with ignoreScroll. False when no view holds the element. */

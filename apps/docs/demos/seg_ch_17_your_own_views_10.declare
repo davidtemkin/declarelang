@@ -1,0 +1,26 @@
+class SplitLayout extends Layout [
+    wide: boolean = true,
+    side: number = 160,
+    strip: number = 56,
+    place() {
+        const w = this.contentExtent("width")
+        const h = this.contentExtent("height")
+        const s = this.side, t = this.strip
+        return this.laid().map((c, i) => this.wide
+            ? (i == 0 ? ({ x: 0, y: 0, w: w - s, h: h }) : ({ x: w - s, y: 0, w: s, h: h }))
+            : (i == 0 ? ({ x: 0, y: 0, w: w, h: h - t }) : ({ x: 0, y: h - t, w: w, h: t })))
+        }
+    ]
+
+
+App [ width = 520, height = 200, fill = white, textColor = black,
+    frame: View [ width = 100%, height = 100%,
+        layout: SplitLayout [ wide = { app.width >= 480 } ],
+        main: View [ fill = whitesmoke,
+            Text [ x = center, y = center, text = "main" ]
+            ],
+        aside: View [ fill = gainsboro,
+            Text [ x = center, y = center, text = "aside" ]
+            ]
+        ]
+    ]

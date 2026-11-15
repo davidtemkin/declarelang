@@ -113,6 +113,7 @@ export declare function setOutsidePressHook(fn: OutsideHook | null, scroll?: Out
 export declare function provideKeyContextTarget(fn: () => {
     $surface?: unknown;
 } | null): void;
+export declare function freshClick(): void;
 export declare function routeInput(alive: () => boolean, resolve: (e: MouseEvent) => HitTarget | null, rootPoint?: (e: MouseEvent) => {
     x: number;
     y: number;

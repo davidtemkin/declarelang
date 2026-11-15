@@ -1178,12 +1178,15 @@ export class DataSource extends Dataset {
                     raw = "";
                 }
                 const body = parseProblem(raw);
+                // a declared refusal shape holds the body to it: one that does not
+                // match is not the declared type, so it is not handed over as one
+                const misfit = this.errorSchema != null && body !== null ? validateDoc(body, this.errorSchema) : null;
                 if (seq === this.seq)
-                    setBound(this, "errorBody", body);
+                    setBound(this, "errorBody", misfit === null ? body : null);
                 // a 4xx is the server's decision (a write was not carried out); a 5xx —
                 // a gateway's 502/503/504 among them — is the server failing, and a
                 // write's outcome is not known
-                throw new RequestFailure(res.status >= 500 ? "serverError" : "rejected", `HTTP ${res.status} for ${url}`);
+                throw new RequestFailure(res.status >= 500 ? "serverError" : "rejected", `HTTP ${res.status} for ${url}${misfit !== null ? ` — its body does not match errorSchema: ${misfit}` : ""}`);
             }
             answered = true;
             const value = await this.$readBody(res, quiet, waiting);
@@ -1384,6 +1387,7 @@ defineAttributes(DataSource, {
     // code, so a constraint can tell "not asked" from "asked and refused".
     statusCode: { def: 0 },
     errorBody: { def: null },
+    errorSchema: { def: null },
     responseHeaders: { def: null },
     // seconds a request may go with nothing arriving; 0 = no limit
     timeout: { def: 60 },

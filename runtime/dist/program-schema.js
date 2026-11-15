@@ -59,6 +59,7 @@ export function structuralReason(name) {
  *  order-free. The two unbuildable shapes are loud errors here: an `extends`
  *  cycle (the chain can never bottom out) and a class that (transitively)
  *  contains itself (it could never finish instantiating). */
+const DECLARED_TYPE_SET = new Set(DECLARED_TYPE_NAMES);
 export function programSchemas(classes, shapes = EMPTY_SHAPES) {
     const infos = [];
     const schemas = { ...SCHEMAS };
@@ -71,7 +72,14 @@ export function programSchemas(classes, shapes = EMPTY_SHAPES) {
     // regardless of source order. `extends` needs the base's ATTRIBUTES to build
     // the chain, so the loop below runs base-before-derived too — by RECURSING
     // into a not-yet-built user base, never by demanding the author sort the file.
-    const classNames = new Set(classes.map((c) => c.name));
+    // A class may not take the name of one of Declare's own value types (Axis,
+    // CrossAlign, Color…): every attribute typed by that name — the library's
+    // own `axis = y` among them — would resolve to the class, and the errors
+    // would land in library files, far from the cause. The class is kept out of
+    // the names that resolve, so nothing cascades, and the typecheck says why at
+    // the declaration (DECLARE4015).
+    const takesTypeName = (c) => /^[A-Z]/.test(c.name) && DECLARED_TYPE_SET.has(c.name) && !Object.hasOwn(SCHEMAS, c.name);
+    const classNames = new Set(classes.filter((c) => !takesTypeName(c)).map((c) => c.name));
     const isKnownClass = (n) => Object.hasOwn(schemas, n) || classNames.has(n);
     // Duplicate names report in FILE order (stable messages), before build order
     // reshuffles anything; later duplicates drop out of the build entirely.
@@ -81,6 +89,8 @@ export function programSchemas(classes, shapes = EMPTY_SHAPES) {
             errors.push(new DeclareError(`'${decl.name}' is a built-in class — a class of the program can't take its name; rename yours`, decl.pos));
             continue;
         }
+        if (takesTypeName(decl))
+            continue; // said by the typecheck (DECLARE4015), with the program's rename
         if (byName.has(decl.name)) {
             errors.push(new DeclareError(`there is already a class named '${decl.name}'`, decl.pos));
             continue;

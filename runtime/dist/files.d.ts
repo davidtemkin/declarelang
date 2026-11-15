@@ -15,9 +15,17 @@ export interface PickOptions {
     multiple?: boolean;
     folder?: boolean;
 }
-/** A host's own file dialog (the native host's open panel). */
+/** What `FilePicker.save` takes: the file's name, with its extension, and its
+ *  MIME type (from the name's extension when left out). */
+export interface SaveOptions {
+    name: string;
+    type?: string;
+}
+/** A host's own file dialogs (the native host's open and save panels). `save`
+ *  is handed the bytes and answers whether the person saved them. */
 export interface FilesHost {
     pick(options: PickOptions): Promise<FileRecord[]>;
+    save?(bytes: Uint8Array, options: SaveOptions): Promise<boolean>;
 }
 export declare function provideFilesHost(h: FilesHost | null): void;
 export declare function fromBrowser(f: File, path: string): FileRecord;
@@ -27,6 +35,13 @@ export declare function adopt(list: readonly FileRecord[]): FileRecord[];
  *  none if the dialog was dismissed. */
 export declare const FilePicker: {
     pick(options?: PickOptions): Promise<FileRecord[]>;
+    /** Hand the person a file the program made: text, or a Blob's bytes. The
+     *  program makes the contents (a CSV, a JSON backup, a calendar file); this
+     *  delivers them. A browser downloads it, to where its downloads go; the
+     *  native host shows its save panel, opening in Downloads with the name filled
+     *  in. Resolves to whether it was saved: false when the person cancelled.
+     *  (A browser does not say, and resolves true.) */
+    save(contents: string | Blob, options: SaveOptions): Promise<boolean>;
 };
 /** A drag of files over an app, at root point (x, y): `over` while it moves,
  *  `out` when it leaves, `drop` with the files. Returns whether a view there

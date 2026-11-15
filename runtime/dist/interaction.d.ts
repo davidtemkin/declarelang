@@ -74,6 +74,11 @@ export declare function paintParentOf(v: InteractionView): InteractionView | nul
 /** Does `a` paint above `b` — later along the paint tree, where their paths from
  *  the root part? null when they share no root (one in a hosted program). */
 export declare function paintsAbove(a: InteractionView, b: InteractionView): boolean | null;
+/** What paints above `v`'s layer: at each level of the paint tree from the layer
+ *  `v` paints in out to its root, the views painted after its branch — a toast's
+ *  notice layer over a sheet's overlay layer. What an open modal leaves live
+ *  (semantics, focus); beside it, in its own layer, is what it blocks. */
+export declare function paintedAbove(v: InteractionView): InteractionView[];
 /** Some view's box, place, transform, scroll, clip or children changed. */
 export declare function markGeometry(): void;
 export declare function pointerOff(v: InteractionView): boolean;

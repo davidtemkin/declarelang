@@ -98,6 +98,13 @@ export function setOutsidePressHook(fn, scroll = null) {
  *  focus service provides it; without one, the keys open nothing of ours. */
 let KEY_CONTEXT = null;
 export function provideKeyContextTarget(fn) { KEY_CONTEXT = fn; }
+/** Each routed input's double-click pairing, forgotten on request: a test
+ *  harness's scripted click is one click, whatever came before it. Its clock
+ *  moves only when the script moves it, so two scripted clicks arrive 0 ms
+ *  apart, and paired by time they would read as a double-click. */
+const PAIRINGS = new Set();
+export function freshClick() { for (const f of PAIRINGS)
+    f(); }
 export function routeInput(alive, resolve, rootPoint, onHover, 
 // the top-level program's router — the one that answers the open overlays
 // (an embedded program's own router leaves it to the page's)
@@ -148,6 +155,9 @@ topLevel = true) {
     let lastClickAt = 0;
     let lastClickX = 0;
     let lastClickY = 0;
+    const forget = () => { lastClickKey = null; };
+    PAIRINGS.add(forget);
+    offs.push(() => PAIRINGS.delete(forget));
     // The hold timer for the current press — armed at down on a view that wants
     // holds, disarmed by movement past slop, by release, or by cancellation.
     let holdTimer = null;

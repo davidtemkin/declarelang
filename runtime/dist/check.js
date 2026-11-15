@@ -31,7 +31,7 @@ import { Diag, nearestName } from "./diagnostics.js";
 import { RUNTIME_METHODS, runtimeFieldsOf, runtimeMethodsOf } from "./runtime-methods.js";
 import { cssAttributeHint, hintedForeignName, renamedClassMember } from "./teach.js";
 import { autoIncludableNames } from "./include.js";
-import { coerce, describeLiteral, noteLiteral } from "./value.js";
+import { coerce, describeLiteral, noteLiteral, DECLARED_TYPE_NAMES } from "./value.js";
 import { resolveShapes, shapeNames } from "./shape-resolve.js";
 // The program-under-check's declared schema names — set at check() entry
 // (checkElement recurses too deep to thread one more parameter through).
@@ -94,7 +94,9 @@ export function check(input) {
     // left unchecked (REFUSED_TAGS) rather than reported as if the author meant
     // the built-in. (A LIBRARY name is refused by the include pass, which knows
     // the manifest.)
-    REFUSED_TAGS = new Set(program.classes.filter((c) => Object.hasOwn(SCHEMAS, c.name)).map((c) => c.name));
+    // The same for a class that takes one of Declare's own type names (Axis…):
+    // refused at the declaration (DECLARE4015), its uses not reported again.
+    REFUSED_TAGS = new Set(program.classes.filter((c) => Object.hasOwn(SCHEMAS, c.name) || (/^[A-Z]/.test(c.name) && DECLARED_TYPE_NAMES.includes(c.name))).map((c) => c.name));
     const placementErrors = [...checkPlacements(program), ...checkControlledInput(program), ...checkTagStyleNames(program)];
     const { infos, schemas, errors } = programSchemas(program.classes, CHECK_SHAPES);
     errors.push(...placementErrors);

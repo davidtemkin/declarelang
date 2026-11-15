@@ -45,7 +45,56 @@ export const FilePicker = {
             return host.pick(options).then(adopt);
         return browserPick(options);
     },
+    /** Hand the person a file the program made: text, or a Blob's bytes. The
+     *  program makes the contents (a CSV, a JSON backup, a calendar file); this
+     *  delivers them. A browser downloads it, to where its downloads go; the
+     *  native host shows its save panel, opening in Downloads with the name filled
+     *  in. Resolves to whether it was saved: false when the person cancelled.
+     *  (A browser does not say, and resolves true.) */
+    save(contents, options) {
+        const name = String(options?.name ?? "").trim();
+        if (name === "")
+            return Promise.reject(new Error("FilePicker.save needs a file name: save(contents, { name: \"report.csv\" })"));
+        const type = options.type ?? (typeof contents === "string" ? typeFor(name) : (contents.type || typeFor(name)));
+        if (host !== null && host.save !== undefined) {
+            const save = host.save.bind(host);
+            return bytesOf(contents).then((bytes) => save(bytes, { name, type }));
+        }
+        return browserSave(contents, name, type);
+    },
 };
+/** The MIME type a file name's extension names; text for one it does not know. */
+const TYPES = {
+    csv: "text/csv", tsv: "text/tab-separated-values", txt: "text/plain", md: "text/markdown", json: "application/json",
+    html: "text/html", xml: "application/xml", ics: "text/calendar", svg: "image/svg+xml", png: "image/png",
+    jpg: "image/jpeg", jpeg: "image/jpeg", pdf: "application/pdf",
+};
+function typeFor(name) {
+    const ext = /\.([^.]+)$/.exec(name)?.[1]?.toLowerCase() ?? "";
+    const t = TYPES[ext];
+    return t === undefined ? "text/plain;charset=utf-8" : t.startsWith("text/") ? `${t};charset=utf-8` : t;
+}
+function bytesOf(contents) {
+    if (typeof contents === "string")
+        return Promise.resolve(new TextEncoder().encode(contents));
+    return contents.arrayBuffer().then((b) => new Uint8Array(b));
+}
+function browserSave(contents, name, type) {
+    if (typeof document === "undefined")
+        return Promise.resolve(false);
+    const blob = typeof contents === "string" ? new Blob([contents], { type }) : contents;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // the download has taken the bytes by the next turn of the page; the url is let go after
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return Promise.resolve(true);
+}
 function browserPick(o) {
     if (typeof document === "undefined")
         return Promise.resolve([]);

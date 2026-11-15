@@ -35,7 +35,8 @@ export declare function semanticId(v: View): number;
 /** The semantic tree of everything under `root`: a synthetic `application`
  *  node whose children are the program's top-level semantic nodes. Content
  *  behind an open modal is inert, as it is to focus: only the topmost modal's
- *  subtree is reported then. Read untracked — building it wakes nothing. */
+ *  subtree is reported then, with what paints above it (a toast over a sheet).
+ *  Read untracked — building it wakes nothing. */
 export declare function semanticTree(root: View): SemNode;
 /** The view's role as the tree reads it: what it declares, or what a runtime
  *  leaf is (a field, a picture). A scroller with a name and no role is a

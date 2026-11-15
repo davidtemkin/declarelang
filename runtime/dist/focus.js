@@ -25,7 +25,7 @@ import { declareName } from "./declare-name.js";
 import { radiusMax } from "./value.js";
 import { isSet, ownerOf, providedRead } from "./attributes.js";
 import { Cell, Constraint, afterSettle, untracked } from "./reactive.js";
-import { rootFrameBox, rootTransform, pointerOff } from "./interaction.js";
+import { rootFrameBox, rootTransform, pointerOff, paintedAbove } from "./interaction.js";
 import { apply as applyAffine } from "./affine.js";
 import { provideKeyContextTarget } from "./input.js";
 import { pathOf } from "./node-path.js";
@@ -588,7 +588,14 @@ export class FocusService {
      *  overlay owns are still the focused view's. */
     focusInClaimant(keys) {
         const c = keys._claimant();
-        return c instanceof View && this.holds(c);
+        if (!(c instanceof View))
+            return false;
+        if (this.holds(c))
+            return true;
+        // what paints above an open modal (a toast's action over a sheet) is in its
+        // cycle, and keeps its own keys there
+        const f = this.current;
+        return c.focusScope === "modal" && f !== null && paintedAbove(c).some((a) => insideAcross(f, a));
     }
     /** Can the person still reach `v` — focusable, shown, and in Tab's reach? A
      *  native field asks before it reports its own blur. */
@@ -978,6 +985,12 @@ function sequence(root, out = []) {
     const t = tenantOf(root);
     if (t !== null)
         visit(t, out);
+    // a modal's cycle goes on to what paints above it (a toast over a sheet, its
+    // action a stop): the siblings written after each branch it sits in, from its
+    // own level out along the paint tree — what it leaves live (semantics-dom's holdInert)
+    if (scopeOf(root) === "modal")
+        for (const v of paintedAbove(root))
+            visit(v, out);
     return out;
 }
 /** Where the walk into `MEET.out` meets `MEET.view`: the number of entries before
@@ -1685,6 +1698,12 @@ function cycleOf(f) {
     // own cycle: Tab has nowhere to go, and does not leave it
     if (scopeOf(f) === "modal")
         return f;
+    // focus on what paints above an open modal (a toast's action over a sheet)
+    // moves in the modal's cycle, which goes on to it: Tab never reaches behind
+    const m = openModal(rootOf(f));
+    if (m !== null && m !== f && !insideAcross(f, m)
+        && paintedAbove(m).some((a) => insideAcross(f, a)))
+        return m;
     const s = enteredStop(f);
     let child = f;
     for (let v = parentAcross(f); v !== null; child = v, v = parentAcross(v)) {
@@ -1695,6 +1714,22 @@ function cycleOf(f) {
             return v;
     }
     return child;
+}
+/** The open modal in front: the last shown view with `focusScope = modal`, in
+ *  tree order (semantics.ts reads the same one). */
+function openModal(root) {
+    let found = null;
+    const visit = (v) => {
+        if (!v.visible)
+            return;
+        if (v !== root && v.focusScope === "modal")
+            found = v;
+        for (const c of v.children)
+            if (c instanceof View)
+                visit(c);
+    };
+    visit(root);
+    return found;
 }
 /** A view's ordered traversal members: its `tabOrder()` override if it defines
  *  one (an instance method, installed by the language), else `tabDefault()`.
@@ -1801,7 +1836,9 @@ export function deliverKeys(keys, focus) {
             // its opener — the web's menu-button rule; focus never goes behind a menu
             // left open
             const c = keys._claimant();
-            if (c instanceof View && (!focus.holds(c) || (focus.getFocus() === c && c.focusScope !== "modal"))) {
+            // …but focus on what paints above an open modal (a toast's action over a
+            // sheet) is still in the modal's cycle: Tab moves on in it, closing nothing
+            if (c instanceof View && !(c.focusScope === "modal" && focus.focusInClaimant(keys)) && (!focus.holds(c) || (focus.getFocus() === c && c.focusScope !== "modal"))) {
                 const held = c;
                 const back = focus.getFocus() === c ? held._savedFocus ?? null : null;
                 if (back !== null)

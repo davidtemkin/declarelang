@@ -30,18 +30,6 @@ export interface ClassInfo {
     schema: ClassSchema;
     defaults: Record<string, AttrValue | undefined>;
 }
-/** Register a program's classes: validate each declaration and produce the
- *  program's schema table — the built-ins plus one ClassSchema per class,
- *  chained to its base exactly like the built-ins chain (the R2 "R6 plug-in
- *  shape", now plugged in). Per-PROGRAM on purpose: the global SCHEMAS stays
- *  built-ins only, so two programs' classes can never collide.
- *
- *  Declaration order constrains NOTHING (ruled 2026-08-06): a base may be
- *  declared anywhere in the program — the build below runs in dependency
- *  order regardless of source order — and children inside bodies were always
- *  order-free. The two unbuildable shapes are loud errors here: an `extends`
- *  cycle (the chain can never bottom out) and a class that (transitively)
- *  contains itself (it could never finish instantiating). */
 export declare function programSchemas(classes: readonly ClassDecl[], shapes?: ReadonlySet<string>): {
     infos: ClassInfo[];
     schemas: Record<string, ClassSchema>;
