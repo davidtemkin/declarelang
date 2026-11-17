@@ -18,7 +18,7 @@
 
 import { inPointerDispatch } from "./pointer-dispatch.js";
 import { View, fireEvent, setFocusDiscardHook, setKeyDefaultHook, noteFocused, noteFocusGeometry, provideGeometryDemand, type KeyLayer } from "./view.js";
-import { Keys, comboOf, comboOfCode, normalizeCombo, keyLabel, commanded, composing, FIELD_CHORDS, KEYS_ON_MAC, setKeyWalk, setInForce, type KeyEvent } from "./keys.js";
+import { Keys, comboOf, comboOfCode, normalizeCombo, keyLabel, commanded, composing, typesCharacter, FIELD_CHORDS, KEYS_ON_MAC, setKeyWalk, setInForce, type KeyEvent } from "./keys.js";
 /** Classes whose focusShape() was said to return no box (said once each). */
 const BAD_SHAPE = new WeakSet<object>();
 import { compileExpr, type ExprFn } from "./expr.js";
@@ -1523,23 +1523,32 @@ function memberArrow(f: View, e: KeyEvent): boolean {
  *  up to the nearest scroller. At its edge a scroller passes the key on, so an
  *  outer one takes it, as browsers chain. True when the key scrolled it. */
 const LINE = 40;
-function scrollKeys(f: View, e: KeyEvent): boolean {
-  if (f.scrolls === "none") return false;
+/** Would the scroller `f` scroll for this key — one of its keys, along an axis
+ *  it scrolls, and not at that edge? Read only: what scrollKeys acts on, and
+ *  what explainKey reports. "none" for a key that isn't a scroller's. */
+function scrollTakes(f: View, e: KeyEvent): "scrolls" | "edge" | "none" {
+  if (f.scrolls === "none") return "none";
   const v = f.scrolls !== "x", h = f.scrolls !== "y";
-  const page = (v ? f.height : f.width) * 0.9;
-  const by = (d: number): void => { if (v) f.scrollTo(f.scrollY + d); else f.scrollToX(f.scrollX + d); };
   const fwd = e.key === "ArrowDown" || e.key === "ArrowRight" || e.key === "PageDown" || e.key === "End" || (e.key === " " && !e.shift);
   const back = e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "PageUp" || e.key === "Home" || (e.key === " " && e.shift);
-  if (!fwd && !back) return false;
+  if (!fwd && !back) return "none";
   const vert = e.key === "ArrowDown" || e.key === "ArrowUp" ? true : e.key === "ArrowLeft" || e.key === "ArrowRight" ? false : v;
-  if ((vert && !v) || (!vert && !h)) return false;
+  if ((vert && !v) || (!vert && !h)) return "none";
   const at = vert ? f.scrollY : f.scrollX;
-  if (back && at <= 0) return false;
+  if (back && at <= 0) return "edge";
   if (fwd) {
     let far = 0;
     for (const c of f.children) if (c instanceof View && c.visible) far = Math.max(far, vert ? c.y + c.height : c.x + c.width);
-    if (at >= far - (vert ? f.height : f.width) - 0.5) return false;
+    if (at >= far - (vert ? f.height : f.width) - 0.5) return "edge";
   }
+  return "scrolls";
+}
+
+function scrollKeys(f: View, e: KeyEvent): boolean {
+  if (scrollTakes(f, e) !== "scrolls") return false;
+  const v = f.scrolls !== "x", h = f.scrolls !== "y";
+  const page = (v ? f.height : f.width) * 0.9;
+  const by = (d: number): void => { if (v) f.scrollTo(f.scrollY + d); else f.scrollToX(f.scrollX + d); };
   switch (e.key) {
     case "ArrowDown": if (!v) return false; f.scrollTo(f.scrollY + LINE); return true;
     case "ArrowUp": if (!v) return false; f.scrollTo(f.scrollY - LINE); return true;
@@ -1797,3 +1806,121 @@ setFocusDiscardHook((view) => Focus.noteDiscarded(view));
 setKeyDefaultHook(baseKeyDown);
 setKeyWalk((e) => walkKeys(e));
 setInForce(bindingsInForce);
+
+// ── explainKey: the walk, read before the key is pressed ─────────────────────
+
+/** One stop of the walk as explainKey reports it: the view, what it does with
+ *  the key, and whether that takes it — "yes", "maybe" (code decides: a command
+ *  may return false, an onKeyDown of the view's own may take it or not), "no". */
+export interface KeyStep { view: View | null; says: string; takes: "yes" | "maybe" | "no" }
+
+/** A written key (`"Space"`, `"⌘S"`, `"Ctrl+Shift+Z"`, `"ArrowDown"`) as the
+ *  press the walk would see. */
+function eventOf(spec: string): KeyEvent | null {
+  let rest = normalizeCombo(spec);
+  const mods = new Set<string>();
+  while (rest.length > 1 && "⌃⌥⇧⌘".includes(rest[0])) { mods.add(rest[0]); rest = rest.slice(1); }
+  if (rest === "") return null;
+  const back: Record<string, string> = { "←": "ArrowLeft", "→": "ArrowRight", "↑": "ArrowUp", "↓": "ArrowDown", "↩": "Enter", "⎋": "Escape", "⌫": "Backspace", "⌦": "Delete", "⇥": "Tab", Space: " " };
+  const key = back[rest] ?? (rest.length === 1 ? rest.toLowerCase() : rest);
+  const code = key === " " ? "Space" : /^[a-z]$/.test(key) ? "Key" + key.toUpperCase() : /^[0-9]$/.test(key) ? "Digit" + key : key;
+  const cmd = mods.has("⌘");
+  return { key, code, shift: mods.has("⇧"), alt: mods.has("⌥"), ctrl: KEYS_ON_MAC ? mods.has("⌃") : cmd, meta: KEYS_ON_MAC && cmd, repeat: false };
+}
+
+const ownKeyDown = (v: View): boolean => (v as unknown as { onKeyDown: unknown }).onKeyDown !== View.prototype.onKeyDown;
+
+/** What one view's table would do with the press — the walk's tableAt, read and
+ *  never run. Steps for each binding met; true once one surely takes it. */
+function explainTable(v: View, f: View | null, p: Press, everywhereOnly: boolean, out: KeyStep[]): boolean {
+  const keys = focusOf().keys ?? Keys;
+  const layers = (v as unknown as { $keyLayers?: KeyLayer[] }).$keyLayers;
+  for (const layer of layers ?? []) {
+    for (const rec of layerRecords(v, layer)) {
+      if (everywhereOnly && rec.everywhere !== true) continue;
+      if (!matches(rec, p)) continue;
+      const k = String(rec.key ?? rec.code);
+      if (!predicate(v, rec, "when")) { out.push({ view: v, says: `binds ${k}, but its when is false now: absent`, takes: "no" }); continue; }
+      if (rec.command === null) { out.push({ view: v, says: `binds ${k} to null: the rest of this view's table stands down`, takes: "no" }); return false; }
+      if (!predicate(v, rec, "enabled")) { out.push({ view: v, says: `binds ${k}, disabled now: takes the key and does nothing`, takes: "yes" }); return true; }
+      if (rec.command === "native") { out.push({ view: v, says: `binds ${k} to "native": takes it for the browser's own use`, takes: "yes" }); return true; }
+      out.push({ view: v, says: `keyBindings: ${k} → ${String(rec.command)}()${everywhereOnly ? " (everywhere)" : ""} — takes it, unless the method returns false`, takes: "maybe" });
+      return false;
+    }
+  }
+  if (everywhereOnly) return false;
+  for (const set of keys._setsOn(v)) {
+    const items = Array.isArray(set.items) ? set.items as BindingRecord[] : [];
+    const hit = items.find((r) => r !== null && typeof r === "object" && matches(r, p));
+    if (hit === undefined) continue;
+    const title = typeof set.title === "string" && set.title !== "" ? `"${set.title}" ` : "";
+    out.push({ view: v, says: hit.enabled === false ? `Shortcuts ${title}lists ${String(hit.key)}, disabled: passes it on` : `Shortcuts ${title}: ${String(hit.key)} → ${String(hit.command ?? hit.id)}`, takes: hit.enabled === false ? "no" : "yes" });
+    if (hit.enabled !== false) return true;
+  }
+  // the built-ins, as builtIns decides them
+  const e = p.e, plain = !e.ctrl && !e.alt && !e.meta;
+  if (v === f && isTextField(v) && e.key !== "Tab" && e.key !== "Escape" && e.key !== "Enter" && (!commanded(p.combo) || FIELD_CHORDS.has(p.combo))) {
+    out.push({ view: v, says: "a focused text field: its editing keeps the key", takes: "yes" }); return true;
+  }
+  if (v === f && e.key === "Enter" && plain && !e.shift && v.link !== "") { out.push({ view: v, says: `follows its link (${v.link})`, takes: "yes" }); return true; }
+  if (v === f && e.key === "Enter" && plain && v.focusScope === "region") { out.push({ view: v, says: "a region focused as one stop: Enter enters it", takes: "maybe" }); }
+  if (plain && !e.shift && f !== null && v !== f && !isTextField(f) && v === memberStop(f) && /^(Arrow|Home$|End$)/.test(e.key)) {
+    out.push({ view: v, says: "a stop: the arrows, Home and End move focus among its members", takes: "yes" }); return true;
+  }
+  if (plain && v.scrolls !== "none" && !isTextField(v)) {
+    const s = scrollTakes(v, e);
+    if (s === "scrolls") { out.push({ view: v, says: `a scroller (scrolls = ${v.scrolls}): takes it and scrolls`, takes: "yes" }); return true; }
+    if (s === "edge") out.push({ view: v, says: "a scroller at its edge: passes it on", takes: "no" });
+  }
+  return false;
+}
+
+/** Who would take a key pressed now, and why — the walk from the focused view
+ *  out to the App and the standard table, read and never run: bindings,
+ *  shortcuts, a scroller (and whether it is at its edge), a stop's arrows, an
+ *  open overlay holding the keys. Asked before a press, as `explainHit` is of
+ *  a point. `takenBy` is the first stop that surely takes it; a "maybe" before
+ *  it is code that decides as it runs. */
+export function explainKey(spec: string): { key: string; focus: View | null; takenBy: View | "standard" | "browser" | null; steps: KeyStep[] } | { error: string } {
+  const e = eventOf(spec);
+  if (e === null) return { error: `explainKey("${spec}"): not a key — write it as a binding does: "Space", "ArrowDown", "⌘S", "Ctrl+Shift+Z"` };
+  const Focus = focusOf();
+  const keys = Focus.keys ?? Keys;
+  const p = pressOf(e, false);
+  const f = Focus.getFocus();
+  const steps: KeyStep[] = [];
+  const done = (by: View | "standard" | "browser" | null) => ({ key: comboOf(e), focus: f, takenBy: by, steps });
+  if (f !== null && isTextField(f) && typesCharacter(e)) {
+    steps.push({ view: f, says: "a focused text field types it: the key bindings are not read", takes: "yes" });
+    return done(f);
+  }
+  const chord = commanded(p.combo);
+  const handler = f !== null && ownKeyDown(f) ? f : null;
+  if (handler !== null && !chord) steps.push({ view: handler, says: `${declareName(handler)}'s onKeyDown runs first; it may take the key, and hands on what it doesn't with super.onKeyDown(e)`, takes: "maybe" });
+  const claim = keys._claimant();
+  const claimant = claim instanceof View ? claim : null;
+  let v: View | null = f ?? Focus.getRoot();
+  if (claimant !== null && keys.overlayOwns(e) && !(f !== null && insideAcross(f, claimant))) {
+    steps.push({ view: claimant, says: "an open overlay holds the keyboard: the walk starts at it", takes: "no" });
+    v = claimant;
+  }
+  const start = v;
+  let modal = false;
+  while (v !== null) {
+    const up: View | null = parentAcross(v);
+    const outside = modal || (claimant !== null && v !== start && !insideAcross(v, claimant));
+    if (!outside) { if (explainTable(v, f, p, false, steps)) return done(v); }
+    else if (up === null) {
+      steps.push({ view: v, says: "past an open overlay's edge: only this App's everywhere bindings are read", takes: "no" });
+      if (explainTable(v, f, p, true, steps)) return done(v);
+    }
+    if (v.focusScope === "modal") modal = true;
+    if (up !== null && !(v.parent instanceof View) && !chord) { steps.push({ view: v, says: "a plain key stays in its program: the walk ends at its App", takes: "no" }); break; }
+    v = up;
+  }
+  if (handler !== null && chord) steps.push({ view: handler, says: `${declareName(handler)}'s onKeyDown hears it after the tables, and may take it`, takes: "maybe" });
+  if (e.key === "Tab" && !e.ctrl && !e.alt && !e.meta) { steps.push({ view: null, says: `the standard table: ${e.shift ? "Shift-Tab moves focus back" : "Tab moves focus on"}`, takes: "yes" }); return done("standard"); }
+  if (e.key === "F6" && !e.ctrl && !e.alt && !e.meta && !keys.navClaimed()) { steps.push({ view: null, says: "the standard table: F6 moves between regions", takes: "yes" }); return done("standard"); }
+  steps.push({ view: null, says: "nothing in the program takes it: the browser's own use, if any", takes: "no" });
+  return done(steps.some((s) => s.takes === "maybe") ? null : "browser");
+}

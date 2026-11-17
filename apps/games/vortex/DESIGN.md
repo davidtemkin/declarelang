@@ -150,8 +150,8 @@ flipper = … ]`, then Red, Yellow, Green, Violet), laid over the dark preset, a
 
 ### Keyboard
 
-A `Keys` member on the App: `onKeyDown` for the discrete keys (start, pause,
-superzap, the first step of a spin, the first shot), and `Keys.isDown` in the frame tick
+A `KeyListener` member on the App: `onKeyDown` for the discrete keys (start, pause,
+superzap, the first step of a spin, the first shot), and `Keyboard.isDown` in the frame tick
 for held keys (repeat spin, auto-fire), the documented way for a game to read held keys
 (which also stops the browser's own use of them).
 

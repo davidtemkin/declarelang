@@ -112,6 +112,15 @@ writeFileSync(GESTURES, `App [ width = 390, height = 844, theme = { SanFrancisco
     seg: Segmented [ x = 20, width = 300, value = { app.mode },
         items = { [ ({ id: "a", label: "First" }), ({ id: "b", label: "Second" }) ] },
         commit(v: string) { app.mode = v } ],
+    // a card in a scroller that a hold picks up and a drag then carries: a swipe
+    // on it scrolls the deck, a hold-then-drag moves the card
+    picked: boolean = false, carried: number = 0,
+    deck: View [ width = 390, height = 160, scrolls = y,
+        sheet: View [ width = 390, height = 800, fill = #EEF1F4,
+            card: View [ x = 20, y = 20, width = 200, height = 60, fill = #C9D6E3,
+                onHold(e: PointerEvent) { app.picked = true },
+                onDrag(e: PointerEvent) { if (app.picked) app.carried = e.deltaY },
+                onDragEnd(e: DragEndEvent) { app.picked = false } ] ] ],
     room: View [ width = 100%, height = 1200 ]
     ]`);
 
@@ -177,6 +186,24 @@ export default async ({ drive, expect, page }) => {
 ` });
   assert.ok(r.ok, r.out);
   assert.match(r.out, /app\.one\.stray has ignoreScroll, but its parent app\.one does not scroll/, "the boot check names a pin with nothing to pin against");
+});
+
+await test("a hold then a drag carries what the hold picked up, where a swipe would scroll (drive.hold's thenDrag)", () => {
+  const r = verify(GESTURES, { name: "hold-drag", src: COMMON + `
+export default async ({ drive, expect, page }) => {
+  await drive.hold("app.deck.sheet.card", 700, { thenDrag: [0, 50] });
+  const c = await read(page, "app", "carried");
+  if (!(c > 40)) expect.fail("the hold picked the card up and the drag carried it 50: " + c);
+  await expect.attr("app", "picked", false);
+  expect.equal(await read(page, "app.deck", "scrollY"), 0, "the carry did not scroll the deck");
+  // the same finger without the hold: the deck's scroll, the card left where it is
+  await drive.drag("app.deck.sheet.card", 0, -60);
+  const s = await read(page, "app.deck", "scrollY");
+  if (!(s > 30)) expect.fail("a swipe on the card scrolls the deck: " + s);
+  expect.equal(await read(page, "app", "carried"), c, "the swipe carried nothing");
+};
+` });
+  assert.ok(r.ok, r.out);
 });
 
 await test("gestures: a pane dragged, a strip paged, hold, pinch, slider, switch, segmented — by driver and by raw finger", () => {

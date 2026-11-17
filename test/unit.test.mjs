@@ -1705,6 +1705,16 @@ await test("compile: onChange on a node that tracks nothing warns that it never 
   assert.equal(w.length, 1, r.warnings.map((e) => e.message).join("\n"));
 });
 
+await test("compile: onHold beside onPointerMove with no drag event warns that a finger's carry scrolls instead (DECLARE4044); onDrag is quiet", async () => {
+  const r = await compile(`class Card extends View [ width = 80, height = 40, onHold(e: PointerEvent) { } ]
+App [ width = 300, height = 300, n: number = 0,
+    a: Card [ onPointerMove(e: PointerEvent) { app.n = e.x } ],
+    b: Card [ onPointerMove(e: PointerEvent) { app.n = e.x }, onDrag(e: PointerEvent) { app.n = e.deltaX } ],
+    c: View [ width = 80, height = 40, onPointerMove(e: PointerEvent) { app.n = e.x } ] ]`, {});
+  const w = r.warnings.filter((e) => /DECLARE4044|onHold and onPointerMove but no drag event/.test(e.message));
+  assert.equal(w.length, 1, r.warnings.map((e) => e.message).join("\n"));
+});
+
 await test("compile: a text face declared on a container with another type is refused; with its own type it provides", async () => {
   const bad = await compile(`App [ width = 100, height = 100, v: View [ textColor: string = "mixed", Text [ text = "a" ] ] ]`, {});
   assert.ok(bad.errors.some((e) => /'textColor' declared here provides it to every text inside/.test(e.message)), bad.errors.map((e) => e.message).join("; "));

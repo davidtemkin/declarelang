@@ -484,9 +484,15 @@ bootHost(cfg);
             const lines = bootFailure(await Promise.all(bootSaid), pageErrors);
             // nothing named a reason: say what is known, never the bare timeout
             if (lines.length === 0) {
-              const loaded = await page.evaluate(() => ({ declare: typeof window.__declare, scripts: document.scripts.length })).catch(() => null);
-              lines.push(`boot: the page loaded, but the program never came up within 10 s (${e?.message ?? "no answer"}), and the page reported no error`);
-              if (loaded !== null && loaded.declare === "undefined") lines.push("  the runtime never started on the page: its script did not run (a request for it failed, or it was blocked)");
+              const loaded = await page.evaluate(() => ({ declare: typeof window.__declare, built: window.__declare?.stub !== undefined && window.__declare?.inspect === undefined, scripts: document.scripts.length })).catch(() => null);
+              if (loaded?.built) {
+                // a declarec build runs, but leaves out the inspector every rung drives
+                lines.push("boot: this page is a built program (declarec), which leaves out the inspector that declare-look and declare-verify drive. " +
+                  "Point them at the program itself (declare-look app.declare) or at its dev-server address");
+              } else {
+                lines.push(`boot: the page loaded, but the program never came up within 10 s (${e?.message ?? "no answer"}), and the page reported no error`);
+                if (loaded !== null && loaded.declare === "undefined") lines.push("  the runtime never started on the page: its script did not run (a request for it failed, or it was blocked)");
+              }
               for (const t of pageSaid) lines.push(`  the page logged: ${t}`);
             }
             throw Object.assign(new VerifyAssertion(lines.join("\n")), { lines });
@@ -1255,11 +1261,24 @@ bootHost(cfg);
         },
         /** Press and hold `ms` (the app's time advances by exactly that), then
          *  release in place — a finger's press-and-hold, or a held mouse button.
-         *  What `onHold` answers, and a context menu on a touch screen. */
-        async hold(path, ms = 600) {
+         *  What `onHold` answers, and a context menu on a touch screen.
+         *  `{ thenDrag: [dx, dy] }` carries it before letting go: a hold that picks
+         *  something up and moves it — on a touch device, the finger the hold
+         *  gave the drag to, where a plain drag would be the page's scroll. */
+        async hold(path, ms = 600, o = {}) {
           // a REQUEST held: { method, path } — it stays out until release(), so
           // the script can look at what the program shows while it waits
           if (typeof path === "object" && path !== null && !Array.isArray(path)) return holdRequests(path);
+          const odd = Object.keys(o).filter((k) => k !== "thenDrag");
+          if (odd.length > 0) throw new VerifyAssertion(`drive.hold(…, { ${odd.join(", ")} }): not an option — thenDrag: [dx, dy]`);
+          if (o.thenDrag !== undefined) {
+            const [dx, dy = 0] = o.thenDrag;
+            await this.press(path);
+            await this.wait(ms);
+            await this.moveBy(dx, dy);
+            await this.release();
+            return;
+          }
           const c = await reach(path);
           step(`hold ${path} for ${ms} ms`);
           if (touching()) {

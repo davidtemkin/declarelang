@@ -108,7 +108,9 @@ npm install -D "declarelang@github:davidtemkin/declarelang#v<version>"
 ```
 
 Editing the line by hand and running `npm install` is not enough: the lockfile still holds the
-old commit, so the old release stays installed, with no warning. After an update, `npx
+old commit, so the old release stays installed, with no warning. The command writes the line
+in npm's own spelling (`github:…#v<version>`, whatever spelling it had) and formats
+`package.json` as npm does. After an update, `npx
 declare-changes` lists what to change in a program written for the release before. The
 installed copy is never edited; treat it exactly like any other dependency.
 

@@ -283,6 +283,21 @@ await test("evaluate: a :path whose field name collides with a node member reads
   } finally { app.discard(); }
 });
 
+await test("evaluate: the result comes back as data too, beside its summary (the Pagemap upgrade)", async () => {
+  const app = await boot(`App [ width = 100, height = 100,
+      store: Dataset { { "rows": [ { "id": "a", "n": 1 }, { "id": "b", "n": 2 } ] } },
+      lbl: Text [ text = "hi" ],
+      ]`);
+  try {
+    const { evaluateIn } = await import("../runtime/dist/inspect-service.js");
+    const rows = evaluateIn(app, "app", "app.store.value.rows");
+    assert.equal(rows.text, "array[2]", "the transcript keeps its summary");
+    assert.deepEqual(rows.value, [{ id: "a", n: 1 }, { id: "b", n: 2 }], "the value is the array itself");
+    assert.deepEqual(evaluateIn(app, "app", "[app.lbl, 1 + 2]").value, ["Text lbl ›", 3].map((x, i) => i === 0 ? evaluateIn(app, "app", "app.lbl").value : x), "a view is named, not walked");
+    assert.equal(evaluateIn(app, "app", "width = 120").value, 120, "a set answers the value set");
+  } finally { app.discard(); }
+});
+
 await test("explain: an unknown slot answers loudly, never with placid nothing", async () => {
   const app = await boot(`App [ width = 400, height = 300, fitS: number = 1 ]`);
   try {

@@ -40,8 +40,9 @@ window.__declare.explain("app.dock.row.calIcon", "width")
 | `expand(path, attr, trail?)` | one level of a record/array/`Dataset` value — lazy, for deep data |
 | `at(x, y)` | `{ path, kind }` of the topmost view at a point — the same coordinates `rootX`/`rootY` report, so `at(rootX, rootY)` names the node back |
 | `explainHit(x, y)` | what a press at that point lands on, and why — each view on the walk and what made it the target or passed it by |
+| `explainKey(key)` | who would take a key pressed now (`"Space"`, `"⌘S"`, `"ArrowDown"`), asked before the press: each stop of the walk from the focused view out to the App — its binding, shortcut, scroller (and whether it is at its edge) or stop — and `takenBy`, the first that surely takes it. A step marked `maybe` is code that decides as it runs: a command that may return `false`, an `onKeyDown` of the view's own. Nothing runs and nothing scrolls |
 | `dependents(attr)` | every `(path, attr)` whose constraint reads that name |
-| `evaluate(path, src)` | evaluate Declare in a node's scope — read, set, bind, or add a view (adding a view needs the parser, which rides the compiler bundle: open the Inspector first — `⌥⌘D`, or `?inspector`) |
+| `evaluate(path, src)` | evaluate Declare in a node's scope — read, set, bind, or add a view; the answer's `text` is a summary (`array[14]`) and its `value` the result itself, as data (adding a view needs the parser, which rides the compiler bundle: open the Inspector first — `⌥⌘D`, or `?inspector`) |
 | `stats()` | `{ nodes, ownedSlots, motionBusy }` — leak and perf canaries |
 | `trace` | **what changed, and why** — `start(n)`, `read()`, `text()`, `stop()`, `clear()`; see **The wake trace** |
 | `clock` | deterministic time — see **Motion** |

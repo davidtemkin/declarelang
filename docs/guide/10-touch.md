@@ -119,6 +119,9 @@ there. A mouse goes the same way: once it has wandered past the click threshold,
 is the claimant's drag and no click. A control that claims a drag of its own, such as a
 `Slider` on that map, keeps it, being the nearest; a claim on one axis takes only travel
 along that axis; and a view that pairs its drag with `onHold` takes the press at the hold.
+The drag is `onDragStart`, `onDrag` and `onDragEnd`; `onPointerMove` is not one of them, so a
+hold beside `onPointerMove` picks a thing up that the finger then cannot carry, because the
+page scrolls instead (the compiler says so, DECLARE4044).
 
 `onClick`, `onPointerDown`, `onPointerMove` and `onHold` alone claim nothing. A tap coexists with every
 browser gesture — that is the resolved layer's whole point — and when the browser

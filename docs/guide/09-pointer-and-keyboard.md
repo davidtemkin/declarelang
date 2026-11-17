@@ -239,6 +239,13 @@ is left to the browser. So:
   windows — keeps its plain keys, while a chord it doesn't take goes on to the program around
   it: the desktop's ⌘W closes the window.
 
+The walk starts where focus is, and a click focuses a view that takes focus. So a key the App
+binds that a scroller also takes (Space, the arrows, Page Up and Down) reaches the App only
+while focus sits outside every scroller: with a tile inside a scrolling map focused, Space
+pages the map. When the key belongs to the tile, the tile binds it. To see, before a press,
+which view would take a key and what it passed on the way, ask the running program:
+`__declare.explainKey("Space")` ([Introspection](declare-docs:operational:introspection)).
+
 ### Key bindings
 
 Three tables hold keys, all read in the one walk: `keyBindings`, the keys a view answers (most

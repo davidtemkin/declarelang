@@ -9,6 +9,7 @@ import { test, summarize } from "./harness.mjs";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { instantiate } from "../runtime/dist/instantiate.js";
 import { settle, provideMeasurer, Focus, Keys, deliverKeys } from "../runtime/dist/index.js";
+import { explainKey } from "../runtime/dist/inspect.js";
 import { approximateMeasurer } from "../compiler/dist/headless.js";
 import { linkIslandTenant } from "../runtime/dist/island.js";
 import { hostValuesFor } from "../runtime/dist/boundary.js";
@@ -609,6 +610,41 @@ await test("DataGrid: Tab leaves an open edit a cell along — the grid's own ed
   press("Tab", { code: "Tab", shift: true });
   await later();
   assert.deepEqual([app.g.activeIndex, app.g.activeCol, app.g.editing], [0, 1, false], "Shift-Tab: back across the rows");
+});
+
+await test("explainKey says, before the press, who would take a key: a scroller around the focused view takes Space from the App's binding, until the view binds it (the Pagemap upgrade)", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
+    got: string = "",
+    keyBindings = { [ ({ key: "Space", command: "read" }) ] },
+    read() { app.got = "read" },
+    map: View [ width = 400, height = 200, scrolls = y,
+        sheet: View [ width = 400, height = 1000,
+            tile: View [ width = 100, height = 60, focusable = true, accessibilityLabel = "Page",
+                own: boolean = false,
+                keyBindings = { [ ({ key: "Space", command: "here", when: "mine" }) ] },
+                mine() -> boolean { return own },
+                here() { app.got = "here" } ] ] ] ]`);
+  Focus.focus(app.map.sheet.tile); settle();
+  let r = explainKey("Space");
+  assert.equal(r.focus, "app.map.sheet.tile");
+  assert.equal(r.takenBy, "app.map", JSON.stringify(r, null, 1));
+  assert.ok(r.steps.some((s) => s.path === "app.map.sheet.tile" && /when is false/.test(s.says)), "the tile's own binding, absent now, is named");
+  assert.ok(r.steps.some((s) => s.path === "app.map" && /scroller/.test(s.says) && s.takes === "yes"));
+  assert.equal(app.got, "", "explaining ran nothing");
+  assert.equal(app.map.scrollY, 0, "…and scrolled nothing");
+  press(" ", { code: "Space" });
+  assert.ok(app.map.scrollY > 0 && app.got === "", "the press does what was said: the map scrolls");
+  // at the scroller's end it passes Space on, to the App's binding
+  app.map.scrollTo(800); settle();
+  r = explainKey("Space");
+  assert.ok(r.steps.some((s) => s.path === "app.map" && /edge/.test(s.says)));
+  assert.ok(r.steps.some((s) => s.path === "app" && /read\(\)/.test(s.says) && s.takes === "maybe"), JSON.stringify(r.steps));
+  // the tile binds Space itself: it is the tile's
+  app.map.sheet.tile.own = true; settle();
+  r = explainKey("Space");
+  assert.ok(r.steps[0].path === "app.map.sheet.tile" && /here\(\)/.test(r.steps[0].says), JSON.stringify(r.steps));
+  assert.match(explainKey("").error, /not a key/);
+  assert.match(explainKey("⌘S").key, /S$/);
 });
 
 summarize("key-bindings");

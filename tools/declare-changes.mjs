@@ -88,11 +88,40 @@ export function families(files, root = ROOT) {
   return (base) => [base, ...[...parent.keys()].filter((c) => c !== base && extendsFrom(c, base))];
 }
 
+/** A class or schema of the program's own that has a name the platform now uses. A release
+ *  that adds a library class can take a name a program already gave its own class, and
+ *  that is a compile error (DECLARE5000) which no release's notes can list, since the name
+ *  is the program's. So it is found here from the current reference, whichever release
+ *  added the name: [{ name, kind, file, line }]. */
+export function nameClashes(files, root = ROOT) {
+  const model = join(root, "docs", "declare-model.json");
+  if (!existsSync(model)) return [];
+  const ref = JSON.parse(readFileSync(model, "utf8")).reference ?? {};
+  const out = [];
+  for (const f of files) {
+    for (const m of f.text.matchAll(/^[ \t]*(?:class|schema)\s+([A-Z][\w$]*)/gm)) {
+      const e = ref[m[1]];
+      if (e !== undefined) out.push({ name: m[1], kind: e.kind ?? "name", file: f.path, line: f.text.slice(0, m.index).split("\n").length });
+    }
+  }
+  return out;
+}
+
 /** What applies: every entry from releases after `since` (all, when null), with
- *  where its `Find:` matches in `files` ({ path, text }). */
+ *  where its `Find:` matches in `files` ({ path, text }) — and first, any of the
+ *  program's own class names the platform has since taken (nameClashes). */
 export function plan({ since, files, all = releases() }) {
   const family = families(files);
   const out = [];
+  for (const c of nameClashes(files)) {
+    out.push({
+      release: VERSION, heading: `Your \`${c.name}\` → a name of your own`,
+      why: `\`${c.name}\` is now a Declare ${c.kind}, so a class of the program's own can't have the name: rename yours (every use of it), or use the library's where it does the same job.`,
+      find: null, findLine: null, before: null, after: null,
+      docs: [{ label: c.name, href: `declare-docs:${c.name}` }], watch: null,
+      hits: [{ file: c.file, line: c.line }],
+    });
+  }
   for (const rel of all) {
     if (since !== null && cmp(rel.version, since) <= 0) continue;
     if (cmp(rel.version, VERSION) > 0) continue;
@@ -104,10 +133,18 @@ export function plan({ since, files, all = releases() }) {
   return out;
 }
 
+const sources = new Map();
+function lineOf(h) {
+  if (!sources.has(h.file)) { try { sources.set(h.file, readFileSync(h.file, "utf8").split("\n")); } catch { sources.set(h.file, []); } }
+  const t = (sources.get(h.file)[h.line - 1] ?? "").trim();
+  return t.length > 100 ? t.slice(0, 99) + "…" : t;
+}
+
 function printEntry(e, withHits) {
   console.log(`\n## ${e.heading}   (${e.release})`);
   if (e.why) console.log(e.why);
-  if (withHits) for (const h of e.hits) console.log(`  ${relative(process.cwd(), h.file)}:${h.line}`);
+  // each hit with its own line, so the change can be made from the list
+  if (withHits) for (const h of e.hits) console.log(`  ${relative(process.cwd(), h.file)}:${h.line}${lineOf(h) === "" ? "" : `   ${lineOf(h)}`}`);
   if (e.before !== null) console.log(`\n  before:\n${e.before.replace(/^/gm, "    ")}`);
   if (e.after !== null) console.log(`  after:\n${e.after.replace(/^/gm, "    ")}`);
   if (e.docs.length > 0) console.log(`  read: ${e.docs.map((d) => resolveDoc(d.href)).join("  ·  ")}`);

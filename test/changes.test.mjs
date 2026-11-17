@@ -12,7 +12,7 @@ import { resolve, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { readChanges, findLines } from "../tools/internal/changes.mjs";
-import { releases, plan, writtenFor } from "../tools/declare-changes.mjs";
+import { releases, plan, writtenFor, nameClashes } from "../tools/declare-changes.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,13 +27,15 @@ await test("the reader: an entry's heading, why, Find, before and after, docs an
     "Watch for: something quiet.", "", "## After", "", "text",
   ].join("\n"));
   assert.deepEqual({ ...e, docs: e.docs.map((d) => d.href) }, {
-    heading: "`a` → `b`", why: "Why it changed.", find: "/\\ba\\(/", before: "A [ a() { } ]", after: "A [ b() { } ]",
+    heading: "`a` → `b`", why: "Why it changed.", find: ["/\\ba\\(/"], findLine: " `/\\ba\\(/`", before: "A [ a() { } ]", after: "A [ b() { } ]",
     docs: ["declare-docs:guide:controls@x", "declare-docs:A.method.b"], watch: "something quiet.",
   });
 });
 
 await test("a Find is a literal or a regular expression, and may span lines", () => {
   assert.deepEqual(findLines("x(", "a\nx(1)\nb x(2)"), [2, 3]);
+  assert.deepEqual(findLines(["x(", "y["], "y[\nx(1)\nb"), [1, 2], "a list matches any of its patterns");
+  assert.deepEqual(readChanges("## Breaking changes\n### a → b\nWhy.\n\nFind: `Keys [` · `Keys.isDown`\n")[0].find, ["Keys [", "Keys.isDown"]);
   assert.deepEqual(findLines("/A\\s*\\[[^\\]]*\\binput\\(/", "A [\n  input(v) { }\n]"), [1]);
 });
 
@@ -43,7 +45,8 @@ await test("every release's entries are complete: why, a before and an after, do
     assert.ok(e.why !== "", `${at}: a sentence of why`);
     assert.ok(e.before !== null && e.after !== null, `${at}: the before and after fragments`);
     assert.ok(e.docs.length > 0, `${at}: a Docs: line`);
-    if (e.find !== null && e.find.startsWith("/")) assert.doesNotThrow(() => findLines(e.find, ""), `${at}: its Find compiles`);
+    if (e.findLine !== null) assert.ok(e.find !== null, `${at}: its Find: line names a pattern`);
+    for (const f of e.find ?? []) if (f.startsWith("/")) assert.doesNotThrow(() => findLines(f, ""), `${at}: its Find compiles`);
   }
 });
 
@@ -53,7 +56,7 @@ await test("the corpus moved with the language: no release's Find matches the ap
     ? readdirSync(p).flatMap((n) => (n === "dist" || n === "node_modules" ? [] : walk(join(p, n))))
     : /\.(declare|md)$/.test(p) ? [p] : [];
   const files = roots.flatMap((r) => walk(join(ROOT, r))).map((path) => ({ path, text: readFileSync(path, "utf8") }));
-  const hits = plan({ since: null, files, all }).flatMap((e) => e.hits.map((h) => `${h.file.slice(ROOT.length + 1)}:${h.line} — ${e.heading}`));
+  const hits = plan({ since: null, files, all }).filter((e) => e.find !== null).flatMap((e) => e.hits.map((h) => `${h.file.slice(ROOT.length + 1)}:${h.line} — ${e.heading}`));
   assert.deepEqual(hits, [], "the corpus still spells an old form");
 });
 
@@ -78,6 +81,14 @@ await test("declare-changes runs through a symlink, as npx runs it from node_mod
   symlinkSync(join(ROOT, "tools/declare-changes.mjs"), join(dir, "declare-changes"));
   const out = execFileSync("node", [join(dir, "declare-changes"), "--since", "0.5.3", "--json"], { encoding: "utf8" });
   assert.ok(JSON.parse(out).entries.length > 0, "the list, not silence");
+});
+
+await test("a class of the program's own named as a library class now is listed first, at its line, whichever release took the name", () => {
+  const files = [{ path: "/p/app.declare", text: "class ChoiceItem extends View [ ]\nclass Mine extends View [ ]\n  schema Slider { }\nApp [ ]\n" }];
+  assert.deepEqual(nameClashes(files).map((c) => `${c.name}:${c.line}`), ["ChoiceItem:1", "Slider:3"]);
+  const first = plan({ since: "0.7.0", files })[0];
+  assert.match(first.heading, /ChoiceItem/);
+  assert.deepEqual(first.hits, [{ file: "/p/app.declare", line: 1 }]);
 });
 
 await test("--done writes the declareVersion line, once; a migrated program's list starts after it", () => {

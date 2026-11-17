@@ -54,7 +54,8 @@ guess around the error.
 When a program compiles and still behaves wrongly, reading the source again is the slow
 path. Ask the running program. `__declare.explain(path, attr)` returns a value, the
 expression that produced it, and every value that expression read; `__declare.explainHit(x,
-y)` names what a click at a point actually reaches. The Inspector is the same answers with a
+y)` names what a click at a point actually reaches, and `__declare.explainKey("Space")` which
+view would take a key, before it is pressed. The Inspector is the same answers with a
 face ([Debugging a running program](declare-docs:guide:run-and-check@debugging-a-running-program)).
 An agent driving a browser can call these directly.
 

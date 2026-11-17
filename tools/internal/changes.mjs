@@ -8,7 +8,8 @@
 //   One sentence of why.
 //
 //   Find: `onInput(`                     a literal, or /a regular expression/ — optional;
-//                                        in one, {Class} is the class or any subclass
+//                                        in one, {Class} is the class or any subclass;
+//                                        several, each in backticks, separated by ` · `
 //
 //   ```declare-fragment                  before
 //   ```declare-fragment                  after
@@ -38,21 +39,29 @@ export function readChanges(markdown) {
 function readEntry(heading, text) {
   const fences = [...text.matchAll(/```declare(?:-fragment)?[^\n]*\n([\s\S]*?)\n```/g)].map((m) => m[1]);
   const outside = text.replace(/```[\s\S]*?```/g, "");
-  const find = /^Find:\s*`([^`]+)`\s*$/m.exec(outside)?.[1] ?? null;
+  // every backticked pattern on the line; `findLine` keeps the line itself, so a line
+  // that yields none is an error in the notes rather than an entry with nothing to find
+  const findLine = /^Find:(.*)$/m.exec(outside)?.[1] ?? null;
+  // backticked, or one bare pattern when the line has no backticks (`Find: /re/`)
+  const ticked = findLine === null ? [] : [...findLine.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  const patterns = ticked.length > 0 || findLine === null || findLine.trim() === "" ? ticked : [findLine.trim()];
+  const find = patterns.length === 0 ? null : patterns;
   const docsLine = /^Docs:\s*(.*)$/m.exec(outside)?.[1] ?? "";
   const docs = [...docsLine.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)].map((m) => ({ label: m[1], href: m[2] }));
   const watch = /^Watch for:\s*([\s\S]*?)(?=\n\s*\n|\n(?:Find|Docs):|$)/m.exec(outside)?.[1].replace(/\s*\n\s*/g, " ").trim() ?? null;
   const why = outside.split(/\n\s*\n/).map((p) => p.trim()).find((p) => p !== "" && !/^(Find|Docs|Watch for):/.test(p)) ?? "";
-  return { heading, why: why.replace(/\s*\n\s*/g, " "), find, before: fences[0] ?? null, after: fences[1] ?? null, docs, watch };
+  return { heading, why: why.replace(/\s*\n\s*/g, " "), find, findLine, before: fences[0] ?? null, after: fences[1] ?? null, docs, watch };
 }
 
-/** A `Find:` as a matcher over a file's text: `/re/flags` is a regular expression
+/** A `Find:` as a matcher over a file's text — one pattern, or a list, any of which
+ *  matches: `/re/flags` is a regular expression
  *  (always global and multi-line; it may span lines), anything else a literal.
  *  In a regular expression, `{Class}` is that class or any class that extends it —
  *  the library's and the program's own — as `family(Class)` names them, so a change
  *  to a class reaches the program's subclasses of it. Returns the 1-based lines
  *  where it matches. */
 export function findLines(find, text, family = (c) => [c]) {
+  if (Array.isArray(find)) return [...new Set(find.flatMap((f) => findLines(f, text, family)))].sort((a, b) => a - b);
   const lineAt = (offset) => text.slice(0, offset).split("\n").length;
   const out = new Set();
   const re = /^\/(.+)\/([a-z]*)$/s.exec(find);

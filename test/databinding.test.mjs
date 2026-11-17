@@ -250,10 +250,15 @@ await test("a method's own local named like a constrained attribute shadows it: 
     `App [ off: number = 0, View [ x = { app.off + 10 }, width = 100, height = 40, draw(d: DrawContext) { for (let c = 0; c < 3; c++) { const x = c * 20; d.fillRect(x, 0, 10, 10) } } ] ]`,
     `App [ off: number = 0, View [ x = { app.off }, y = { app.off }, onClick() { let { x, y } = { x: 1, y: 2 }; x = x + 1; console.log(x, y) } ] ]`,
     `App [ off: number = 0, View [ x = { app.off }, onClick() { [1, 2].forEach((x) => { x = x * 2 }) } ] ]`,
+    // a later declarator of a comma list is a local too (the Pagemap upgrade)
+    `App [ off: number = 0, View [ x = { app.off }, onClick() { const a = 1, x = !app.off; console.log(a, x) } ] ]`,
+    `App [ off: number = 0, View [ x = { app.off }, onClick() { let a = Math.max(1, 2),\n        x = a * 2; x = x + 1; console.log(x) } ] ]`,
   ]) assert.equal(await errorsOf(ok), "", ok);
   for (const bad of [
     `App [ off: number = 0, View [ x = { app.off }, onClick() { x = 5 } ] ]`,
     `App [ off: number = 0, View [ x = { app.off }, onClick() { const x = 5; this.x = x } ] ]`,
+    // a comma inside a call, or a write after the statement ends, declares nothing
+    `App [ off: number = 0, View [ x = { app.off }, onClick() { const a = Math.max(1, 2); x = a } ] ]`,
   ]) assert.match(await errorsOf(bad), /writes x, which it binds with a constraint/, bad);
 });
 

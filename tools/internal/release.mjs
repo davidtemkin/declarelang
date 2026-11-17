@@ -302,6 +302,20 @@ function publish() {
   }
   git("push", "origin", tag);
   project(s.version, true);
+  // a release declared and pushed but never tagged — two bumps reached main in one
+  // push, and the workflow tagged only the newer: its tag goes on the last commit
+  // that was that version, and its page is made from its file, never as the latest
+  for (const n of s.notes) {
+    const v = /^releases\/v(\d+\.\d+\.\d+(?:\.\d+)?)\.md$/.exec(n)?.[1];
+    if (v === undefined || s.tags.includes(tagOf(v)) || compareVersions(v, s.version) >= 0) continue;
+    const at = lastCommitAt(v);
+    if (at === null) { console.log(`release: ${tagOf(v)} has notes but no commit on main was ever that version — left untagged`); continue; }
+    git("tag", tagOf(v), at);
+    git("push", "origin", tagOf(v));
+    s.tags.push(tagOf(v));
+    console.log(`release: tagged ${tagOf(v)} at ${at.slice(0, 8)}, the last commit that was ${v}`);
+    project(v, true, false);
+  }
   // an earlier release's notes can be amended too (RELEASING.md, "To amend"): every
   // published page follows its file, not only the newest
   for (const n of s.notes) {
@@ -310,8 +324,22 @@ function publish() {
   }
 }
 
-/** Make release `version`'s page equal its file's projection; `create` when it may not exist yet. */
-function project(version, create) {
+/** The last commit on origin/main whose package.json declared `version`, with that
+ *  version's notes in it — the parent of the commit that bumped past it — or null. */
+function lastCommitAt(version) {
+  const pkgVersion = (rev) => tryRun(() => JSON.parse(git("show", `${rev}:package.json`)).version) ?? null;
+  const hits = (tryRun(() => git("log", "--format=%H", `-S"version": "${version}"`, "origin/main", "--", "package.json")) ?? "").split("\n").filter(Boolean);
+  for (const h of hits) {
+    if (pkgVersion(h) === version) continue;              // the bump onto it, not past it
+    const at = tryRun(() => git("rev-parse", `${h}^`));
+    if (at !== null && pkgVersion(at) === version && tryRun(() => git("cat-file", "-e", `${at}:${notesPath(version)}`)) !== null) return at;
+  }
+  return null;
+}
+
+/** Make release `version`'s page equal its file's projection; `create` when it may not exist yet,
+ *  marked the latest release unless `latest` is false (a backfilled older one). */
+function project(version, create, latest = true) {
   const tag = tagOf(version), file = notesPath(version);
   const text = readFileSync(join(ROOT, file), "utf8");
   const title = titleFor(version, text);
@@ -319,7 +347,7 @@ function project(version, create) {
   const existing = tryRun(() => run("gh", ["release", "view", tag, "--json", "body,name", "-q", ".name + \"\\n\" + .body"]));
   if (existing === null) {
     if (!create) return;
-    run("gh", ["release", "create", tag, "--title", title, "--notes-file", "-"], { input: body });
+    run("gh", ["release", "create", tag, "--title", title, "--notes-file", "-", ...(latest ? [] : ["--latest=false"])], { input: body });
     console.log(`release: created ${title}`);
     return;
   }

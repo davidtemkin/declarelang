@@ -138,6 +138,10 @@ export interface EvalResult {
   verb: string;
   /** Set for `bind`: the slot is now live-bound and will NOT survive reload. */
   temporary?: boolean;
+  /** For a read, a computation or a set: the result itself, as plain data a harness
+   *  can use without parsing `text` — arrays and records whole (to a depth and size),
+   *  a view as its name, a function left out. */
+  value?: unknown;
 }
 
 /** Split `name = rest` at the FIRST top-level `=` that is not `==`/`>=`/… */
@@ -163,6 +167,27 @@ const unwrapBody = (s: string): string | null => {
   const t = s.trim();
   return t.startsWith("{") && t.endsWith("}") ? t.slice(1, -1).trim() : null;
 };
+
+/** An evaluated value as plain data: what survives JSON, with a view named rather
+ *  than walked, and a bound on depth and breadth so a large dataset can't flood. */
+function plain(v: unknown, depth = 0): unknown {
+  if (v === null || v === undefined) return null;
+  const t = typeof v;
+  if (t === "string" || t === "number" || t === "boolean") return v;
+  if (t === "bigint") return String(v);
+  if (t === "function" || t === "symbol") return undefined;
+  if (v instanceof View) return `${declareName(v)} ›`;
+  if (depth >= 8) return "…";
+  if (Array.isArray(v)) return v.slice(0, 1000).map((x) => plain(x, depth + 1) ?? null);
+  const out: Record<string, unknown> = {};
+  let n = 0;
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    if (k.startsWith("$") || n++ >= 200) continue;
+    const p = plain(x, depth + 1);
+    if (p !== undefined) out[k] = p;
+  }
+  return out;
+}
 
 /** Render an evaluated value for the transcript. */
 function show(v: unknown): string {
@@ -377,7 +402,7 @@ export function evaluateIn(app: App, path: string, src: string): EvalResult {
     try {
       self[attr] = r.value;
       settle();
-      return { ok: true, input: trimmed, verb: "set", text: `${attr} = ${show(r.value)}` };
+      return { ok: true, input: trimmed, verb: "set", text: `${attr} = ${show(r.value)}`, value: plain(r.value) };
     } catch (e) {
       return fail((e as Error).message);
     }
@@ -388,7 +413,7 @@ export function evaluateIn(app: App, path: string, src: string): EvalResult {
   const r = run(body ?? trimmed);
   if ("error" in r) return fail(r.error);
   const verb = body === null && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(trimmed) ? "read" : "eval";
-  return { ok: true, input: trimmed, verb, text: show(r.value) };
+  return { ok: true, input: trimmed, verb, text: show(r.value), value: plain(r.value) };
 }
 
 /** The `Inspect` service — installed into `{ }` body scope by index.ts. */
