@@ -267,3 +267,25 @@ export declare function setCommandRunner(fn: (name: string) => boolean): void;
 export declare function deliverKeys(keys: KeysService, focus: FocusService): () => void;
 /** The runtime's focus service (LZX's lz.Focus). */
 export declare const Focus: FocusService;
+/** One stop of the walk as explainKey reports it: the view, what it does with
+ *  the key, and whether that takes it — "yes", "maybe" (code decides: a command
+ *  may return false, an onKeyDown of the view's own may take it or not), "no". */
+export interface KeyStep {
+    view: View | null;
+    says: string;
+    takes: "yes" | "maybe" | "no";
+}
+/** Who would take a key pressed now, and why — the walk from the focused view
+ *  out to the App and the standard table, read and never run: bindings,
+ *  shortcuts, a scroller (and whether it is at its edge), a stop's arrows, an
+ *  open overlay holding the keys. Asked before a press, as `explainHit` is of
+ *  a point. `takenBy` is the first stop that surely takes it; a "maybe" before
+ *  it is code that decides as it runs. */
+export declare function explainKey(spec: string): {
+    key: string;
+    focus: View | null;
+    takenBy: View | "standard" | "browser" | null;
+    steps: KeyStep[];
+} | {
+    error: string;
+};

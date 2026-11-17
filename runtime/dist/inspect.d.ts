@@ -222,6 +222,19 @@ export declare function explainHit(root: Node, x: number, y: number, pierce?: bo
         y: number;
     }[];
 };
+/** explainKey with every view named by its path, for the bridge and a script. */
+export declare function explainKey(key: string): {
+    key: string;
+    focus: string | null;
+    takenBy: string | null;
+    steps: {
+        path: string | null;
+        says: string;
+        takes: string;
+    }[];
+} | {
+    error: string;
+};
 /** Every (path, attr) whose constraint READS `target` — the reverse of
  *  `explain().deps`, answering "what moves if this changes?". Computed by
  *  scanning owned slots and matching wired read-paths; O(slots), which at the

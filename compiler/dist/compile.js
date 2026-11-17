@@ -705,6 +705,20 @@ function idiomDiagnostics(program, schemas) {
             if (!tracks)
                 warnings.push(Diag.changeTracksNothing(el.tag, el.methods.find((m) => m.name === "onChange").pos));
         }
+        // 4044 — onHold beside onPointerMove, with no drag event: on a touch screen a
+        // hold hands the finger to the view only when it is a drag owner (onDragStart,
+        // onDrag, onDragEnd), so a hold that picks a thing up and onPointerMove that
+        // carries it leaves the carry to the page's scroll. Said where onPointerMove
+        // is written, reading the class it is made from for the rest.
+        {
+            const mover = el.methods.find((m) => m.name === "onPointerMove");
+            if (mover !== undefined) {
+                const all = [el, ...chainBodies(el.tag)];
+                const has = (n) => all.some((b) => b.methods.some((m) => m.name === n));
+                if (has("onHold") && !has("onDragStart") && !has("onDrag") && !has("onDragEnd"))
+                    warnings.push(Diag.holdMovesWithoutDrag(decl !== undefined ? decl.name : el.tag, mover.pos));
+            }
+        }
         // 4030 — minWidth/maxWidth (or the heights) beside a width the view states
         // itself, at the same level, where nothing in its class reads the range
         // (Window's resize and Menu's own width do): a range bounds a size a layout

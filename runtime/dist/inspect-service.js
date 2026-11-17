@@ -137,6 +137,35 @@ const unwrapBody = (s) => {
     const t = s.trim();
     return t.startsWith("{") && t.endsWith("}") ? t.slice(1, -1).trim() : null;
 };
+/** An evaluated value as plain data: what survives JSON, with a view named rather
+ *  than walked, and a bound on depth and breadth so a large dataset can't flood. */
+function plain(v, depth = 0) {
+    if (v === null || v === undefined)
+        return null;
+    const t = typeof v;
+    if (t === "string" || t === "number" || t === "boolean")
+        return v;
+    if (t === "bigint")
+        return String(v);
+    if (t === "function" || t === "symbol")
+        return undefined;
+    if (v instanceof View)
+        return `${declareName(v)} ›`;
+    if (depth >= 8)
+        return "…";
+    if (Array.isArray(v))
+        return v.slice(0, 1000).map((x) => plain(x, depth + 1) ?? null);
+    const out = {};
+    let n = 0;
+    for (const [k, x] of Object.entries(v)) {
+        if (k.startsWith("$") || n++ >= 200)
+            continue;
+        const p = plain(x, depth + 1);
+        if (p !== undefined)
+            out[k] = p;
+    }
+    return out;
+}
 /** Render an evaluated value for the transcript. */
 function show(v) {
     if (v === null || v === undefined)
@@ -387,7 +416,7 @@ export function evaluateIn(app, path, src) {
         try {
             self[attr] = r.value;
             settle();
-            return { ok: true, input: trimmed, verb: "set", text: `${attr} = ${show(r.value)}` };
+            return { ok: true, input: trimmed, verb: "set", text: `${attr} = ${show(r.value)}`, value: plain(r.value) };
         }
         catch (e) {
             return fail(e.message);
@@ -399,7 +428,7 @@ export function evaluateIn(app, path, src) {
     if ("error" in r)
         return fail(r.error);
     const verb = body === null && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(trimmed) ? "read" : "eval";
-    return { ok: true, input: trimmed, verb, text: show(r.value) };
+    return { ok: true, input: trimmed, verb, text: show(r.value), value: plain(r.value) };
 }
 /** The `Inspect` service — installed into `{ }` body scope by index.ts. */
 export const Inspect = {

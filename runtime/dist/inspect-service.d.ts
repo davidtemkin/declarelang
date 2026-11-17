@@ -43,6 +43,10 @@ export interface EvalResult {
     verb: string;
     /** Set for `bind`: the slot is now live-bound and will NOT survive reload. */
     temporary?: boolean;
+    /** For a read, a computation or a set: the result itself, as plain data a harness
+     *  can use without parsing `text` — arrays and records whole (to a depth and size),
+     *  a view as its name, a function left out. */
+    value?: unknown;
 }
 /** Evaluate `src` in the scope of the node at `path`. See EvalResult.verb for
  *  the five shapes. Compiler diagnostics are surfaced verbatim — a typo here

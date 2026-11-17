@@ -1998,10 +1998,42 @@ function writesMember(m, name) {
     const declares = m.params.some((p) => p.name === name) ||
         new RegExp(`\\b(?:const|let|var)\\s+${name}(?![\\w$])`).test(body) ||
         [...body.matchAll(/\b(?:const|let|var)\s*([[{][^=;]*)/g)].some((g) => id.test(g[1])) ||
+        laterDeclarators(body).includes(name) ||
         [...body.matchAll(/(?:\bfunction\b[\w$\s]*|\bcatch\s*)\(([^()]*)\)/g)].some((g) => id.test(g[1])) ||
         [...body.matchAll(/\(([^()]*)\)\s*(?::[^=;{]*)?=>/g)].some((g) => id.test(g[1])) ||
         new RegExp(`(?<![\\w$.])${name}\\s*=>`).test(body);
     return !declares;
+}
+/** The names a `const`/`let`/`var` statement declares after its first:
+ *  `const a = 1, on = !app.flag` declares `on` too. The statement is read to its
+ *  `;`, or to a line break that does not continue it (one after a comma does), and
+ *  a name counts where it follows a comma outside any bracket. */
+function laterDeclarators(body) {
+    const out = [];
+    for (const m of body.matchAll(/\b(?:const|let|var)\s/g)) {
+        let depth = 0, last = "";
+        for (let i = m.index + m[0].length; i < body.length; i++) {
+            const c = body[i];
+            if (c === "(" || c === "[" || c === "{")
+                depth++;
+            else if (c === ")" || c === "]" || c === "}") {
+                if (--depth < 0)
+                    break;
+            }
+            else if (depth === 0 && c === ";")
+                break;
+            else if (depth === 0 && c === "\n" && last !== ",")
+                break;
+            else if (depth === 0 && c === ",") {
+                const d = /^\s*([A-Za-z_$][\w$]*)\s*(?=[=:,;\n]|$)/.exec(body.slice(i + 1));
+                if (d !== null)
+                    out.push(d[1]);
+            }
+            if (!/\s/.test(c))
+                last = c;
+        }
+    }
+    return out;
 }
 /** `defaultPlacement = name` (instantiate.ts DEFAULT PLACEMENT): written on a
  *  CLASS body, and naming a child that body declares, at any depth. */

@@ -130,7 +130,7 @@ import { apply as applyAffine } from "./affine.js";
 import { bootCheck } from "./boot-check.js";
 import { View } from "./view.js";
 import { scrollHeldFor } from "./outside.js";
-import { reveal } from "./focus.js";
+import { reveal, explainKey as walkExplained } from "./focus.js";
 import { semanticTree, formatSemantics } from "./semantics.js";
 import { Accessibility } from "./accessibility-service.js";
 import { declarationsOf, isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
@@ -733,6 +733,7 @@ export function bridgeFor(root) {
          *  per host. (The native `trace` narrates the Mac LAYER walk, which is a
          *  different question about a different tree.) */
         explainHit: (x, y, pierce = false) => explainHit(root, x, y, pierce),
+        explainKey: (key) => explainKey(key),
         dependents: (attr) => dependentsOf(root, attr),
         /** Evaluate Declare in the scope of a node — read, set, bind, or add a view.
          *  The Inspector's strip and an agent hit the same entry point. Returns the
@@ -794,6 +795,7 @@ const BRIDGE_HELP = {
     pathOf: "pathOf(view) — a live view's address, the path find() takes",
     scrollHeld: "scrollHeld(path) — the open overlay (a Menu, a list) whose scroll hold refuses a scroll of what holds the view, as it would a person's, or null",
     explainHit: "explainHit(x, y, pierce?) — the hit walk's decisions in order: what took the point and what it stepped over",
+    explainKey: "explainKey(key) — who would take a key pressed now ('Space', '⌘S', 'ArrowDown'), asked before the press: the walk from the focused view out to the App, each stop's binding, shortcut, scroller or stop, and which takes it (takenBy); 'maybe' is code that decides as it runs",
     stats: "stats() — node/constraint counts for the whole tree",
     semantics: "semantics(path?, asData?) — what a screen reader is given: the semantic tree under the node (default the app) — roles, names, values, states, actions — as indented text, or as data",
     evaluate: "evaluate(path, src) — run Declare in the node's scope: read ('width'), compute ('1+2'), set ('width = 40'), bind ('width = { parent.width/2 }'). Returns {ok, text, value} synchronously once primed",
@@ -854,6 +856,24 @@ export function explainHit(root, x, y, pierce = false) {
     return {
         hit: hit === null ? null : path(hit),
         steps: notes.map((n) => ({ path: path(n.view), kind: kindName(n.view), why: n.why, x: n.x, y: n.y })),
+    };
+}
+/** explainKey with every view named by its path, for the bridge and a script. */
+export function explainKey(key) {
+    const r = walkExplained(key);
+    if ("error" in r)
+        return r;
+    const path = (v) => {
+        const parts = [];
+        for (let n = v; n !== null && n.parent !== null; n = n.parent)
+            parts.unshift(nameOf(n) ?? indexStep(n.parent, n));
+        return ["app", ...parts].join(".");
+    };
+    return {
+        key: r.key,
+        focus: r.focus === null ? null : path(r.focus),
+        takenBy: r.takenBy === null ? null : typeof r.takenBy === "string" ? r.takenBy : path(r.takenBy),
+        steps: r.steps.map((s) => ({ path: s.view === null ? null : path(s.view), says: s.says, takes: s.takes })),
     };
 }
 /** Every (path, attr) whose constraint READS `target` — the reverse of

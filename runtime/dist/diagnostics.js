@@ -396,6 +396,7 @@ export const Diag = {
     bindingKeyUnmatchable: (owner, key, hint, pos) => err(code4(4038), `keyBindings on ${owner}: "${key}" is a key no press can match — ${hint}`, pos),
     bindingClipboardKey: (owner, key, command, pos) => err(code4(4039), `keyBindings on ${owner} binds ${key} to "${command}" — taking the clipboard's key stops the platform's copy event, so a text field and a page selection no longer copy. Answer the clipboard in onClipboardCopy, onClipboardCut or onClipboardPaste, and leave ${key} to them`, pos),
     bindingStandardKey: (owner, key, pos) => err(code4(4040), `keyBindings on ${owner} binds ${key}, a key of the standard table, without everywhere: true — inside an open sheet or dialog the App's binding stands down and ${key} goes back to the standard table, so it acts one way outside and another inside. Add everywhere: true, or bind it on a view nearer the focus`, pos),
+    holdMovesWithoutDrag: (owner, pos) => err(code4(4044), `${owner} has onHold and onPointerMove but no drag event — on a touch screen a hold gives the finger to a view that drags (onDragStart, onDrag, onDragEnd), so what the hold picks up and onPointerMove carries stays put while the page scrolls. Carry it in onDrag (e.deltaX, e.deltaY are the travel since the press) and let it go in onDragEnd`, pos),
     changeTracksNothing: (owner, pos) => err(code4(4041), `onChange on ${owner} never runs: it fires for the values named in trackChanges, and ${owner} tracks none. Name what it watches — trackChanges = ["value"] — or, for a field's edits as they happen, a constraint reading value`, pos),
     keyDownWithoutSuper: (owner, pos, control = true) => err(code4(4031), control
         ? `onKeyDown on ${owner} replaces Control's own — Space and Enter no longer press it, the arrows no longer move in its group, and Tab no longer moves on. Hand on the keys you do not take: else super.onKeyDown(e)`
@@ -550,6 +551,7 @@ export const DIAGNOSTIC_CATALOG = [
     { code: code4(4031), phase: "name", summary: "an onKeyDown on a Control that never calls super.onKeyDown — Space, Enter and the arrows stop (warning)" },
     { code: code4(4041), phase: "name", summary: "an onChange on a node that tracks nothing — it never runs (warning)" },
     { code: code4(4043), phase: "name", summary: "a view written inside a Button, which places only its own icon and label (warning)" },
+    { code: code4(4044), phase: "name", summary: "onHold beside onPointerMove with no drag event — on touch, the carry goes to the page's scroll (warning)" },
     { code: code4(4042), phase: "name", summary: "a method under a delivery hook's former name (input for commit, sortInput for applySort, expandInput for applyExpanded, …) — never called (warning)" },
     { code: code4(4027), phase: "name", summary: "a control hidden from a screen reader that the keyboard still reaches (warning)" },
     { code: code4(4025), phase: "name", summary: "a constraint whose decisions are nested three deep, or one condition with four or more parts (warning)" },
