@@ -717,6 +717,23 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     func windowDidChangeBackingProperties(_ n: Notification) { syncSize() }
     func windowDidMove(_ n: Notification) { owner?.sessionChanged() }
     func windowDidBecomeKey(_ n: Notification) { publishGeometry() }
+
+    /// A program with unsaved changes (`app.unsavedChanges`, shown as the edited
+    /// mark) asks before its window closes.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard sender.isDocumentEdited else { return true }
+        let alert = NSAlert()
+        alert.messageText = "This window has changes that haven't been saved."
+        alert.informativeText = "If you close it now, they will be lost."
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Close Anyway")
+        alert.beginSheetModal(for: sender) { answer in
+            guard answer == .alertSecondButtonReturn else { return }
+            sender.isDocumentEdited = false
+            sender.close()
+        }
+        return false
+    }
     func windowWillClose(_ n: Notification) {
         // Closed mid-load: the app's "still starting" count must come back down,
         // or the dock bounces forever and the deferred activation never lands.

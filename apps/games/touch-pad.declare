@@ -183,7 +183,7 @@ class PadButton [ x = :x, y = :y, width = :w, height = :h,
     lines: string[] = [],
     cornerRadius = { Math.min(width, height) / 2 },
     opacity = { lit || bright ? (faint ? 0.8 : 1) : (faint ? 0.42 : 0.6) },
-    stroke = { stroke(2, ink) },
+    stroke = { Stroke(2, ink) },
 
     // A text size that fits the longest word inside a round button, or a mark (▲) large; a
     // pill's follows its height.

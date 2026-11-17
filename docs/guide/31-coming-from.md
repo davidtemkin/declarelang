@@ -89,8 +89,8 @@ for, which is a narrower job than React context usually ends up doing.
 | `:hover`, `:active` | the [`hovered`](declare-docs:View.hovered) and [`pressed`](declare-docs:View.pressed) facts, read in a constraint: `fill = { pressed ? … : hovered ? … : null }` |
 | `transition`, `@keyframes` | `Spring` and `Animator` |
 | `overflow: auto` | `scrolls = y` (an [`App`](declare-docs:App) already scrolls `y`) |
-| `border` | `stroke(width, color)` — drawn **inside** the box, so it never changes the layout rectangle |
-| `border-radius`, `box-shadow` | `cornerRadius`, `shadow(dx, dy, blur, color)` |
+| `border` | `Stroke(width, color)` — drawn **inside** the box, so it never changes the layout rectangle |
+| `border-radius`, `box-shadow` | `cornerRadius`, `Shadow(dx, dy, blur, color)` |
 | a card/button from a CSS framework | the library's own classes, and [`Card`](declare-docs:Card) for the card case |
 
 ```declare-fragment
@@ -136,7 +136,7 @@ and a child that must stay put inside one says `ignoreLayout = true`.
 | a chain of `.foregroundColor(…).background(…)` | the attributes themselves: [`textColor`](declare-docs:Text.textColor), `fill`, `cornerRadius`, `stroke`, `shadow` |
 
 ```declare-fragment
-card: View [ width = 220, cornerRadius = 8, fill = #FFFFFF, shadow = shadow(0, 1, 3, #00000022),
+card: View [ width = 220, cornerRadius = 8, fill = #FFFFFF, shadow = Shadow(0, 1, 3, #00000022),
 
     title: Text [ x = 12, y = 10, fontWeight = medium, text = "Card" ]
     ]

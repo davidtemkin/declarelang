@@ -12,7 +12,7 @@ style Small [ fontSize = 26, fontWeight = semibold, fontFamily = "system-ui, -ap
 
 style Solid [ textFill = #E4572E ]
 
-style Ramp [ fontSize = 96, textFill = gradient(90, #2E6FE0, #E4572E) ]
+style Ramp [ fontSize = 96, textFill = Gradient.linear(90, #2E6FE0, #E4572E) ]
 
 App [ width = 1280, height = 800, fill = white, textColor = #1A1A1A,
     tight: Text [ x = 20, y = 30, fontFamily = ["Avenir Next Condensed", "Arial Narrow", "sans-serif"], fontWeight = bold,
@@ -29,7 +29,7 @@ App [ width = 1280, height = 800, fill = white, textColor = #1A1A1A,
         textStyles = { { Solid, Ramp } },
         html = "plain <span class='Solid'>solid fill</span><br/><span class='Ramp'>one ramp over words</span>" ],
     textFillRamp: Text [ x = 20, y = 590, fontSize = 64, fontWeight = bold,
-        textFill = gradient(90, #2E6FE0, #E4572E), text = "Text gradient fill" ],
+        textFill = Gradient.linear(90, #2E6FE0, #E4572E), text = "Text gradient fill" ],
     key: Text [ x = 20, y = 740, fontSize = 15, textColor = #6A6A6A,
         text = "tall face at lineHeight 1 · mixed sizes at lineHeight 1 (slab at the measured bottom) · run fills solid and gradient · Text gradient fill" ]
     ]

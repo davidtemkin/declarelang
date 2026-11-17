@@ -13,13 +13,13 @@ preview: DOMIsland [ width = { parent.width }, height = 300, slot = "run:demo" ]
 names in `provides = ["volume"]`, and each resolves *at the island* the way `provided()`
 does — the island's own attribute of that name first (`volume: number = { app.masterVolume }`),
 then its ancestors' provisions. A Declare tenant reads one with
-`hostProvided("volume", 0)`. UP: the tenant lists names in its App's `exposes`, and the
+`app.hostProvided("volume", 0)`. UP: the tenant lists names in its App's `exposes`, and the
 host reads them with `island.exposed("pos", 0)`. Each value has one owner — the tenant
 cannot write what the island provides, the host cannot write what the tenant exposes —
 and only data crosses (numbers, strings, booleans, arrays, plain objects): a class is
 an identity in one program's graph and cannot cross. A foreign (raw-JS) tenant reaches
 the same boundary through the element's one sanctioned handle, `el.__declareIsland` —
-`provides()`, `hostProvided(name)`, `watchProvided(name, cb)`, `expose(name, value)`,
+`provides()`, `app.hostProvided(name)`, `watchProvided(name, cb)`, `expose(name, value)`,
 `post`, `onPost`.
 
 ## provides

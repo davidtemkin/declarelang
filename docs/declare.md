@@ -49,7 +49,7 @@ applied to structure, space, data, style, and time.
 
 1. **`{ }` is TypeScript, and only TypeScript.** Bare values have their own literal vocabulary,
    and it stops at the brace: `width = { 100% }` is a syntax error, and a color inside braces is
-   `0x4169E1`, not `royalblue` or `#4169E1`. (§2)
+   `"#4169E1"` or `0x4169E1`, never bare `#4169E1`. (§2)
 2. **Assignment is the whole update model.** `count = count + 1` sets *and* notifies. There is
    no `setState`, no `setAttribute`, and no way to change a value without the cascade. (§5)
 3. **Dependencies are extracted by the compiler, and what it cannot follow is refused.** This is
@@ -100,7 +100,7 @@ reinterprets it.
 ```declare-fragment
 fill  = cornflowerblue,                           // ✓ bare value, a named color
 fill  = { hovered ? 0x6495ED : 0x4169E1 },        // ✓ in braces, TypeScript number
-fill  = { hovered ? #6495ED : 0x4169E1 },         // ✗ no such syntax in TypeScript
+fill  = { hovered ? #6495ED : 0x4169E1 },         // ✗ no such syntax in TypeScript: "#6495ED"
 width = 100%,                                     // ✓ bare value, Length literal
 width = { 100% },                                 // ✗ compute it instead:
 width = { parent.width - 40 }                    // ✓
@@ -137,7 +137,7 @@ selected: boolean = false,
 tint:     Color   = navy,              //   any value type, bare-literal default
 count:    number,                      //   no default — undefined until written
 rows:     number[] = [],               //   an array, element-typed
-panel:    Menu    = null,              //   a class — the attribute holds an instance
+panel:    Menu?   = null,              //   a class — the attribute holds an instance, or null
 
 select() { selected = !selected },     // a METHOD
 
@@ -202,13 +202,14 @@ node the code is written on), **`parent`**, and **`app`** (the running applicati
 — the home of the few values the whole app shares). Bare `App` is the class; `app` is the
 instance. A fourth, `classroot`, belongs to authoring a class and arrives in §4.
 
-**A member is a property of its view**, reached the way JavaScript reaches any property:
-`toolbar.share`, or by a name computed at run time, `toolbar[name]`. The two forms are the same
-access and chain freely (`app.prefs[section][field]`, `app.prefs[section].advanced`). Each
-bracket steps one level; its string names one member, not a dotted path. The result is the
-member by that name, or `undefined` when there is none. A string literal (`toolbar["share"]`) is
-checked like a path; a name known only at run time cannot be, so a path stays the form for names
-known as you write.
+**Every name the platform adds is capitalized**: a class, a type with its builders
+(`Stroke(1, red)`, `Color.mix(a, b, 0.5)`), a service (`Focus`), or a theme preset. A
+lowercase name is yours, the node's or JavaScript's, besides `provided`, `measureText` and `escapeHtml`.
+
+**A member is a property of its view**, reached as JavaScript reaches one: `toolbar.share`, or
+by a name computed at run time, `toolbar[name]`; the two chain freely. Each bracket steps one
+level and names one member, else `undefined`. A literal name is checked
+like a path; one known only at run time cannot be.
 
 ## 4. Composition
 
@@ -343,23 +344,22 @@ where something landed. For that, leave one named step on the far side:
 ```declare-fragment
 addItem() {
     app.d.set(["items", 0], { label: "new" })
-    afterSettle(app.showNewest)                   // runs once, at THIS settle's close
+    afterSettle(app.showNewest)                   // runs once, when THIS settle's constraints rest
     },
 showNewest() { app.frameOn(app.list.first) }      // the new row is real, placed, sized
 ```
 
-The step runs exactly once, when the settle your handler triggered has closed — and before
-it presents, so what the step writes lands in the same frame as the change itself. It is
-tied to your change, not to a clock. Constraint first, `afterSettle` second, and never for waiting — anything later
-than this settle's close is a value changing, and values changing is what constraints are
-for.
+The step runs exactly once, when the constraints your handler moved have come to rest, before
+anything presents. What it assigns is settled in a further **round** of the same settle, as is
+what an `onChange` assigns; the settle ends when a round assigns nothing, and 100 rounds stop
+it with an error naming what kept it going. Constraint first, `afterSettle` second, and never
+for waiting — anything later is a value changing, which is what constraints are for.
 
 Boot is the one settle with no handler inside it, so its close is **delivered** instead:
 `onReady()` fires once, on the App only, when the first settle has completed — tree
 standing, geometry computed, before anything presents, so what it does is in the first
-frame the user sees. Ask first whether you need it at all — readiness is usually a value —
-and keep it for the genuinely once-and-imperative: seed the camera, start the tour, open
-the socket.
+frame the user sees. Readiness is usually a value; keep `onReady` for the genuinely
+once-and-imperative: seed the camera, open the socket.
 
 ### What you can assign
 
@@ -424,9 +424,8 @@ Which globals a piece of code may name depends on where it is written:
   `queueMicrotask`, `requestAnimationFrame`), `performance` and `globalThis`. The compiler
   refuses each and names the Declare way: `DataSource`, `Time`, `afterDelay`.
 - **In a `script { }` block:** all of the above, `fetch`, the timers and `performance` included,
-  and the runtime's functions a body calls (`colorWithAlpha`, `measureText`, the value
-  constructors), except those that answer for the calling view (`provided`, `providedTextStyle`,
-  `hostProvided`, `afterDelay`).
+  and the runtime's functions a body calls (`measureText`, the builders and `Color`), except those that answer for the calling node (`provided`, `providedTextStyle`,
+  `afterDelay`).
 - **In a `script [ host = browser ] { }` block:** `window`, `document` and the rest of the
   browser as well. An unmarked script runs on every host, so the compiler refuses those names
   there. The views a program draws belong to the runtime: they differ between renderers and
@@ -673,7 +672,7 @@ attribute.
 **Handlers are methods named with an `on` prefix**, answering this node's own events: `onClick`,
 the pointer and touch families, `onKeyDown` and `onKeyUp` on the focused view, and `onInit` after
 construction. **`onChange`** answers the values a node names in `trackChanges = [ … ]`: it fires at the
-close of a settle in which one of them ended different from where it started, once —
+close of each round of a settle in which one of them moved, once —
 `onChange(e: ChangeEvent)`, `e.changed` one `ValueChange` (`name`, `previousValue`,
 `currentValue`) each: for a state change the program must act on, never to
 follow a value (a constraint) or to move one (a Spring).
@@ -775,7 +774,7 @@ panel: View [                                                // on a DESCENDANT,
 ```
 
 `provided(…)` is the one new construct — an explicit up-the-tree read, bare in `[ ]` (like
-`gradient(…)`) or a call in `{ }`. It is explicit on purpose: it reaches past this node, and a
+`Gradient.linear(…)`) or a call in `{ }`. It is explicit on purpose: it reaches past this node, and a
 non-local read is worth showing. You rarely write it — `Text` and the library widgets read the face
 and theme values *for* you; you write it where your own code reads a value from up the tree. A read that finds no provider
 falls to an optional default (`provided("theme", SanFrancisco)`), else throws, naming the

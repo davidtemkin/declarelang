@@ -25,7 +25,7 @@ const browser = await launchChrome({ executablePath: chrome, headless: true, arg
 // `super.onInit()` reached its base
 const SOURCE = `
 script {
-    function mark(): string { return colorWithAlpha(0x112233, 255) == 0x112233 ? "log:" : "lost:" }
+    function mark(): string { return Color.withAlpha(0x112233, 1) == 0x112233 ? "log:" : "lost:" }
     }
 class A extends View [ log: string = "",
     onInit() { log = log + "a" } ]

@@ -99,6 +99,32 @@ App [ width = 400, height = 300,
   assert.deepEqual(b.unbuilt, ["Later"], "a class the boot never built is named");
 });
 
+await test("a child that takes its size from a content-sized parent and collapses is reported, naming where the size comes from", () => {
+  const r = verify("collapse.declare", `App [ width = 400, height = 300,
+    col: View [ layout: SimpleLayout [ axis = y ], rule: View [ width = 100%, height = 1 ] ] ]`);
+  assert.ok(r.boot.layout.some((l) => /app\.col\.rule takes its width from app\.col, which is sized by its content .* collapses to nothing .* Give app\.col a width/.test(l)), r.boot.layout.join("\n"));
+});
+
+await test("a pane sized by its content up to a limit scrolls past it — not flagged; one with no limit is", () => {
+  const r = verify("capped.declare", `App [ width = 400, height = 300,
+    capped: View [ width = 200, height = { Math.min(this.contentHeight, 120) }, scrolls = y,
+        layout: SimpleLayout [ axis = y ], View [ width = 10, height = 500 ] ],
+    grows: View [ y = 150, width = 200, scrolls = y, layout: SimpleLayout [ axis = y ], View [ width = 10, height = 500 ] ] ]`);
+  const said = r.boot.layout.filter((l) => /nothing to scroll/.test(l));
+  assert.ok(said.some((l) => /app\.grows scrolls on y/.test(l)), said.join("\n"));
+  assert.ok(!said.some((l) => /app\.capped/.test(l)), "a capped size is room given: " + said.join("\n"));
+});
+
+await test("a control under a view the person can enlarge is judged at its maxScale, not as drawn", () => {
+  const r = verify("reach.declare", `class Dot extends Control [ width = 30, height = 30, press() { } ]
+App [ width = 390, height = 844,
+    plane: View [ width = 300, height = 300, scale = 1, minScale = 1, maxScale = 2, d: Dot [ ] ],
+    flat: View [ y = 400, width = 300, height = 300, e: Dot [ ] ] ]`, "--size", "390x844", "--touch");
+  const small = r.boot.layout.find((l) => /smaller than 44 × 44/.test(l)) ?? "";
+  assert.match(small, /app\.flat\.e /, small);
+  assert.doesNotMatch(small, /app\.plane\.d /, "60 points at maxScale is a finger's target: " + small);
+});
+
 await test("the boot feeds a sample to a source that reads, never to one that writes", () => {
   const r = verify("feeds.declare", `schema Thing [ id: string, name: string ]
 App [ width = 300, height = 200,

@@ -17,7 +17,7 @@
 // is wired by the runtime entry, not here, keeping this layer independent.
 
 import { inPointerDispatch } from "./pointer-dispatch.js";
-import { View, fireEvent, setFocusDiscardHook, setKeyDefaultHook, noteFocused, type KeyLayer } from "./view.js";
+import { View, fireEvent, setFocusDiscardHook, setKeyDefaultHook, noteFocused, noteFocusGeometry, provideGeometryDemand, type KeyLayer } from "./view.js";
 import { Keys, comboOf, comboOfCode, normalizeCombo, keyLabel, commanded, composing, FIELD_CHORDS, KEYS_ON_MAC, setKeyWalk, setInForce, type KeyEvent } from "./keys.js";
 /** Classes whose focusShape() was said to return no box (said once each). */
 const BAD_SHAPE = new WeakSet<object>();
@@ -178,7 +178,19 @@ export class FocusService {
     // a program asking for focus on what cannot take it is told, once per view:
     // the call does nothing, and nothing else would say so (a control focusing
     // itself as it is pressed is not the program asking)
-    if (view !== null && !canFocus(view) && !(inPointerDispatch() && typeof (view as { press?: unknown }).press === "function")) warnOnce(view, `Focus.focus(${where(view)}): it is not focusable, so focus did not move — set focusable = true on it, or focus a control inside it`);
+    // …and on what is hidden, itself or above it: focus has nowhere to stay. A view that
+    // would take focus if shown is told it is HIDDEN, not that it isn't focusable (Presentify
+    // run 13: a slide just added to a TweenLayout is held hidden until its glide lands)
+    if (view !== null && !shownChain(view) && (canFocus(view) || wouldFocusShown(view))) {
+      let hid: View = view;
+      for (let n: View | null = view; n !== null; n = parentAcross(n)) if (!n.visible) { hid = n; break; }
+      const o = ownerOf(hid, "visible") as { arrangedBy?: string | null } | null;
+      const why = o?.arrangedBy != null ? `${o.arrangedBy} holds it hidden until its motion lands` : "visible is false";
+      warnOnce(view, hid === view
+        ? `Focus.focus(${where(view)}): it is hidden (${why}), so focus can't land on it — focus it once it is shown${o?.arrangedBy != null ? ", when the motion has landed" : ""}`
+        : `Focus.focus(${where(view)}): it is inside ${where(hid)}, which is hidden (${why}), so the focus can't stay — focus it once that view is shown`);
+    }
+    else if (view !== null && !canFocus(view) && !(inPointerDispatch() && typeof (view as { press?: unknown }).press === "function")) warnOnce(view, `Focus.focus(${where(view)}): it is not focusable, so focus did not move — set focusable = true on it, or focus a control inside it`);
     this.apply(view);
     // Focus a program moves is shown, as Tab's is and as the web's
     // element.focus() is: scrolled into view, clear of pinned chrome. Focus a
@@ -280,6 +292,9 @@ export class FocusService {
    *  the ring's coordinate space stands still) stays subtracted. Hand-rolled
    *  x/y accumulation here was the scroll-blind focus ring (found 2026-07-31,
    *  the same missing term as the pointer walk's — ONE WALK, everywhere). */
+  /** Restart the follower: a reader of the geometry has arrived. */
+  refollow(): void { this.retargetFollower(); }
+
   private retargetFollower(): void {
     this.follower?.dispose();
     this.follower = null;
@@ -348,7 +363,7 @@ export class FocusService {
           theme: providedRead(v, "theme", true, null),
         };
       },
-      (g) => { if (g != null) for (const fn of [...this.geometryHandlers]) fn(g as FocusGeometry); }
+      (g) => { if (g != null) { noteFocusGeometry(g as FocusGeometry); for (const fn of [...this.geometryHandlers]) fn(g as FocusGeometry); } }
     );
     // kept, so the next focus change disposes it: an unkept follower went on
     // pushing the geometry of a view that had lost focus, and the ring
@@ -672,7 +687,7 @@ export class FocusService {
    *  focus without a ring; one reached by Tab keeps the ring going. */
   private recover(lost: View, from: View, ring: boolean): void {
     const calls = this.calls;
-    from.$afterDelay(0, () => {
+    from.afterDelay(0, () => {
       if (this.current !== null || this.calls !== calls) return;
       const t = restoreTarget(from, lost);
       if (t === null) return;
@@ -908,6 +923,10 @@ function warnOnce(v: View, said: string): void {
 
 function canFocus(v: View): boolean {
   return ((v.focusable || v.link !== "" || scopeOf(v) === "region") && v.visible) || bareScroller(v);
+}
+/** Would take focus, but is hidden. */
+function wouldFocusShown(v: View): boolean {
+  return !v.visible && (v.focusable !== false || v.link !== "" || scopeOf(v) === "region");
 }
 
 /** What last had focus inside each scope (§13.2: a scope remembers). */
@@ -1764,6 +1783,8 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
 
 /** The runtime's focus service (LZX's lz.Focus). */
 export const Focus = new FocusService();
+// app.focusGeometry read for the first time: the follower starts, and stays on
+provideGeometryDemand(() => { Focus.onGeometry(() => { }); Focus.refollow(); });
 
 // A context menu asked for from the keyboard is for the focused view, or for the
 // item it names as the one the keys are on (a list's active row).

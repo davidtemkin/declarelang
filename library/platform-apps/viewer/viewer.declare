@@ -113,7 +113,7 @@ class Block [ kind: string = "",
 
         fill = { provided("theme").codeBg },
         cornerRadius = { [classroot.nested ? 0 : 8, 8, 8, classroot.joinBelow ? 0 : 8] },
-        stroke = { [null, null, null, stroke(2, provided("theme").accentSecondary)] },
+        stroke = { [null, null, null, Stroke(2, provided("theme").accentSecondary)] },
         body: View [ width = 100%, scrolls = x, height = { this.contentHeight },
             HTMLText [ x = 0, y = 0, width = 100%,
                 html = { classroot.html }, fontScale = { app.fontScale },
@@ -277,12 +277,12 @@ App [ fill = { provided("theme").background },
 
     // the program a host names as the subject (the desktop's viewer window); "" standalone
 
-    hostProgram: string = { hostProvided("subject", "") },
+    hostProgram: string = { app.hostProvided("subject", "") },
 
     // where the docs app is, for a platform class's reference page — "" on a
     // host that has none (the Mac app provides "")
 
-    docsBase: string = { hostProvided("docs", "apps/docs/") },
+    docsBase: string = { app.hostProvided("docs", "apps/docs/") },
 
     barH: number = 52,
     topM: number = 40,    // reader top margin (foot matches it at the bottom)
@@ -337,7 +337,7 @@ App [ fill = { provided("theme").background },
     // and from then on that holds.
 
     isDark: boolean = { app.themeMode == "auto"
-        ? hostProvided("dark", app.systemDark)
+        ? app.hostProvided("dark", app.systemDark)
         : app.themeMode == "dark" },
 
     // The house preset, plus this app's two domain names — and no private
@@ -692,7 +692,7 @@ App [ fill = { provided("theme").background },
 
             rule: View [ y = { Math.max(34 * app.fontScale, parent.title.height + 8 * app.fontScale) }, width = 100%, height = 2, cornerRadius = 1,
                 opacity = { app.isDark ? 0.72 : 1 },
-                fill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) } ]
+                fill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").accentSecondary) } ]
             ],
 
         // highlighted view: prose + colored code segments
@@ -891,7 +891,7 @@ App [ fill = { provided("theme").background },
             x = { parent.width - this.width - 14 },
             width = { this.lbl.width + 18 },
             opacity = { parent.edited ? 1 : 0.35 },
-            stroke = { stroke(1, provided("theme").line) },
+            stroke = { Stroke(1, provided("theme").line) },
             fill = { hovered && parent.edited ? provided("theme").controlHovered : provided("theme").control },
             onClick() {
                 if (!parent.edited) return
@@ -969,7 +969,7 @@ App [ fill = { provided("theme").background },
             // root, so this works on either host at any mount point
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
+                textFill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
                 onClick() { app.openURL("apps/homepage/homepage.declare") }
                 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,

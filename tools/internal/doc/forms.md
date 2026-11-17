@@ -13,7 +13,7 @@ enforces: each `- ` rule carries `> says:` the checker's own sentence, quoted ve
 sentence, so a page quotes exactly what the compiler says). `### related`
 lists forms (by slug), classes, and guide chapters (`NN-slug · Title`).
 
-Not forms, and not here: `afterSettle` (a shared function — Types and functions),
+Not forms, and not here: `afterSettle` (a method of every node — the Node page),
 `onReady` (App's `ready` event — the App page), `draw()` (a method with a reserved name a
 view may define — the View page). The settle itself is a concept the guide teaches. And
 `<-` is not a form: a runtime service is an ordinary member
@@ -581,8 +581,8 @@ methods you call — a script function is the one opaque call.
 
 Inside the braces you are in plain TypeScript at full expression strength: ternaries,
 template literals, array chains, closures, casts. The bare-value vocabulary stops at the
-brace — a color is `0x4169E1`, not `navy`; a size is computed from the parent, not written
-as a percent. A `:path` may appear inside a body, which is how anything conditional over
+brace — a color is a string or a number, `"navy"` or `0x000080`, never a bare `navy`; a size
+is computed from the parent, not written as a percent. A `:path` may appear inside a body, which is how anything conditional over
 replicated data is written.
 
 ### rules
@@ -590,11 +590,11 @@ replicated data is written.
 - No percentages in braces: read the parent and scale.
   > says: there are no percentages: read the parent and scale, so 100% is { parent.width * 1 }
   > probe: App [ width = { 100% } ]
-- No `#hex` in braces: a color in TypeScript is a number.
-  > says: inside { } a color is written 0x336699, not #336699 (the #… and named-color forms work only as bare values)
+- No bare `#hex` in braces: a color in TypeScript is a string or a number.
+  > says: inside { } a color is a string or a number: write "#336699" (or 0x336699), not a bare #336699
   > probe: App [ fill = { #336699 } ]
-- No named colors in braces either; the message gives the number.
-  > says: 'navy' is a named color — the name form works only as a bare value; inside { } write it as 0x000080.
+- No bare color names in braces either; the message gives the quoted name.
+  > says: 'navy' is a named color — inside { } a color is a string or a number: write "navy" (or 0x000080).
   > probe: App [ fill = { navy } ]
 - A body is one expression; statements belong in a method.
   > says: an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })
@@ -772,43 +772,42 @@ guide: 08-controls · Controls, 14-data · Data
 
 ## constructors
 
-name: gradient(…) · stroke(…) · shadow(…) · frost(…)
-short: constructors
+name: Stroke(…) · Shadow(…) · Gradient.linear(…) · VisualFilter.frost(…)
+short: builders
 group: Values
 family: value
 spec: §9 Style
-terms: gradient, stroke, shadow, colorStop, frost, value constructor, value constructors, constructor call
+terms: Stroke, Shadow, Gradient, Gradient.linear, Gradient.stop, VisualFilter, frost, builder, builders, value constructor, constructor call
 syntax:
-    fill = gradient(#F8F8F8, #D8D8D8)          // bare: colors in the bare vocabulary
-    fill = { gradient("180deg", 0xF8F8F8, 0xD8D8D8) }
-    stroke = stroke(1, #B0B0B0)                // drawn inside the box
-    stroke = [ stroke(1, #B0B0B0), null, stroke(1, #B0B0B0), null ]   // per side, top first
-    shadow = shadow(0, 4, 12, #00000033)       // dx, dy, blur, color
-    backdrop = frost(26, 1.5)                  // blur, saturate
+    fill = Gradient.linear(#F8F8F8, #D8D8D8)   // bare: colors in the bare vocabulary
+    fill = { Gradient.linear("180deg", 0xF8F8F8, 0xD8D8D8) }
+    stroke = Stroke(1, #B0B0B0)                // drawn inside the box
+    stroke = [ Stroke(1, #B0B0B0), null, Stroke(1, #B0B0B0), null ]   // per side, top first
+    shadow = Shadow(0, 4, 12, #00000033)       // dx, dy, blur, color
+    backdrop = VisualFilter.frost(26, 1.5)     // blur, saturate
 usage: form-constructors
 
-The value constructors build the composite values decoration attributes take: a gradient, a
-stroke, a shadow, a frosted backdrop, a gradient's `colorStop`. They are the only call forms a bare
-value admits, and each has one shape — the message names it when the call is wrong. Inside
-a `{ }` the same names are ordinary functions, with colors written as numbers.
-
-No attribute may be called `gradient`, `stroke`, `shadow`, `colorStop` or `frost`. A method may
-take one of these names: inside its own class's bodies, a bare call reaches the method. A stroke is drawn **inside** the box, so it never enlarges the layout; a shadow
+The builders make the composite values decoration attributes take, each on its type: a
+`Stroke`, a `Shadow`, a gradient (`Gradient.linear`, `.radial`, `.conic`, and `Gradient.stop`
+for a stop), a filter or a frosted backdrop (`VisualFilter.blur`, `VisualFilter.frost`, …).
+They are the only call forms a bare value admits, and each has one shape — the message names
+it when the call is wrong. Inside a `{ }` the same calls are ordinary, with colors written as
+numbers. A stroke is drawn **inside** the box, so it never enlarges the layout; a shadow
 is cast outside it, escaping any clip, as a CSS box-shadow does. A `stroke` attribute also takes
 **four** of them — `[top, right, bottom, left]`, clockwise from the top, `null` for a bare
 side — which is the one-or-four shape `cornerRadius` and `padding` share. All three take
 either form from a `{ }` constraint as readily as from a literal, which is how a border in a
-theme token is written: `stroke = { [ stroke(1, provided("theme").line), null,
-stroke(1, provided("theme").line), null ] }` rules a row top and bottom.
+theme token is written: `stroke = { [ Stroke(1, provided("theme").line), null,
+Stroke(1, provided("theme").line), null ] }` rules a row top and bottom.
 
 ### rules
 
 - A fill takes a color, a gradient, or null; an unknown call is not a fill.
-  > says: got 'plaid(…)' (not a fill constructor)
+  > says: got 'plaid(…)' (not a fill builder)
   > probe: App [ fill = plaid(1) ]
-- Each constructor has one arity; a short call is refused with the shape.
-  > says: App.stroke expects a Stroke on all four sides (stroke(width, color), drawn inside the box), four of them — [top, right, bottom, left] clockwise from the top, null for a bare side — or null for no border at all, got 'stroke(…)'
-  > probe: App [ stroke = stroke(1) ]
+- Each builder has one arity; a short call is refused with the shape.
+  > says: App.stroke expects a Stroke on all four sides (Stroke(width, color), drawn inside the box), four of them — [top, right, bottom, left] clockwise from the top, null for a bare side — or null for no border at all, got 'Stroke(…)'
+  > probe: App [ stroke = Stroke(1) ]
 
 ### related
 
@@ -840,8 +839,8 @@ usage: form-literals
 The bare-value vocabulary the compiler owns: numbers, percents, the position literals
 `center` and `end`, colors by name or hex, strings, booleans, `null`, and the enum tokens
 each attribute names. A bare literal is the value itself, set once. Inside `{ }` none of this
-exists — there you are in TypeScript, where a color is `0x336699` and a size is arithmetic
-on the parent.
+exists — there you are in TypeScript, where a color is `"#336699"` or `0x336699` and a size is
+arithmetic on the parent.
 
 A `"…"` string ends at its line; long text is a `"""` block. An 8-digit `0x` literal is an
 alpha color, never a number — which is why `#RRGGBBAA` and `0xRRGGBBAA` mean the same thing
@@ -850,7 +849,7 @@ and a Length refuses it.
 ### rules
 
 - An enum attribute takes one of its tokens; the message lists them.
-  > says: SimpleLayout.axis expects an Axis (one of x | y), got 'z'
+  > says: SimpleLayout.axis expects a LayoutAxis (one of x | y), got 'z'
   > probe: App [ v: View [ layout: SimpleLayout [ axis = z ] ] ]
 - An 8-digit 0x is an alpha color, not a number.
   > says: an 8-digit 0x is an alpha color, not a number — write a number in decimal
@@ -1342,7 +1341,7 @@ syntax:
 usage: form-provided
 
 The one explicit **up-the-tree read**: `provided("name")` is the value the nearest ancestor
-makes available under that name — bare in `[ ]` like `gradient(…)`, or a call in `{ }`.
+makes available under that name — bare in `[ ]` like `Stroke(…)`, or a call in `{ }`.
 *Providing* is just holding a value: declare a typed attribute on an ancestor
 (`density: number = 2`) and every descendant may read it; the built-in provided names —
 the text face, `theme`, `iconSize`, the rich-text attributes — need no declaration at all, so
@@ -1393,20 +1392,20 @@ declaration at every boundary — arrival, the literal body, and the mutation ve
 malformed data yields `.failed` rather than `undefined` three steps downstream.
 
 Field markers: `[]` for an array, `?` for optional. Field types are `string`, `number`,
-`boolean`, `any`, a literal union of strings or numbers, another schema's name, or a nested
+`boolean`, `Color` (a number, or the `"#RRGGBB"` string data carries), `any`, a literal union of strings or numbers, another schema's name, or a nested
 `[ … ]`. Extra keys always pass — a schema declares what the program relies on, not
 everything the document carries.
 
 ### rules
 
 - A field's type is one of the shape vocabulary; an unknown name is refused with the list.
-  > says: 'a: Widget' names no schema — declared schemas: T (a field's type is string | number | boolean | any, a schema name, a literal union, or a nested [ … ])
+  > says: 'a: Widget' names no schema — declared schemas: T (a field's type is string | number | boolean | Color | any, a schema name, a literal union, or a nested [ … ])
   > probe: schema T [ a: Widget ]\nApp [ ]
 - One schema per name.
   > says: schema 'T' is declared twice
   > probe: schema T [ a: string ]\nschema T [ b: string ]\nApp [ ]
 - A field carries a type after its markers.
-  > says: expected a shape field's type — string | number | boolean | any, a schema name, a literal union, or a nested [ … ], got ']'
+  > says: expected a shape field's type — string | number | boolean | Color | any, a schema name, a literal union, or a nested [ … ], got ']'
   > probe: schema T [ a?: ]\nApp [ ]
 
 ### related

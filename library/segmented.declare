@@ -75,8 +75,9 @@ works.
 necessarily surface — that does not make it API.
 
 ## items
-The segments, as **records**: `{ id, label }` or `{ id, icon }` — the same vocabulary
-`Menu`'s items use. A choice shows a label **or** an icon, never both. A choice may also
+The segments, as **records**: `{ id, label }` or `{ id, icon, label }` — the same vocabulary
+`Menu`'s items use. A choice shows a label **or** an icon, never both: with an icon, its
+`label` is the segment's name to a screen reader. A choice may also
 carry a `location`, which makes that segment a real link (see `SegmentedItem.location`).
 
 ## commit()
@@ -86,13 +87,11 @@ override it to own the destination.
 ## pick()
 Selects a choice by id, routing through `commit`. The seam a segment calls.
 
-## disabled
-Disables the whole control. **A segment is not separately disable-able** — a disabled
-group leaves the tab order entirely rather than offering unreachable stops.
-
 ## opacity
 Disabled dims the whole control — track, pill and every segment alike, never a
 recolour — to the theme's `disabledOpacity`, or 0.45 when the theme states none.
+**A segment is not separately disable-able**: a disabled group leaves the tab order
+entirely rather than offering unreachable stops.
 
 ## segmentMinWidth
 The per-segment width used when you set no `width` on the control. Because a
@@ -303,7 +302,7 @@ class Segmented extends ValueControl [
         width = { (parent as Segmented)._segmentWidth },
         visible = { (parent as Segmented)._idx >= 0 },
         fill = { provided("theme").segmentedSelectedFill ?? provided("theme").surface },
-        stroke = { stroke(1, provided("theme").line) } ],
+        stroke = { Stroke(1, provided("theme").line) } ],
 
     // Dividers between segments, where the theme gives them a colour
     // (`segmentDividerColor`; none by default). One beside the pill fades as

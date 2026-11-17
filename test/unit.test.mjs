@@ -229,7 +229,7 @@ await test("check() names attribute, expected type, and found value per type", (
     ["View [ width=\"wide\" ]", /View\.width expects a Length \(a number of pixels, a percent like 50%, or the position literals center \| end on x\/y\), got the string "wide"/],
     ["View [ visible=1 ]", /View\.visible expects a boolean \(true or false\), got the number 1/],
     ["View [ opacity=50% ]", /View\.opacity expects a number, got the percent 50%/],
-    ["View [ fill=whit ]", /View\.fill expects a Fill \(a Color, gradient\(#F8F8F8, #D8D8D8\), gradient\(angle, …stops\), or null\), got 'whit' \(not a CSS color name\)/],
+    ["View [ fill=whit ]", /View\.fill expects a Fill \(a Color, Gradient\.linear\(#F8F8F8, #D8D8D8\), Gradient\.linear\(angle, …stops\), or null\), got 'whit' \(not a CSS color name\)/],
     ["View [ fill=#12 ]", /got '#12' \(a hex color is 3, 4, 6, or 8 hex digits\)/],
     ["View [ fill=255 ]", /got the number 255 \(write a color in hex: 0x… or #…\)/],
     ["View [ fill=0x1000000 ]", /got the number 0x1000000 \(outside 0x000000–0xFFFFFF\)/],
@@ -264,7 +264,7 @@ await test("a paint rule reading a declared default whose input the instance bin
   const app = buildProgram(await compiled(`App [ width = 300, height = 200, v: string? = "x",
     k: K [ a = { app.v } ], n: N [ a = { "x" } ], j: K [ y = 30 ] ]
 class K [ width = 50, height = 20, a: string? = null, m: boolean = { classroot.a == null },
-  fill = { classroot.m ? 0xFF0000 : 0x00AA00 }, stroke = { classroot.m ? stroke(1, 0xFF0000) : null } ]
+  fill = { classroot.m ? 0xFF0000 : 0x00AA00 }, stroke = { classroot.m ? Stroke(1, 0xFF0000) : null } ]
 class N [ width = 50, height = 20, a: string? = null, m: number = { classroot.a == null ? 1 : 0 },
   fill = { classroot.m == 1 ? 0xFF0000 : 0x00AA00 } ]`));
   settle();
@@ -389,9 +389,9 @@ await test("a word kept in a local before it is passed is said plainly, with the
   assert.ok(e, "refused");
   assert.match(e.message, /a FontWeight is one of a fixed set of words/);
   assert.match(e.message, /style Tag \[ fontWeight = semibold \]/, "names a style declaration");
-  const word = await compile(`App [ width = 100, height = 100, turn(a: Axis) { }, onClick() { const o = { a: "x" }; turn(o.a) } ]`);
+  const word = await compile(`App [ width = 100, height = 100, turn(a: LayoutAxis) { }, onClick() { const o = { a: "x" }; turn(o.a) } ]`);
   const w = (word.errors ?? []).find((x) => x.code === "DECLARE6001");
-  assert.match(w.message, /an Axis is one of a fixed set of words/);
+  assert.match(w.message, /a LayoutAxis is one of a fixed set of words/);
   assert.ok(!/style Tag/.test(w.message), "the style advice only where a text style is meant");
   const fine = await compile(`style Tag [ fontSize = 12, fontWeight = semibold ]
     App [ width = 100, height = 100, v: View [ width = 100, height = 100,
@@ -450,20 +450,20 @@ await test("a declared name one of Declare's own types already holds is said pla
   // (the rename pass freed the broad names these cases first hit — Backdrop,
   // Outline, Process; the collision is the same with the names now held)
   for (const [src, kind, name] of [
-    [`class FilterList extends View [ height = { this.$root.height }, tint: number = 1 ]\nApp [ b: FilterList [ ] ]`, "class", "FilterList"],
+    [`class VisualFilter extends View [ height = { this.$root.height }, tint: number = 1 ]\nApp [ b: VisualFilter [ ] ]`, "class", "VisualFilter"],
     [`schema BoxStroke [ wide: number ]\nApp [ onClick() { const n = 1 } ]`, "schema", "BoxStroke"],
     [`class Color extends View [ tint: number = 1 ]\nApp [ c: Color [ ], onClick() { c.tint = 2 } ]`, "class", "Color"],
     // a word list, and a preset theme
     [`class AnimatorOrder extends View [ tint: number = 1 ]\nApp [ p: AnimatorOrder [ ], onClick() { p.tint = 2 } ]`, "class", "AnimatorOrder"],
     [`class Cupertino extends View [ tint: number = 1 ]\nApp [ p: Cupertino [ ], onClick() { p.tint = 2 } ]`, "class", "Cupertino"],
     // a value enum the library's own attributes are typed by: refused at the
-    // declaration, not as "SimpleLayout.axis expects a Axis" inside library files
-    [`class Axis extends View [ tint: number = 1 ]\nApp [ layout: SimpleLayout [ axis = y ], p: Axis [ ], onClick() { p.tint = 2 } ]`, "class", "Axis"],
+    // declaration, not as "SimpleLayout.axis expects a LayoutAxis" inside library files
+    [`class LayoutAxis extends View [ tint: number = 1 ]\nApp [ layout: SimpleLayout [ axis = y ], p: LayoutAxis [ ], onClick() { p.tint = 2 } ]`, "class", "LayoutAxis"],
   ]) {
     const r = await compile(src, { mainId: "apps/cadence.declare" });
     const e = (r.errors ?? []).find((x) => x.code === "DECLARE4015");
     assert.ok(e, `${kind} ${name} is reported`);
-    assert.match(e.message, new RegExp(`${kind} ${name} takes the name of one of Declare's own types \\(npx declare-help ${name} says what it is\\)`));
+    assert.match(e.message, new RegExp(`${kind} ${name} takes the name of (one of Declare's own types|Declare's ${name} [a-z ]+).* \\(npx declare-help ${name} says what it is\\)`));
     assert.match(e.message, new RegExp(`Rename yours, as 'Cadence${name}'`), "the app's name as the prefix");
     assert.equal(e.pos?.line, 1, "at the declaration");
     assert.ok(!(r.errors ?? []).some((x) => /expects a/.test(x.message)), `${name}: nothing reported against the library's own attributes`);
@@ -514,8 +514,8 @@ await test("an App's unset height is its host's, not its children's: a row's str
 
 await test("a paint written by name in a signature may be none: -> Stroke and -> Shadow return null, as Color does", async () => {
   const r = await compile(`App [ width = 100, height = 100, on: boolean = false,
-    outline(w: number) -> Stroke { return w <= 0 ? null : stroke(w, 0x112233) },
-    lift() -> Shadow { return app.on ? shadow(0, 2, 4, 0x00000033) : null },
+    outline(w: number) -> Stroke { return w <= 0 ? null : Stroke(w, 0x112233) },
+    lift() -> Shadow { return app.on ? Shadow(0, 2, 4, 0x00000033) : null },
     tint() -> Color { return app.on ? 0x112233 : null },
     View [ width = 10, height = 10, stroke = { app.outline(1) }, shadow = { app.lift() } ] ]`);
   assert.deepEqual(r.errors, [], r.report);
@@ -813,22 +813,20 @@ await test("CSS_COLORS is the full 148-keyword CSS named-color set", () => {
   assert.equal(CSS_COLORS.transparent, undefined); // "no color" is `null`
 });
 
-await test("colorToCss refuses a smuggled string LOUDLY, not silently", () => {
-  // the seam mistake an `any` lets through: a { } body handing "#87CEEB" where
-  // a color is a number. The old path did arithmetic on the string and emitted
-  // garbage CSS the browser discarded with no error anywhere (a real user lost
-  // an hour to it, 2026-08-07). The contract now: transparent paint + one loud
-  // console.error naming the numeric spelling.
+await test("colorToCss reads a hex string and refuses any other string LOUDLY, not silently", () => {
+  // A string reaching the paint seam with no color slot's write in between: a
+  // hex string is read; anything else would be CSS the browser discards with no
+  // error anywhere, so it paints nothing and says so once.
   const said = [];
   const orig = console.error;
   console.error = (...a) => said.push(a.join(" "));
   try {
-    assert.equal(colorToCss("#87CEEB"), "transparent");
-    assert.equal(colorToCss("#87CEEB"), "transparent");   // second time stays quiet
+    assert.equal(colorToCss("#87CEEB"), "#87ceeb");
     assert.equal(colorToCss("tomato"), "transparent");
+    assert.equal(colorToCss("tomato"), "transparent");   // second time stays quiet
   } finally { console.error = orig; }
-  assert.equal(said.length, 2, "one warning per distinct bad value");
-  assert.ok(said[0].includes("0x87CEEB"), "the fix is named: " + said[0]);
+  assert.equal(said.length, 1, "one warning per distinct bad value");
+  assert.ok(said[0].includes("#RRGGBB"), "the fix is named: " + said[0]);
 });
 
 await test("colorToCss renders a Color as CSS", () => {
@@ -3240,10 +3238,10 @@ await test("compile(): 'classroot' is valid only inside a class body — App / s
 });
 
 await test("compile(): bare-slot forms inside { } name their fix — colors and statements (field report A3/A4)", async () => {
-  // A3 — a `#`-hex color inside { }: the generic "Invalid character" becomes the 0x form.
+  // A3 — a bare `#`-hex color inside { }: the generic "Invalid character" names the quoted form.
   const hex = await compile(`App [ Text [ text = "hi", textColor = { #334455 } ] ]`, {});
   assert.equal(hex.source, null);
-  assert.match(hex.errors[0].message, /inside \{ \} a color is written 0x334455, not #334455/);
+  assert.match(hex.errors[0].message, /inside \{ \} a color is a string or a number: write "#334455" \(or 0x334455\)/);
   // shorthand is expanded so the suggestion is exact
   assert.match((await compile(`App [ Text [ textColor = { #f00 } ] ]`, {})).errors[0].message, /0xff0000/);
   // 8-hex (alpha) passes straight through
@@ -3251,7 +3249,7 @@ await test("compile(): bare-slot forms inside { } name their fix — colors and 
   // A3c — a NAMED color inside { } resolves to a targeted diagnostic, not flat "unresolved"
   const named = await compile(`App [ Text [ textColor = { navy } ] ]`, {});
   assert.equal(named.source, null);
-  assert.match(named.errors[0].message, /'navy' is a named color .* write it as 0x000080/);
+  assert.match(named.errors[0].message, /'navy' is a named color .* write "navy" \(or 0x000080\)/);
   assert.equal(named.diagnostics.find((d) => d.message.includes("named color")).code, "DECLARE4004");
   // a DECLARED attribute that happens to share a color's name still resolves normally
   assert.deepEqual((await compile(`App [ teal: number = 1, Text [ text = { "" + teal } ] ]`, {})).errors, []);
@@ -3578,7 +3576,7 @@ await test("the layout member checks: axis is an enum, spacing a number, null le
   const errs = await checkL((
     "App [ width=1, height=1, layout: SimpleLayout [ axis = up, spacing = \"wide\" ] ]"));
   assert.equal(errs.length, 2);
-  assert.match(errs[0].message, /SimpleLayout\.axis expects an Axis \(one of x \| y\), got 'up'/);
+  assert.match(errs[0].message, /SimpleLayout\.axis expects a LayoutAxis \(one of x \| y\), got 'up'/);
   assert.match(errs[1].message, /SimpleLayout\.spacing expects a number/);
   assert.ok(errs[0].pos, "layout-attr errors are positioned");
 });
@@ -4021,6 +4019,11 @@ await test("scanDatapaths: islands vs ternaries, keys, strings, templates", () =
   assert.deepEqual(paths(` f(:rows[]) `), ["rows[]"], "the many form scans");
   assert.deepEqual(paths(` return :x `), ["x"], "after a non-ending keyword, an expression is expected");
   assert.deepEqual(paths(` let t: number = 1 `), [], "a type annotation colon follows a name");
+  // a line that begins with a path is a new statement (RealWorld run 3: two writes, no semicolon)
+  assert.deepEqual(paths(":a = this.x.y\n:b = 2"), ["a", "b"], "a path at a line's start, after an operand, is a new statement");
+  assert.deepEqual(paths("const v = ok ? 1\n  : 2"), [], "a ternary's colon on the next line stays the ternary's");
+  assert.deepEqual(paths("const v = ok ? :a\n  : :b"), ["a", "b"], "a ternary over paths, across lines");
+  assert.deepEqual(paths("const v = a ?? :b"), ["b"], "?? is not a ternary waiting for a colon");
 });
 
 await test("rewriteDatapaths: islands become this.$data(…); many is refused", () => {
@@ -5256,47 +5259,47 @@ await test("Color: the #RGBA / #RRGGBBAA and 0xRRGGBBAA alpha forms (one represe
 
 await test("decoration literals: gradient / stroke / shadow constructor forms", () => {
   const v = (src) => checkAttr(SCHEMAS.View, attrOf(`View [ ${src} ]`));
-  assert.deepEqual(v("fill=gradient(#F8F8F8, #D8D8D8)").value, {
+  assert.deepEqual(v("fill=Gradient.linear(#F8F8F8, #D8D8D8)").value, {
     angle: 180,
     stops: [{ offset: null, color: 0xf8f8f8 }, { offset: null, color: 0xd8d8d8 }],
   });
-  assert.equal(v("fill=gradient(90, #000000, colorStop(0.3, #FFFFFF), #808080)").value.angle, 90);
-  assert.deepEqual(v("fill=gradient(90, #000, colorStop(0.3, #FFF), #888)").value.stops[1], { offset: 0.3, color: 0xffffff });
+  assert.equal(v("fill=Gradient.linear(90, #000000, Gradient.stop(0.3, #FFFFFF), #808080)").value.angle, 90);
+  assert.deepEqual(v("fill=Gradient.linear(90, #000, Gradient.stop(0.3, #FFF), #888)").value.stops[1], { offset: 0.3, color: 0xffffff });
   assert.equal(v("fill=navy").value, 0x000080, "a bare Color coerces into the fill slot");
   assert.equal(v("fill=null").value, null);
-  assert.deepEqual(v("stroke=stroke(2, #1A1A1A)").value, { width: 2, color: 0x1a1a1a });
-  assert.deepEqual(v("shadow=shadow(3, 3, 0, #00000054)").value, { fn: "shadow", dx: 3, dy: 3, blur: 0, color: colorWithAlpha(0x000000, 0x54) });
-  assert.match(v("fill=gradient(#111111)").error.message, /at least two stops/);
-  assert.match(v("stroke=stroke(2)").error.message, /a Stroke/);
-  assert.match(v("shadow=shadow(1, 2, #000000)").error.message, /a Shadow/);
-  assert.match(v("width=stroke(1, #000000)").error.message, /expects a Length/);
-  const t = checkAttr(SCHEMAS.Text, attrOf("Text [ textShadow=shadow(1, 0, 0, #222222) ]"));
+  assert.deepEqual(v("stroke=Stroke(2, #1A1A1A)").value, { width: 2, color: 0x1a1a1a });
+  assert.deepEqual(v("shadow=Shadow(3, 3, 0, #00000054)").value, { fn: "shadow", dx: 3, dy: 3, blur: 0, color: colorWithAlpha(0x000000, 0x54) });
+  assert.match(v("fill=Gradient.linear(#111111)").error.message, /at least two stops/);
+  assert.match(v("stroke=Stroke(2)").error.message, /a Stroke/);
+  assert.match(v("shadow=Shadow(1, 2, #000000)").error.message, /a Shadow/);
+  assert.match(v("width=Stroke(1, #000000)").error.message, /expects a Length/);
+  const t = checkAttr(SCHEMAS.Text, attrOf("Text [ textShadow=Shadow(1, 0, 0, #222222) ]"));
   assert.deepEqual(t.value, { fn: "shadow", dx: 1, dy: 0, blur: 0, color: 0x222222 });
 });
 
 await test("graphics pass: filter / mask / gradient literals coerce, and the names stay out of the way", () => {
   const v = (src) => checkAttr(SCHEMAS.View, attrOf(`View [ ${src} ]`));
   // one function, a list, the frost pair, null
-  assert.deepEqual(v("visualFilter=blur(3)").value, [{ fn: "blur", radius: 3 }]);
-  assert.deepEqual(v("visualFilter=[blur(2), brightness(0.8), colorize(#FF5A36)]").value,
+  assert.deepEqual(v("visualFilter=VisualFilter.blur(3)").value, [{ fn: "blur", radius: 3 }]);
+  assert.deepEqual(v("visualFilter=[VisualFilter.blur(2), VisualFilter.brightness(0.8), VisualFilter.colorize(#FF5A36)]").value,
     [{ fn: "blur", radius: 2 }, { fn: "brightness", amount: 0.8 }, { fn: "colorize", color: 0xff5a36 }]);
-  assert.deepEqual(v("visualFilter=[shadow(0, 26, 52, #00000080)]").value, [{ fn: "shadow", dx: 0, dy: 26, blur: 52, color: colorWithAlpha(0, 0x80) }]);
-  assert.deepEqual(v("backdrop=frost(20, 1.4)").value, [{ fn: "blur", radius: 20 }, { fn: "saturate", amount: 1.4 }]);
-  assert.deepEqual(v("backdrop=[blur(12), saturate(1.6), brightness(1.1)]").value,
+  assert.deepEqual(v("visualFilter=[Shadow(0, 26, 52, #00000080)]").value, [{ fn: "shadow", dx: 0, dy: 26, blur: 52, color: colorWithAlpha(0, 0x80) }]);
+  assert.deepEqual(v("backdrop=VisualFilter.frost(20, 1.4)").value, [{ fn: "blur", radius: 20 }, { fn: "saturate", amount: 1.4 }]);
+  assert.deepEqual(v("backdrop=[VisualFilter.blur(12), VisualFilter.saturate(1.6), VisualFilter.brightness(1.1)]").value,
     [{ fn: "blur", radius: 12 }, { fn: "saturate", amount: 1.6 }, { fn: "brightness", amount: 1.1 }]);
   assert.equal(v("visualFilter=null").value, null);
-  assert.match(v("visualFilter=blur(-1)").error.message, /a filter/);
-  assert.match(v("visualFilter=wobble(3)").error.message, /a filter/);
+  assert.match(v("visualFilter=VisualFilter.blur(-1)").error.message, /a VisualFilter/);
+  assert.match(v("visualFilter=wobble(3)").error.message, /a VisualFilter/);
   // masks: a gradient (its alpha), or null; a stencil view only from { }
-  assert.equal(v("mask=gradient(#00000000, #000000FF)").value.stops.length, 2);
+  assert.equal(v("mask=Gradient.linear(#00000000, #000000FF)").value.stops.length, 2);
   assert.equal(v("mask=null").value, null);
   assert.match(v("mask=navy").error.message, /a mask/);
   // radial and conic gradients: three numbers, then the stops
-  const r = v("fill=radialGradient(0.5, 0.38, 0.3, #FFFFFF60, #FFFFFF00)").value;
+  const r = v("fill=Gradient.radial(0.5, 0.38, 0.3, #FFFFFF60, #FFFFFF00)").value;
   assert.equal(r.kind, "radial"); assert.equal(r.cx, 0.5); assert.equal(r.cy, 0.38); assert.equal(r.r, 0.3); assert.equal(r.stops.length, 2);
-  const c = v("fill=conicGradient(0.5, 0.5, 90, #FF5A36, colorStop(0.5, #2EC4B6), #FF5A36)").value;
+  const c = v("fill=Gradient.conic(0.5, 0.5, 90, #FF5A36, Gradient.stop(0.5, #2EC4B6), #FF5A36)").value;
   assert.equal(c.kind, "conic"); assert.equal(c.angle, 90); assert.deepEqual(c.stops[1], { offset: 0.5, color: 0x2ec4b6 });
-  assert.match(v("fill=radialGradient(0.5, #FFFFFF, #000000)").error.message, /three numbers/);
+  assert.match(v("fill=Gradient.radial(0.5, #FFFFFF, #000000)").error.message, /three numbers/);
 });
 
 await test("graphics pass: the affine transform's footprint and inverse agree (affine.ts)", async () => {
@@ -5373,7 +5376,7 @@ await test("graphics pass: drawImage records a handle op from an Image view, and
 await test("decoration values gate on structural equality (a re-produced equal record stops the cascade)", async () => {
   globalThis.__evals = 0;
   const counted = buildProgram(await compiled(`${TALLY}App [ width = 100,
-    box: View [ shadow = { shadow(0, 1, 2, 0x222222 + (parent.width - parent.width)) },
+    box: View [ shadow = { Shadow(0, 1, 2, 0x222222 + (parent.width - parent.width)) },
       dep: View [ height = { hit("__evals"), parent.shadow ? parent.shadow.blur : 0 } ] ] ]`));
   assert.equal(counted.box.dep.height, 2);
   const base = globalThis.__evals;
@@ -5384,24 +5387,24 @@ await test("decoration values gate on structural equality (a re-produced equal r
 });
 
 await test("constructors are in scope inside { } bodies; bare `stroke` is still the slot", async () => {
-  const app = buildProgram(await compiled(`App [ stroke = stroke(2, #101010),
+  const app = buildProgram(await compiled(`App [ stroke = Stroke(2, #101010),
     box: View [ width = { this.stroke && "width" in this.stroke ? this.stroke.width * 10 : 0 },
-                fill = { gradient(0xFFFFFF, 0xF0F0F0) } ] ]`));
+                fill = { Gradient.linear(0xFFFFFF, 0xF0F0F0) } ] ]`));
   assert.equal(app.box.width, 0, "this.stroke is the slot (unset on box)");
   assert.equal(app.box.fill.stops.length, 2, "gradient(…) constructs in TS position");
   assert.equal(app.box.fill.angle, 180);
 });
 
-await test("compile(): constructor names resolve as constructors in call position only", async () => {
+await test("compile(): a builder is reached through its type; the bare attribute name is the slot", async () => {
   // The read narrows first: `stroke` is typed `BoxStroke` — one Stroke on all
   // four sides or four of them — so reaching for `.width` asks which form it
   // has. (`Array.isArray` does not narrow a readonly-tuple arm out of the
   // union; the property test does, which is why the corpus idiom is `in`.)
   const r = await compile(`App [
-    box: View [ fill = { gradient(0xFFFFFF, 0xF0F0F0) },
+    box: View [ fill = { Gradient.linear(0xFFFFFF, 0xF0F0F0) },
                 width = { stroke && "width" in stroke ? stroke.width : 10 } ] ]`);
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  assert.match(r.source, /gradient\(0xFFFFFF/, "callee position: left for the runtime constructor");
+  assert.match(r.source, /Gradient\.linear\(0xFFFFFF/, "the builder, through its type");
   assert.match(r.source, /this\.stroke && "width" in this\.stroke \? this\.stroke\.width : 10/,
     "bare stroke is the slot — in the guard and in the read");
 });
@@ -5413,9 +5416,8 @@ await test("stroke: a body that reaches INTO a stroke is told to ask which form 
   assert.match(r.errors[0].message, /one Stroke on all four sides OR four of them/);
 });
 
-await test("a constructor's name is refused as an attribute, and may be a method's", () => {
-  const errs = check(parseProgram(`class X extends View [ gradient: number = 1 ] App [ ]`));
-  assert.match(errs[0].message, /value constructor/);
+await test("the builders' old lowercase words are free as a program's names: an attribute, a method", () => {
+  assert.equal(check(parseProgram(`class X extends View [ gradient: number = 1, blur: number = 2 ] App [ ]`)).length, 0);
   assert.equal(check(parseProgram(`App [ stop() { }, invert() { } ]`)).length, 0);
 });
 
@@ -5429,7 +5431,7 @@ await test("flush pushes decoration pay-per-use; pushers carry post-attach chang
   plain.cornerRadius = 4;
   assert.deepEqual(log.at(-1), ["setCornerRadius", 4], "the pusher carries a late set");
   const log2 = [];
-  const fancy = buildProgram(await compiled("App [ width=10, height=10, cornerRadius=6, stroke=stroke(1, #E2E2E2), shadow=shadow(0,1,2,#00000044) ]"));
+  const fancy = buildProgram(await compiled("App [ width=10, height=10, cornerRadius=6, stroke=Stroke(1, #E2E2E2), shadow=Shadow(0,1,2,#00000044) ]"));
   fancy.$attach(mockBackend(log2), null);
   assert.ok(log2.some(([m, v]) => m === "setCornerRadius" && v === 6));
   assert.ok(log2.some(([m, v]) => m === "setStroke" && v.width === 1));
@@ -5715,10 +5717,10 @@ await test("sample: cubicBezier / steps / back / laszlo", () => {
 await test("buildProgram(): easing accepts family tokens and the four constructors", async () => {
   const app = buildProgram(await compiled(`App [ width=1, height=1, View [
     a: Animator [ attribute=x, to=1, easing=quartOut ],
-    b: Animator [ attribute=x, to=1, easing=cubicBezier(0.42, 0, 0.58, 1) ],
+    b: Animator [ attribute=x, to=1, easing=Easing.cubicBezier(0.42, 0, 0.58, 1) ],
     c: Animator [ attribute=x, to=1, easing=laszloBoth ],
-    d: Animator [ attribute=x, to=1, easing=steps(4, jumpStart) ],
-    e: Animator [ attribute=x, to=1, easing=back(2) ] ] ]`));
+    d: Animator [ attribute=x, to=1, easing=Easing.steps(4, jumpStart) ],
+    e: Animator [ attribute=x, to=1, easing=Easing.back(2) ] ] ]`));
   const v = app.children[0];
   assert.deepEqual(v.a.easing, { k: "poly", fam: "quart", dir: "out" }, "family token");
   assert.equal(v.b.easing.k, "bezier", "cubicBezier constructor");
@@ -5730,7 +5732,7 @@ await test("buildProgram(): easing accepts family tokens and the four constructo
 await test("check(): a bogus easing token / out-of-range bézier is rejected, naming Easing", () => {
   const e1 = check(parseProgram(`App [ width=1, height=1, View [ Animator [ attribute=x, easing=swoosh ] ] ]`));
   assert.ok(e1.some((e) => /Easing/.test(e.message)), `unknown token names Easing: ${e1.map((e) => e.message).join(" | ")}`);
-  const e2 = check(parseProgram(`App [ width=1, height=1, View [ Animator [ attribute=x, easing=cubicBezier(2, 0, 0.5, 1) ] ] ]`));
+  const e2 = check(parseProgram(`App [ width=1, height=1, View [ Animator [ attribute=x, easing=Easing.cubicBezier(2, 0, 0.5, 1) ] ] ]`));
   assert.ok(e2.some((e) => /Easing|\[0, 1\]/.test(e.message)), `bézier x out of range: ${e2.map((e) => e.message).join(" | ")}`);
 });
 
@@ -9027,9 +9029,9 @@ await test("E-series diagnostics name the fix: bare ident, layout-in-State, dott
     /a member sets this element's OWN attributes, never a child's/);
   // E-1 escalation 2: the CSS-interference table names the Declare slot
   assert.match(await msg(`App [ width=1, height=1, v: View [ borderWidth = 1 ] ]`),
-    /has no attribute 'borderWidth' — the CSS instinct: a border is 'stroke = \{ stroke\(1,/);
+    /has no attribute 'borderWidth' — the CSS instinct: a border is 'stroke = \{ Stroke\(1,/);
   assert.match(await msg(`App [ width=1, height=1, v: View [ boxShadow = 1 ] ]`),
-    /the CSS instinct: a shadow is 'shadow = \{ shadow\(/);
+    /the CSS instinct: a shadow is 'shadow = \{ Shadow\(/);
   // Run-2 finding: a raw :path decl-default names the { } binding form
   assert.match(await msg(`App [ width=1, height=1, r: View [ datapath = :rows[], label: string = :label ] ]`),
     /to seed from data, write a \{ \} default: label: string = \{ :label \}/);
@@ -9381,8 +9383,6 @@ await test("an unresolved name in a SIZE slot points at the content intrinsics",
                       "and nowhere else — the hint belongs to size slots");
 });
 
-summarize("unit");
-
 // ── the device profile: three independent facts, none of them a guess ───────
 
 await test("device profile: the facts are read-only, and a hybrid is expressible", async () => {
@@ -9694,7 +9694,7 @@ await test("afterSettle: a step that re-arms itself forever is caught with its o
   const app = settleHeadless(r.program);
   try {
     app.kick();
-    assert.throws(() => settle(), /afterSettle: steps re-armed \d+ times in one settle/,
+    assert.throws(() => settle(), /afterSettle: steps kept one settle going for \d+ rounds/,
       "the outer-loop guard names afterSettle, not a constraint");
   } finally { app.discard(); }
 });
@@ -9835,3 +9835,19 @@ await test("wrapLines vs wrapEditable: break-word and indent are the field's rul
 
   provideMeasurer(undefined);   // leave the seam as we found it
 });
+
+await test("minScale/maxScale hold a scale however it is written — directly, by a constraint, or as a bound moves", async () => {
+  const r = await compile(`App [ width = 400, height = 300, want: number = 1,
+    a: View [ width = 100, height = 100, minScale = 1, maxScale = 4 ],
+    b: View [ width = 100, height = 100, scale = { app.want }, minScale = 0.5, maxScale = 2 ] ]`);
+  assert.deepEqual(r.errors, []);
+  const app = settleHeadless(r.program);
+  app.a.scale = 9; settle(); assert.equal(app.a.scale, 4, "written above: held at maxScale");
+  app.a.scale = 0.2; settle(); assert.equal(app.a.scale, 1, "written below: held at minScale");
+  app.want = 5; settle(); assert.equal(app.b.scale, 2, "a constraint's value is held too");
+  app.b.maxScale = 3; settle(); assert.equal(app.b.scale, 3, "a raised bound lets the constraint's value come closer");
+  app.b.maxScale = 1.5; settle(); assert.equal(app.b.scale, 1.5, "a lowered bound holds it anew");
+  app.want = 1.2; settle(); assert.equal(app.b.scale, 1.2, "within the bounds, the value is the constraint's");
+});
+
+summarize("unit");

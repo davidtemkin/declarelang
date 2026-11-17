@@ -187,6 +187,27 @@ jumps the window somewhere ("show all") would rather glide than jump: give `star
 hand write the value and its target together, so nothing trails the fingers
 ([Motion](declare-docs:guide:motion@springs)).
 
+### Bounding a scale
+
+A view whose content the person enlarges — a map, a photo, a drawing — says how far it goes
+with [`minScale`](declare-docs:View.minScale) and [`maxScale`](declare-docs:View.maxScale),
+as `minWidth` and `maxWidth` bound a width. How the scale changes is the program's — a pinch,
+a pair of buttons, a double tap:
+
+```declare-fragment
+photo: Image [ source = :url,
+    scale = 1, minScale = 1, maxScale = 4,
+    start: number = 1,
+    onPinchStart(e: PinchEvent) { start = scale },
+    onPinch(e: PinchEvent) { scale = start * e.scale }
+    ]
+```
+
+A scale written or computed outside the bounds is held at the nearer one, so the pinch needs
+no clamp of its own. The bounds also tell the checking tools how large what is inside can
+become: a control is judged a finger's target if it reaches 44 points at `maxScale`, since a
+person enlarges a view before tapping something small inside it.
+
 ## Dragging on a scrolling surface
 
 One row of the table deserves its own telling, because it resolves a conflict the

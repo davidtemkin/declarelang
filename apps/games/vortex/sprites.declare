@@ -382,7 +382,7 @@ class SpikeView extends Beam [
     near = { app.field.spikeHeight(:@, app.t) },
     visible = { near > 0.005 },
     fill = { provided("theme").spike },
-    shadow = { shadow(0, 0, 6, provided("theme").spike) }
+    shadow = { Shadow(0, 0, 6, provided("theme").spike) }
     ]
 
 
@@ -392,5 +392,5 @@ class PulseBeam extends Beam [
     visible = { app.field.pulsing(:@, app.t) },
     opacity = 0.7,
     fill = { provided("theme").pulsar },
-    shadow = { shadow(0, 0, 8, provided("theme").pulsar) }
+    shadow = { Shadow(0, 0, 8, provided("theme").pulsar) }
     ]

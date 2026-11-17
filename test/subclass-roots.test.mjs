@@ -159,18 +159,16 @@ App [ width = 100, height = 100,
   });
 })();
 
-// ── Keys / Focus / Tooltips ────────────────────────────────────────────────────────
+// ── Keys, and the focus fact ─────────────────────────────────────────────────────
 await (async () => {
   const app = await build(`
 class Hot extends KeyListener [ count: number = 0, last: string = "",
     onKeyDown(e: KeyEvent) { count = count + 1; last = e.key } ]
-class Watch extends Focus [ moves: number = 0, onFocusChange(v: View) { moves = moves + 1 } ]
-class Tips extends Tooltips [ seen: number = 0, onTooltip(e: TooltipEvent) { seen = seen + 1 } ]
+class Watch extends Node [ moves: number = 0, at: View? = { app.focusedView }, trackChanges = ["at"], onChange() { moves = moves + 1 } ]
 App [ width = 100, height = 100,
     hot: Hot [ ],
     loud: Hot [ onKeyDown(e: KeyEvent) { super.onKeyDown(e); count = count + 100 } ],
     watch: Watch [ ],
-    tips: Tips [ ],
     v: View [ width = 10, height = 10, focusable = true ] ]`);
   await test("Keys: the service reaches the subclass's handler; a use-site super override reaches the class's", () => {
     Keys.keyDown(KEY("a"));
@@ -180,15 +178,11 @@ App [ width = 100, height = 100,
     assert.equal(app.loud.count, 101);
     Keys.keyUp(KEY("a"));
   });
-  await test("Focus: the subclass hears focus changes", () => {
+  await test("Focus: a class that tracks app.focusedView hears focus move", () => {
     Focus.focus(app.v);
     settle();
     assert.equal(app.watch.moves, 1);
     Focus.focus(null);
-  });
-  await test("Tooltips: a subclass constructs and carries its declaration", () => {
-    assert.equal(app.tips.seen, 0);
-    assert.equal(app.tips.constructor.name, "Tips");
   });
 })();
 

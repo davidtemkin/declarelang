@@ -188,7 +188,7 @@ class Button extends Control [
     // platforms whose secondary buttons are bordered say so in the theme
     // (Cupertino's and Redmond's hairline) — flat systems leave it null
 
-    stroke  = { !primary && provided("theme").buttonStrokeColor != null ? stroke(1, provided("theme").buttonStrokeColor) : null },
+    stroke  = { !primary && provided("theme").buttonStrokeColor != null ? Stroke(1, provided("theme").buttonStrokeColor) : null },
 
     _run: View [ height = 100%, x = center,
         width = { this.contentWidth },

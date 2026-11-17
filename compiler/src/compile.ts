@@ -199,7 +199,7 @@ import { freeIdentifiers, hexColor8Literals } from "./free-idents.js";
 import { fillDatapaths, isWriteTarget, scanDatapaths, loweredPieces, islandEdits } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES, bodyScopeNames } from "../../runtime/dist/expr.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
-import { isAuthoredUnion } from "../../runtime/dist/value.js";
+import { isAuthoredUnion, colorWithAlpha } from "../../runtime/dist/value.js";
 import { FORMER_HOOKS, hostGlobalHint, memberHint } from "../../runtime/dist/teach.js";
 import { PRELUDE_NAMES, sharedFunctionSignature } from "./scaffold.js";
 import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
@@ -209,16 +209,6 @@ import { typecheckBodies, bodyRewrites } from "./typecheck.js";
 import { Diag, toDiagnostic, formatDiagnostic, renderReport, quietedBy, type Diagnostic, type DiagPhase } from "../../runtime/dist/diagnostics.js";
 import type { CompileFlags } from "../../runtime/dist/flags.js";
 
-/** The names resolution leaves alone in CALLEE position: the four value
- *  constructors expr.ts scopes into every body — `stroke(…)` builds a Stroke
- *  while bare `stroke` is still the slot — plus one more: the spine's
- *  global-function table publishes `colorWithAlpha(rgb, a)` and every body's
- *  runtime scope carries it (expr.ts LOWERED — it is the lowering target for
- *  `0xRRGGBBAA` literals), so a DYNAMIC alpha (`colorWithAlpha(theme.accent,
- *  hover ? 0.8 : 0.4)`) is callable exactly as documented; the literal
- *  spelling stays `0xRRGGBBAA` for constant alpha. Callee position only,
- *  like the constructors — bare `colorWithAlpha` is still a member name. */
-const CALLEE_GLOBALS = new Set([...CONSTRUCTOR_NAMES, "colorWithAlpha"]);
 
 /** A value body wrapped ENTIRELY in one pair of parentheses — `(expr)`, and the
  *  once-idiomatic `({ … })` object form. The runtime wraps every expression body
@@ -883,16 +873,6 @@ function idiomDiagnostics(
       if (shape !== null && (shape.depth >= 3 || shape.parts >= 4)) warnings.push(Diag.tangledConstraint(name, shape.depth, shape.parts, lit.pos));
     }
 
-    // 4034 — colorWithAlpha's alpha written as a fraction: it is a byte
-    for (const [src, pos] of [
-      ...el.attrs.flatMap((a) => a.value.kind === "code" ? [[a.value.src, a.value.pos] as const] : []),
-      ...el.decls.flatMap((d) => d.def !== null && d.def.kind === "code" ? [[d.def.src, d.def.pos] as const] : []),
-      ...el.methods.map((m) => [m.body, m.pos] as const),
-    ]) {
-      const m = /\bcolorWithAlpha\s*\((?:[^(),]|\([^()]*\))+,\s*(0?\.\d+|1(?:\.0*)?)\s*\)/.exec(src);
-      if (m !== null) warnings.push(Diag.alphaAsFraction(m[1], pos as Pos));
-    }
-
     for (const c of el.children) walk(c, el, classRoot);
   };
   for (const c of program.classes) walk(c.body, null, c.body);
@@ -942,23 +922,23 @@ const ES_GLOBALS = new Set([
 ]);
 
 // The runtime services in body scope (expr.ts setBodyServices): bare `Focus`
-// in a handler is the service, never a member to resolve. `afterSettle` and
-// `tint` are the function-shaped entries; the built-in theme presets are in
-// scope by name (`SanFrancisco`, `CupertinoDark`, …), so a body names one.
+// in a handler is the service, never a member to resolve; the built-in theme
+// presets are in scope by name (`SanFrancisco`, `CupertinoDark`, …), so a body
+// names one.
 /** View's own runtime methods a key binding may name as its command. */
 const RUNTIME_METHODS_VIEW = new Set(["scrollTo", "scrollToX", "scrollIntoView", "focus", "blur", "bringToFront", "sendToBack", "raise"]);
 
-const RUNTIME_SERVICES = new Set(["Focus", "Keyboard", "FilePicker", "Clipboard", "Commands", "Inspect", "Accessibility", "afterSettle", "activeTone", ...THEME_PRESET_NAMES]);
+const RUNTIME_SERVICES = new Set(["Focus", "Keyboard", "FilePicker", "Clipboard", "Commands", "Inspect", "Accessibility", ...THEME_PRESET_NAMES]);
 
 /** Every name the runtime binds in a { } body's own scope (expr.ts SCOPE): the
  *  value constructors, the literal-lowering helper, the services and presets.
  *  A script binding cannot share one — both would be declared in one body. */
 const runtimeBodyNames = (): Set<string> =>
-  new Set([...CONSTRUCTOR_NAMES, "colorWithAlpha", "measureText", "escapeHtml", ...RUNTIME_SERVICES, ...bodyScopeNames()]);
+  new Set([...CONSTRUCTOR_NAMES, "measureText", "escapeHtml", ...RUNTIME_SERVICES, ...bodyScopeNames()]);
 
 /** The calls a { } body rewrites to a method of its own node (the walk below):
  *  meaningful only where there is a node, so a script block refuses them. */
-const VIEW_BOUND_CALLS: ReadonlySet<string> = new Set(["provided", "hostProvided", "providedTextStyle", "afterDelay"]);
+const VIEW_BOUND_CALLS: ReadonlySet<string> = new Set(["provided", "providedTextStyle", "afterDelay", "afterSettle"]);
 
 const isKnownGlobal = (name: string): boolean =>
   hostGlobalHint(name) === null && (ES_GLOBALS.has(name) || PRELUDE_NAMES.has(name) || RUNTIME_SERVICES.has(name));
@@ -1474,6 +1454,17 @@ async function compileUnquieted(source: string, opts: CompileOptions, seen: { fl
     if (typeErrors.length > 0) {
       const ws = rbAll(r.warnings), ht = hs();
       return { source: null, errors: typeErrors, warnings: ws, hints: ht, ...diagnose(typeErrors, ws, "typecheck", "name", ht) };
+    }
+  }
+
+  // A color written as CSS writes it (`"#4169E1"`, `"royalblue"`), wherever
+  // TypeScript types it as a Color, runs as its number (typecheck.ts
+  // colorLiterals): the CSS names' table stays out of the running program.
+  if (tc.colors !== undefined) {
+    for (const [owner, list] of tc.colors) {
+      const o = owner as Record<string, string>;
+      const field = "bodyPos" in owner ? "body" : "src";
+      o[field] = applyEdits(o[field], list);
     }
   }
 
@@ -2250,7 +2241,7 @@ class Resolver {
             continue;
           }
           this.errors.push(new DeclareError(
-            `script { } declares '${id.text}', a name the runtime already gives every { } body (${CONSTRUCTOR_NAMES.includes(id.text) ? `the ${id.text}(…) value constructor` : "a built-in service or preset"}) — a body could not tell the two apart; choose another name`,
+            `script { } declares '${id.text}', a name the runtime already gives every { } body (${CONSTRUCTOR_NAMES.includes(id.text) ? `the platform's ${id.text}, which builds values` : "a built-in service, type or preset"}) — a body could not tell the two apart; choose another name`,
             pos(id)));
         }
       }
@@ -2474,7 +2465,7 @@ class Resolver {
         // a lookup or a switch over the kind — answers the class (or its name)
         if (sc === undefined && id.callee && this.scriptNames.has(id.name)) continue;
         if (sc === undefined) {
-          this.errors.push(new DeclareError(`classFor reads the record and names classes — '${id.name}' is neither (read a field with :field; the class is chosen from the record alone${id.name === "app" || id.name === "classroot" || id.name === "parent" ? ", so a member of the program cannot choose it: a function in script { } can, called with the fields it needs — classFor = { shapeClass(:kind) }" : ""})`, pos));
+          this.errors.push(new DeclareError(`classFor reads the record and names classes — '${id.name}' is neither (read a field with :field; the class is chosen from the record alone${id.name === "app" || id.name === "classroot" || id.name === "parent" ? ", so a member of the program cannot choose it: a function in script { } can, called with the fields it needs and returning the class's name as a string — classFor = { shapeClass(:kind) } with return \"RectShape\", and use [ RectShape, … ] to keep classes named only by a string" : ""})`, pos));
         } else if (id.name !== base && !descendsFrom(sc, base)) {
           this.errors.push(new DeclareError(`classFor names '${id.name}', which does not extend ${base} — each record's class is ${base} or a subclass of it, the class the rest of this line is checked against`, pos));
         } else {
@@ -2485,7 +2476,6 @@ class Resolver {
       // a value constructor, not a member — unless a method in scope takes the
       // name: then a bare call is the method's (a member shadows, as `blur` the
       // attribute shadows the filter); the bare-value form is never a body
-      if (id.callee && CALLEE_GLOBALS.has(id.name) && !levels.some((lv) => this.surfaceOf(lv).methods.has(id.name))) continue;
       if (id.name === "app") {
         // `app` (language §11) — the running App at the top of the tree. Sugar
         // for `this.$root` (the `root` getter walks parent links to the top),
@@ -2517,46 +2507,10 @@ class Resolver {
         });
         continue;
       }
-      if (id.name === "afterSettle" && id.callee && !expression) {
-        // `afterSettle(fn)` in a handler — the step belongs to the node that
-        // asked, as afterDelay's wait does (Node.$afterSettle): discarded before
-        // the settle closes, the node drops it. In a value { } it stays the
-        // global (a value computes; the step is the settle's).
-        this.edits.push({ start: bodyStart + id.start, end: bodyStart + id.end, text: "this.$afterSettle" });
-        continue;
-      }
-      if (id.name === "afterDelay" && id.callee) {
-        // `afterDelay(ms, fn)` — run fn once, later. Rewritten to the base-node
-        // method so the wait belongs to the node whose handler asked (a
-        // discarded node cancels it; Node.$afterDelay). A value { } computes and
-        // never waits, so there it is refused.
-        if (expression) this.errors.push(Diag.afterInValue(this.posAt(bodyStart + id.start)));
-        else this.edits.push({ start: bodyStart + id.start, end: bodyStart + id.end, text: "this.$afterDelay" });
-        continue;
-      }
-      if (id.name === "hostProvided" && id.callee) {
-        // `hostProvided("name", default)` (islands.md) — a value this program's
-        // HOST provides (an island's `provides`, a page's `app.provide`). Same
-        // rewrite as `provided`: `this` must be the reading node, whose running
-        // App holds the host's values (Node.$hostProvided).
-        this.edits.push({
-          start: bodyStart + id.start,
-          end: bodyStart + id.end,
-          text: "this.$hostProvided",
-        });
-        continue;
-      }
-      if (id.name === "providedTextStyle" && id.callee) {
-        // `providedTextStyle(overrides?)` — the whole provided text face as one
-        // `TextStyle`, for the calls that take a style record and inherit
-        // nothing (`measureText`, a drawing's `fillText`/`strokeText`). Same
-        // rewrite as `provided` above, for the same reason: `this` must be the
-        // reading node.
-        this.edits.push({
-          start: bodyStart + id.start,
-          end: bodyStart + id.end,
-          text: "this.$providedTextStyle",
-        });
+      if (id.name === "afterDelay" && id.callee && expression) {
+        // `afterDelay(ms, fn)` is the node's method, resolved below as any member
+        // is; a value { } computes and never waits, so there it is refused.
+        this.errors.push(Diag.afterInValue(this.posAt(bodyStart + id.start)));
         continue;
       }
       if (id.name === "classroot") {
@@ -2613,7 +2567,7 @@ class Resolver {
           }
           if (Object.hasOwn(CSS_COLORS, id.name)) {
             // A bare CSS color name inside { } — a bare-slot literal, not an
-            // identifier here; name the 0x form rather than a flat "unresolved".
+            // identifier here; name the quoted form rather than a flat "unresolved".
             const hex = "0x" + CSS_COLORS[id.name].toString(16).padStart(6, "0");
             this.errors.push(Diag.namedColorInExpr(id.name, hex, pos));
           } else if (hostHint !== null) {
@@ -2666,15 +2620,15 @@ class Resolver {
         }
       }
     }
-    // Lower every 0xRRGGBBAA (8-hex) literal to a colorWithAlpha(…) call — the
-    // `0x` twin of #RRGGBBAA. Both the runtime (expr.ts injects colorWithAlpha)
-    // and the typecheck (scaffold declares it, returning Color) see this one
-    // resolved form, so a color in a numeric slot fails by Color's nullability.
+    // Lower every 0xRRGGBBAA (8-hex) literal to the number it is — the `0x` twin
+    // of #RRGGBBAA, in the runtime's alpha encoding — typed Color, so a color in a
+    // numeric slot fails by Color's nullability. A constant, not a call: the
+    // program names `Color` only where it writes it (capabilities.ts).
     for (const c of hexColor8Literals(fillDatapaths(src), expression)) {
       this.edits.push({
         start: bodyStart + c.start,
         end: bodyStart + c.end,
-        text: `colorWithAlpha(0x${c.rgb.toString(16).padStart(6, "0")}, 0x${c.a.toString(16).padStart(2, "0")})`,
+        text: `(${colorWithAlpha(c.rgb, c.a)} as Color)`,
       });
     }
   }

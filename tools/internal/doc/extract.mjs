@@ -37,14 +37,19 @@ import { parseProgram, parseLibrary } from "../../../runtime/dist/parser.js";
 
 // RichText is the abstract base of Markdown/HTMLText — documented, but not in the
 // instantiable SCHEMAS registry (like Layout). Fold it in for the extractor only.
-const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
+// The services a body asks (`Focus.focus(this)`, `Keyboard.isDown(…)`) are no
+// class — nothing to place — but each has a page: its calls, from the scaffold's
+// statics table, and its prose. A doc-only schema gives the page its frame.
+const SERVICE_PAGES = new Set(["Focus", "Keyboard"]);
+const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema,
+  ...Object.fromEntries([...SERVICE_PAGES].map((n) => [n, { name: n, base: null, attrs: {} }])) };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented class surface
   "View", "App", "Text", "Font", "FontFace", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "NativeText",
   "Layout", "TweenLayout",
   "Dataset", "DataSource",
-  "Animator", "AnimatorGroup", "Spring", "Time", "KeyListener", "Keyboard", "Focus", "Tooltips",
+  "Animator", "AnimatorGroup", "Spring", "Time", "KeyListener", "Keyboard", "Focus",
   "Stream", "EventStream", "Socket",
   "State", "Node",
 ];
@@ -596,7 +601,7 @@ for (const name of TARGETS) {
   if (baseName) (subclassIndex[baseName] ??= []).push(clsId);
 
   nodes[clsId] = {
-    id: clsId, name, kind: "class",
+    id: clsId, name, kind: "class", ...(SERVICE_PAGES.has(name) ? { service: true } : {}),
     doc: prose.class, docSegs: await segmentize(prose.class, clsId), api: prose.class !== null,
     source: { file: "runtime/src/schema.ts", line: 0 },
     parent: null, seeAlso: [],
@@ -1036,7 +1041,7 @@ const CLASS_GROUPS = [
   ["Data",          ["Dataset", "DataSource", "Stream", "EventStream", "Socket"]],
   ["Tables",        ["Table", "TableRow", "DataGrid", "DataGridRow", "DataGridHeadingRow", "DataGridHeading", "DataGridCell", "DataGridText", "DataGridEdit"]],
   ["Motion and state", ["Animator", "AnimatorGroup", "Spring", "State", "Time"]],
-  ["Services",      ["KeyListener", "Keyboard", "Shortcuts", "Focus", "Tooltips"]],
+  ["Services",      ["KeyListener", "Keyboard", "Shortcuts", "Focus"]],
   ["Embedding",     ["DOMIsland", "AppIsland", "boot", "observe", "Tenant", "IslandHandle"]],
   ["Themes",        ["SanFrancisco", "SanFranciscoDark", "Cupertino", "CupertinoDark", "MountainView", "MountainViewDark", "Redmond", "RedmondDark", "ThemeDefaults"]],
   ["Icons",         ["Icon", "IconHost", "ArrowIcon", "ChevronIcon", "CheckIcon", "CloseIcon", "PlusIcon", "MinusIcon", "LightbulbIcon", "SunIcon", "MoonIcon", "AutoIcon", "TextSizeIcon", "TextSmallIcon", "TextMediumIcon", "TextLargeIcon"]],
@@ -1056,7 +1061,7 @@ const classGroups = CLASS_GROUPS.map(([name, names]) => ({ name, classes: names.
 const tree = roots.map((id) => {
   const c = nodes[id];
   return {
-    id: c.id, name: c.name, kind: c.kind, doc: c.doc, docSegs: c.docSegs, api: c.api,
+    id: c.id, name: c.name, kind: c.kind, ...(c.service === true ? { service: true } : {}), doc: c.doc, docSegs: c.docSegs, api: c.api,
     extends: c.extends, chain: c.chain, abstract: c.abstract === true, subclasses: c.subclasses, origin: c.origin, signature: c.signature ?? null,
     appearance: c.appearance, pair: c.pair,
     attributes: c.attributes.map((a) => nodes[a]).filter((n) => n.api),

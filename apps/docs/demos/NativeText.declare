@@ -5,7 +5,7 @@
 
 class CodeBox extends ValueControl [ width = 220, height = 34, cornerRadius = 6, padding = 8,
     accessibilityLabel = "Code",
-    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+    fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
     value: string = "",
     fieldValue = { value },
     admit(t: any) -> any { return ("" + t).toUpperCase().replace(/[^A-Z0-9]/g, "") },

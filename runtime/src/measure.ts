@@ -11,7 +11,7 @@ import { phasesOn, phased } from "./phase-timer.js";
 import type { Color, Fill, Shadow, Stroke } from "./value.js";
 import { trackFamilies, faceGenerationNow } from "./face-table.js";
 import { familyOf } from "./font-value.js";
-import { featureFamily, featureTags, type Numerals, type NumeralWidth } from "./font-features.js";
+import { featureFamily, featureTags, type NumeralStyle, type NumeralWidth } from "./font-features.js";
 
 export type FontWeight =
   | "thin" | "extralight" | "light" | "regular" | "normal"
@@ -78,7 +78,7 @@ export interface TextStyle {
   /** OpenType figures (font-features.ts). They reach the renderers through the
    *  family NAME, so a backend that wants the painted family asks
    *  `effectiveFamily(style)` rather than reading `fontFamily` raw. */
-  readonly numerals?: Numerals;
+  readonly numeralStyle?: NumeralStyle;
   readonly numeralWidth?: NumeralWidth;
   readonly slashedZero?: boolean;
 }
@@ -163,7 +163,7 @@ export interface FaceStyle {
   /** A family string, a Font, or a list of them (font-value.ts). */
   fontFamily: unknown; fontSize: number; fontWeight: FontWeight;
   italic?: boolean; smallCaps?: boolean;
-  numerals?: Numerals; numeralWidth?: NumeralWidth; slashedZero?: boolean;
+  numeralStyle?: NumeralStyle; numeralWidth?: NumeralWidth; slashedZero?: boolean;
 }
 
 /** The family list a style actually paints and measures in: the family its value

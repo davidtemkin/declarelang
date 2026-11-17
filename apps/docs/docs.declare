@@ -538,7 +538,7 @@ ancestor that reads something).
 class ReadStrip [ width = 100%, cornerRadius = 10, visible = { :n > 0 },
     open:  boolean = false,
     cname: string = { "" + :name },
-    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+    fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
     layout: SimpleLayout [ axis = y, spacing = 0 ],
     head: Control [ width = 100%, height = { app.touchFirst ? 44 : 40 }, cursor = "pointer", cornerRadius = 10,
         accessibilityExpanded = { classroot.open },
@@ -572,7 +572,7 @@ class ReadStrip [ width = 100%, cornerRadius = 10, visible = { :n > 0 },
 class Strip [ width = 100%, cornerRadius = 10,
     open:  boolean = false,                    // a declaration default: yields to the click
     cname: string = { "" + :name },
-    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+    fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
     layout: SimpleLayout [ axis = y, spacing = 0 ],
 
     head: Control [ width = 100%, cursor = "pointer",
@@ -693,7 +693,7 @@ class Example [ width = 100%,
             press() { classroot.panel.field.edited = classroot.esrc
                       app.liveCard = classroot.demo
                       app.liveSource = classroot.esrc },
-            pill: View [ y = center, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").line) },
+            pill: View [ y = center, height = 20, cornerRadius = 6, stroke = { Stroke(1, provided("theme").line) },
                 width = { this.rlbl.width + 16 },
                 fill = { parent.hovered ? provided("theme").control : null },
                 rlbl: Text [ x = 8, y = 3, fontSize = 11, fontWeight = semibold,
@@ -801,7 +801,7 @@ class RunIsland [ width = 100%,
             press() { classroot.editor.field.edited = classroot.rsrc
                       app.liveCard = classroot.demo
                       app.liveSource = classroot.rsrc },
-            pill: View [ y = center, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").line) },
+            pill: View [ y = center, height = 20, cornerRadius = 6, stroke = { Stroke(1, provided("theme").line) },
                 width = { this.rlbl.width + 16 },
                 fill = { parent.hovered ? provided("theme").control : null },
                 rlbl: Text [ x = 8, y = 3, fontSize = 11, fontWeight = semibold,
@@ -1388,7 +1388,7 @@ class ChapterLink extends Control [ flexes = true, cornerRadius = 10, cursor = "
     link = { "#guide/" + this.cid },
     press() { app.goGuide(this.cid) },
     fill = { hovered ? provided("theme").chipBg : null },
-    stroke = { stroke(1, hovered ? provided("theme").rule : provided("theme").line) },
+    stroke = { Stroke(1, hovered ? provided("theme").rule : provided("theme").line) },
     padding = [12, 16, 14, 16],
     layout: SimpleLayout [ axis = y, spacing = 6 ],
     Eyebrow [ width = 100%, textAlign = { classroot.step > 0 ? "right" : "left" }, text = { classroot.step > 0 ? "NEXT" : "PREVIOUS" } ],
@@ -1961,7 +1961,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
     // data resolves in the host's space, and the host provides where this app
     // lives as `base`; standalone it is "" and the paths are this folder's.
 
-    base: string = { hostProvided("base", "") },
+    base: string = { app.hostProvided("base", "") },
     docs: DataSource [ url = { app.base + "../../docs/declare-model.json" } ],
     datapath = { docs.value },                 // root every :path below into the model
     onInit() { this.docs.fetch() },            // DataSource is explicit-fetch — kick it once, on construction
@@ -2031,7 +2031,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
             // distro root, so this works on either host at any mount point
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
+                textFill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
                 onClick() { app.openURL("apps/homepage/homepage.declare") }
                 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
@@ -2067,7 +2067,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
             x = { app.docked ? Math.max(this.lo, Math.min((app.width - this.width) / 2, this.hi - this.width)) : this.lo },
             width = { app.docked ? Math.max(120, Math.min(440, this.hi - this.lo)) : this.hi - this.lo },
             fill = { provided("theme").surface },
-            stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").line) },
+            stroke = { Stroke(1, this.focused ? provided("theme").accent : provided("theme").line) },
             padding = [0, 16, 0, 16],
             fontSize = 16, textColor = { provided("theme").text },   // 16: a field under it makes iOS zoom the page toward it
             placeholder = { app.docked ? "Search the docs…   ⌘K" : "Search the docs…" },

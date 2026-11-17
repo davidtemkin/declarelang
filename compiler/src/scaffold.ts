@@ -58,9 +58,10 @@
 //
 // ── What tsc does not type ───────────────────────────────────────────────────
 //
-// A `:path` read lowers to `this.$data([…])`, which this scaffold types `any`:
-// a datapath is checked against the program's declared schemas by
-// schema-check.ts, not by tsc.
+// A `:path` read lowers to `this.$data([…])`, which this scaffold types `any`. Where a
+// schema declares the data, the type check gives each body's `this` a signature per path
+// it reads (schema-check.ts pathReadTypes), so the read has its field's type; data of no
+// declared shape stays `any`.
 //
 // Compile-layer only: nothing in the zero-dependency runtime graph imports this
 // (the same posture as compile.ts / free-idents). Its two VALUE imports —
@@ -77,6 +78,7 @@ import { EVENT_PAYLOAD, handlerName } from "../../runtime/dist/schema.js";
 import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
 import { THEME_RECORDS, ThemeDefaults } from "../../runtime/dist/themes-data.js";
 import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
+import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 
 /** The fixed value-type prelude — the closed vocabulary of value.ts as TS
  *  types, plus the value constructors in scope for every body. Mirrors
@@ -89,14 +91,12 @@ import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
  *  check that fires on correct code is the cardinal sin (diagnostics.md §4 /
  *  verify-and-evals.md). `any` under-reports instead; schema-typed records
  *  close the hole when the `schema` construct lands. */
-const PRELUDE = `/** A percentage literal — what \`width = 50%\` becomes. Resolved against the parent
- *  on each axis, reactively, so a percent is a live relationship and not a number
- *  computed once. */
-type Percent = { percent: number };
-/** What a geometry slot takes: a number in the view's own units, or a percent of
- *  the parent on that axis. There is no unit vocabulary — no px, em or rem — because
- *  there is one coordinate space and the renderer owns the device pixels. */
-type Length = number | Percent;
+const PRELUDE = `/** What a geometry slot takes: a number in the view's own units, or a percent of
+ *  the parent on that axis (\`width = 50%\`), resolved against the parent reactively,
+ *  so a percent is a live relationship and not a number computed once. There is no
+ *  unit vocabulary — no px, em or rem — because there is one coordinate space and
+ *  the renderer owns the device pixels. */
+type Length = number | { percent: number };
 /** A corner rounding: one number for all four corners, or
  *  \`[topLeft, topRight, bottomRight, bottomLeft]\` to round only some. */
 type Radius = number | readonly [number, number, number, number];
@@ -105,11 +105,14 @@ type Radius = number | readonly [number, number, number, number];
  *  \`Radius\` and a different meaning — a radius rounds corners and counts from the
  *  top-LEFT, an inset holds edges away and counts from the TOP. */
 type Inset = number | readonly [number, number, number, number];
-/** A color as \`0xRRGGBB\`, or with alpha as the runtime's own encoding (see
- *  \`colorWithAlpha\`). \`null\` means NO color — an unfilled view, an unstroked box —
- *  which is why it is part of the type rather than a sentinel. In a bare slot the
- *  CSS names and \`#RRGGBB\` are also legal; inside \`{ }\` a color is a number. */
-type Color = number | null;
+/** A color: \`0xRRGGBB\`, or a string of the CSS spelling — \`"#RRGGBB"\`,
+ *  \`"#RRGGBBAA"\` or a CSS name (\`"royalblue"\`). A color with alpha is held in the
+ *  runtime's own encoding (see \`Color.withAlpha\`). \`null\` means NO color — an
+ *  unfilled view, an unstroked box — which is why it is part of the type rather than a
+ *  sentinel. However it is written, a color read back is its number. */
+type Color = number | \`#\${string}\` | ColorName | null;
+/** The CSS color names. */
+type ColorName = ${Object.keys(CSS_COLORS).map((n) => JSON.stringify(n)).join(" | ")};
 /** A clip path, as the \`clip\` slot takes it: an SVG path string in the view's own
  *  coordinates, or \`null\` for the plain rectangle. \`clip = true\` is the box; a shape
  *  is for everything else. */
@@ -132,19 +135,16 @@ interface Stroke { width: number; color: Color }
  *  into a stroke asks which form it has first: \`Array.isArray(v.stroke)\`, or
  *  \`v.stroke && "width" in v.stroke\`. \`null\` is no border at all. */
 type BoxStroke = Stroke | readonly [Stroke | null, Stroke | null, Stroke | null, Stroke | null] | null;
-/** A drop shadow, built by \`shadow(dx, dy, blur, color)\`. It is also a \`ImageFilter\`, so
+/** A drop shadow, built by \`Shadow(dx, dy, blur, color)\`. It is also a \`VisualFilter\`, so
  *  it composes in a filter list; on \`textShadow\` it shadows the glyphs. */
 interface Shadow { fn: "shadow"; dx: number; dy: number; blur: number; color: Color }
-/** One entry in a filter list: a blur, one of the amount filters, a hue rotation, a
- *  colorize, or a shadow. \`visualFilter\` applies the list to the view's own paint as a
- *  GROUP (so a subtree blurs together, not child by child); \`backdrop\` applies the
- *  same list to what lies beneath. There is no CSS \`filter\` string: the tokens are
- *  functions, so a misspelling is a compile error rather than a silent no-op. */
-type ImageFilter = { fn: "blur"; radius: number } | { fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; amount: number } | { fn: "hueRotate"; degrees: number } | { fn: "colorize"; color: Color } | Shadow;
-/** A list of filters, applied in order: what \`visualFilter\` applies to the view's own
- *  paint and \`backdrop\` to what lies beneath it. \`frost(…)\` builds the common
- *  backdrop pair. */
-type FilterList = readonly ImageFilter[];
+/** A visual filter: a blur, one of the amount filters, a hue rotation, a colorize, or
+ *  a shadow, built by \`VisualFilter.blur(4)\` and its kin (\`Shadow(…)\` for a shadow).
+ *  \`visualFilter\` applies one, or a list in order, to the view's own paint as a GROUP
+ *  (so a subtree blurs together, not child by child); \`backdrop\` applies the same to
+ *  what lies beneath. There is no CSS \`filter\` string: the tokens are functions, so a
+ *  misspelling is a compile error rather than a silent no-op. */
+type VisualFilter = { fn: "blur"; radius: number } | { fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; amount: number } | { fn: "hueRotate"; degrees: number } | { fn: "colorize"; color: Color } | Shadow;
 /** A token record — every color and metric an app names once. Provided down the
  *  tree (\`provided("theme")\`), spread to override a token, and declared at the top
  *  level with \`theme Name [ … ]\`. Its keys are open by design: a record whose keys
@@ -152,13 +152,6 @@ type FilterList = readonly ImageFilter[];
  *  \`provided("theme")\` is closed all the same, over every token some theme
  *  declares, so a misspelled token is a compile error. */
 type Theme = Readonly<Record<string, any>>;
-/** The house ACTIVE TONE: \`accent\` laid 22% over the \`surface\` it sits on —
- *  what a theme's \`controlSelected\` holds. An app that overrides \`accent\` computes
- *  it so the selected tone follows, instead of keeping the preset's, which was
- *  derived from a different accent: \`controlSelected: activeTone(pick, base.surface)\`.
- *  Both arguments are colors; nothing is read from the tree, so it means the same
- *  wherever it is called. */
-declare function activeTone(accent: Color, surface: Color): Color;
 /** The data a \`:path\` reads against — a view's place in the bound data, its
  *  \`datapath\` plus its position under replication. You rarely name the type: a
  *  \`:path\` reads through it for you. */
@@ -171,54 +164,86 @@ interface IslandMessage { readonly topic: string; readonly payload: unknown }
  *  names ("" when none); \`location\`, the place after its \`#\`; \`newWindow\`, whether
  *  it asked for a window of its own (\`openWindow\`). */
 interface IslandNavigation { readonly to: string; readonly program: string; readonly location: string; readonly newWindow: boolean }
-/** A linear gradient: \`gradient(#F8F8F8, #D8D8D8)\` top to bottom, or with an angle
- *  first — \`gradient("90deg", …)\`. Colors spread evenly; \`colorStop(offset, color)\` places
- *  one exactly. Legal in a bare slot, which is why it is a call and not a record. */
-declare function gradient(...args: (Color | string | { offset: number | null; color: Color })[]): Gradient;
-/** A radial gradient from a center and radius, in the view's own units — a glow,
- *  a vignette, a sphere's shading. */
-declare function radialGradient(cx: number, cy: number, r: number, ...stops: (Color | { offset: number | null; color: Color })[]): Gradient;
-/** A gradient swept AROUND a center from a starting angle — a hue wheel, a pie,
- *  a progress sweep. */
-declare function conicGradient(cx: number, cy: number, angle: number, ...stops: (Color | { offset: number | null; color: Color })[]): Gradient;
-/** Build a border: \`stroke = stroke(1, #B0B0B0)\`. Drawn inside the box, so it
- *  costs no layout. On a Text, \`textStroke = stroke(1, #C0392B)\` strokes the glyphs. */
-declare function stroke(width: number, color: Color): Stroke;
-/** Place one gradient stop at an exact offset (0 to 1) instead of letting the
- *  colors spread evenly. */
-declare function colorStop(offset: number, color: Color): { offset: number; color: Color };
+/** Build a border: \`stroke = Stroke(1, #B0B0B0)\`. Drawn inside the box, so it costs
+ *  no layout. On a Text, \`textStroke = Stroke(1, #C0392B)\` strokes the glyphs. */
+declare function Stroke(width: number, color: Color): Stroke;
 /** Build a drop shadow — offset, blur, color. On \`shadow\` it falls from the box, on
  *  \`textShadow\` from the glyphs, and in a filter list it composes with the rest. */
-declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;
-/** The frosted-glass backdrop: blur what lies beneath, and lift its saturation a
- *  little so color shows through rather than going grey. \`backdrop = frost(26, 1.5)\`. */
-declare function frost(radius: number, saturation?: number): FilterList;
-/** Blur, by radius in the view's own units. \`visualFilter = blur(4)\` blurs this view's
- *  paint; \`backdrop = blur(20)\` blurs what is behind it. */
-declare function blur(radius: number): ImageFilter;
-/** Scale brightness — 1 is unchanged, 0 is black, above 1 lightens. */
-declare function brightness(amount: number): ImageFilter;
-/** Scale contrast — 1 is unchanged, 0 is flat grey, above 1 hardens. */
-declare function contrast(amount: number): ImageFilter;
-/** Scale saturation — 1 is unchanged, 0 is grey, above 1 intensifies. */
-declare function saturate(amount: number): ImageFilter;
-/** Remove color, 0 to 1, where 1 is fully grey. */
-declare function grayscale(amount: number): ImageFilter;
-/** Invert, 0 to 1, where 1 is a full negative. */
-declare function invert(amount: number): ImageFilter;
-/** Warm toward sepia, 0 to 1. */
-declare function sepia(amount: number): ImageFilter;
-/** Rotate every hue around the color wheel by an angle in degrees. */
-declare function hueRotate(degrees: number): ImageFilter;
-/** Replace the paint's color while KEEPING its alpha — the one-mask-many-colors
- *  idiom: one bitmap or drawing, recolored per use. \`Image.tint\` is the shorthand
- *  for an image. */
-declare function colorize(color: Color): ImageFilter;
-/** A translucent color in the runtime's own encoding: an \`0xRRGGBB\` and an alpha
- *  from 0 to 255 — the same byte an \`0xRRGGBBAA\` literal carries, which is what the
- *  compiler lowers that literal to. Returns an opaque \`0xRRGGBB\` at 255, so the common
- *  case stays a plain color. */
-declare function colorWithAlpha(rgb: number, a: number): number;
+declare function Shadow(dx: number, dy: number, blur: number, color: Color): Shadow;
+/** The gradients, built by kind. Legal in a bare slot, which is why each is a call and
+ *  not a record. */
+declare const Gradient: {
+  /** A linear gradient: \`Gradient.linear(#F8F8F8, #D8D8D8)\` top to bottom, or with an
+   *  angle first — \`Gradient.linear("90deg", …)\`. Colors spread evenly;
+   *  \`Gradient.stop(offset, color)\` places one exactly. */
+  linear(...args: (Color | \`\${number}deg\` | { offset: number | null; color: Color })[]): Gradient;
+  /** A radial gradient from a center and radius, in the view's own units — a glow, a
+   *  vignette, a sphere's shading. */
+  radial(cx: number, cy: number, r: number, ...stops: (Color | { offset: number | null; color: Color })[]): Gradient;
+  /** A gradient swept AROUND a center from a starting angle — a hue wheel, a pie, a
+   *  progress sweep. */
+  conic(cx: number, cy: number, angle: number, ...stops: (Color | { offset: number | null; color: Color })[]): Gradient;
+  /** One gradient stop at an exact offset (0 to 1) instead of letting the colors spread
+   *  evenly. */
+  stop(offset: number, color: Color): { offset: number; color: Color };
+};
+/** The visual filters, built by kind: \`visualFilter = VisualFilter.blur(4)\`, or a list
+ *  applied in order, \`[VisualFilter.grayscale(1), VisualFilter.brightness(0.8)]\`. */
+declare const VisualFilter: {
+  /** The frosted-glass backdrop: blur what lies beneath, and lift its saturation a little
+   *  so color shows through rather than going grey. \`backdrop = VisualFilter.frost(26, 1.5)\`. */
+  frost(radius: number, saturation?: number): readonly VisualFilter[];
+  /** Blur, by radius in the view's own units. On \`visualFilter\` it blurs this view's
+   *  paint; on \`backdrop\`, what is behind it. */
+  blur(radius: number): VisualFilter;
+  /** Scale brightness — 1 is unchanged, 0 is black, above 1 lightens. */
+  brightness(amount: number): VisualFilter;
+  /** Scale contrast — 1 is unchanged, 0 is flat grey, above 1 hardens. */
+  contrast(amount: number): VisualFilter;
+  /** Scale saturation — 1 is unchanged, 0 is grey, above 1 intensifies. */
+  saturate(amount: number): VisualFilter;
+  /** Remove color, 0 to 1, where 1 is fully grey. */
+  grayscale(amount: number): VisualFilter;
+  /** Invert, 0 to 1, where 1 is a full negative. */
+  invert(amount: number): VisualFilter;
+  /** Warm toward sepia, 0 to 1. */
+  sepia(amount: number): VisualFilter;
+  /** Rotate every hue around the color wheel by an angle in degrees. */
+  hueRotate(degrees: number): VisualFilter;
+  /** Replace the paint's color while KEEPING its alpha — the one-mask-many-colors idiom:
+   *  one bitmap or drawing, recolored per use. \`Image.tint\` is the shorthand for an image. */
+  colorize(color: Color): VisualFilter;
+};
+/** A color is written \`0x4169E1\`, \`"#4169E1"\` (or \`"#4169E1CC"\` with alpha) or a name
+ *  (\`"royalblue"\`), and held as a number in the runtime's own encoding, which bit
+ *  operations would break: these operations read and write it for you. \`null\` is no color.
+ *  Text is not a color until it is read as one: \`Color.from(s)\` reads it, \`Color.hex(c)\`
+ *  writes it. */
+declare const Color: {
+  /** The color at an alpha from 0 (clear) to 1 (opaque), whatever alpha it had. */
+  withAlpha(c: Color, alpha: number): Color;
+  /** \`a\` mixed toward \`b\` by \`t\` (0 is a, 1 is b), channel by channel, alpha too. A
+   *  theme's \`controlSelected\` is its accent laid over its surface:
+   *  \`Color.mix(surface, accent, 0.22)\`. */
+  mix(a: Color, b: Color, t: number): Color;
+  /** Lighter by \`k\` (0 to 1) of perceived lightness (OKLCH), so steps look even. */
+  lighter(c: Color, k: number): Color;
+  /** Darker by \`k\` (0 to 1) of perceived lightness (OKLCH). */
+  darker(c: Color, k: number): Color;
+  /** The WCAG contrast ratio of two colors: 1 (none) to 21 (black on white). 4.5 is the
+   *  floor for body text. */
+  contrast(a: Color, b: Color): number;
+  /** Its channels: r, g, b from 0 to 255 and a from 0 to 1, or null for none. */
+  components(c: Color): { readonly r: number; readonly g: number; readonly b: number; readonly a: number } | null;
+  /** Its hex text: \`"#rrggbb"\`, or \`"#rrggbbaa"\` when it is not opaque, or null for none —
+   *  to show a color as text, or to write one to data that keeps colors as strings. Two
+   *  colors are the same color when their hex text is the same, however each was written. */
+  hex(c: Color): \`#\${string}\` | null;
+  /** The color some text writes — \`"#RGB"\`, \`"#RRGGBB"\` or \`"#RRGGBBAA"\` — or null when
+   *  the text is not one: a field a person types a color into, or text from a service.
+   *  The way back is \`Color.hex\`. */
+  from(s: string): Color;
+};
 /** The style of one run of text that has no view — a \`style\` bundle, or an inline
  *  record with the same fields. Each field is the \`Text\` attribute of that name;
  *  a field left out takes its plain default, never an inherited value. */
@@ -226,7 +251,7 @@ interface TextStyle {
   fontFamily?: string | Font | readonly (string | Font)[] | null; fontSize?: number; fontWeight?: FontWeight; italic?: boolean;
   letterSpacing?: number; lineHeight?: number; textColor?: Color | null; textShadow?: Shadow | null;
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize"; smallCaps?: boolean;
-  numerals?: "normal" | "lining" | "oldstyle"; numeralWidth?: "normal" | "tabular" | "proportional"; slashedZero?: boolean;
+  numeralStyle?: "normal" | "lining" | "oldstyle"; numeralWidth?: "normal" | "tabular" | "proportional"; slashedZero?: boolean;
   textFill?: Fill | null; textStroke?: Stroke | null; underline?: boolean; strike?: boolean;
 }
 /** The palette a \`<span class>\` names: style name → that style's fields. The KEYS
@@ -273,33 +298,6 @@ interface TextMetrics { readonly width: number; readonly height: number; readonl
  *  render, pass \`providedTextStyle(…)\`** — the provided face, with your overrides:
  *  \`measureText(words, providedTextStyle({ lineHeight: 1.3 }), 300).width\`. */
 declare function measureText(text: string, style: TextStyle, width?: number): TextMetrics;
-/** A value this program's HOST provides — the program that embeds it lists the
- *  name in its island's \`provides\`; a page embedding it passes \`boot({ provides })\`
- *  and calls its tenant handle's \`provide\`.
- *  The default stands in when nothing is provided (the program running on its
- *  own, or the host not listing the name) and states the type: a value of a
- *  different kind is refused at the read, with a warning. The name must be a
- *  literal. Reactive: when the host's value changes, everything that read it
- *  re-derives. \`theme = { hostProvided("theme", app.systemDark ? SanFranciscoDark : SanFrancisco) }\`. */
-declare function hostProvided<T>(name: string, fallback: T): T;
-declare function hostProvided(name: string): any;
-/** Run \`fn\` once, \`ms\` milliseconds from now — never in the frame that asked, so
- *  \`afterDelay(0, fn)\` is the next frame. The wait belongs to the node whose handler
- *  asked: discarding that node cancels it, and the handle's \`cancel()\` drops it
- *  sooner. Handlers and methods only. Rarely the tool: a value that should change
- *  when something happens is a constraint on that something, a repeating call is a
- *  \`Time\` member (\`tick = 5000\`), and motion is a Spring or an Animator. */
-declare function afterDelay(ms: number, fn: () => void): DelayHandle;
-/** What \`afterDelay(ms, fn)\` returns: \`cancel()\` drops the wait if it has not run. */
-interface DelayHandle { cancel(): void }
-/** The \`TextStyle\` in force where you write this — the provided text face
- *  (\`textColor\`, \`fontSize\`, \`fontFamily\`, \`fontWeight\`, \`letterSpacing\`), each
- *  falling to the same default a \`Text\` would, with \`overrides\` replacing any of
- *  them. Hand it to \`measureText\` or a drawing's \`fillText\`/\`strokeText\` to
- *  measure or paint a run the way a \`Text\` here would render it. It is a property
- *  of the node, so a value body and that same view's \`draw()\` get the same
- *  record; a drawing's own \`font\` state is unrelated to it. */
-declare function providedTextStyle(overrides?: TextStyle): TextStyle;
 /** Make a value safe to CONCATENATE into rich-text content: \`&\`, \`<\`, \`>\`, \`"\` and
  *  \`'\` become entities, and nothing else changes. **Escape every interpolated value,
  *  never the markup you wrote** — the markup is how content names an inline view, so
@@ -308,6 +306,8 @@ declare function providedTextStyle(overrides?: TextStyle): TextStyle;
  *  only place this matters; a literal document has nothing to escape.
  *  \`html = { "Assigned to <Person name='" + escapeHtml(app.me) + "'/>" }\` */
 declare function escapeHtml(s: string): string;
+/** What \`afterDelay(ms, fn)\` returns: \`cancel()\` drops the wait if it has not run. */
+interface DelayHandle { cancel(): void }
 /** A gradient built INSIDE a drawing, by \`d.createLinearGradient\` and its kin —
  *  the Canvas2D shape, stops added by call. The declarative \`Gradient\` is the one a
  *  \`fill\` slot takes; this one exists only for the duration of a recording. */
@@ -398,15 +398,44 @@ interface ValueChange { readonly name: string; readonly previousValue: any; read
 /** What \`onChange\` receives: every value this node named in \`trackChanges\` that
  *  ended the settle different, in list order, once per settle. */
 interface ChangeEvent { readonly changed: readonly ValueChange[] }
-/** A pointer's position, in both frames. \`x\`/\`y\` are in this view's own
- *  coordinates (through its whole transform); \`rootX\`/\`rootY\` are in root
- *  space — the frame a drag reads, since it does not move with the dragged view
- *  (and the one \`app.viewAt\` takes). \`deltaX\`/\`deltaY\` are how far the pointer
- *  has moved, in root space, since the press (0 with no press; on a wheel, the
- *  scroll amount). \`shift\`, \`ctrl\`, \`alt\` and \`meta\` are the keys held with
- *  it, as a \`KeyEvent\` names them: a Shift-click extends a selection, a
- *  ⌘-click (Ctrl-click off the Mac) adds to one. */
-interface PointerEvent { x: number; y: number; rootX: number; rootY: number; deltaX: number; deltaY: number; shift: boolean; ctrl: boolean; alt: boolean; meta: boolean; down: boolean }
+/** A pointer's position, in two frames, and how far it has moved. \`x\`/\`y\` are in this
+ *  view's own coordinates; \`rootX\`/\`rootY\` are in root space. \`deltaX\`/\`deltaY\` are the
+ *  travel since the press — on a drag (\`onDragStart\`, \`onDrag\`, \`onDragEnd\`) in the frame
+ *  the dragged view's own \`x\`/\`y\` are set in, so \`x = startX + e.deltaX\` keeps it under
+ *  the finger however the views around it are scaled or scrolled; elsewhere in root space;
+ *  on a wheel, the scroll amount. \`shift\`, \`ctrl\`, \`alt\` and \`meta\` are the keys held
+ *  with it, as a \`KeyEvent\` names them: a Shift-click extends a selection, a ⌘-click
+ *  (Ctrl-click off the Mac) adds to one. */
+interface PointerEvent {
+  /** Where the pointer is, in this view's own coordinates — through its whole transform:
+   *  its parents' places, scales and rotations, and its own. */
+  x: number;
+  /** Where the pointer is, in this view's own coordinates (see \`x\`). */
+  y: number;
+  /** Where the pointer is, in root space: the app's own frame, which nothing scales or
+   *  scrolls — the one \`app.viewAt\` takes. */
+  rootX: number;
+  /** Where the pointer is, in root space (see \`rootX\`). */
+  rootY: number;
+  /** How far the pointer has moved since the press. On a drag (\`onDragStart\`, \`onDrag\`,
+   *  \`onDragEnd\`): in the frame the dragged view's own \`x\` is set in — its parent's —
+   *  with any scrolling around it since the press, so \`x = startX + e.deltaX\` moves the
+   *  view by exactly the finger's travel, and nothing divides it by a scale. On other
+   *  pointer events: in root space. On a wheel: the scroll amount. 0 with no press. */
+  deltaX: number;
+  /** How far the pointer has moved since the press, as \`deltaX\` says, down the page. */
+  deltaY: number;
+  /** Shift is held. */
+  shift: boolean;
+  /** The Control key is held: ⌃ on a Mac, Ctrl elsewhere. */
+  ctrl: boolean;
+  /** Alt is held (⌥ on a Mac). */
+  alt: boolean;
+  /** The meta key is held: ⌘ on a Mac, the Windows key elsewhere. */
+  meta: boolean;
+  /** A button or finger is down. */
+  down: boolean
+}
 /** A release, plus the one fact a drag handler must not miss: \`canceled\` is true
  *  when the browser reclaimed the gesture — a touch that became a scroll. Commit on
  *  release only when it is false, or an interruption reads as a drop. */
@@ -494,24 +523,20 @@ declare const Accessibility: {
   announce(text: string, politeness?: "polite" | "assertive"): void;
   announced(): readonly { text: string; politeness: "polite" | "assertive" }[];
 };
-/** An easing curve, built by \`cubicBezier\`, \`back\`, \`steps\` or \`laszlo\` — what an
- *  \`Animator\`'s \`easing\` takes, alongside the named tokens. Opaque by design: a curve
- *  is a value you pass, not a shape you inspect. */
-type EasingCurve = { readonly __easing: true };
-/** An easing curve from two control points, the CSS \`cubic-bezier\` form — so a
- *  curve copied from a design tool or a stylesheet transfers unchanged. */
-declare function cubicBezier(x1: number, y1: number, x2: number, y2: number): EasingCurve;
-/** An easing curve that overshoots its destination and settles back. The argument
- *  is how far past it goes. */
-declare function back(overshoot: number): EasingCurve;
-/** A stepped curve: \`n\` discrete jumps rather than a continuous ease — a ticking
- *  counter, a sprite flip. \`jump\` chooses whether the first or last step is taken at
- *  the ends. */
-declare function steps(n: number, jump?: "jumpStart" | "jumpEnd"): EasingCurve;
-/** An easing curve in OpenLaszlo's pole form: a begin and end pole rather than two
- *  control points. The same family of shapes as \`cubicBezier\`, reached the way the
- *  animations it came from were written. */
-declare function laszlo(beginPole: number, endPole: number): EasingCurve;
+/** The easing curves built from numbers, beside the named tokens (\`easing = quadOut\`):
+ *  each is an \`Easing\`, what an \`Animator\`'s \`easing\` takes. */
+declare const Easing: {
+  /** From two control points, the CSS \`cubic-bezier\` form — so a curve copied from a
+   *  design tool or a stylesheet transfers unchanged. */
+  cubicBezier(x1: number, y1: number, x2: number, y2: number): Easing;
+  /** Overshoots its destination and settles back. The argument is how far past it goes. */
+  back(overshoot: number): Easing;
+  /** \`n\` discrete jumps rather than a continuous ease — a ticking counter, a sprite
+   *  flip. \`jump\` chooses whether the first or last step is taken at the ends. */
+  steps(n: number, jump?: "jumpStart" | "jumpEnd"): Easing;
+  /** OpenLaszlo's pole form: a begin and end pole rather than two control points. */
+  laszlo(beginPole: number, endPole: number): Easing;
+};
 /** The running program, readable — what the Inspector is built on: the node rows
  *  with their kinds and constraint state, and whether the service is up. Dev tooling;
  *  a production build ships a stub unless you ask for it. */
@@ -554,13 +579,6 @@ interface TraceChange { path: string; attr: string; from?: number | boolean | st
  *  that opened it (\`triggers\`) and what it changed in response (\`changes\`); and
  *  \`unnamed\`, cells that moved but belong to no addressable attribute. */
 interface TraceSettle { n: number; at: number; ms: number; origin: string[]; runs: number; triggers: TraceChange[]; changes: TraceChange[]; unnamed: number }
-/** Run \`fn\` exactly once, at the close of the current settle — your
- *  handler's writes applied, views real, placed, and sized, nothing painted
- *  yet. What it writes lands in the same frame as the change itself. Reach
- *  for a constraint first; afterSettle is for work that is irreducibly a
- *  READING of the new geometry (aiming a camera at a view your write just
- *  caused to exist), never for waiting. */
-declare function afterSettle(fn: () => void): void;
 declare function setTimeout(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearTimeout(id: number): void;
 declare function setInterval(fn: (...args: any[]) => void, ms?: number): number;
@@ -637,7 +655,7 @@ export const HOST_VALUE_GLOBALS: ReadonlySet<string> = new Set(
  *  whose name is here is NOT given the generated open alias below — it has a
  *  real declaration, and a second one is a duplicate identifier. Add a name here
  *  when you write its shape into the prelude, and only then. */
-const PRELUDE_RECORDS: ReadonlySet<string> = new Set(["Theme", "TextStyles", "TagStyles", "TagViews", "RichTextLayout", "DelayHandle", "AccessibilitySettings"]);
+const PRELUDE_RECORDS: ReadonlySet<string> = new Set(["Theme", "TextStyles", "TagStyles", "TagViews", "RichTextLayout", "DelayHandle", "AccessibilitySettings", "FocusGeometry", "TooltipEvent"]);
 
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
@@ -658,7 +676,7 @@ export function tsType(t: AttrType): string {
     case "dataschema": return "any"; // the parsed shape declarations — data, not a body-facing type
     // An AUTHORED literal union (`"idle" | "loading"`) carries the union TEXT
     // as its name and is already TypeScript, so it emits inline and needs no
-    // alias; a built-in vocabulary (Axis, Easing) references the emitted
+    // alias; a built-in vocabulary (LayoutAxis, Easing) references the emitted
     // `type <Name> = …` alias. Both are `t.name` — the difference is whether
     // an alias is generated for it (see generateScaffold's `enums`).
     case "enum": return t.name;
@@ -671,9 +689,9 @@ export function tsType(t: AttrType): string {
     case "stroke": return "BoxStroke"; // one Stroke, four clockwise from the top, or null
     case "glyphStroke": return "Stroke | null"; // one Stroke along the glyphs' edges (Text.textStroke), or null
     case "shadow": return "Shadow | null";
-    case "filter": return "ImageFilter | readonly ImageFilter[] | null";
+    case "filter": return "VisualFilter | readonly VisualFilter[] | null";
     case "mask": return "Gradient | View | null";
-    case "easing": return "Easing"; // the token union + EasingCurve brand (prelude)
+    case "easing": return "Easing"; // the token union, or a curve the Easing builders make
     // a family string, a Font object, or a fallback list of them; null only where a slot
     // says null is its default (codeFamily: the house monospace) — a face's own family is
     // never null, and the face provided from above is read as provided("fontFamily")
@@ -693,7 +711,7 @@ const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "DragEndEvent",
 
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
- *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the
+ *  declarable value vocabulary (`number`, `string`, `array`, `LayoutAxis`, …) and the
  *  classes, every one of which is emitted here as a peer
  *  `declare class`. Returns null when the name is neither, so the caller can
  *  report it positioned against the author's text.
@@ -837,6 +855,12 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   // the edit. Data-shaped → `any`, the same deliberate under-report as
   // Dataset.value.
   Node: [
+    // a node's own later work: the wait or the step belongs to the node that
+    // asked, and its discard cancels it (node.ts afterDelay, afterSettle)
+    `  afterDelay(ms: number, fn: () => void): DelayHandle;`,
+    `  afterSettle(fn: () => void): void;`,
+    // the text face provided where this node is
+    `  providedTextStyle(overrides?: TextStyle): TextStyle;`,
     `  $data(path: string | readonly unknown[]): any;`,
     // what a handler's `:field = v` lowers to (datapath.ts writeTargetForm) — the
     // write climbs to the nearest cursor exactly as the read does
@@ -847,6 +871,11 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   // the app for another address. A method, not an attribute, and the extractor
   // reads the CALL (links.ts).
   App: [
+    // a value the program's host provides (an island's `provides`, a page's
+    // `provide`, launch parameters): typed BY THE DEFAULT — the host is compiled
+    // separately, so the default is the one statement of the type this program
+    // relies on (checked again at the read)
+    `  hostProvided<T = any>(name: string, fallback?: T): T;`,
     `  openURL(to: string): void;`,
     `  openWindow(to: string): void;`,
     // the island bridge's tenant-side verb (islands design): this app → its
@@ -1096,19 +1125,6 @@ function emitClass(
     // (`$ThemeTokens`, beside the theme names) and a misspelled token is an error.
     lines.push(`  $provided(name: "theme", dflt?: any): $ThemeTokens;`);
     lines.push(`  $provided(name: string, dflt?: any): any;`);
-    // `hostProvided("name", default)` → `this.$hostProvided(…)`: typed BY THE
-    // DEFAULT — the host is compiled separately, so the default is the one
-    // statement of the type this program relies on (checked again at the read).
-    lines.push(`  $hostProvided<T>(name: string, dflt: T): T;`);
-    lines.push(`  $hostProvided(name: string): any;`);
-    // `providedTextStyle(overrides?)` → `this.$providedTextStyle(…)`. Unlike
-    // `$provided` this one IS typed: its shape is known (the provided face as a
-    // `TextStyle`), so a misspelled override field is caught at the call.
-    lines.push(`  $providedTextStyle(overrides?: TextStyle): TextStyle;`);
-    // `afterDelay(ms, fn)` → `this.$afterDelay(…)`: the wait belongs to the asking node.
-    lines.push(`  $afterDelay(ms: number, fn: () => void): DelayHandle;`);
-    // `afterSettle(fn)` in a handler → `this.$afterSettle(…)`: the step belongs to the asking node.
-    lines.push(`  $afterSettle(fn: () => void): void;`);
   }
   // One optional handler member per event this schema DECLARES. Emitting them
   // is what makes a user's handler an OVERRIDE: writing `onPointerUp(e: string)`
@@ -1190,9 +1206,9 @@ export function generateScaffold(
     for (const t of Object.values(s.attrs)) if (t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name)) enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined, boolean: t.boolean === true });
   }
   // …and from METHOD SIGNATURE types. An enum (or record) named ONLY by a
-  // signature — `f(a: Axis)` in a program whose attributes never mention Axis —
+  // signature — `f(a: LayoutAxis)` in a program whose attributes never mention LayoutAxis —
   // still needs its alias emitted, or the scaffold references an undeclared
-  // type and every body reports a bogus "nothing in scope is named 'Axis'".
+  // type and every body reports a bogus "nothing in scope is named 'LayoutAxis'".
   const sigTypes: string[] = [];
   for (const d of classDecls) {
     for (const m of d.body.methods) {
@@ -1270,8 +1286,8 @@ export function generateScaffold(
     `declare const $classes: { ${[...all.keys()].map((n) => `readonly ${n}: typeof ${q(n)}`).join("; ")} };`];
 
   // The Easing union — named tokens (generated from animate.ts, single source
-  // of truth) plus the EasingCurve brand the constructors in the prelude return.
-  const motionLine = `type Easing = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | EasingCurve;`;
+  // of truth), or a curve the Easing builders in the prelude return.
+  const motionLine = `type Easing = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | { readonly __easing: true };`;
 
   // The theme names in scope as `Theme` values: the built-in presets plus any
   // the program declares — a body names one (`theme = { app.systemDark ? … : … }`).
@@ -1288,7 +1304,11 @@ export function generateScaffold(
       return `\ndeclare const ${s.name}: { ${fields.join("; ")} };`;
     }).join("");
 
-  return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), motionLine, themeLine, tagLines.join("\n"), classes.join("\n\n"), ownBlock, aliases.join("\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
+  // the services a body asks (Focus, Keyboard): a value with its members, not a
+  // class — a statics table on a name no class takes
+  const serviceLines = Object.entries(LANGUAGE_STATICS).filter(([n]) => schemas[n] === undefined)
+    .map(([n, members]) => `declare const ${n}: {\n${members.map((m) => m.replace(/^  static /, "  ")).join("\n")}\n};`).join("\n");
+  return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), motionLine, themeLine, serviceLines, tagLines.join("\n"), classes.join("\n\n"), ownBlock, aliases.join("\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
 }
 
 /** Every key a provided theme can carry, with the type a read of it yields:

@@ -163,9 +163,17 @@ export function scanDatapaths(src: string): PathIsland[] {
     // a colon after it is the annotation's, not a datapath. A ternary on a
     // datapath keeps its space: `ok ? :title : "—"`.
     let optional = false;
+    // A LINE THAT BEGINS WITH A PATH: `:b = 2` under `:a = 1` (no semicolon) is a new
+    // statement, not the previous line's annotation or ternary branch — so a `:` that
+    // starts a line opens a datapath even after an operand, unless a ternary is still
+    // waiting for its `:` (`ok ? a` on one line, `: b` on the next). RealWorld run 3:
+    // two consecutive `:field = …` writes in a handler were refused as a syntax error.
+    let lineStart = false;
+    let ternaries = 0;
     while (i < n) {
       const c = src[i];
-      if (c === " " || c === "\t" || c === "\r" || c === "\n") { i++; continue; }
+      if (c === "\n") { lineStart = true; i++; continue; }
+      if (c === " " || c === "\t" || c === "\r") { i++; continue; }
       if (c === "/" && src[i + 1] === "/") { while (i < n && src[i] !== "\n") i++; continue; }
       if (c === "/" && src[i + 1] === "*") {
         i += 2;
@@ -176,6 +184,8 @@ export function scanDatapaths(src: string): PathIsland[] {
       // the optional marker holds for the one token after it
       const afterOptional = optional;
       optional = false;
+      const atLineStart = lineStart;
+      lineStart = false;
       if (c === '"' || c === "'") { string(c); ends = true; continue; }
       if (c === "`") { template(); ends = true; continue; }
       if (c === "{") { depth++; i++; ends = false; continue; }
@@ -184,7 +194,7 @@ export function scanDatapaths(src: string): PathIsland[] {
         depth--; i++; ends = true; // an object literal's end is an operand
         continue;
       }
-      if (c === ":" && !ends && !afterOptional && (isIdentStart(src[i + 1]) || src[i + 1] === "@")) {
+      if (c === ":" && (!ends || (atLineStart && ternaries === 0)) && !afterOptional && (isIdentStart(src[i + 1]) || src[i + 1] === "@")) {
         const start = i;
         i++;
         let path = "";
@@ -310,7 +320,10 @@ export function scanDatapaths(src: string): PathIsland[] {
         continue;
       }
       if (c === ")" || c === "]") { i++; ends = true; continue; }
+      if (c === "?" && src[i + 1] === "?") { i += 2; ends = false; continue; }   // ?? (and ??=)
       optional = c === "?" && i > 0 && isIdentPart(src[i - 1]) && src[i + 1] !== "." && src[i + 1] !== "?";
+      if (c === "?" && !optional && src[i + 1] !== ".") ternaries++;            // a ternary, waiting for its `:`
+      if (c === ":" && ternaries > 0) ternaries--;                              // …which this is
       i++; // every other punctuation expects an expression next
       ends = false;
     }

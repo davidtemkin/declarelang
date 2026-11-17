@@ -26,7 +26,7 @@ import { View, onDiscard } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
 import { insetSides, shadowEqual, strokeEqual, type Fill, type Shadow, type Stroke, type Color, type Inset } from "./value.js";
 import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight, type TextTransform, type FontWeight } from "./measure.js";
-import type { Numerals, NumeralWidth } from "./font-features.js";
+import type { NumeralStyle, NumeralWidth } from "./font-features.js";
 import { holdsFamily, heldFamily, type FamilyValue } from "./font-value.js";
 /** A line count under `maxLines` (0 = no clamp). */
 const clampN = (n: number, max: number): number => (max > 0 ? Math.min(n, max) : n);
@@ -107,7 +107,7 @@ export class Text extends View {
   declare textStroke: Stroke | null;
   declare textTransform: TextTransform;
   declare smallCaps: boolean;
-  declare numerals: Numerals;
+  declare numeralStyle: NumeralStyle;
   declare numeralWidth: NumeralWidth;
   declare slashedZero: boolean;
   declare underline: boolean;
@@ -300,7 +300,7 @@ export class Text extends View {
           textStroke: this.textStroke,
           textTransform: this.textTransform,
           smallCaps: this.smallCaps,
-          numerals: this.numerals,
+          numeralStyle: this.numeralStyle,
           numeralWidth: this.numeralWidth,
           slashedZero: this.slashedZero,
           underline: this.underline,
@@ -372,7 +372,7 @@ defineAttributes(Text, {
   smallCaps: { def: false },
   // OpenType figures: `normal` on either axis is the face's own default, which
   // is why both tabular and proportional are sayable (schema.ts says the rest).
-  numerals: { def: "normal" },
+  numeralStyle: { def: "normal" },
   numeralWidth: { def: "normal" },
   slashedZero: { def: false },
   underline: { def: false },

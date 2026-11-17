@@ -23,8 +23,8 @@ theme Cupertino [
     checkboxSize = 14, checkboxCornerRadius = 3.5, disabledOpacity = 0.5,
     tooltipFill = #F0F0F0, tooltipTextColor = #1D1D1F, tooltipStrokeColor = #C6C6C8,
     tooltipPlacement = "pointer", tooltipDelay = 1000, tooltipFontSize = 11,
-    menuCornerRadius = 13, menuRowHeight = 24, menuShadow = shadow(0, 12, 44, #00000040), menuHighlightFill = gradient(#1F86FF, #0068EE),
-    menuFill = #F9F9FBDB, menuBackdrop = frost(24, 1.5), menuTitleHighlightFill = #FFFFFF24,   // frosted menu panel (true backdrop blur, saturation boosted for the material read) + the open/nav title highlight (subtle translucent shape so white title text stays legible)
+    menuCornerRadius = 13, menuRowHeight = 24, menuShadow = Shadow(0, 12, 44, #00000040), menuHighlightFill = Gradient.linear(#1F86FF, #0068EE),
+    menuFill = #F9F9FBDB, menuBackdrop = VisualFilter.frost(24, 1.5), menuTitleHighlightFill = #FFFFFF24,   // frosted menu panel (true backdrop blur, saturation boosted for the material read) + the open/nav title highlight (subtle translucent shape so white title text stays legible)
     scrimFill = #000000, scrimOpacity = 0.12, error = #C93429,
     dialogWidth = 260, dialogButtonLayout = "stack", dialogTextAlign = "center", dialogTitleFontSize = 13, dialogBodyFontSize = 12,
     buttonStrokeColor = #C6C6C8,
@@ -45,8 +45,8 @@ theme CupertinoDark [
     checkboxSize = 14, checkboxCornerRadius = 3.5, disabledOpacity = 0.5,
     tooltipFill = #2C2C2E, tooltipTextColor = #F2F2F7, tooltipStrokeColor = #48484A,
     tooltipPlacement = "pointer", tooltipDelay = 1000, tooltipFontSize = 11,
-    menuCornerRadius = 13, menuRowHeight = 24, menuShadow = shadow(0, 12, 44, #00000073), menuHighlightFill = gradient(#2B8FFF, #0A6FEB),
-    menuFill = #2C2C2EE6, menuBackdrop = frost(24, 1.5), menuTitleHighlightFill = #FFFFFF26,   // frosted dark menu panel (true backdrop blur) + title highlight
+    menuCornerRadius = 13, menuRowHeight = 24, menuShadow = Shadow(0, 12, 44, #00000073), menuHighlightFill = Gradient.linear(#2B8FFF, #0A6FEB),
+    menuFill = #2C2C2EE6, menuBackdrop = VisualFilter.frost(24, 1.5), menuTitleHighlightFill = #FFFFFF26,   // frosted dark menu panel (true backdrop blur) + title highlight
     scrimFill = #000000, scrimOpacity = 0.3, error = #FF6961,
     dialogWidth = 260, dialogButtonLayout = "stack", dialogTextAlign = "center", dialogTitleFontSize = 13, dialogBodyFontSize = 12,
     buttonStrokeColor = #5A5A5E,

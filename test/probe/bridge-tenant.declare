@@ -5,7 +5,7 @@
 
 App [ width = 200, height = 600, fill = #22303C,                   // taller than its box: the box scrolls
     exposes = ["pos"],
-    volume: number = { hostProvided("volume", 0) },
+    volume: number = { app.hostProvided("volume", 0) },
     pos: number = 3,
 
     volT: Text [ x = 8, y = 8, textColor = whitesmoke, text = { "v" + app.volume } ],

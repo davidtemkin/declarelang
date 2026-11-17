@@ -342,7 +342,7 @@ class DrawingSection extends Section [ title = "Drawing",
     Grid [ visible = { classroot.showing("shadows") },
         Swatch [ name = "shadow · soft",
             Stage [ draw(d: DrawContext) {
-                d.shadowColor = colorWithAlpha(0x000000, 130); d.shadowBlur = 12; d.shadowOffsetY = 6; d.fillStyle = 0x2E6FE0; d.fillRect(30, 16, 120, 56) }
+                d.shadowColor = Color.withAlpha(0x000000, 0.51); d.shadowBlur = 12; d.shadowOffsetY = 6; d.fillStyle = 0x2E6FE0; d.fillRect(30, 16, 120, 56) }
                 ]
             ],
         Swatch [ name = "shadow · hard, offset",
@@ -357,7 +357,7 @@ class DrawingSection extends Section [ title = "Drawing",
             ],
         Swatch [ name = "shadow on a stroke",
             Stage [ draw(d: DrawContext) {
-                d.shadowColor = colorWithAlpha(0x000000, 150); d.shadowBlur = 8; d.shadowOffsetY = 4; d.strokeStyle = 0x17A34A; d.lineWidth = 8; d.beginPath(); d.arc(90, 48, 34, 0, 6.2832); d.stroke() }
+                d.shadowColor = Color.withAlpha(0x000000, 0.59); d.shadowBlur = 8; d.shadowOffsetY = 4; d.strokeStyle = 0x17A34A; d.lineWidth = 8; d.beginPath(); d.arc(90, 48, 34, 0, 6.2832); d.stroke() }
                 ]
             ],
         Swatch [ name = "d.filter blur",

@@ -320,7 +320,7 @@ const R9_SOURCE = r9Compiled.source;
 // recolors both runs — while the shadow box and veil (fixed literals) must not
 // move a pixel — all in ONE settle, one frame.
 const R10_RAW = `class Chip extends View [ width = 84, height = 32,
-    fill = { provided("theme").chip }, stroke = { stroke(2, provided("theme").chipStroke) },
+    fill = { provided("theme").chip }, stroke = { Stroke(2, provided("theme").chipStroke) },
     cornerRadius = { provided("theme").radius } ]
 App [ width=240, height=160, fill=#20242C,
     mode: string = "base",
@@ -334,10 +334,10 @@ App [ width=240, height=160, fill=#20242C,
         tag: View [ x = -6, y = 10, width = 10, height = 8, fill = #FF00FF ] ],
     panel: View [ x=120, y=16, width=90, height=44, fill = { provided("theme").accent } ],
     shadowBox: View [ x=132, y=76, width=56, height=32, fill=#FFFFFF, cornerRadius=8,
-                      shadow = shadow(4, 4, 0, #00000044) ],
+                      shadow = Shadow(4, 4, 0, #00000044) ],
     veil: View [ x=200, y=124, width=32, height=24, fill=#FF000080 ],
     corner: View [ x=200, y=76, width=32, height=32, fill=#FF00FF, cornerRadius=[0, 14, 0, 14] ],
-    label: Text [ x=16, y=104, text="Styled", textShadow = shadow(1, 1, 0, #000000) ],
+    label: Text [ x=16, y=104, text="Styled", textShadow = Shadow(1, 1, 0, #000000) ],
     sub: Text [ x=16, y=130, text="follows the app", fontSize=11, fontWeight=normal ],
   ]`;
 const r10Compiled = await compile(R10_RAW);
@@ -418,8 +418,8 @@ const FROST_SOURCE = `App [ width=240, height=160, fill=#181C22,
   View [ x=60, y=0, width=60, height=160, fill=#17BEBB ],
   View [ x=120, y=0, width=60, height=160, fill=#FFC914 ],
   View [ x=180, y=0, width=60, height=160, fill=#2E282A ],
-  panel: View [ x=20, y=30, width=200, height=70, backdrop=frost(8), fill=#FFFFFF66, cornerRadius=12 ],
-  sat: View [ x=20, y=110, width=200, height=40, backdrop=frost(6, 1.6), fill=#10141866 ] ]`;
+  panel: View [ x=20, y=30, width=200, height=70, backdrop=VisualFilter.frost(8), fill=#FFFFFF66, cornerRadius=12 ],
+  sat: View [ x=20, y=110, width=200, height=40, backdrop=VisualFilter.frost(6, 1.6), fill=#10141866 ] ]`;
 
 // The GRAPHICS PASS scenes (graphics-pass.md): each puts a capability where its
 // ABSENCE shows, and the two web backends must agree.
@@ -434,12 +434,12 @@ const FROST_SOURCE = `App [ width=240, height=160, fill=#181C22,
 //   gradients — a radial fill: white at the centre, the edge colour at the corner.
 const GFX_SOURCE = `App [ width=240, height=160, fill=#20242C,
   plain: View [ x=8, y=8, width=50, height=50, fill=#E4572E ],
-  blurred: View [ x=66, y=8, width=50, height=50, fill=#E4572E, visualFilter=[blur(5), brightness(0.5)] ],
-  tinted: View [ x=124, y=8, width=50, height=50, fill=#E4572E, visualFilter=colorize(#17BEBB) ],
+  blurred: View [ x=66, y=8, width=50, height=50, fill=#E4572E, visualFilter=[VisualFilter.blur(5), VisualFilter.brightness(0.5)] ],
+  tinted: View [ x=124, y=8, width=50, height=50, fill=#E4572E, visualFilter=VisualFilter.colorize(#17BEBB) ],
   sheared: View [ x=200, y=8, width=30, height=40, fill=#9B59B6, skewX=-30, pivotX=0, pivotY=0 ],
-  masked: View [ x=8, y=70, width=100, height=30, fill=#FFC914, mask=gradient("90deg", #000000FF, #000000FF, #00000000, #00000000) ],
+  masked: View [ x=8, y=70, width=100, height=30, fill=#FFC914, mask=Gradient.linear("90deg", #000000FF, #000000FF, #00000000, #00000000) ],
   squashed: View [ x=130, y=70, width=50, height=50, fill=#17BEBB, scaleY=0.2, pivotX=25, pivotY=25 ],
-  radial: View [ x=190, y=70, width=48, height=40, fill=radialGradient(0.5, 0.5, 1, #FFFFFF, #E4572E) ],
+  radial: View [ x=190, y=70, width=48, height=40, fill=Gradient.radial(0.5, 0.5, 1, #FFFFFF, #E4572E) ],
   stage: View [ x=0, y=110, width=240, height=50, perspective=300,
     card: View [ x=80, y=5, width=80, height=40, fill=#FFC914, rotateX=60, pivotX=40, pivotY=20 ] ] ]`;
 
@@ -473,7 +473,7 @@ const ROT_SOURCE = `App [ width=240, height=160, fill=#20242C,
 // bands are soft — rasterizer AA and the manual decoration rules — everything
 // between the lines is strict background). The `style` bundles ride the source,
 // so the checker also proves top-level named styles cascade into spans.
-const TREAT_SOURCE = `style ring  [ textStroke = stroke(1, #C0392B), textColor = #FFFFFF, fontWeight = bold ]
+const TREAT_SOURCE = `style ring  [ textStroke = Stroke(1, #C0392B), textColor = #FFFFFF, fontWeight = bold ]
 style mark  [ underline = true, textColor = #2FA35C ]
 style gone  [ strike = true, textColor = #9AA4AE ]
 style caps  [ smallCaps = true ]
@@ -484,7 +484,7 @@ App [ width=240, height=160, fill=#0B141B,
   c: HTMLText [ x=8, y=56,  width=224, fontSize=18, bodyColor=#E7EEF2, html="a <span class='gone'>gone</span> here" ],
   d: HTMLText [ x=8, y=82,  width=224, fontSize=18, bodyColor=#E7EEF2, html="in <span class='caps'>Small Caps</span> ok" ],
   e: HTMLText [ x=8, y=108, width=224, fontSize=18, bodyColor=#E7EEF2, html="the <span class='upper'>up</span> word" ],
-  t: Text [ x=8, y=134, fontSize=16, textStroke=stroke(1, #C0392B), textColor=#FFFFFF, fontWeight=bold, text="ringed text" ] ]`;
+  t: Text [ x=8, y=134, fontSize=16, textStroke=Stroke(1, #C0392B), textColor=#FFFFFF, fontWeight=bold, text="ringed text" ] ]`;
 
 // One page template per backend and program; the only differences are which
 // backend class renders and which source. The canvas backend's first paint is

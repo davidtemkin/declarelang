@@ -47,16 +47,17 @@ name that — there is one door. Nothing else is tracked, so a node that names n
 nothing.
 
 ## onChange
-Fires at the **close of a settle** in which one or more tracked values ended different from
-where they started: after every constraint has re-run and every reader already holds the new
-value. One call per settle carries all of them, so a node whose two subjects move together
-acts once. Answered by `onChange(e: ChangeEvent)`, where `e.changed` holds one `ValueChange`
-per value — its `name`, its `previousValue` (what it held at the previous close), and its
-`currentValue` (what the node holds now; reading the attribute directly gives the same
-thing). Silent at boot: first values are not changes, and setup belongs in `onInit` or, for
-the whole tree, the App's `onReady`. A handler's writes are the next settle, so a change may
-cause a change; a handler may not assign a value it was told about, and a ring of handlers
-ends on its own, because a value is delivered at most once per settle chain.
+Fires when the settle's constraints have come to rest, in each round of the settle in which
+one or more tracked values ended different from what the handler was last told: after every
+constraint has re-run and every reader already holds the new value. One call per round
+carries all of them, so a node whose two subjects move together acts once. Answered by
+`onChange(e: ChangeEvent)`, where `e.changed` holds one `ValueChange` per value — its `name`,
+its `previousValue` (what the handler was last told), and its `currentValue` (what the node
+holds now; reading the attribute directly gives the same thing). Silent at boot: first values
+are not changes, and setup belongs in `onInit` or, for the whole tree, the App's `onReady`. A
+handler's assignments are settled in the next round, and every change that causes is
+delivered too; a handler doesn't assign a value it tracks (refused at compile time), and a
+settle whose handlers keep it going for 100 rounds is stopped, naming them.
 
 Not to be confused with an input's edits, which is the instinct the name carries in from
 HTML and React: a field, like every control with a value, hands the person's change to
@@ -87,3 +88,24 @@ The compiled form of a write to a record field: a handler's `:done = v` lowers t
 The write lands through the dataset's `set`, relative to the nearest cursor, exactly where
 the matching read resolves. Write `:field = v`; this is what the compiler emits, not a call
 to make by hand.
+
+## afterDelay()
+Runs `fn` once, `ms` milliseconds from now — never in the frame that asked, so
+`afterDelay(0, fn)` is the next frame. The wait belongs to the node whose handler asked:
+discarding that node cancels it, and the returned handle's `cancel()` drops it sooner.
+Handlers and methods only. Rarely the tool: a value that should change when something
+happens is a constraint on that something, a repeating call is a `Time` member
+(`tick = 5000`), and motion is a Spring or an Animator.
+
+## afterSettle()
+Runs `fn` exactly once, at the close of the current settle — the handler's writes applied,
+views real, placed and sized, nothing painted yet, so what it writes lands in the same frame
+as the change itself. The step belongs to the node that asked. Reach for a constraint first;
+`afterSettle` is for work that is irreducibly a reading of the new geometry (aiming a camera
+at a view your write just caused to exist), never for waiting.
+
+## providedTextStyle()
+The `TextStyle` in force where this node is — the provided text face (`textColor`,
+`fontSize`, `fontFamily`, `fontWeight`, `letterSpacing`), each falling to the default a
+`Text` would, with `overrides` replacing any of them. Hand it to `measureText` or a
+drawing's `fillText` to measure or paint a run the way a `Text` here would render it.

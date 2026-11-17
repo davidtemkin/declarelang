@@ -37,7 +37,7 @@ import { fontMetrics, textWidth, type FontWeight, type TextTransform } from "./m
 import { drawImageBitmap, drawImageOp } from "./draw-image.js";
 import { styledRun } from "./draw-text.js";
 import { colorToCss, type Color, type Shadow } from "./value.js";
-import type { Numerals, NumeralWidth } from "./font-features.js";
+import type { NumeralStyle, NumeralWidth } from "./font-features.js";
 
 /** The style of one drawn run — a `style` bundle or an inline record of `Text`
  *  attribute names (text-measure.ts takes the same). A field left out takes its
@@ -46,7 +46,7 @@ export interface DrawTextStyle {
   fontFamily?: unknown; fontSize?: number; fontWeight?: FontWeight; italic?: boolean;
   letterSpacing?: number; textColor?: Color | null; textShadow?: Shadow | null;
   textTransform?: TextTransform; smallCaps?: boolean;
-  numerals?: Numerals; numeralWidth?: NumeralWidth; slashedZero?: boolean;
+  numeralStyle?: NumeralStyle; numeralWidth?: NumeralWidth; slashedZero?: boolean;
   textFill?: unknown; textStroke?: unknown; underline?: boolean; strike?: boolean;
 }
 

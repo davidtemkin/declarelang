@@ -45,6 +45,19 @@ const KINDS = `App [ width = 600, height = 400,
     menu: Menu [ items = { [ ({ id: "a", label: "A" }) ] } ]
     ]`;
 
+await test("a popover given a width gives it to its content: a child at 100% fills it (Venue run 37's collapsed sign-in form)", async () => {
+  const app = await boot(`App [ width = 900, height = 600,
+    b: Button [ x = 20, y = 20, label = "Open" ],
+    sized: Popover [ width = 380, form: View [ width = 100%, height = 30 ] ],
+    own: Popover [ View [ width = 200, height = 20 ] ] ]`);
+  app.sized.showFor(app.b); settle(); settle();
+  assert.equal(app.sized.width, 380);
+  assert.equal(app.sized.form.width, 380 - 28, "the content has the popover's width, less its padding");
+  app.sized.close(); settle();
+  app.own.showFor(app.b); settle(); settle();
+  assert.equal(app.own.width, 200 + 28, "with no width, the popover is as wide as what it holds");
+});
+
 await test("a press outside: a popover closes and the press goes on; a dialog holds it; a menu closes and swallows it; a toast lets it by", async () => {
   const app = await boot(KINDS);
   app.pop.showFor(app.opener1); settle();

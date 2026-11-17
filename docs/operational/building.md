@@ -36,7 +36,7 @@ build only does that to a folder it made: one that is absent, empty, or holds an
 build (its `BUILD.json`). Any other folder is refused, as is the program's own folder or
 one that holds it, so a mistyped `-o` can't empty a folder you care about.
 Deployable to any static host, as a folder that needs nothing outside itself. On the flagship calendar it lands
-around **<!--stat:calendar.wireKB-->176<!--/stat--> KB gzipped** — and that is the figure the
+around **<!--stat:calendar.wireKB-->178<!--/stat--> KB gzipped** — and that is the figure the
 homepage prints, measured on the build its own calendar page ships. The module carries
 everything a page needs and nothing else: the runtime's run path, your program, and the web
 host — the URL and history mirror (`app.location` ↔ the fragment, Back and Forward), island
@@ -106,7 +106,7 @@ compiles at run time (`compiler = true` in its block) puts the compiler aboard i
 
 **Where a tenant's data resolves.** An island's relative data urls resolve in its *host's*
 space, not its own folder — the desktop hands its viewer a path in the desktop's directory.
-A tenant that reads its own file asks its host for its home, `hostProvided("base", "")`, as
+A tenant that reads its own file asks its host for its home, `app.hostProvided("base", "")`, as
 Calendar, Birds, and Market Map do; the package maps that address to the copy it carries.
 Island program names resolve the same way at every depth: relative to the page program.
 

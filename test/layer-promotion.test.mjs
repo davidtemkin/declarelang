@@ -20,7 +20,7 @@ writeFileSync(join(DIR, "mover.declare"), `App [ width = 600, height = 400,
   go: boolean = false, mixing: boolean = false, covering: boolean = false, start: number = 0,
   clock: Time [ tick = frame ],
   t: number = { app.go ? Math.floor(app.clock.now / 16) % 100 : 0 },
-  mover: View [ x = { app.start + app.t * 3 }, width = 50, height = 50, fill = #fff, shadow = { shadow(0, 4, 12, 0x00000066) },
+  mover: View [ x = { app.start + app.t * 3 }, width = 50, height = 50, fill = #fff, shadow = { Shadow(0, 4, 12, 0x00000066) },
       chip: View [ width = 20, height = 20, fill = #f80, blendMode = { app.mixing ? "multiply" : "normal" } ],
       pin: View [ x = 25, width = 20, height = 20, fill = #48c ] ],
   cover: View [ visible = { app.covering }, x = 200, y = 200, width = 80, height = 80, fill = #888 ] ]`);

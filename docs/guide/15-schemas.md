@@ -23,12 +23,14 @@ attribute (`sel: Task? = null`), a method signature (`advance(t: Task)`), a fiel
 another schema, or a function in a `script` block (`function late(t: Task): boolean`), so a
 script's helpers take the program's records with no interface of their own. A schema's brackets hold fields only — no defaults, no behavior.
 
-Field types are the ones JSON can say: `string`, `number`, `boolean`, `any`, another
-schema's name, a nested `[ … ]` record, or a literal union (`"open" | "closed"`,
+Field types are the ones JSON can say: `string`, `number`, `boolean`, `any`, another schema's name, a nested `[ … ]` record, or a literal union (`"open" | "closed"`,
 `0 | 1 | 2`). `?` marks a field the data may omit or send as null, and `[]` on the field's
 name marks an array — `tags[]: string` — the same spelling as the path that reads it,
 `:tags[]`. TypeScript's spellings say the same: `tags: string[]`, and `note: string | null`
-for a field that may be null. What the grammar leaves out of full TypeScript is deliberate:
+for a field that may be null. Read in code, an optional field is `T | null | undefined`, so
+a script type that takes one says so (`note?: string | null`), or the read supplies its own
+(`:note ?? ""`). A field of no declared shape is `any`: a schema has no `object`, which is a
+declared attribute's word for a record of no shape. What the grammar leaves out of full TypeScript is deliberate:
 a schema states facts that can be checked against the data as it arrives. It is where an API
 contract's prose — "`col` is 0, 1, or 2" — becomes a check.
 
@@ -119,13 +121,11 @@ are checked.
 | a `:path` on an attribute, `identityKey`, or a replication path | compiler | at compile | error with the schema's fields named |
 | the typed `.value` chain in any `{ }` or method | compiler | at compile | type error, nearest name suggested |
 | a declaration or signature — `sel: Task`, `advance(t: Task)` | compiler | at compile | type error |
-| a `:path` *inside* a `{ }` body | nobody yet | — | reads null; the attribute falls back to its default |
 | a subtree under a computed cursor — `datapath = { cond ? a : b }` | nobody, by design | — | beyond what a static checker can follow |
 
 The principle behind the table: **the runtime stands where data the program did not
-construct comes in; the compiler stands where the program constructs it.** The last two
-rows are the honest edge — one a check the compiler does not make, one a horizon no static
-checker crosses.
+construct comes in; the compiler stands where the program constructs it.** The last row is
+the honest edge: a horizon no static checker crosses.
 
 A class's own `:` reads are checked with the record its use sites give it. When they give it
 records of different schemas — a seat chip shown under a hall's seats and under a fair's

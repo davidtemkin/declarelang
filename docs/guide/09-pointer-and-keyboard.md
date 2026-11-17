@@ -17,6 +17,8 @@ them true. `hovered` is true while the pointer is over the view and nothing cove
 it is always false on a touch screen. `pressed` is true from a press on the view until
 release — slide off and it lets go, slide back and it re-arms, the way native buttons
 behave. You read them in constraints; you never assign them (the compiler says so).
+A view drawn over others takes their hover even when it takes no presses — that is how a
+veil over an inactive window works; for decoration, `pointerEvents = "none"`.
 
 On a control the same two facts answer under its policy: both are false while it is
 `disabled`, and `pressed` is also true while a keyboard press (Space or Enter) activates
@@ -27,7 +29,7 @@ class Tile extends Control [ width = 90, height = 70, cornerRadius = 10,
     label: string = "",
     picked: boolean = { app.choice == label },
     fill = { pressed ? 0xC9D6E8 : hovered ? 0xDDE6F2 : 0xEEF2F7 },
-    stroke = { picked ? stroke(2, 0x2E6FE0) : null },
+    stroke = { picked ? Stroke(2, 0x2E6FE0) : null },
     press() { app.choose(label) },
     Text [ x = center, y = center, text = { classroot.label } ]
     ]
@@ -108,8 +110,10 @@ wanders, it is a drag, and the view hears it in three moments:
   draw what a drag looks like: lift the item, leave a ghost where it was.
 - **`onDrag(e)`**: every move until release, even outside the view's box — the view
   **captures** the pointer, so there is no tracking code to write. `e.deltaX`/`e.deltaY` are
-  how far the pointer has gone since the press, so the usual handler is one line. Near the
-  edge of a scrolling pane, the pane moves and `onDrag` keeps arriving.
+  how far the pointer has gone since the press, in the frame the view's own `x` and `y` are
+  set in — inside a zoomed or scrolled surface too — so the usual handler is one line and
+  nothing divides it by a scale. Near the edge of a scrolling pane, the pane moves and
+  `onDrag` keeps arriving.
 - **`onDragEnd(e)`**: released — or taken back, with `canceled` set: Escape pressed, the
   window losing focus, the system interrupting a touch. The place to commit, or to put
   things back.

@@ -243,8 +243,8 @@ const CLICK_OPTIONS = new Set(["button", "clickCount", "force", "modifiers", "no
  *  of this is never a standing tail on every failure; and named, a reader sees
  *  whether the motion could be what the check found (a focus ring gliding is not
  *  a count left at 0). */
-export async function inFlight(page) {
-  const list = await page.evaluate(() => window.__declare?.clock?.settling === true ? (window.__declare.moving?.() ?? ["motion"]) : []).catch(() => []);
+export async function inFlight(page, findable = false) {
+  const list = await page.evaluate((f) => window.__declare?.clock?.settling === true ? (window.__declare.moving?.(f) ?? ["motion"]) : [], findable).catch(() => []);
   if (list.length === 0) return "";
   const by = new Map();
   for (const m of list) {
@@ -296,7 +296,7 @@ export function withLocators(page, { act, series, settle, advance, fail: refuse 
   // way on. `maybe` names what the script wanted when the motion is only a
   // possible reason (the locator may simply not match); null when it is the likely one.
   const motionNote = async (maybe) => {
-    const moving = await inFlight(page);
+    const moving = await inFlight(page, true);   // only motion a lookup could see or be blocked by
     if (moving === "") return "";
     return maybe !== null
       ? ` — motion is still in flight on the program's clock, which the script holds (${moving}); if what you are ${maybe} appears when it lands, let it land first (drive.settleMotion())`

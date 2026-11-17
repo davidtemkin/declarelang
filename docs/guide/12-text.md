@@ -60,20 +60,20 @@ and inside layouts that place `y` themselves.
 Beyond color and size, each run can carry per-run paint, set on the `Text` itself:
 
 - [`textFill`](declare-docs:Text.textFill) fills the glyphs with a gradient (or a color), overriding [`textColor`](declare-docs:Text.textColor).
-- [`textShadow`](declare-docs:Text.textShadow) drops a [`shadow(dx, dy, blur, color)`](declare-docs:type:Shadow) under the letters.
-- [`textStroke`](declare-docs:Text.textStroke) strokes the glyph edges with `stroke(width, color)` — outlined letters, not
+- [`textShadow`](declare-docs:Text.textShadow) drops a [`Shadow(dx, dy, blur, color)`](declare-docs:type:Shadow) under the letters.
+- [`textStroke`](declare-docs:Text.textStroke) strokes the glyph edges with `Stroke(width, color)` — outlined letters, not
   a box.
 - [`italic`](declare-docs:Text.italic), [`underline`](declare-docs:Text.underline), [`strike`](declare-docs:Text.strike).
 - [`smallCaps`](declare-docs:Text.smallCaps), and [`textTransform`](declare-docs:Text.textTransform) (`uppercase`, `lowercase`, `capitalize`), which change
   what is drawn without changing the string, so selection and find-in-page still see what
   you wrote.
-- [`numerals`](declare-docs:Text.numerals) (`lining`, `oldstyle`) and [`numeralWidth`](declare-docs:Text.numeralWidth) (`tabular`, `proportional`) choose
+- [`numeralStyle`](declare-docs:Text.numeralStyle) (`lining`, `oldstyle`) and [`numeralWidth`](declare-docs:Text.numeralWidth) (`tabular`, `proportional`) choose
   the figures a font offers — `tabular` keeps a counting number from jittering.
 
 ```declare
 App [ width = 320, height = 84, fill = #0B141B,
     Text [ x = 20, y = 24, fontSize = 26, textColor = white, fontWeight = bold,
-        textStroke = stroke(1, #C0392B), text = "OUTLINED" ]
+        textStroke = Stroke(1, #C0392B), text = "OUTLINED" ]
     ]
 ```
 
@@ -208,14 +208,14 @@ throws. So loaded content is never silently mangled, and never runs.
 For a whole **view**, a reusable look is a subclass — the language you already have:
 
 ```declare-fragment
-class Hero extends Text [ fontSize = 40, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
+class Hero extends Text [ fontSize = 40, textFill = { Gradient.linear("90deg", 0x4C8DFF, 0x37E0C8) } ]
 ```
 
 For words **inside prose**, there is no view to subclass. A top-level `style` declaration
 names the look, and a `<span class='Name'>` in the content wears it:
 
 ```declare
-class Hero extends Text [ fontSize = 40, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
+class Hero extends Text [ fontSize = 40, textFill = { Gradient.linear("90deg", 0x4C8DFF, 0x37E0C8) } ]
 style Keyword [ textColor = #C678DD, fontWeight = bold ]
 
 App [ width = 380, height = 130, fill = white,

@@ -52,7 +52,7 @@ scale, so the line grows with the drawing.
 
 Application art. The desktop's dock icons are the case to look at before
 reaching for this class: they rest at 56px and grow under the magnification
-swell, they are polychrome (`gradient(hue1, hue2)` behind a hue-parameterised
+swell, they are polychrome (`Gradient.linear(hue1, hue2)` behind a hue-parameterised
 drawing), and their **width animates every frame**. Each of those alone rules
 them out — the constant stroke that suits a 16px mark is 2.9% of a 56px one and
 reads spindly; `ink` is a single colour; and an animated width is the one thing

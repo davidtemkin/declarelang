@@ -1,7 +1,6 @@
 /** For the refusal above: the concrete members an abstract base's would-be
  *  subclass should extend instead. */
 export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
-  Keyboard: "KeyListener",
   Media: "Video, Audio",
   Stream: "EventStream, Socket",
 };
@@ -12,7 +11,7 @@ export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
  *  concrete members). Every other schema is a base a program class may
  *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
  *  so it cannot drift when a class joins either table. */
-export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Keyboard", "Media", "Stream"]);
+export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Media", "Stream"]);
 // Class schemas — the typed-attribute declarations of the built-in
 // classes, shared by the checker (check.ts) and the runtime bridge
 // (instantiate.ts). A schema is pure data: the class's name, its base
@@ -125,6 +124,8 @@ const ViewSchema: ClassSchema = {
     hovered: { kind: "boolean" },
     // holds keyboard focus — the focus service maintains it (Focus.focus moves it)
     focused: { kind: "boolean" },
+    // focus is on this view or anything inside it
+    containsFocus: { kind: "boolean" },
     pressed: { kind: "boolean" },
     // Is this view ON SCREEN — in the viewport, not scrolled away, not in a
     // hidden subtree? COARSE by design: it flips at threshold crossings, so a
@@ -197,6 +198,8 @@ const ViewSchema: ClassSchema = {
     // world is untouched); the parent sees the footprint. All backends
     // realize the paint (DOM CSS transform, canvas ctx.scale, mac).
     scale: { kind: "number" },
+    minScale: { kind: "number", nullable: true },
+    maxScale: { kind: "number", nullable: true },
     pivotX: { kind: "number" },
     pivotY: { kind: "number" },
     // Where the view's center is, in its own coordinates — what `center` and a
@@ -473,7 +476,7 @@ const ViewSchema: ClassSchema = {
   // verb). This is what makes "who scrolls" invisible to a program.
   // the overlay router's side of Floating's pressPolicy / scrollPolicy
   internal: ["outsidePress", "scrollBelow"],
-  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "rowIndex", "firstVisibleRow", "lastVisibleRow", "hovered", "pressed", "focused", "onScreen", "visibleRect", "apparentScale", "scrollX", "scrollY", "userScrolling"],
+  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "rowIndex", "firstVisibleRow", "lastVisibleRow", "hovered", "pressed", "focused", "containsFocus", "onScreen", "visibleRect", "apparentScale", "scrollX", "scrollY", "userScrolling"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle
   // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its
@@ -522,6 +525,12 @@ const AppSchema: ClassSchema = {
     pointerDown: { kind: "boolean" },
     pointerHovering: { kind: "boolean" },
     pointerOverText: { kind: "boolean" },
+    // the focus facts: the view that holds focus in this program, the focused
+    // control's live outline (what a focus ring follows), and the tooltip a view
+    // asks for now — each null when there is none
+    focusedView: { kind: "view" },
+    focusGeometry: { kind: "record", name: "FocusGeometry", data: true },
+    tooltipRequest: { kind: "record", name: "TooltipEvent", data: true },
     // the OS color-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
     // keeps it live as the system theme flips, so an app themes off `app.systemDark`.
     systemDark: { kind: "boolean" },
@@ -546,6 +555,12 @@ const AppSchema: ClassSchema = {
     // enter or leave — from a press, since a browser enters full screen only
     // for one. A request the browser refuses leaves it false.
     fullScreen: { kind: "boolean" },
+    // Whether the app holds changes it hasn't saved yet — a fact the program
+    // states (`unsavedChanges = { app.sync.pending }`). The host asks before the
+    // app goes while it is true: the browser's own "Leave site?" on closing or
+    // leaving the page, and the Mac's edited mark on the window's close button,
+    // with a question before the window closes.
+    unsavedChanges: { kind: "boolean" },
     // "is this device built for touch?" — true when the device's PRIMARY pointer
     // is coarse (`pointer: coarse`): a phone or tablet, keyboard or not. A stable device fact (kept
     // live if the input changes) to size from; a hover reveal keys on
@@ -589,7 +604,7 @@ const AppSchema: ClassSchema = {
     keyboardHeight: { kind: "number" },
     // The names this app EXPOSES to whatever hosts it (islands.md) — its own
     // attributes, read UP by a host island's `exposed("name", default)` or a
-    // page's `app.exposed("name")`. The down direction is `hostProvided(…)`.
+    // page's `app.exposed("name")`. The down direction is `app.hostProvided(…)`.
     exposes: { kind: "array", of: "string" },
     // `location` — the app's slice of the URL, the FRAGMENT (docs/system-design/location.md).
     // A two-way built-in the host wires with `TextInput.text`'s echo discipline:
@@ -658,7 +673,7 @@ const AppSchema: ClassSchema = {
   // them). `scrollY` here is App's OWN spec (view.ts) — a dead write before
   // this listing: App's spec shadows View's pusher, so assigning it never
   // moved the page anyway.
-  readOnly: ["hostWidth", "hostHeight", "systemDark", "pageVisible", "touchFirst", "hasTouch", "hasMouse", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "keyboardHeight", "scrollY", "pointerX", "pointerY", "pointerDown", "pointerHovering", "pointerOverText"],
+  readOnly: ["hostWidth", "hostHeight", "systemDark", "pageVisible", "touchFirst", "hasTouch", "hasMouse", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "keyboardHeight", "scrollY", "pointerX", "pointerY", "pointerDown", "pointerHovering", "pointerOverText", "focusedView", "focusGeometry", "tooltipRequest"],
   // `onFollowLink(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
   // follow() applies it ONCE to every arrival — a linked view, a prose href, a
   // cold URL, back/forward — before routing. Return the reference to proceed
@@ -790,7 +805,7 @@ export const TextSchema: ClassSchema = {
     smallCaps: { kind: "boolean" },
     // OpenType FIGURES. Two independent axes plus one toggle, named the way the
     // rest of the face is named — plainly, one idea per attribute:
-    //   `numerals`     the SHAPE of the digits (lining sit on the baseline at
+    //   `numeralStyle`     the SHAPE of the digits (lining sit on the baseline at
     //                  cap height; oldstyle have ascenders and descenders)
     //   `numeralWidth` the ADVANCE — tabular means every digit is the same
     //                  width, so columns of figures line up
@@ -799,7 +814,7 @@ export const TextSchema: ClassSchema = {
     // both `tabular` and `proportional` are sayable: a face may default to
     // either. They reach the renderers inside the family NAME (font-features.ts),
     // which is how the shared measurer comes to see exactly what paints.
-    numerals: enumType("Numerals", "normal", "lining", "oldstyle"),
+    numeralStyle: enumType("NumeralStyle", "normal", "lining", "oldstyle"),
     numeralWidth: enumType("NumeralWidth", "normal", "tabular", "proportional"),
     slashedZero: { kind: "boolean" },
     underline: { kind: "boolean" },
@@ -930,7 +945,7 @@ const DOMIslandSchema: ClassSchema = {
     // The names of the values this island offers what it HOSTS (islands.md):
     // each resolves as `provided("name")` would at the island — its own value
     // first, then its ancestors — and the hosted side reads it with
-    // `hostProvided("name", default)` (a Declare program) or the handle's
+    // `app.hostProvided("name", default)` (a Declare program) or the handle's
     // `hostProvided` / `watchProvided` (foreign content). Values only; a name
     // not listed here never crosses.
     provides: { kind: "array", of: "string" },
@@ -1342,29 +1357,6 @@ const KeysSchema: ClassSchema = {
   events: ["keyDown", "keyUp", "navClaim", "commandHeld"],
 };
 
-// The keyboard as a service a body asks (`Keyboard.isDown("ShiftLeft")`): no
-// member, nothing to declare — abstract, so the reference documents it once
-// and a tag or a base names `KeyListener` instead (key-bindings.md).
-const KeyboardSchema: ClassSchema = {
-  name: "Keyboard",
-  base: NodeSchema,
-  attrs: {},
-};
-
-const FocusSchema: ClassSchema = {
-  name: "Focus",
-  base: NodeSchema,   // via the abstract Source (sources.ts)
-  attrs: {},
-  events: ["focusChange", "geometry"],
-};
-
-const TooltipsSchema: ClassSchema = {
-  name: "Tooltips",
-  base: NodeSchema,   // via the abstract Source (sources.ts)
-  attrs: {},
-  events: ["tooltip"],
-};
-
 // Streams (docs/system-design/streams.md, RULED 2026-07-29) — SSE and
 // WebSocket as sources. One family, three names: the abstract `Stream` base
 // carries the whole shared surface, and sits in this table but NOT the tag
@@ -1504,9 +1496,6 @@ export const SCHEMAS: Readonly<Record<string, ClassSchema>> = {
   Font: FontSchema,
   FontFace: FaceSchema,
   KeyListener: KeysSchema,
-  Keyboard: KeyboardSchema,
-  Focus: FocusSchema,
-  Tooltips: TooltipsSchema,
   // Stream — the abstract base EventStream/Socket extend (url/active/retry +
   // the read-only lifecycle intrinsics live here). In the table so the
   // reference documents it once and subclasses inherit checkably; NOT in the

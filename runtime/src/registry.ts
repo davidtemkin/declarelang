@@ -30,7 +30,7 @@ import { AnimatorGroup } from "./animator-group.js";
 import { Spring } from "./spring.js";
 import { Time } from "./time.js";
 import { Font, FontFace } from "./font.js";
-import { KeysSource, FocusSource, TooltipsSource } from "./sources.js";
+import { KeysSource } from "./sources.js";
 import { EventStream, Socket } from "./streams.js";
 import { State } from "./state.js";
 
@@ -75,8 +75,6 @@ export const ANIMATORS: Readonly<Record<string, new () => Animator>> = { Animato
  *  that never listens drop the service code entirely (slim-registry). */
 export const SOURCES: Readonly<Record<string, new () => Node>> = {
   KeyListener: KeysSource,
-  Focus: FocusSource,
-  Tooltips: TooltipsSource,
   // the stream family (streams.ts) — `Stream` itself is schema-only
   // (abstract, uninstantiable), so only the concrete transports register
   EventStream,
@@ -133,8 +131,6 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "Animator", table: "ANIMATORS", module: "animator.js", export: "Animator" },
   { name: "Spring", table: "ANIMATORS", module: "spring.js", export: "Spring" },
   { name: "KeyListener", table: "SOURCES", module: "sources.js", export: "KeysSource" },
-  { name: "Focus", table: "SOURCES", module: "sources.js", export: "FocusSource" },
-  { name: "Tooltips", table: "SOURCES", module: "sources.js", export: "TooltipsSource" },
   { name: "EventStream", table: "SOURCES", module: "streams.js", export: "EventStream" },
   { name: "Socket", table: "SOURCES", module: "streams.js", export: "Socket" },
   { name: "AnimatorGroup", table: "ANIMATOR_GROUPS", module: "animator-group.js", export: "AnimatorGroup" },

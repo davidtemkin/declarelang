@@ -108,3 +108,22 @@ gpu/engine/target/
 gpu/dist/
 gpu/test/baseline/
 gpu/test/calendar-busy/data/
+
+# eval screenshots stay on disk beside their reports, never in the repository
+evals/**/*.png
+evals/**/*.jpg
+evals/**/*.jpeg
+evals/**/*.gif
+evals/**/*.webp
+evals/**/*.avif
+# per run, a report keeps its program, report.md, prompt.txt and started.txt; the rest stays on disk
+evals/reports/*/drive/
+evals/reports/*/drive-results*.json
+evals/reports/*/agent-checks/
+evals/reports/*/probe-results.json
+evals/reports/*/repro-*.txt
+evals/reports/*-react-run*/app/
+evals/**/*.woff2
+evals/**/*.woff
+evals/**/*.ttf
+evals/**/*.otf

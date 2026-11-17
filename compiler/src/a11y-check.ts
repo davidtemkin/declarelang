@@ -302,6 +302,14 @@ export function accessibilityDiagnostics(
         const labelled = !NAME_NOT_FROM_CONTENT(needs) && levels.some((b) => b.decls.some((d) => d.name === "label"));
         if (!fromContent) warnings.push(Diag.accessibilityNoName(owner, needs, el.pos, labelled));
       }
+      // a view written inside a Button: the Button lays out its own icon and
+      // label, so a child is placed at its top-left, over them (Venue run 37's
+      // arrow). Not wrong in itself — a warning, naming the slots.
+      if (isA(tag, "Button")) {
+        for (const c of el.children) {
+          if (isA(c.tag, "View")) warnings.push(Diag.viewInsideButton(owner, c.name || c.tag, c.pos));
+        }
+      }
       // a control inside a control: written here, or brought in by a plain
       // view whose class holds one
       if (outer !== null) {

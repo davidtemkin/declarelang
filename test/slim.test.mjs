@@ -323,24 +323,27 @@ if (!CHROME) {
     assert.ok(modsOf(without)["data-schema.js"] > STUBBED, `no schema in the source, and data-schema.js still rides, was ${modsOf(without)["data-schema.js"]}`);
   });
 
-  await test("the effects constructors ride only where a program names one; what a member reaches ships always", async () => {
+  await test("the effects constructors, Color and measureText ride only where a program names one; what a member reaches ships always", async () => {
     // a member can carry each of these (a filter or mask from data, a 3D turn, a
     // line clamp, a drawing), so they ride every build…
     // (face-literal.js is FontFace's own: the class carries it)
-    const ALWAYS = ["dom-effects.js", "projective.js", "text-measure.js", "font-derive.js", "draw-image.js", "draw-text.js", "change-event.js"];
+    const ALWAYS = ["dom-effects.js", "projective.js", "font-derive.js", "draw-image.js", "draw-text.js", "change-event.js"];
     const none = modsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
     for (const f of ALWAYS) assert.ok(none[f] > STUBBED, `${f} should ride every build, was ${none[f]}`);
     // …and the constructors are globals, reached only by name
-    assert.ok((none["effects.js"] ?? 0) < STUBBED, `effects.js should be stubbed for a program naming no constructor, was ${none["effects.js"]}`);
+    for (const f of ["effects.js", "color.js", "text-measure.js"])
+      assert.ok((none[f] ?? 0) < STUBBED, `${f} should be stubbed for a program naming none of its globals, was ${none[f]}`);
     const src = `App [ width = 200, fill = white,
-      a: View [ width = 40, height = 40, fill = radialGradient(0.5, 0.5, 1, red, blue), visualFilter = [blur(2), colorize(navy)], rotateY = 20,
+      a: View [ width = 40, height = 40, fill = Gradient.radial(0.5, 0.5, 1, red, blue), visualFilter = [VisualFilter.blur(2), VisualFilter.colorize(navy)], rotateY = 20,
         trackChanges = ["opacity"], onChange(e: ChangeEvent) { } ],
-      b: View [ y = 50, width = 40, height = 40, fill = red, mask = gradient(#000000, #00000000) ],
-      c: Text [ y = 100, text = "12", numerals = lining, width = { measureText("12", { fontSize: 13 }).width + 4 } ],
+      b: View [ y = 50, width = 40, height = 40, fill = red, mask = Gradient.linear(#000000, #00000000) ],
+      c: Text [ y = 100, text = "12", numeralStyle = lining, width = { measureText("12", { fontSize: 13 }).width + 4 } ],
       e: View [ y = 130, width = 60, height = 20, draw(d: DrawContext) { d.fillText("hi", 2, 14, { fontSize: 12 }) } ],
-      k: any = { blur },
+      k: any = { VisualFilter },
     ]`;
-    assert.ok(modsOf(await buildProduction(src, {}))["effects.js"] > STUBBED, "a program naming a constructor keeps effects.js");
+    const named = modsOf(await buildProduction(src, {}));
+    assert.ok(named["effects.js"] > STUBBED, "a program naming a constructor keeps effects.js");
+    assert.ok(named["text-measure.js"] > STUBBED, "a program naming measureText keeps text-measure.js");
     await renders(src);
   });
 
@@ -441,14 +444,14 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
   // not have seen, so it is the proof that nothing is gating this any more.
   await test("the per-side stroke is aboard every build — including the computed form no fact could see", async () => {
     const uniform = `App [ width = 200, fill = white,
-      a: View [ width = 40, height = 40, stroke = stroke(1, #DBE1E9) ],
-      b: View [ y = 50, width = 40, height = 40, stroke = { stroke(1, 0xDBE1E9) } ] ]`;
+      a: View [ width = 40, height = 40, stroke = Stroke(1, #DBE1E9) ],
+      b: View [ y = 50, width = 40, height = 40, stroke = { Stroke(1, 0xDBE1E9) } ] ]`;
     assert.ok(modsOf(await buildProduction(uniform, {}))["stroke-sides.js"] > STUBBED,
       "no stroke list anywhere — the module rides anyway, because a fact could not prove it unreachable");
     await renders(uniform);
     const sides = `App [ width = 200, fill = white,
       rules: View [ width = 100, height = 40, fill = white,
-        stroke = [ stroke(1, #DBE1E9), null, stroke(2, #99A0AA), null ] ] ]`;
+        stroke = [ Stroke(1, #DBE1E9), null, Stroke(2, #99A0AA), null ] ] ]`;
     assert.ok(modsOf(await buildProduction(sides, {}))["stroke-sides.js"] > STUBBED,
       "the literal four-element form");
     await renders(sides);
@@ -459,7 +462,7 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
     const computed = `theme Brand [ line = #DBE1E9 ]
       App [ width = 200, fill = white, theme = Brand,
         card: View [ width = 100, height = 40, fill = white,
-          stroke = { [ stroke(1, provided("theme").line), null, stroke(1, provided("theme").line), null ] } ] ]`;
+          stroke = { [ Stroke(1, provided("theme").line), null, Stroke(1, provided("theme").line), null ] } ] ]`;
     assert.ok(modsOf(await buildProduction(computed, {}))["stroke-sides.js"] > STUBBED,
       "a computed four-side stroke keeps the module — the whole reason the gate is gone");
     await renders(computed);

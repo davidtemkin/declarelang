@@ -54,7 +54,7 @@ The length the rule runs: the parent's content extent along `axis`, or 0 with no
 include [ "control.declare" ]
 
 class Divider [
-    axis: Axis = x,
+    axis: LayoutAxis = x,
     thickness: number = 1,
     inset: number = 0,
     color: Color = { provided("theme").line },

@@ -10,7 +10,7 @@ style rBold    [ fontWeight = bold ]
 
 style rItalic  [ italic = true ]
 
-style rGrad    [ fontWeight = bold, textFill = gradient(90, #2E6FE0, #E4572E) ]
+style rGrad    [ fontWeight = bold, textFill = Gradient.linear(90, #2E6FE0, #E4572E) ]
 
 style rUnder   [ underline = true ]
 
@@ -18,9 +18,9 @@ style rStrike  [ strike = true ]
 
 style rCaps    [ smallCaps = true ]
 
-style rOutline [ fontWeight = bold, textColor = #FFFFFF, textStroke = stroke(1, #2E6FE0) ]
+style rOutline [ fontWeight = bold, textColor = #FFFFFF, textStroke = Stroke(1, #2E6FE0) ]
 
-style rShadow  [ textShadow = shadow(0, 2, 4, #00000080) ]
+style rShadow  [ textShadow = Shadow(0, 2, 4, #00000080) ]
 
 style rTrack   [ letterSpacing = 3 ]
 
@@ -110,7 +110,7 @@ class RichSection extends Section [ title = "Rich text",
             ],
         Swatch [ name = "inline textStyles map",
             HTMLText [ x = 10, y = 10, width = 192, fontSize = 14,
-                textStyles = { { lead: { fontSize: 30, fontFamily: "Georgia", textFill: gradient("90deg", 0x4C8DFF, 0x37E0C8) } } },
+                textStyles = { { lead: { fontSize: 30, fontFamily: "Georgia", textFill: Gradient.linear("90deg", 0x4C8DFF, 0x37E0C8) } } },
                 html = "The <span class='lead'>headline</span> word sits on the baseline." ]
             ],
         Swatch [ name = "a run that wraps across lines",

@@ -47,7 +47,7 @@ preset; the box still clips nothing unless you also say `clip = true`.
 ## stroke
 A one-pixel edge in the theme's `line`. **`stroke = null` removes it** — the right move
 for a card that already stands off the page by fill alone, or one nested inside another.
-Per-side works here as anywhere: `stroke = [ null, null, stroke(1, #DBE1E9), null ]` turns
+Per-side works here as anywhere: `stroke = [ null, null, Stroke(1, #DBE1E9), null ]` turns
 a card into a row with a rule under it.
 */
 
@@ -56,7 +56,7 @@ include [ "control.declare" ]
 class Card [
     fill = { provided("theme").surface },
     cornerRadius = { provided("theme").controlCornerRadius },
-    stroke = { stroke(1, provided("theme").line) },
+    stroke = { Stroke(1, provided("theme").line) },
 
     // The inset that saves the wrapper view: the card's own content box, so
     // every child's x/y is measured from inside it — the stacked ones, and a

@@ -326,7 +326,7 @@ When you need more:
   the rows binds ArrowDown and returns `false` to let the focus move on too. Where a
   key goes, and in what order, is in [Keyboard events](declare-docs:guide:pointer-and-keyboard@keyboard-events).
 - Every view carries [`focused`](declare-docs:View.focused), true while it holds focus — a
-  fact a constraint reads (`stroke = { focused ? stroke(2, provided("theme").accent) : null }`).
+  fact a constraint reads (`stroke = { focused ? Stroke(2, provided("theme").accent) : null }`).
 - [`onFocus`](declare-docs:View.event.focus) and [`onBlur`](declare-docs:View.event.blur)
   run when a view gains and loses focus. `onBlur` is one place to tidy a field once the
   person leaves it, rather than on every keystroke (`commitOn = "end"` is another):

@@ -10,7 +10,7 @@ opacity; the frosted backdrop.
 class Subject [ width = 140, height = 88,
     content: string = "box",
     asBox: State [ applied = { classroot.content == "box" },
-        box: View [ width = 140, height = 88, cornerRadius = 12, fill = gradient(90, #2E6FE0, #E4572E) ]
+        box: View [ width = 140, height = 88, cornerRadius = 12, fill = Gradient.linear(90, #2E6FE0, #E4572E) ]
         ],
     asText: State [ applied = { classroot.content == "text" },
         word: Text [ y = 20, width = 140, textAlign = center, fontSize = 34, fontWeight = bold, wrap = false,
@@ -29,7 +29,7 @@ class FilterSwatch extends Swatch [ name = :name,
 
 class BlendSwatch extends Swatch [ name = :name,
     overGradient: State [ applied = { :ground == "gradient" },
-        ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, fill = gradient(90, #17A34A, #FDE68A) ]
+        ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, fill = Gradient.linear(90, #17A34A, #FDE68A) ]
         ],
     overImage: State [ applied = { :ground == "image" },
         pic: Image [ x = 20, y = 14, width = 172, height = 92, fit = cover, source = "assets/badge.png" ]
@@ -40,10 +40,10 @@ class BlendSwatch extends Swatch [ name = :name,
 
 class MaskSwatch extends Swatch [ name = :name,
     s: Subject [ x = 36, y = 16, content = { :content },
-        mask = { ({ linear: gradient("90deg", 0x000000, colorWithAlpha(0x000000, 0)),
-            vertical: gradient("180deg", 0x000000, colorWithAlpha(0x000000, 0)),
-            radial: radialGradient(0.5, 0.5, 0.6, 0x000000, colorWithAlpha(0x000000, 0)) })[:mask]
-            ?? conicGradient(0.5, 0.5, 0, 0x000000, colorWithAlpha(0x000000, 0), 0x000000) } ]
+        mask = { ({ linear: Gradient.linear("90deg", 0x000000, Color.withAlpha(0x000000, 0)),
+            vertical: Gradient.linear("180deg", 0x000000, Color.withAlpha(0x000000, 0)),
+            radial: Gradient.radial(0.5, 0.5, 0.6, 0x000000, Color.withAlpha(0x000000, 0)) })[:mask]
+            ?? Gradient.conic(0.5, 0.5, 0, 0x000000, Color.withAlpha(0x000000, 0), 0x000000) } ]
     ]
 
 
@@ -138,28 +138,28 @@ class EffectsSection extends Section [ title = "Effects",
     SubHead [ visible = { app.matrix }, text = "Backdrop" ],
     Grid [ visible = { classroot.showing("backdrop") },
         Swatch [ name = "frost 4",
-            View [ x = 20, y = 14, width = 172, height = 92, fill = gradient(90, #17A34A, #E4572E) ],
-            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(4), fill = #FFFFFF55 ]
+            View [ x = 20, y = 14, width = 172, height = 92, fill = Gradient.linear(90, #17A34A, #E4572E) ],
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = VisualFilter.frost(4), fill = #FFFFFF55 ]
             ],
         Swatch [ name = "frost 12",
-            View [ x = 20, y = 14, width = 172, height = 92, fill = gradient(90, #17A34A, #E4572E) ],
-            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(12), fill = #FFFFFF55 ]
+            View [ x = 20, y = 14, width = 172, height = 92, fill = Gradient.linear(90, #17A34A, #E4572E) ],
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = VisualFilter.frost(12), fill = #FFFFFF55 ]
             ],
         Swatch [ name = "frost 24 · saturated",
-            View [ x = 20, y = 14, width = 172, height = 92, fill = gradient(90, #17A34A, #E4572E) ],
-            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(24, 2), fill = #FFFFFF33 ]
+            View [ x = 20, y = 14, width = 172, height = 92, fill = Gradient.linear(90, #17A34A, #E4572E) ],
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = VisualFilter.frost(24, 2), fill = #FFFFFF33 ]
             ],
         Swatch [ name = "frost over an image",
             Image [ x = 20, y = 14, width = 172, height = 92, fit = cover, source = "assets/badge.png" ],
-            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(10), fill = #FFFFFF44 ]
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = VisualFilter.frost(10), fill = #FFFFFF44 ]
             ],
         Swatch [ name = "frost over text",
             Text [ x = 20, y = 30, fontSize = 34, fontWeight = bold, textColor = 0x2E6FE0, text = "Behind" ],
-            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(6), fill = #FFFFFF55 ]
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = VisualFilter.frost(6), fill = #FFFFFF55 ]
             ],
         Swatch [ name = "dark frost",
-            View [ x = 20, y = 14, width = 172, height = 92, fill = gradient(90, #FDE68A, #2E6FE0) ],
-            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(12), fill = #11111166 ]
+            View [ x = 20, y = 14, width = 172, height = 92, fill = Gradient.linear(90, #FDE68A, #2E6FE0) ],
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = VisualFilter.frost(12), fill = #11111166 ]
             ]
         ]
     ]

@@ -25,10 +25,10 @@
 // direct write to it is an error (one declarative owner — the silent-clobber
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
 
-import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, nulls, retireValue, setPushHook, table, touchCell, trackCell, untracked, setOwnershipCheck } from "./reactive.js";
+import { ACTIVE, Cell, addressFor, Constraint, S, isSettling, isTracking, kernel, noteWrite, nulls, retireValue, setPushHook, table, touchCell, trackCell, untracked, setOwnershipCheck } from "./reactive.js";
 import { DeclareError, at, layoutConflictMessage, type Where } from "./errors.js";
 import { THEME_PRESETS, withThemeDefaults } from "./themes.js";
-import type { Theme } from "./value.js";
+import { toColor, type Theme } from "./value.js";
 import { declareName } from "./declare-name.js";
 
 /** One attribute's class-level declaration: its default, the Surface push a
@@ -37,6 +37,9 @@ import { declareName } from "./declare-name.js";
  *  equality, not identity). */
 export interface AttrSpec<S, V> {
   def: V;
+  /** A Color slot: a CSS hex string written to it is stored as its number
+   *  (value.ts toColor), so a read gives the number however it was written. */
+  color?: true;
   /** A NULLABLE number ("n") or boolean ("b") — a declared `number | null`:
    *  a table slot whatever its default, its null carried by the cell's flag. */
   nullable?: "n" | "b";
@@ -99,6 +102,11 @@ const DEFAULTS = new WeakMap<object, Record<string, unknown>>();
 const DEF_RULES = new WeakMap<object, Record<string, { fn: (this: unknown, parent: unknown, classroot: unknown) => unknown; outer: boolean }>>();
 const PUSHERS = new WeakMap<object, Record<string, Push | undefined>>();
 const EQUALS = new WeakMap<object, Record<string, Equal | undefined>>();
+const COLORS = new WeakMap<object, Record<string, true | undefined>>();
+/** The built-in color attributes, by name: a name means one thing on every
+ *  class (a program cannot redeclare `fill` as a string). Pinned against the
+ *  schemas' color and fill attributes by test/color-strings.test.mjs. */
+export const BUILTIN_COLOR_ATTRS: ReadonlySet<string> = new Set(["fill", "textColor", "textFill", "tint"]);
 /** Per class, each attribute's once-per-instance `onTrack` hook, as a tracked
  *  read would fire it — for readers that never call the getter (noteStaticRead). */
 const TRACK_HOOKS = new WeakMap<object, Record<string, ((self: object) => void) | undefined>>();
@@ -478,6 +486,7 @@ export function defineAttributes<S extends object>(
   const defaults: Record<string, unknown> = Object.create(tableFor(DEFAULTS, parent));
   const pushers: Record<string, Push | undefined> = Object.create(tableFor(PUSHERS, parent));
   const equals: Record<string, Equal | undefined> = Object.create(tableFor(EQUALS, parent));
+  const colors: Record<string, true | undefined> = Object.create(tableFor(COLORS, parent));
   const trackHooks: Record<string, ((self: object) => void) | undefined> = Object.create(tableFor(TRACK_HOOKS, parent));
   const parentLayout = tableFor(LAYOUT, parent);
   const layout: Layout = {
@@ -495,6 +504,7 @@ export function defineAttributes<S extends object>(
     defaults[name] = spec.def;
     pushers[name] = spec.push as Push | undefined;
     equals[name] = spec.equal as Equal | undefined;
+    if (spec.color === true || BUILTIN_COLOR_ATTRS.has(name)) colors[name] = true;
     const plainSlot = (spec.defBinding === undefined || spec.defRule === true) && spec.live === undefined && spec.tracked === undefined && spec.equal === undefined;
     // a NULLABLE number or boolean (`number | null`) is a table slot too, its
     // null carried by the cell's flag — whatever its default
@@ -646,6 +656,7 @@ export function defineAttributes<S extends object>(
   DEFAULTS.set(ctor, defaults);
   PUSHERS.set(ctor, pushers);
   EQUALS.set(ctor, equals);
+  COLORS.set(ctor, colors);
   TRACK_HOOKS.set(ctor, trackHooks);
   layout.defaults = Float64Array.from(layoutDefaults);
   for (let i = 0; i < layout.count; i++) { layoutNulls[i] ??= 0; layout.nullable[i] ??= false; }
@@ -767,7 +778,7 @@ export function providedDefault(name: string, def: unknown): (this: unknown) => 
  *  into a `TextStyle`. They cannot drift, which matters because a measurement
  *  taken with different defaults than the run it is measuring is silently wrong.
  *  Only these five are provided; the rest of `TextStyle` (italic, small caps,
- *  numerals, the treatments) is per-run and nobody provides it. */
+ *  numeralStyle, the treatments) is per-run and nobody provides it. */
 export const PROVIDED_FACE: readonly (readonly [string, unknown])[] = [
   ["textColor", 0x000000],
   ["fontSize", 16],
@@ -926,6 +937,13 @@ export function providedRead(self: object, name: string, hasDefault: boolean, df
 /** The one write path (public setters and setBound both land here):
  *  equality-gate, store, push the slot's Surface call, wake dependents. */
 function write(self: object, name: string, v: unknown, deep = false): void {
+  if (typeof v === "string" && tableFor(COLORS, self.constructor)?.[name] === true) v = toColor(v, () => `${addressFor(self) ?? declareName(self)}.${name}`);
+  // `minScale`/`maxScale` hold a view's scale, however it is written (view.ts)
+  else if (name === "scale" && typeof v === "number") {
+    const b = self as { minScale?: number | null; maxScale?: number | null };
+    if (b.maxScale != null && v > b.maxScale) v = b.maxScale;
+    if (b.minScale != null && (v as number) < b.minScale) v = b.minScale;
+  }
   const carrier = self as Carrier;
   const L = tableFor(LAYOUT, self.constructor);
   const slot = L?.index[name];
@@ -939,9 +957,6 @@ function write(self: object, name: string, v: unknown, deep = false): void {
       // null into a nullable slot: the cell's flag, its number 0
       const c = ensureBase(carrier) + slot;
       if (nulls[c] === 1) return;
-      if ((carrier as { $changing?: ReadonlySet<string> }).$changing?.has(name) === true) {
-        throw new DeclareError(`onChange assigned '${name}', which is one of the values it was called for — a change handler may not write what it was told changed`);
-      }
       table[c] = 0; nulls[c] = 1;
       touchCell(c);
       tableFor(PUSHERS, self.constructor)?.[name]?.(self, null);
@@ -960,9 +975,6 @@ function write(self: object, name: string, v: unknown, deep = false): void {
     const nv = kind === "b" ? (v ? 1 : 0) : (v as number);
     const wasNull = L.nullable[slot] && nulls[c] === 1;
     if (table[c] === nv && !wasNull) return;
-    if ((carrier as { $changing?: ReadonlySet<string> }).$changing?.has(name) === true) {
-      throw new DeclareError(`onChange assigned '${name}', which is one of the values it was called for — a change handler may not write what it was told changed`);
-    }
     table[c] = nv;
     if (wasNull) nulls[c] = 0;
     touchCell(c);
@@ -1001,11 +1013,6 @@ function writeRef(carrier: Carrier, name: string, v: unknown, deep = false): voi
   // equal value stops the cascade exactly as === does for scalars (ruled).
   const eq = tableFor(EQUALS, self.constructor)?.[name];
   if (eq !== undefined && eq(cur, v)) return;
-  // THE CHANGE EVENT (reactive.ts wakes, fires at the settle's close): a change
-  // handler may not write a value it was called for — a loop with a name.
-  if ((carrier as { $changing?: ReadonlySet<string> }).$changing?.has(name) === true) {
-    throw new DeclareError(`onChange assigned '${name}', which is one of the values it was called for — a change handler may not write what it was told changed`);
-  }
   (carrier.$attrs ??= Object.create(defaults) as Record<string, unknown>)[name] = v;
   tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
   carrier.$cells?.[name]?.changed();

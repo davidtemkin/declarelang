@@ -99,7 +99,7 @@ exactly as it is in a bundle.
 
 ```declare
 HTMLText [ width = { parent.width },
-    textStyles = { { lead: { fontSize: 40, fontFamily: "Georgia", textFill: gradient("90deg", 0x4C8DFF, 0x37E0C8) } } },
+    textStyles = { { lead: { fontSize: 40, fontFamily: "Georgia", textFill: Gradient.linear("90deg", 0x4C8DFF, 0x37E0C8) } } },
     html = "The <span class='lead'>headline</span> word sits big and on the baseline."
     ]
 ```

@@ -145,7 +145,7 @@ class Switch extends ValueControl [
 
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
     fill    = { checked ? provided("theme").accent : hovered || pressed ? provided("theme").controlSelected : ((provided("theme").trackFill ?? provided("theme").control)) },
-    stroke  = { stroke(1, checked ? provided("theme").accent : provided("theme").line) },
+    stroke  = { Stroke(1, checked ? provided("theme").accent : provided("theme").line) },
 
     // the thumb derives from the track: inset 2 normally; a theme may say the
     // unchecked thumb is smaller (Mountain View's 16→24 grow-on-check)

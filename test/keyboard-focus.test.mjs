@@ -145,4 +145,19 @@ await test("a polled key is claimed while a shown view of the keyboard program p
   done();
 });
 
+await test("focusing a focusable view that is hidden says hidden, not 'not focusable' — and when a layout holds it", async () => {
+  // Presentify run 13: a slide just added to a TweenLayout is held hidden until its glide lands,
+  // and focusing it was answered "it is not focusable"
+  const app = await boot(`App [ width = 300, height = 200,
+    own: View [ width = 20, height = 20, focusable = true, visible = false ],
+    box: View [ visible = false, inner: View [ width = 20, height = 20, focusable = true ] ],
+    plain: View [ width = 20, height = 20 ] ]`);
+  const said = []; const warn = console.warn; console.warn = (...m) => said.push(m.join(" "));
+  try { Focus.focus(app.own); Focus.focus(app.box.inner); Focus.focus(app.plain); settle(); } finally { console.warn = warn; }
+  assert.ok(said.some((m) => /Focus\.focus\(app\.own\): it is hidden \(visible is false\)/.test(m)), said.join("\n"));
+  assert.ok(said.some((m) => /Focus\.focus\(app\.box\.inner\): it is inside app\.box, which is hidden/.test(m)), said.join("\n"));
+  assert.ok(said.some((m) => /Focus\.focus\(app\.plain\): it is not focusable/.test(m)), said.join("\n"));
+  assert.ok(!said.some((m) => /app\.own\): it is not focusable/.test(m)), "a hidden focusable view is not called unfocusable");
+});
+
 summarize("keyboard-focus");

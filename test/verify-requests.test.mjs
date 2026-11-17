@@ -211,6 +211,110 @@ await test("a path step or a locator that names two views refuses, naming both; 
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
+// Venue runs 36 and 37: a failed lookup's note named only the focus ring's glide,
+// and the agent read it as the cause. Motion on a view a lookup can neither find
+// nor be blocked by (no role or text, no presses) is left out of the note;
+// settling still waits for it.
+await test("a failed lookup while only the focus ring glides carries no motion note; settling still sees the ring", () => {
+  const dir = tempDir("declare-verify-ringnote-");
+  const app = join(dir, "ring.declare");
+  writeFileSync(app, `App [ width = 400, height = 200,
+    row: View [ layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Button [ label = "One" ], Button [ label = "Two" ] ] ]`);
+  const f = join(dir, "flow.mjs");
+  writeFileSync(f, `export default async ({ drive, expect, page }) => {
+    await page.keyboard.press("Tab"); await drive.settleMotion();
+    await page.keyboard.press("Tab");
+    const all = await page.evaluate(() => window.__declare.moving());
+    const seen = await page.evaluate(() => window.__declare.moving(true));
+    if (!all.some((m) => /FocusRing/.test(m))) throw new Error("the ring was not gliding: " + JSON.stringify(all));
+    if (seen.length !== 0) throw new Error("the findable list kept the ring: " + JSON.stringify(seen));
+    let said = ""; try { await expect(page.getByRole("button", { name: "Three" })).toBeVisible({ timeout: 300 }); } catch (e) { said = e.message; }
+    if (said === "") throw new Error("the lookup for a missing button passed");
+    if (/motion is still in flight/.test(said)) throw new Error("the note blamed the ring: " + said);
+  };`);
+  const r = spawnSync(process.execPath, [join(ROOT, "tools/verify.mjs"), app, "--assert", f, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+// Presentify run 13: expect.attr("app.deck", "value.title") read undefined and
+// drive.read("app.hist.undos.length") found no node, while `declare-look --read` read both.
+await test("drive.read and expect.attr read a path through values, as look --read does", () => {
+  const dir = tempDir("declare-verify-readthrough-");
+  const app = join(dir, "r.declare");
+  writeFileSync(app, `class Hist extends Node [ undos: array = { [1, 2, 3] } ]
+App [ width = 200, height = 100,
+    deck: Dataset { { "title": "Quarterly", "slides": [ { "k": 1 }, { "k": 2 } ] } },
+    hist: Hist [ ] ]`);
+  const f = join(dir, "flow.mjs");
+  writeFileSync(f, `export default async ({ drive, expect }) => {
+    if ((await drive.read("app.hist.undos.length")) !== 3) throw new Error("through a value");
+    if ((await drive.read("app.deck.value.slides.length")) !== 2) throw new Error("through a dataset's value");
+    await expect.attr("app.deck", "value.title", "Quarterly");
+    let said = ""; try { await drive.read("app.hist.nope.length"); } catch (e) { said = e.message; }
+    if (!/has no 'nope\\.length'/.test(said)) throw new Error("a missing member is named: " + said);
+  };`);
+  const r = spawnSync(process.execPath, [join(ROOT, "tools/verify.mjs"), app, "--assert", f, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+// Presentify run 14: a deck card's click never fired over its picture's shapes — views with a
+// path clip and handlers, switched off with pointerEvents = "none" — which the router's own
+// probe for clipped targets still hit.
+await test("a clipped view with handlers, switched off for the pointer, lets its Control's click through", () => {
+  const dir = tempDir("declare-verify-carvedoff-");
+  const app = join(dir, "c.declare");
+  writeFileSync(app, `class Leaf [ width = 60, height = 60, fill = red, pointerEvents = "none",
+    clip = "M 0 30 A 30 30 0 1 0 60 30 A 30 30 0 1 0 0 30 Z",
+    onPointerDown(e: PointerEvent) { app.stolen = app.stolen + 1 }, onDoubleClick(e: PointerEvent) { } ]
+App [ width = 400, height = 300, opened: number = 0, stolen: number = 0,
+    card: Control [ x = 20, y = 20, width = 200, height = 150, press() { app.opened = app.opened + 1 },
+        pic: View [ width = 100%, height = 100%, Leaf [ x = 70, y = 45 ] ] ] ]`);
+  const f = join(dir, "flow.mjs");
+  writeFileSync(f, `export default async ({ drive, expect }) => {
+    await drive.click("app.card");   // its centre, over the leaf
+    await expect.attr("app", "opened", 1);
+    await expect.attr("app", "stolen", 0);
+  };`);
+  const r = spawnSync(process.execPath, [join(ROOT, "tools/verify.mjs"), app, "--assert", f, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+// 7GUIs run 4: one wheel turn with both deltas over a pane that scrolls both ways moved only x.
+await test("a diagonal wheel over a pane that scrolls both ways moves both", () => {
+  const dir = tempDir("declare-verify-wheel2-");
+  const app = join(dir, "w.declare");
+  writeFileSync(app, `App [ width = 600, height = 400,
+    body: View [ width = 300, height = 200, scrolls = both, View [ width = 3000, height = 3000 ] ] ]`);
+  const f = join(dir, "flow.mjs");
+  writeFileSync(f, `export default async ({ drive }) => {
+    await drive.wheel("app.body", 900, 700);
+    await drive.settleMotion();
+    const x = await drive.read("app.body.scrollX"), y = await drive.read("app.body.scrollY");
+    if (x !== 700 || y !== 900) throw new Error("scrolled to " + x + ", " + y);
+  };`);
+  const r = spawnSync(process.execPath, [join(ROOT, "tools/verify.mjs"), app, "--assert", f, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+// RealWorld run 3: a request sent without its token, and nothing in the record to say so.
+await test("drive.requests() shows the headers the program set, not the browser's own", () => {
+  const dir = tempDir("declare-verify-reqheaders-");
+  const app = join(dir, "h.declare");
+  writeFileSync(app, `App [ width = 200, height = 100, token: string = "abc",
+    me: DataSource [ url = "/nowhere/user", autoFetch = true, headers = { { Authorization: "Token " + app.token } } ] ]`);
+  const f = join(dir, "flow.mjs");
+  writeFileSync(f, `export default async ({ drive }) => {
+    await drive.settleData();
+    const q = drive.requests().find((r) => r.path === "/nowhere/user");
+    if (!q) throw new Error("no request: " + JSON.stringify(drive.requests()));
+    if (q.headers.authorization !== "Token abc") throw new Error("headers: " + JSON.stringify(q.headers));
+    if ("user-agent" in q.headers) throw new Error("the browser's own headers are left out");
+  };`);
+  const r = spawnSync(process.execPath, [join(ROOT, "tools/verify.mjs"), app, "--assert", f, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
 // 7GUIs run 3: a click on a hidden view landed on what held it, which counted
 // as reaching it, and pressed nothing in silence. It is refused by name. And a
 // value read now carries no "motion in flight" tail: there it reads as a cause.

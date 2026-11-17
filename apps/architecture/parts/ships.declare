@@ -153,7 +153,7 @@ class Block [ cornerRadius = 5, clip = true,
             default: return t.runSoft
             }
         },
-    stroke = { stroke(1, this.hue) },
+    stroke = { Stroke(1, this.hue) },
     flat: boolean = { this.height < 58 && this.width > 280 },
     roomy: boolean = { !this.flat && this.width > 40 && this.height > 32 },
     n: Label [ x = 10, y = { classroot.flat ? (classroot.height - this.height) / 2 : 8 },
@@ -222,8 +222,8 @@ class Shot [ cornerRadius = 8, clip = true,
     src: string = "",
     aspect: number = 0.7067,
     height = { this.width * this.aspect },
-    stroke = { stroke(1, provided("theme").line) },
-    shadow = { shadow(0, 4, 14, 0x00000024) },
+    stroke = { Stroke(1, provided("theme").line) },
+    shadow = { Shadow(0, 4, 14, 0x00000024) },
     Image [ width = 100%, height = 100%, fit = both, source = { classroot.src } ]
     ]
 

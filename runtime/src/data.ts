@@ -938,7 +938,7 @@ export class DataSource extends Dataset {
 
   /** `autoFetch = true`: fetch whenever a NON-EMPTY url arrives or changes — the
    *  reactive-address case, where the url derives from late-landing state
-   *  (`url = { hostProvided("program", "") != "" ? … : "" }`) and no handler exists to call
+   *  (`url = { app.hostProvided("program", "") != "" ? … : "" }`) and no handler exists to call
    *  fetch() at the right moment. Push-driven off the url/autoFetch slots; a
    *  re-derive to the SAME address never refetches. Resolves the recorded
    *  auto-fetch question: explicit fetch() stays the default, autoFetch is opt-in. */
@@ -947,20 +947,21 @@ export class DataSource extends Dataset {
 
   $maybeAuto(): void {
     if (!this.autoFetch) return;
-    // Inside a settle the decision waits for its close: the same assignment that
-    // changes the address can take the view holding this source away (`exists`
-    // turning false as the location empties the slug), and a source that is
-    // leaving must not fetch on its way out. A source discarded before the settle
-    // closes drops the step ($afterSettle); one still alive decides on the
-    // address as the settle left it.
-    if (isSettling()) {
-      if (!this.$autoQueued) {
-        this.$autoQueued = true;
-        this.$afterSettle(() => { this.$autoQueued = false; this.$autoNow(); });
-      }
-      return;
+    // The decision waits for the settle's close, always: the request is made from
+    // the source as the whole tree settled it. Within a settle, the same assignment
+    // that changes the address can take the view holding this source away (`exists`
+    // turning false as the location empties the slug), and a source that is leaving
+    // must not fetch on its way out. While the tree is being built, `url` takes its
+    // value before the attributes declared after it are bound: a request made then
+    // went out without its `headers` (RealWorld run 3: a signed-in reload sent
+    // GET /user with no Authorization and was answered 401), or on a first value a
+    // later attribute was about to change (Front page run 4: the phone ad sizes at
+    // a desk width). A source discarded before the settle closes drops the step
+    // (Node.afterSettle); one still alive decides on the address as it was left.
+    if (!this.$autoQueued) {
+      this.$autoQueued = true;
+      this.afterSettle(() => { this.$autoQueued = false; this.$autoNow(); });
     }
-    this.$autoNow();
   }
   private $autoQueued = false;
   private $autoNow(): void {

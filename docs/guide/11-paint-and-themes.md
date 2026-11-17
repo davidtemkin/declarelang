@@ -19,8 +19,8 @@ A view's paint is a handful of attributes:
 App [ width = 320, height = 170, fill = whitesmoke, textColor = #172530,
     card: View [ x = 30, y = 30, width = 260, padding = 20, cornerRadius = 12,
         fill = white,
-        stroke = { stroke(1, 0xD6DCE2) },
-        shadow = { shadow(0, 10, 20, 0x00000033) },
+        stroke = { Stroke(1, 0xD6DCE2) },
+        shadow = { Shadow(0, 10, 20, 0x00000033) },
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         Text [ fontSize = 16, fontWeight = bold, text = "Painting" ],
         Text [ textColor = slategray, text = "fill · stroke · shadow · radius" ]
@@ -33,31 +33,39 @@ App [ width = 320, height = 170, fill = whitesmoke, textColor = #172530,
 - [`cornerRadius`](declare-docs:View.cornerRadius) rounds it: one number, or four for `[topLeft, topRight, bottomRight,
   bottomLeft]` — a tab joined to its pane is `[8, 8, 0, 0]`.
 - [`stroke`](declare-docs:View.stroke) is a border drawn *inside* the box, so it never changes the layout:
-  `stroke(width, color)`, or four of them, `[top, right, bottom, left]` with `null` for a
-  bare side — a rule under a row is `[null, null, stroke(1, #DBE1E9), null]`.
-- [`shadow`](declare-docs:View.shadow) is `shadow(dx, dy, blur, color)`, cast outside the box.
+  `Stroke(width, color)`, or four of them, `[top, right, bottom, left]` with `null` for a
+  bare side — a rule under a row is `[null, null, Stroke(1, #DBE1E9), null]`.
+- [`shadow`](declare-docs:View.shadow) is `Shadow(dx, dy, blur, color)`, cast outside the box.
 - [`opacity`](declare-docs:View.opacity) fades the view and its subtree together; `visible = false` removes it from
   paint and input but keeps it built.
 - `clip = true` clips children to the box.
 
-There is no CSS `border` and no `box-shadow` string; the constructors are the only call
-forms a bare value accepts. Inside `{ }` they are ordinary functions, so their colors are
-numbers (`0x…`).
+There is no CSS `border` and no `box-shadow` string. A value is built through its type —
+`Stroke(…)`, `Shadow(…)`, `Gradient.linear(…)`, `VisualFilter.blur(…)` — the same spelling
+in a bare value and inside `{ }`, where they are ordinary functions. Inside `{ }` a color is
+written as a string, `"#4169E1"` or `"royalblue"`, or as a number, `0x4169E1`; a bare value
+takes the quoted spelling too. A color's operations are on `Color`: `Color.withAlpha(c, 0.4)`,
+`Color.mix(a, b, t)`, `Color.lighter(c, 0.1)` and `Color.darker`, `Color.contrast(a, b)` (the
+WCAG ratio, which picks the ink that reads on a fill). Text is not a color until it is read as
+one: `Color.from(s)` reads `"#RRGGBB"` (null when the text is not a color), and `Color.hex(c)`
+writes a color as text. A color with alpha is held in an encoding of its own, so compute with these, never
+with bit shifts.
 
 Past the basics, each compositing stage is an attribute too, and every renderer realizes
 them natively:
 
 ```declare-fragment
-card: View [ visualFilter = { [blur(d * 1.15), brightness(1 - d * 0.13)] } ],  // the view's own paint, as a group
-glass: View [ backdrop = frost(20, 1.4), fill = #F9F9FBDB ],             // blur what lies beneath: frosted glass
+card: View [ visualFilter = { [VisualFilter.blur(d * 1.15), VisualFilter.brightness(1 - d * 0.13)] } ],  // the view's own paint, as a group
+glass: View [ backdrop = VisualFilter.frost(20, 1.4), fill = #F9F9FBDB ],             // blur what lies beneath: frosted glass
 chip: View [ blendMode = multiply ],                                     // mix with what is already painted
-fade: Image [ mask = gradient("180deg", #00000000, #000000FF) ],         // a soft alpha mask
-glow: View [ fill = radialGradient(0.5, 0.38, 0.3, #FFFFFF60, #FFFFFF00) ],
-dial: View [ fill = conicGradient(0.5, 0.5, 0, #FF5A36, #FFD23F, #FF5A36) ]
+fade: Image [ mask = Gradient.linear("180deg", #00000000, #000000FF) ],         // a soft alpha mask
+glow: View [ fill = Gradient.radial(0.5, 0.38, 0.3, #FFFFFF60, #FFFFFF00) ],
+dial: View [ fill = Gradient.conic(0.5, 0.5, 0, #FF5A36, #FFD23F, #FF5A36) ]
 ```
 
-`visualFilter` takes one function or a list — `blur`, `brightness`, `contrast`, `saturate`,
-`grayscale`, `invert`, `sepia`, `hueRotate`, `colorize`, `shadow` — and applies it to the
+`visualFilter` takes one `VisualFilter` or a list — `VisualFilter.blur`, `.brightness`,
+`.contrast`, `.saturate`, `.grayscale`, `.invert`, `.sepia`, `.hueRotate`, `.colorize`, or a
+`Shadow` — and applies it to the
 view and its children as a group. [`backdrop`](declare-docs:View.backdrop) applies the same list to what lies beneath
 the view, inside its own shape, which is how menus and sheets get their frosted look.
 [`blendMode`](declare-docs:View.blendMode) sets the compositing operator (the usual blend modes, camelCased). All of it is
@@ -165,7 +173,8 @@ empty record:
 ```declare-fragment
 theme = { app.systemDark ? SanFranciscoDark : SanFrancisco },       // a preset, light or dark
 theme = { { ...provided("theme"), accent: 0xCC3333,           // one role changed, lower down —
-            accentHovered: 0xB82E2E, accentPressed: 0x9E2828 } }  //   with the states named from it
+            accentHovered: 0xB82E2E, accentPressed: 0x9E2828,    //   with the states named from it,
+            controlSelected: Color.mix(provided("theme").surface, 0xCC3333, 0.22) } }  // and the selected tone
 ```
 
 Four presets ship, each as a light record and a `…Dark` companion: **SanFrancisco**

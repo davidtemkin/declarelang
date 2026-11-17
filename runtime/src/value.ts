@@ -33,6 +33,38 @@ export function colorWithAlpha(rgb: number, a: number): number {
   return a >= 0xff ? rgb : ALPHA + rgb * 0x100 + a;
 }
 
+/** A `#RGB`, `#RGBA`, `#RRGGBB` or `#RRGGBBAA` string as its Color number, or
+ *  undefined when it is not one. Short forms double their digits, as in CSS. */
+export function hexColor(s: string): number | undefined {
+  const hex = s.charCodeAt(0) === 35 ? s.slice(1) : "";
+  if (!/^[0-9a-fA-F]+$/.test(hex) || ![3, 4, 6, 8].includes(hex.length)) return undefined;
+  const long = hex.length <= 4 ? [...hex].map((c) => c + c).join("") : hex;
+  const rgb = parseInt(long.slice(0, 6), 16);
+  return long.length === 8 ? colorWithAlpha(rgb, parseInt(long.slice(6), 16)) : rgb;
+}
+
+/** A color as it may be written in code — a number, `null`, or a CSS hex
+ *  string — as the number the runtime holds. A string that arrives at run time
+ *  (from data, or a value the compile could not see) is parsed here; a CSS name
+ *  is not, since its table stays out of a running program: the compile turns
+ *  each name it sees into its number, and one it cannot see is said, loudly,
+ *  and paints nothing. */
+export function toColor(v: unknown, where?: () => string): Color {
+  if (typeof v !== "string") return v as Color;
+  const n = hexColor(v);
+  if (n !== undefined) return n;
+  warnColorString(v, where);
+  return null;
+}
+
+const saidColorStrings = new Set<string>();
+function warnColorString(v: string, where?: () => string): void {
+  if (saidColorStrings.has(v) || typeof console === "undefined") return;
+  saidColorStrings.add(v);
+  const on = where === undefined ? "" : ` on ${where()}`;
+  console.error(diag`[Declare] the color ${JSON.stringify(v)}${on} arrived as a string at run time, where only hex is read — write it as "#RRGGBB" (a color name is read where the compile can see it), and read text as a color with Color.from(s). Nothing was painted.`);
+}
+
 /** A gradient stop: an explicit 0…1 offset, or null for even spacing. */
 export interface GradientStop {
   readonly offset: number | null;
@@ -174,15 +206,15 @@ const EMPTY_FILTERS: readonly Filter[] = Object.freeze([]);
 
 export function gradient(...args: (number | string | GradientStop)[]): Gradient {
   let angle = 180;
-  if (typeof args[0] === "string") {
-    const m = /^(-?\d+(?:\.\d+)?)deg$/.exec(args[0]);
-    if (m === null) throw new Error(`gradient: an angle is written "45deg", got "${args[0]}"`);
+  // a leading "…deg" is the angle; any other string is a color stop
+  const m = typeof args[0] === "string" ? /^(-?\d+(?:\.\d+)?)deg$/.exec(args[0]) : null;
+  if (m !== null) {
     angle = parseFloat(m[1]);
     args = args.slice(1);
   }
   if (args.length < 2) throw new Error("gradient needs at least two stops");
   const stops = args.map((a): GradientStop => {
-    if (typeof a === "number") return Object.freeze({ offset: null, color: a });
+    if (typeof a === "number" || typeof a === "string") return Object.freeze({ offset: null, color: toColor(a) });
     if (typeof a === "object" && a !== null && "color" in a) return a;
     throw new Error(diag`a gradient stop is a color or stop(offset, color)`);
   });
@@ -192,7 +224,7 @@ export function gradient(...args: (number | string | GradientStop)[]): Gradient 
 // radialGradient / conicGradient and the filter functions live in effects.ts —
 // carried by a production build only when a program names one.
 
-export const colorStop = (offset: number, color: Color): GradientStop => Object.freeze({ offset, color });
+export const colorStop = (offset: number, color: Color): GradientStop => Object.freeze({ offset, color: toColor(color) });
 /** A width that cannot be a width. A stroke is drawn INSIDE the box, so a value
  *  past a few thousand points is never art — and a `Color` is a number at
  *  runtime, so `stroke(provided("theme").line, 1)` produces exactly this: a fourteen-million
@@ -202,7 +234,7 @@ export const colorStop = (offset: number, color: Color): GradientStop => Object.
  *  the value is legal, it is only certainly not what was meant.) */
 const MAX_SANE_STROKE = 4096;
 const swapped = new Set<string>();
-function checkOrder(fn: "stroke", width: number, color: Color): void {
+function checkOrder(fn: "Stroke", width: number, color: Color): void {
   if (!(typeof width === "number") || width <= MAX_SANE_STROKE) return;
   const key = `${fn}:${width}:${String(color)}`;
   if (swapped.has(key)) return;
@@ -213,9 +245,9 @@ function checkOrder(fn: "stroke", width: number, color: Color): void {
     : diag`[Declare] ${fn}(${width}, …) — a stroke width of ${width} is drawn inside the box, so it paints as a filled rectangle. ${fn}(width, color) takes the width first`);
 }
 
-export const stroke = (width: number, color: Color): Stroke => { checkOrder("stroke", width, color); return Object.freeze({ width, color }); };
+export const stroke = (width: number, color: Color): Stroke => { color = toColor(color); checkOrder("Stroke", width, color); return Object.freeze({ width, color }); };
 export const shadow = (dx: number, dy: number, blur: number, color: Color): Shadow =>
-  Object.freeze({ fn: "shadow", dx, dy, blur, color });
+  Object.freeze({ fn: "shadow", dx, dy, blur, color: toColor(color) });
 /** How far a filter's output can reach past the painted box, in view units —
  *  a blur's 3σ, a shadow's offset plus its 3σ. The over-scan a backdrop sample
  *  and an offscreen group both pad by (graphics-pass.md §0, the bleed rule). */
@@ -550,7 +582,7 @@ const DECLARED_TYPES: Readonly<Record<string, AttrType>> = {
   // the bare-token use-site surface (`axis = x`, `align = center`) — these are
   // as built-in as Color. (User-authored unions remain their own future
   // construct, per the note above.)
-  Axis: enumType("Axis", "x", "y"),
+  LayoutAxis: enumType("LayoutAxis", "x", "y"),
   // A flow's MAIN-axis justification (`justify = center` centres a short row)
   // and a layout's CROSS-axis alignment — CSS's split of the two words. `none`
   // is a cross axis the strategy leaves to the children (SimpleLayout's
@@ -570,7 +602,7 @@ const DECLARED_TYPES: Readonly<Record<string, AttrType>> = {
  *  the name is not in the declarable vocabulary. */
 /** An AUTHORED literal union (`"idle" | "loading"`) is an enum whose NAME is
  *  the written union text — that text is the discriminator between it and a
- *  built-in vocabulary (Axis, Easing), whose name is an identifier. Every
+ *  built-in vocabulary (LayoutAxis, Easing), whose name is an identifier. Every
  *  consumer asks this one question here, not with its own `startsWith('"')`. */
 export const isAuthoredUnion = (name: string): boolean => name.startsWith('"');
 
@@ -749,14 +781,13 @@ export function describeLiteral(lit: Literal): string {
  *  encodings: plain opaque 0xRRGGBB and the translucent form (see Color). */
 export function colorToCss(c: Color): string {
   if (c === null) return "transparent";
-  // A STRING reaching here is the classic seam mistake — a `{ }` body handed
-  // `"#87CEEB"` (or a named color) where a color is a NUMBER (`0x87CEEB`).
-  // Typed code can't do it (`Color = number | null`), but an `any` smuggles it
-  // through, and the old arithmetic below then produced garbage CSS the
-  // browser DISCARDED SILENTLY — a paint that simply never happens, no error
-  // anywhere (measured cost: an hour of a real user's debugging, 2026-08-07).
-  // Say it loudly, once per distinct value, and paint nothing on purpose.
+  // A string reaches here only where no color slot's write turned it into its
+  // number (attributes.ts): a hex string is read; anything else would become
+  // CSS the browser discards silently, so it is said, once per value, and
+  // paints nothing on purpose.
   if (typeof c !== "number") {
+    const n = typeof c === "string" ? hexColor(c) : undefined;
+    if (n !== undefined) return colorToCss(n);
     warnBadColor(c);
     return "transparent";
   }
@@ -770,9 +801,5 @@ function warnBadColor(c: unknown): void {
   const key = String(c);
   if (badColors.has(key) || typeof console === "undefined") return;
   badColors.add(key);
-  const hex = /^#([0-9a-fA-F]{6})$/.exec(key);
-  // one sentence, one code: the form the value should have taken is a hole,
-  // itself a diagnostic sentence, never a concatenation the strip would skip
-  const form = hex ? diag`write 0x${hex[1].toUpperCase()}` : diag`0xRRGGBB (named colors are bare-value vocabulary only)`;
-  console.error(diag`[Declare] a color attribute received ${JSON.stringify(key)} (a ${typeof c}) — inside { } a color is a NUMBER: ${form}. Nothing was painted.`);
+  console.error(diag`[Declare] a color attribute received ${JSON.stringify(key)} (a ${typeof c}) — a color is a number or a "#RRGGBB" string (a color name is read where the compile can see it). Nothing was painted.`);
 }

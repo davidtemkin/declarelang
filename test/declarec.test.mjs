@@ -649,8 +649,11 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // 169 → 176 KB (2026-11-10, the author's ruling, "runtime budget is fine"): the key
   // walk — class-layered keyBindings, the standard table, overlays' keys as
   // bindings, menus and buttons as commands — measured 169.7 KB.
+  // 176 → 180 KB (2026-11-14, the author's ruling): global names — the Color
+  // operations, the focus and tooltip facts, the node methods — and the toast,
+  // grid and save fixes before them; measured 176.7 KB.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 176 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 180 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 

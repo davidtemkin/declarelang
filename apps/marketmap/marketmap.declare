@@ -411,7 +411,7 @@ class Market extends DataSource [
     // beside this program on its own page; beside its home when a host (the
     // desktop) mounts it as an island and provides that home as `base`
 
-    url = { hostProvided("base", "") + "marketmap-data.json" },
+    url = { app.hostProvided("base", "") + "marketmap-data.json" },
     autoFetch = true,
     schema = [ days[]: string, stocks[]: Stock, industries[]: Industry, sectors[]: Sector ],
 
@@ -744,13 +744,13 @@ class StageTile [ cursor = "pointer", clip = true,
         }
         if (hi <= lo) return
         const ink = provided("theme").ink
-        d.strokeStyle = colorWithAlpha(ink, 71)
+        d.strokeStyle = Color.withAlpha(ink, 0.28)
         d.lineWidth = 1
         d.beginPath()
         d.moveTo(10, top + span)
         d.lineTo(w - 10, top + span)
         d.stroke()
-        d.strokeStyle = colorWithAlpha(ink, 191)
+        d.strokeStyle = Color.withAlpha(ink, 0.75)
         d.lineWidth = 1.6
         d.lineJoin = "round"
         d.beginPath()
@@ -769,7 +769,7 @@ class StageTile [ cursor = "pointer", clip = true,
         if (u >= 0) {
             const px = 10 + (w - 20) * u
             const v = interpClose(closes, day - TRADING_YEAR + TRADING_YEAR * u)
-            d.strokeStyle = colorWithAlpha(provided("theme").highlight, 140)
+            d.strokeStyle = Color.withAlpha(provided("theme").highlight, 0.55)
             d.lineWidth = 1
             d.beginPath()
             d.moveTo(px, h * 0.62)
@@ -1070,7 +1070,7 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
             y = { this.r.y - 1 },
             width = { this.r.w + 2 },
             height = { this.r.h + 2 },
-            stroke = { stroke(2, provided("theme").highlight) }
+            stroke = { Stroke(2, provided("theme").highlight) }
             ],
 
         // the stage: backdrop + yellow title bar; its roster paints above
@@ -1082,7 +1082,7 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
             y = { this.r.y },
             width = { this.r.w },
             height = { this.r.h },
-            stroke = { stroke(2, provided("theme").highlight) },
+            stroke = { Stroke(2, provided("theme").highlight) },
 
             head: View [ width = 100%, height = { STAGE_HEAD_H }, fill = { provided("theme").highlight }, clip = true,
                 padding = [0, 36, 0, 10],                     // the right inset leaves room for the close box
@@ -1113,7 +1113,7 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
                 y = { this.r.y - 1 },
                 width = { this.r.w + 2 },
                 height = { this.r.h + 2 },
-                stroke = { stroke(2, provided("theme").highlight) }
+                stroke = { Stroke(2, provided("theme").highlight) }
                 ]
             ],
 

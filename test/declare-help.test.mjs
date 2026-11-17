@@ -360,4 +360,16 @@ await test("a library event answers by its handler name, and from a class above 
   assert.match(above.out, /declare-help TextInput\.onEnter/, above.out);
 });
 
+// A shared interface's member answers by its dotted name, with its own prose, through what the
+// interface extends (Presentify runs 15 and 16 met only the interface's summary).
+await test("a shared interface's member answers dotted, with its own prose, inherited ones too", () => {
+  const d = help("PointerEvent.deltaX");
+  assert.match(d.out, /^PointerEvent\.deltaX: number/m, d.out);
+  assert.match(d.out, /On a drag .* in the frame the dragged view's own `x` is set in/, d.out);
+  const p = help("PinchEvent.x");
+  assert.match(p.out, /^PinchEvent\.x: number \(from PointerEvent\)/m, p.out);
+  const m = help("PointerEvent.nope");
+  assert.match(m.out, /no 'nope' on PointerEvent/, m.out);
+});
+
 summarize("declare-help");

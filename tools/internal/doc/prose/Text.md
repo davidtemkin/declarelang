@@ -75,21 +75,21 @@ from `fontWeight`.
 
 ## textFill
 Fills the **glyphs** with a gradient (or solid `Fill`), like the box `fill` but for the
-letters; overrides `textColor` when set. `textFill = { gradient("90deg", 0xFFFFFF, 0x88AAFF) }`.
+letters; overrides `textColor` when set. `textFill = { Gradient.linear("90deg", 0xFFFFFF, 0x88AAFF) }`.
 
 ## textShadow
-A drop shadow on the glyphs — the same `shadow(dx, dy, blur, color)` value as the box
+A drop shadow on the glyphs — the same `Shadow(dx, dy, blur, color)` value as the box
 `shadow` attribute, applied to the text instead of the box.
 
 ## textStroke
-Strokes the glyph **edges** in `stroke(width, color)` — the box `stroke` value, traced
+Strokes the glyph **edges** in `Stroke(width, color)` — the box `stroke` value, traced
 along the letters instead: outlined letters, **not** a box around the run. The stroke rides *under* the fill, so a filled letter shows a thin ring
 and a `textColor`-less one reads hollow. Per-`Text`, **not** a provided value — set it
 here, or wear it through a `style` bundle / a `<span class>`. In a `[ ]` literal the color
 is `#RRGGBB`; inside a `{ }` body it is `0xRRGGBB`.
 ```declare
 App [ fill = #1E293B,
-    Text [ x = 20, y = 20, fontSize = 28, textColor = white, fontWeight = bold, textStroke = stroke(1, #C0392B), text = "ringed" ]
+    Text [ x = 20, y = 20, fontSize = 28, textColor = white, fontWeight = bold, textStroke = Stroke(1, #C0392B), text = "ringed" ]
     ]
 ```
 
@@ -104,7 +104,7 @@ Renders lowercase letters as small capitals — **synthesized from the current f
 separate face, so it composes with any `fontFamily`/`fontWeight`. Measured with the caps,
 so widths agree across DOM, canvas and native.
 
-## numerals
+## numeralStyle
 The **shape** of the digits, when the face carries more than one set: `lining` sit on the
 baseline at cap height (the modern default in most faces); `oldstyle` have ascenders and
 descenders and sit in running prose like lowercase letters. `normal` — the default — is

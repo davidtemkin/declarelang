@@ -8,7 +8,7 @@ pill Switch's ring and a text field's ring each differ — the targets do.
 
 The model:
 
-- **The fact** — the ring listens to Focus (a `Focus [ onFocusChange(v: View) { … } ]` member) and
+- **The fact** — the ring follows `app.focusedView` and `app.focusGeometry`, and
   tracks the target's root-space geometry on every change, pointer or
   keyboard. A pointer focus **parks** the ring there silently (snap, no show) —
   so the next Tab's flight departs from the control the user just clicked,
@@ -209,8 +209,12 @@ class FocusRing [
     // The band sits outside the silhouette: inner edge touching the control's
     // boundary (the Mac halo's hug), displaced by gap + half the stroke.
 
-    _focus: Focus [
-        onGeometry(g: FocusGeometry) {
+    _focus: Node [
+        g: object = { app.focusGeometry },
+        trackChanges = ["g"],
+        onChange() {
+            if (this.g == null) return
+            const g = this.g as FocusGeometry
             if (g.root != app) return
             // Ride the target's scroller: the ring paints in it (paintsIn) and
             // positions in its content coordinates — the platform then carries
@@ -282,10 +286,22 @@ class FocusRing [
             ;(this as any)._hasHome = true
             if (classroot.shown) classroot._restack(g.view)
             if (prev == g.view && moved) classroot.snapTo()
-            },
+            }
+        ],
 
-        onFocusChange(v: View) {
+    // where focus is, in this program: the ring shows, parks or stands down
+
+    _focusMove: Node [
+        at: View? = { app.focusedView },
+
+        // how it came, keyboard or pointer: a press on the control that already
+        // has focus moves nothing, but the ring goes
+
+        byKeys: boolean = { Focus.byKeyboard() },
+        trackChanges = ["at", "byKeys"],
+        onChange() {
             classroot._noteOverlayFocus()
+            const v = this.at
             if (v == null) { classroot.shown = false; return }
             let n = v
             for (; n != null && n.parent != null; n = n.parent) { }

@@ -264,7 +264,7 @@ class Shot [
     // 0x0B141BB3), so the alpha is the LOW byte: a cool off-white at 0x4D
     // resting, 0x8C when the card is hot.
 
-    shadow = { app.isDark ? shadow(0, 0, 26, hovered || hot ? 0xBFD8EA8C : 0xBFD8EA4D) : shadow(0, hovered || hot ? 12 : 6, hovered || hot ? 30 : 20, hovered || hot ? 0x14202A40 : 0x14202A2E) },
+    shadow = { app.isDark ? Shadow(0, 0, 26, hovered || hot ? 0xBFD8EA8C : 0xBFD8EA4D) : Shadow(0, hovered || hot ? 12 : 6, hovered || hot ? 30 : 20, hovered || hot ? 0x14202A40 : 0x14202A2E) },
 
     pic: Image [ width = 100%, height = 100%,
         fit = both, source = { classroot.src },
@@ -283,7 +283,7 @@ class Shot [
 
     edge: View [ width = 100%, height = 100%, cornerRadius = 12,
         pointerEvents = "none",
-        stroke = { stroke(1, classroot.hovered || classroot.hot ? provided("theme").pointRule : provided("theme").plateEdge) } ]
+        stroke = { Stroke(1, classroot.hovered || classroot.hot ? provided("theme").pointRule : provided("theme").plateEdge) } ]
     ]
 
 
@@ -449,7 +449,7 @@ class AppCard [
 class Point [ width = { Math.min(357, parent.width) },
     ptitle: string = "",
     body:   string = "",
-    stroke = { [ stroke(2, provided("theme").pointRule), null, null, null ] },
+    stroke = { [ Stroke(2, provided("theme").pointRule), null, null, null ] },
     padding = [18, 0, 0, 0],
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     Heading [ fontSize = 17, text = { classroot.ptitle } ],
@@ -476,7 +476,7 @@ class SiteButton extends Button [ height = 46, cornerRadius = 9,
     fill = { primary ? (hovered ? provided("theme").accentHovered : provided("theme").accent)
                      : (hovered ? provided("theme").hover         : provided("theme").surface) },
     State [ applied = { pressed }, fill = { primary ? provided("theme").accentPressed : provided("theme").press } ],
-    stroke = { primary ? null : stroke(1, pressed ? provided("theme").accentSecondary : provided("theme").line) },
+    stroke = { primary ? null : Stroke(1, pressed ? provided("theme").accentSecondary : provided("theme").line) },
 
     // the one ink decision, the library's own seam: the page's ground colour
     // reads on the accent, the ordinary text colour on the quiet fill
@@ -698,7 +698,7 @@ theme Ink [
     // the teal second accent; the brand gradient runs accent → accentSecondary
 
     accentSecondary = #37E0C8, accentSecondaryPress = #9BF2E4,
-    brand = gradient("90deg", #4C8DFF, #37E0C8),
+    brand = Gradient.linear("90deg", #4C8DFF, #37E0C8),
 
     // the sequence badges' disc — true white, not the off-white text tone:
     // a solid counter can take full white where text-on-dark cannot
@@ -730,7 +730,7 @@ theme Paper [
     text = #14202A, lead = #3A4A57, muted = #5A6B78, dim = #72838F, faint = #8A99A4,
     accent = #2F6BDE, accentHovered = #1F58C4, accentPressed = #1A4AA6, linkHover = #1F58C4, linkPress = #173F8C,
     accentSecondary = #0FA38E, accentSecondaryPress = #0B7F6F,
-    brand = gradient("90deg", #2F6BDE, #0FA38E),
+    brand = Gradient.linear("90deg", #2F6BDE, #0FA38E),
 
     // the sequence discs invert on paper: a dark disc under a light digit
 
@@ -1344,7 +1344,7 @@ App [ tagline: string = "a UI language for you and your AI",
             onPointerDown() { Focus.focus(this) },      // a press hands the article the keyboard
 
             // the site's appearance and type, provided to the tenant by name —
-            // it reads each with hostProvided(name, default)
+            // it reads each with app.hostProvided(name, default)
 
             provides = ["hosted", "dark", "headWeight"],
             hosted: boolean = true,
@@ -1372,7 +1372,7 @@ App [ tagline: string = "a UI language for you and your AI",
         // the rule under the header is the header's own bottom border — one
         // side of a four-sided stroke, not a hairline child to keep in step
 
-        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        stroke = { [null, null, Stroke(1, provided("theme").line), null] },
 
         /* The header row, gutter to gutter. ONE ResponsiveLayout decides whether
            the pill row fits, and `share: 0` IS the hiding — so there is no width
@@ -1455,7 +1455,7 @@ App [ tagline: string = "a UI language for you and your AI",
     // Springs; the native cursor stays visible and leads, the dot follows.
 
     pointerDot: View [ ignoreScroll = true, width = 10, height = 10, cornerRadius = 5, fill = { provided("theme").accentSecondary }, opacity = 0.9,
-        shadow = { shadow(0, 0, 12, provided("theme").accentSecondary) },
+        shadow = { Shadow(0, 0, 12, provided("theme").accentSecondary) },
 
         // Decoration, not a target: the dot settles exactly under a resting
         // cursor and the hit chain is occlusion-correct, so without this line the
@@ -1501,7 +1501,7 @@ App [ tagline: string = "a UI language for you and your AI",
             height = { Math.min(this.contentHeight, app.height - this.y - app.safeBottom - 12) },
             scrolls = y, clip = true,
             cornerRadius = 12, padding = 6,
-            fill = { provided("theme").surface }, shadow = { shadow(0, 12, 40, provided("theme").shade) },
+            fill = { provided("theme").surface }, shadow = { Shadow(0, 12, 40, provided("theme").shade) },
             layout: SimpleLayout [ axis = y, spacing = 0 ],
             datapath = { app.navSource.value },
             MobileNavGroup [ datapath = :items[] ]
@@ -1518,7 +1518,7 @@ App [ tagline: string = "a UI language for you and your AI",
         pressPolicy = "dismiss", takesFocus = true, focusScope = modal,
         panel: View [ x = { app.appsX }, y = { app.appsY }, width = 190,
             cornerRadius = 12, padding = 6,
-            fill = { provided("theme").surface }, shadow = { shadow(0, 12, 40, provided("theme").shade) },
+            fill = { provided("theme").surface }, shadow = { Shadow(0, 12, 40, provided("theme").shade) },
             layout: SimpleLayout [ axis = y, spacing = 0 ],
             datapath = { app.appsSource.value },
             MobileNavRow [ datapath = :items[], label = { :label }, link = { :link } ]

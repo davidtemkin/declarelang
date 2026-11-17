@@ -50,30 +50,30 @@ App [ minWidth = 340,
     // A filter by the name a row gives it.
 
     filterFor(fx: string) -> object {
-        if (fx == "blur") return [blur(3)]
-        if (fx == "brightness") return [brightness(1.5)]
-        if (fx == "contrast") return [contrast(1.8)]
-        if (fx == "saturate") return [saturate(2.5)]
-        if (fx == "grayscale") return [grayscale(1)]
-        if (fx == "invert") return [invert(1)]
-        if (fx == "sepia") return [sepia(1)]
-        if (fx == "hueRotate") return [hueRotate(120)]
-        if (fx == "colorize") return [colorize(0x17A34A)]
-        if (fx == "shadow") return [shadow(0, 6, 10, colorWithAlpha(0x000000, 170))]
-        if (fx == "dim") return [brightness(0.5)]
-        if (fx == "halfGray") return [grayscale(0.5)]
-        if (fx == "grayContrast") return [grayscale(1), contrast(1.6)]
-        if (fx == "blurShadow") return [blur(2), shadow(0, 4, 8, colorWithAlpha(0x000000, 136))]
-        if (fx == "sepiaHue") return [sepia(1), hueRotate(180)]
-        if (fx == "invertBlur") return [invert(1), blur(1.5)]
-        if (fx == "shadowTwice") return [shadow(3, 3, 0, 0xE4572E), shadow(-3, -3, 0, 0x2E6FE0)]
-        if (fx == "saturateBright") return [saturate(2), brightness(1.3)]
+        if (fx == "blur") return [VisualFilter.blur(3)]
+        if (fx == "brightness") return [VisualFilter.brightness(1.5)]
+        if (fx == "contrast") return [VisualFilter.contrast(1.8)]
+        if (fx == "saturate") return [VisualFilter.saturate(2.5)]
+        if (fx == "grayscale") return [VisualFilter.grayscale(1)]
+        if (fx == "invert") return [VisualFilter.invert(1)]
+        if (fx == "sepia") return [VisualFilter.sepia(1)]
+        if (fx == "hueRotate") return [VisualFilter.hueRotate(120)]
+        if (fx == "colorize") return [VisualFilter.colorize(0x17A34A)]
+        if (fx == "shadow") return [Shadow(0, 6, 10, Color.withAlpha(0x000000, 0.667))]
+        if (fx == "dim") return [VisualFilter.brightness(0.5)]
+        if (fx == "halfGray") return [VisualFilter.grayscale(0.5)]
+        if (fx == "grayContrast") return [VisualFilter.grayscale(1), VisualFilter.contrast(1.6)]
+        if (fx == "blurShadow") return [VisualFilter.blur(2), Shadow(0, 4, 8, Color.withAlpha(0x000000, 0.533))]
+        if (fx == "sepiaHue") return [VisualFilter.sepia(1), VisualFilter.hueRotate(180)]
+        if (fx == "invertBlur") return [VisualFilter.invert(1), VisualFilter.blur(1.5)]
+        if (fx == "shadowTwice") return [Shadow(3, 3, 0, 0xE4572E), Shadow(-3, -3, 0, 0x2E6FE0)]
+        if (fx == "saturateBright") return [VisualFilter.saturate(2), VisualFilter.brightness(1.3)]
         return null
         },
 
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, ignoreScroll = true,
         fill = { provided("theme").surface },
-        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        stroke = { [null, null, Stroke(1, provided("theme").line), null] },
         brand: Text [ x = 20, y = center, fontSize = 18, fontWeight = semibold, wrap = false, text = "Swatchbook" ],
         pages: Segmented [ y = 11, visible = { !app.matrix },
             x = { Math.max(app.compact ? 150 : 170, (app.width - this.width) / 2) },

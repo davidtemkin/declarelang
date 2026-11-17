@@ -1,32 +1,14 @@
-The focus service, as a member. `Focus` names one concept a program can
-**ask** (`Focus.focus(this)`, `Focus.byKeyboard()` — calls from any `{ }` body) or
-**listen to** (a `Focus [ … ]` member).
-
-Listening is what a focus indicator does: the library's `FocusRing` follows focus with
-exactly these two handlers, tracking where focus went and the live silhouette of whatever
-holds it. Most apps never need it — focus rings, tab order, and activation are provided —
-but replacing the indicator is a supported thing to do, and this is how.
-
-```declare-fragment
-watch: Focus [
-    onFocusChange(v: View) { classroot.target = v },
-    onGeometry(g: FocusGeometry)    { classroot.tx = g.x; classroot.ty = g.y }
-    ]
-```
-
-## focusChange
-`onFocusChange(v)` — focus moved to view `v` (or `null` when nothing is focused).
-
-## geometry
-`onGeometry(g)` — the focused control's live root-space silhouette: `g.x`, `g.y`, `g.w`,
-`g.h`, `g.rad` (its corner radius), `g.view`, and `g.root` (the app that owns it — an
-embedded app's ring ignores a target belonging to another).
+The focus service: what a program asks of focus from any `{ }` body — `Focus.focus(this)`,
+`Focus.byKeyboard()`. Where focus is, is a state: `app.focusedView` (the focused view, or
+`null`), a view's `containsFocus` (focus is on it or inside it), and `app.focusGeometry`
+(the focused control's live outline, what a focus ring follows), read in a constraint and
+watched with `onChange` like any attribute.
 
 ## focus()
 Moves keyboard focus to a view — **the only way to move it**; assigning a control's
 `focused` does not. The call every control makes on pointer-down, so that the keyboard
 picks up where the pointer left off. A view inside a scroller is scrolled into view as it
-takes focus. Focusing a view that can't take focus leaves focus where it is, and says so once in the console. A `quiet` view can take it.
+takes focus. Focusing a view that can't take focus leaves focus where it is, and says so once in the console. So does focusing one inside a hidden view, where focus can't stay: focus it once that view is shown. A `quiet` view can take it.
 
 ```declare-fragment
 onPointerDown() { Focus.focus(this) }

@@ -67,7 +67,7 @@ schema Line [ id: number, status: string, kind?: "hdr", count?: number,
 // `closedAt` honest so no caller has to. Nothing here knows what the user is
 // looking at: filters, selection and the editor's draft belong to the App.
 
-class Issues extends DataSource [ url = { hostProvided("base", "") + "issues.json" }, autoFetch = true, schema = [ issues[]: Issue ],
+class Issues extends DataSource [ url = { app.hostProvided("base", "") + "issues.json" }, autoFetch = true, schema = [ issues[]: Issue ],
 
     // workflow order: the chips, the rail and the grouped list all follow it
 
@@ -230,7 +230,7 @@ class StatusIcon [ width = 14, height = 14,
     s: string = "open",
     ring: View [ x = 0, y = 0, width = 14, height = 14, cornerRadius = 7,
         fill = { s == "blocked" || s == "closed" ? app.statusColor(classroot.s) : null },
-        stroke = { stroke(1.5, app.statusColor(classroot.s)) } ],
+        stroke = { Stroke(1.5, app.statusColor(classroot.s)) } ],
     dot: View [ visible = { s == "in-progress" }, x = 4.5, y = 4.5, width = 5, height = 5, cornerRadius = 2.5,
         fill = { app.statusColor(classroot.s) } ],
     chk: CheckIcon [ visible = { s == "closed" }, x = 1.5, y = 1.5, iconSize = 11, weight = 1.9,
@@ -258,7 +258,7 @@ class Avatar [ width = 22, height = 22, cornerRadius = 11,
     name: string = "",
     capSize: number = 8.5,
     fill = { name == "" ? null : app.hueOf(name) },
-    stroke = { name == "" ? stroke(1, provided("theme").line) : null },
+    stroke = { name == "" ? Stroke(1, provided("theme").line) : null },
     cap: TextLabel [ x = 0, textAlign = center, fontWeight = semibold, wrap = false,
         width = 100%,
         fontSize = { classroot.capSize },
@@ -272,7 +272,7 @@ class Avatar [ width = 22, height = 22, cornerRadius = 11,
 
 class Tag [ height = 18, cornerRadius = 9, padding = [0, 9, 0, 7],
     t: string = "",
-    stroke = { stroke(1, provided("theme").line) },
+    stroke = { Stroke(1, provided("theme").line) },
     layout: SimpleLayout [ axis = x, spacing = 4 ],
     dot: View [ y = 6, width = 6, height = 6, cornerRadius = 3, fill = { app.hueOf(t) } ],
     cap: Text [ y = 2.5, fontSize = 10.5, wrap = false,
@@ -338,7 +338,7 @@ class ListRow extends TableRow [
         ],
 
     fill = { selected ? provided("theme").controlSelected : hovered ? provided("theme").surface : null },
-    stroke = { active && app.list.focusVisible ? stroke(1, provided("theme").accent) : null }
+    stroke = { active && app.list.focusVisible ? Stroke(1, provided("theme").accent) : null }
     ]
 
 
@@ -437,8 +437,8 @@ class IssueRow extends ListRow [
         width = { parent.width - 24 },
         height = { Math.max(0, parent.height - 56) },
         fill = { provided("theme").surface }, cornerRadius = 10,
-        stroke = { stroke(1, provided("theme").line) },
-        shadow = { shadow(0, 4, 16, 0x00000018) }
+        stroke = { Stroke(1, provided("theme").line) },
+        shadow = { Shadow(0, 4, 16, 0x00000018) }
         ],
 
     // An issue row keeps TableRow's selection protocol and adds the context
@@ -616,7 +616,7 @@ class EditorCard [
             add: Control [ height = 22, cornerRadius = 7, width = 26,
                 accessibilityLabel = "Add label",
                 fill = { hovered ? provided("theme").control : null },
-                stroke = { stroke(1, provided("theme").line) },
+                stroke = { Stroke(1, provided("theme").line) },
                 t: Text [ x = 8, y = 3, fontSize = 12, textColor = { provided("theme").textMuted }, text = "+" ],
                 menu = { app.addLabelMenu }
                 ]
@@ -647,7 +647,7 @@ class EditorCard [
             // says what it is in its ink and outline
 
             del: Button [ width = 84, height = { app.footRowH }, visible = { !app.creating }, label = "Delete…",
-                ink = { provided("theme").danger }, stroke = { stroke(1, provided("theme").danger) },
+                ink = { provided("theme").danger }, stroke = { Stroke(1, provided("theme").danger) },
                 onClick() { app.deleteSelection() }
                 ]
             ]
@@ -660,7 +660,7 @@ class EditorCard [
 
 class Facet extends DropButton [ cornerRadius = 7, padding = [0, 6, 0, 10], muted = false,
     field: "status" | "priority" | "assignee" = "status",
-    stroke = { stroke(1, provided("theme").line) },
+    stroke = { Stroke(1, provided("theme").line) },
     menu = { app.facetMenu },
     press() { app.facetField = field; super.press() }
     ]
@@ -1140,13 +1140,13 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // ── the bar — brand · search · scale · appearance ─────────────────────
 
     bar: View [ width = 100%, height = { app.barH }, padding = [0, 14, 0, 24],
-        fill = { provided("theme").surface }, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        fill = { provided("theme").surface }, stroke = { [null, null, Stroke(1, provided("theme").line), null] },
         layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
 
         brand: View [ height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textFill = { gradient("90deg", provided("theme").accent, provided("theme").brandTeal) }, text = "Declare",
+                textFill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").brandTeal) }, text = "Declare",
                 onClick() { app.openURL("apps/homepage/homepage.declare") }
                 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
@@ -1204,7 +1204,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // moving the window — and the flow measures it.
 
     tools: View [ width = 100%, padding = [13, 24, 13, 24],
-        fill = { provided("theme").background }, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        fill = { provided("theme").background }, stroke = { [null, null, Stroke(1, provided("theme").line), null] },
         layout: WrappingLayout [ justify = end, align = center, spacing = 16, rowSpacing = 12 ],
 
         // the filters take the room their row leaves — pushing the actions to
@@ -1284,8 +1284,8 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             creator: View [ visible = { app.creating }, width = 100%, padding = [8, 24, 8, 24],
                 sheet: View [ width = 100%, height = 340, clip = true,
                     fill = { provided("theme").surface }, cornerRadius = 10,
-                    stroke = { stroke(1, provided("theme").line) },
-                    shadow = { shadow(0, 4, 16, 0x00000018) },
+                    stroke = { Stroke(1, provided("theme").line) },
+                    shadow = { Shadow(0, 4, 16, 0x00000018) },
                     card: EditorCard [ width = 100% ]
                     ]
                 ],
@@ -1319,7 +1319,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                 y = { 120 + (1 - this.pop) * 14 },
                 layout: SimpleLayout [ axis = y, spacing = 12 ],
                 ring: View [ x = center, width = 36, height = 36, cornerRadius = 18,
-                    stroke = { stroke(2, provided("theme").line) },
+                    stroke = { Stroke(2, provided("theme").line) },
                     g: Text [ x = 0, y = center, width = 36, textAlign = center, fontSize = 15, textColor = { provided("theme").textMuted }, text = "?" ]
                     ],
                 cap: Text [ width = 280, textAlign = center, fontSize = 14.5, fontWeight = semibold,
@@ -1346,7 +1346,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                 x = { (parent.list.width - this.width) / 2 },
                 y = { parent.height - 60 + (1 - this.lift) * 20 },
                 fill = { provided("theme").tooltipFill },
-                shadow = { shadow(0, 8, 28, 0x00000050) },
+                shadow = { Shadow(0, 8, 28, 0x00000050) },
                 row: View [ height = 28,
                     layout: SimpleLayout [ axis = x, spacing = 14 ],
                     cnt: View [ height = 28,
@@ -1386,14 +1386,14 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         //    from the records, and every row is also a filter. ──────────────
 
         rail: View [ visible = { app.railOn }, width = { app.railW }, height = 100%, clip = true, scrolls = y,
-            padding = 20, stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+            padding = 20, stroke = { [null, null, null, Stroke(1, provided("theme").line)] },
 
             col: View [ width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                 hero: View [ width = 100%, height = 66,
                     n: Roll [ x = 0, y = 0, fontSize = 38, fontWeight = bold, letterSpacing = -1,
-                        textFill = { gradient("90deg", provided("theme").accent, provided("theme").brandTeal) },
+                        textFill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").brandTeal) },
                         n = { app.shownTotal } ],
                     cap: Text [ x = 2, y = 48, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted },
                         text = { app.shownTotal == app.issues.total
@@ -1478,7 +1478,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // ── the footer: the quiet ledger line, how many and how many shown ─────
 
     foot: View [ width = 100%, height = 32, padding = [0, 16, 0, 24],
-        fill = { provided("theme").surface }, stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        fill = { provided("theme").surface }, stroke = { [Stroke(1, provided("theme").line), null, null, null] },
         stats: Text [ y = center, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted },
             text = { app.issues.total.toLocaleString() + " issues   ·   " + app.shownTotal.toLocaleString() + " shown" } ],
         perf: Text [ y = center, fontSize = 10.5, wrap = false, visible = { app.ready && !app.railOn },
@@ -1500,7 +1500,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         col: View [ x = center, y = { app.height * 0.38 }, width = 220,
             layout: SimpleLayout [ axis = y, spacing = 10 ],
             Text [ fontSize = 22, fontWeight = semibold, textAlign = center, width = 220,
-                textFill = { gradient("90deg", provided("theme").accent, provided("theme").brandTeal) }, text = "Tracker" ],
+                textFill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").brandTeal) }, text = "Tracker" ],
             Text [ fontSize = 12.5, textAlign = center, width = 220, textColor = { provided("theme").textMuted },
                 text = { app.issues.failed ? "Could not load issues.json" : "Loading issues…" } ]
             ]

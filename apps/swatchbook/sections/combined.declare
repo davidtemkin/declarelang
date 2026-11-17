@@ -9,13 +9,13 @@ blending nested; 3D with effects.
 
 class ComboSwatch extends Swatch [ name = :name,
     blending: State [ applied = { :fx == "multiply" },
-        ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, fill = gradient(90, #17A34A, #FDE68A) ]
+        ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, fill = Gradient.linear(90, #17A34A, #FDE68A) ]
         ],
     body: View [ x = 36, y = 16, width = 140, height = 88, rotation = { :rot },
-        visualFilter = { ({ shadow: [shadow(0, 6, 10, colorWithAlpha(0x000000, 170))], blur: [blur(2)], grayscale: [grayscale(1)] })[:fx] ?? null },
+        visualFilter = { ({ shadow: [Shadow(0, 6, 10, Color.withAlpha(0x000000, 0.667))], blur: [VisualFilter.blur(2)], grayscale: [VisualFilter.grayscale(1)] })[:fx] ?? null },
         opacity = { :fx == "opacity" ? 0.45 : 1 },
         blendMode = { :fx == "multiply" ? "multiply" : "normal" },
-        mask = { :fx == "mask" ? gradient("90deg", 0x000000, colorWithAlpha(0x000000, 0)) : null },
+        mask = { :fx == "mask" ? Gradient.linear("90deg", 0x000000, Color.withAlpha(0x000000, 0)) : null },
         asText: State [ applied = { :content == "text" },
             word: Text [ y = 24, width = 140, textAlign = center, fontSize = 30, fontWeight = bold, wrap = false,
                 textColor = 0x2E6FE0, text = "Swatch" ]
@@ -65,8 +65,8 @@ class CombinedSection extends Section [ title = "Combined",
     SubHead [ visible = { app.matrix }, text = "Clip × transform" ],
     Grid [ visible = { classroot.showing("clip") },
         Swatch [ name = "rotated child in a clip",
-            View [ x = 36, y = 16, width = 140, height = 88, clip = true, stroke = stroke(1, #111111),
-                View [ x = 20, y = 10, width = 100, height = 68, rotation = 30, fill = gradient(90, #2E6FE0, #E4572E) ]
+            View [ x = 36, y = 16, width = 140, height = 88, clip = true, stroke = Stroke(1, #111111),
+                View [ x = 20, y = 10, width = 100, height = 68, rotation = 30, fill = Gradient.linear(90, #2E6FE0, #E4572E) ]
                 ]
             ],
         Swatch [ name = "rotated clipping parent",
@@ -90,62 +90,62 @@ class CombinedSection extends Section [ title = "Combined",
                 ]
             ],
         Swatch [ name = "mask × rotation",
-            View [ x = 36, y = 16, width = 140, height = 88, rotation = 20, cornerRadius = 12, fill = gradient(90, #2E6FE0, #E4572E),
-                mask = gradient("180deg", #000000, #00000000) ]
+            View [ x = 36, y = 16, width = 140, height = 88, rotation = 20, cornerRadius = 12, fill = Gradient.linear(90, #2E6FE0, #E4572E),
+                mask = Gradient.linear("180deg", #000000, #00000000) ]
             ],
         Swatch [ name = "mask × scale · image",
             Image [ x = 36, y = 16, width = 140, height = 88, scale = 0.8, fit = cover, source = "assets/badge.png",
-                mask = radialGradient(0.5, 0.5, 0.6, #000000, #00000000) ]
+                mask = Gradient.radial(0.5, 0.5, 0.6, #000000, #00000000) ]
             ],
         Swatch [ name = "shadow on a rotated rounded box",
             View [ x = 46, y = 24, width = 120, height = 72, rotation = 12, cornerRadius = 16, fill = #FFFFFF,
-                shadow = shadow(0, 8, 14, #00000066), stroke = stroke(1, #11111122) ]
+                shadow = Shadow(0, 8, 14, #00000066), stroke = Stroke(1, #11111122) ]
             ]
         ],
 
     SubHead [ visible = { app.matrix }, text = "Layers" ],
     Grid [ visible = { classroot.showing("layers") },
         Swatch [ name = "filter over clipped children",
-            View [ x = 36, y = 16, width = 140, height = 88, clip = true, cornerRadius = 12, visualFilter = shadow(0, 6, 10, #000000AA),
+            View [ x = 36, y = 16, width = 140, height = 88, clip = true, cornerRadius = 12, visualFilter = Shadow(0, 6, 10, #000000AA),
                 View [ x = -20, y = -10, width = 100, height = 100, cornerRadius = 50, fill = #2E6FE0 ],
                 View [ x = 70, y = 30, width = 100, height = 100, cornerRadius = 50, fill = #E4572E ]
                 ]
             ],
         Swatch [ name = "blur over a group",
-            View [ x = 36, y = 16, width = 140, height = 88, visualFilter = blur(3),
+            View [ x = 36, y = 16, width = 140, height = 88, visualFilter = VisualFilter.blur(3),
                 View [ width = 80, height = 88, fill = #2E6FE0 ],
                 Text [ x = 60, y = 24, fontSize = 30, fontWeight = bold, text = "Blur" ]
                 ]
             ],
         Swatch [ name = "opacity × blend",
-            View [ x = 20, y = 14, width = 172, height = 92, fill = gradient(90, #17A34A, #FDE68A) ],
+            View [ x = 20, y = 14, width = 172, height = 92, fill = Gradient.linear(90, #17A34A, #FDE68A) ],
             View [ x = 36, y = 24, width = 140, height = 72, opacity = 0.6,
                 View [ width = 90, height = 72, cornerRadius = 36, fill = #E4572E, blendMode = multiply ],
                 View [ x = 50, width = 90, height = 72, cornerRadius = 36, fill = #2E6FE0, blendMode = screen ]
                 ]
             ],
         Swatch [ name = "blend inside an opacity group",
-            View [ x = 20, y = 14, width = 172, height = 92, opacity = 0.7, fill = gradient(90, #2E6FE0, #FDE68A),
+            View [ x = 20, y = 14, width = 172, height = 92, opacity = 0.7, fill = Gradient.linear(90, #2E6FE0, #FDE68A),
                 View [ x = 36, y = 14, width = 100, height = 64, cornerRadius = 32, fill = #E4572E, blendMode = difference ]
                 ]
             ],
         Swatch [ name = "nested masks",
-            View [ x = 36, y = 16, width = 140, height = 88, mask = gradient("90deg", #000000, #00000000),
-                View [ width = 140, height = 88, fill = gradient(180, #2E6FE0, #E4572E), mask = gradient("180deg", #000000, #00000022) ]
+            View [ x = 36, y = 16, width = 140, height = 88, mask = Gradient.linear("90deg", #000000, #00000000),
+                View [ width = 140, height = 88, fill = Gradient.linear(180, #2E6FE0, #E4572E), mask = Gradient.linear("180deg", #000000, #00000022) ]
                 ]
             ],
         Swatch [ name = "filter chain over rich text",
-            HTMLText [ x = 16, y = 16, width = 180, fontSize = 15, visualFilter = [grayscale(1), shadow(0, 2, 3, #00000088)],
+            HTMLText [ x = 16, y = 16, width = 180, fontSize = 15, visualFilter = [VisualFilter.grayscale(1), Shadow(0, 2, 3, #00000088)],
                 html = "<b>Rich</b> text with a <span class='rGrad'>gradient run</span> under two filters." ]
             ],
         Swatch [ name = "frost over a rotated drawing",
             View [ x = 30, y = 20, width = 150, height = 80, rotation = -10,
                 draw(d: DrawContext) { d.fillStyle = 0xE4572E; d.beginPath(); d.arc(40, 40, 36, 0, 6.2832); d.fill(); d.fillStyle = 0x2E6FE0; d.fillRect(80, 10, 60, 60) }
                 ],
-            View [ x = 56, y = 36, width = 100, height = 48, cornerRadius = 12, backdrop = frost(8), fill = #FFFFFF55 ]
+            View [ x = 56, y = 36, width = 100, height = 48, cornerRadius = 12, backdrop = VisualFilter.frost(8), fill = #FFFFFF55 ]
             ],
         Swatch [ name = "drawing under opacity and a mask",
-            View [ x = 16, y = 12, width = 180, height = 96, opacity = 0.7, mask = radialGradient(0.5, 0.5, 0.6, #000000, #00000000),
+            View [ x = 16, y = 12, width = 180, height = 96, opacity = 0.7, mask = Gradient.radial(0.5, 0.5, 0.6, #000000, #00000000),
                 draw(d: DrawContext) { const g = d.createLinearGradient(0, 0, 180, 0); g.addColorStop(0, 0x2E6FE0); g.addColorStop(1, 0xE4572E); d.fillStyle = g; d.fillRect(0, 0, 180, 96) }
                 ]
             ]
@@ -155,7 +155,7 @@ class CombinedSection extends Section [ title = "Combined",
     Grid [ visible = { classroot.showing("depth") },
         Swatch [ name = "rotateY · shadow",
             View [ x = 56, y = 28, width = 100, height = 64, perspective = 400,
-                View [ width = 100, height = 64, pivotX = 50, pivotY = 32, rotateY = 35, cornerRadius = 8, fill = gradient(90, #2E6FE0, #E4572E), shadow = shadow(0, 8, 12, #00000066) ]
+                View [ width = 100, height = 64, pivotX = 50, pivotY = 32, rotateY = 35, cornerRadius = 8, fill = Gradient.linear(90, #2E6FE0, #E4572E), shadow = Shadow(0, 8, 12, #00000066) ]
                 ]
             ],
         Swatch [ name = "rotateX · text",
@@ -165,17 +165,17 @@ class CombinedSection extends Section [ title = "Combined",
             ],
         Swatch [ name = "rotateY · image · mask",
             View [ x = 56, y = 28, width = 100, height = 64, perspective = 400,
-                Image [ width = 100, height = 64, pivotX = 50, pivotY = 32, rotateY = -35, fit = cover, source = "assets/badge.png", mask = gradient("90deg", #000000, #00000000) ]
+                Image [ width = 100, height = 64, pivotX = 50, pivotY = 32, rotateY = -35, fit = cover, source = "assets/badge.png", mask = Gradient.linear("90deg", #000000, #00000000) ]
                 ]
             ],
         Swatch [ name = "3D inside a clip",
-            View [ x = 36, y = 16, width = 140, height = 88, clip = true, stroke = stroke(1, #111111), perspective = 300,
+            View [ x = 36, y = 16, width = 140, height = 88, clip = true, stroke = Stroke(1, #111111), perspective = 300,
                 View [ x = 20, y = 12, width = 100, height = 64, pivotX = 50, pivotY = 32, rotateY = 50, translateZ = 30, fill = #17A34A ]
                 ]
             ],
         Swatch [ name = "3D · opacity · blur",
             View [ x = 56, y = 28, width = 100, height = 64, perspective = 400,
-                View [ width = 100, height = 64, pivotX = 50, pivotY = 32, rotateX = 30, rotateY = 30, opacity = 0.6, visualFilter = blur(1), fill = #E4572E, cornerRadius = 10 ]
+                View [ width = 100, height = 64, pivotX = 50, pivotY = 32, rotateX = 30, rotateY = 30, opacity = 0.6, visualFilter = VisualFilter.blur(1), fill = #E4572E, cornerRadius = 10 ]
                 ]
             ]
         ]

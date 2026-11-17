@@ -21,7 +21,7 @@ theme SanFrancisco [
     control = #E7EBF1, controlHovered = #DCE0E6, controlPressed = #CED2D7, controlSelected = #D3E2FC,
     focusRingStyle = "both", controlCornerRadius = 7,
     tooltipFill = #1B2733, tooltipTextColor = #F4F6FA,
-    menuCornerRadius = 8, menuShadow = shadow(0, 10, 40, #00000038), menuHighlightFill = gradient(#306FE6, #2563D6),
+    menuCornerRadius = 8, menuShadow = Shadow(0, 10, 40, #00000038), menuHighlightFill = Gradient.linear(#306FE6, #2563D6),
     scrimFill = #10151B, scrimOpacity = 0.32, error = #C23528,
     segmentedSelectedFill = #FFFFFF      // the selected segment: the surface
     ]
@@ -34,7 +34,7 @@ theme SanFranciscoDark [
     control = #223040, controlHovered = #2B3949, controlPressed = #364455, controlSelected = #1F3B54,
     focusRingStyle = "both", controlCornerRadius = 7,
     tooltipFill = #E7EEF2, tooltipTextColor = #0F1620,
-    menuCornerRadius = 8, menuShadow = shadow(0, 10, 40, #00000066), menuHighlightFill = gradient(#306FE6, #2563D6),
+    menuCornerRadius = 8, menuShadow = Shadow(0, 10, 40, #00000066), menuHighlightFill = Gradient.linear(#306FE6, #2563D6),
     scrimFill = #000000, scrimOpacity = 0.5, error = #FF7A6E,
     segmentedSelectedFill = #34465A      // the selected segment lifts above the track, as dark themes light what is raised
     ]

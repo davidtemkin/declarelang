@@ -1,11 +1,10 @@
 // Where the keyboard is
-// The focus service as a child: `onFocusChange` reports every move, `next()` and `prev()`
-// walk the tab order from a button. Click a field, then Tab, or use the arrows.
+// Where focus is, is a state: `app.focusedView` is the focused view, read by a constraint.
+// The focus service is asked from a body: `Focus.next()` and `Focus.prev()` walk the tab
+// order from a button. Click a field, then Tab, or use the arrows.
 
 App [ textColor = 0x172530, fontSize = 14,
-    who: string = "nothing",
-    Focus [ onFocusChange() { app.who = Focus.getFocus() == null ? "nothing" : "" + Focus.getFocus().placeholder }
-        ],
+    who: string = { app.focusedView instanceof TextInput ? (app.focusedView as TextInput).placeholder : "nothing" },
     col: View [ x = 20, y = 16, width = { parent.width - 40 },
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         TextInput [ width = 220, placeholder = "first name" ],

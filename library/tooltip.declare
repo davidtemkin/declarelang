@@ -7,8 +7,8 @@ site. It arrives automatically when any view in the program carries a tip, as
 `FocusRing` does; declare your own `Tooltip [ ]` (or subclass) to replace the
 rendition.
 
-It listens to the Tooltips service (a `Tooltips [ onTooltip(e: TooltipEvent) { … } ]` member), which owns the platform
-conventions (the show delay — `tooltipDelay`, ~1s in the Cupertino and Redmond
+It follows `app.tooltipRequest`, the tooltip a view asks for now. The platform's tip service
+owns the conventions (the show delay — `tooltipDelay`, ~1s in the Cupertino and Redmond
 conventions, ~500ms MountainView — instant retarget while showing, hide on
 press). **Placement is theme data too** (`tooltipPlacement`): "below" (the
 default — under the target, centered, flipping above at the edge), "above"
@@ -33,8 +33,8 @@ View [ x = 20, y = 20, width = 130, height = 38, cornerRadius = 8, fill = steelb
 ```
 
 ## label
-The text currently displayed, pushed in by the `Tooltips` service from the hovered view's
-`tooltipLabel`. **A subclass reads this; nothing writes it from app code.**
+The text currently displayed, from the request in `app.tooltipRequest` (the hovered view's
+`tooltipLabel`). **A subclass reads this; nothing writes it from app code.**
 
 ## placement
 Where the chip sits, elected by `provided("theme").tooltipPlacement`: `"below"` (the default,
@@ -119,8 +119,11 @@ class Tooltip extends Floating [
     _px: number = 0,                              // the pointer at show (the "pointer" placement)
     _py: number = 0,
 
-    _tips: Tooltips [
-        onTooltip(e: TooltipEvent) {
+    _tips: Node [
+        req: object = { app.tooltipRequest },
+        trackChanges = ["req"],
+        onChange() {
+            const e = this.req as TooltipEvent
             if (e == null || e.root != app) { classroot.close(); return }
             classroot._ex = e.x; classroot._ey = e.y; classroot._ew = e.w; classroot._eh = e.h
             classroot._px = app.pointerX; classroot._py = app.pointerY   // the pointer as it rests at show
@@ -149,7 +152,7 @@ class Tooltip extends Floating [
 
     cornerRadius = { provided("theme").tooltipCornerRadius },
     fill   = { provided("theme").tooltipFill },
-    stroke = { provided("theme").tooltipStrokeColor != null ? stroke(1, provided("theme").tooltipStrokeColor) : null },
+    stroke = { provided("theme").tooltipStrokeColor != null ? Stroke(1, provided("theme").tooltipStrokeColor) : null },
 
     // pure chrome: never a pointer target — and never on the hover chain
     // either, which is what pointerEvents (unlike a hit-test override) governs;

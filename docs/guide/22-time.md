@@ -209,24 +209,39 @@ attribute over the path (`kind: string = { :kind }`) and name that.
 
 ### When it fires
 
-**At the close of the settle** — after every constraint has re-run and every reader already
-holds the new value. Never in the middle, where half the tree would still be stale. This is
-also why `currentValue` is simply what the attribute holds: by the time your handler runs,
-the change is everywhere it belongs, and `previousValue` is history that nothing in the tree
-is still carrying.
+**When the settle's constraints have come to rest** — after every constraint has re-run and
+every reader already holds the new value. Never in the middle, where half the tree would
+still be stale. This is also why `currentValue` is simply what the attribute holds: by the
+time your handler runs, the change is everywhere it belongs, and `previousValue` is history
+that nothing in the tree is still carrying.
 
-**Once per settle, carrying everything that moved.** `e.changed` is a list, in the order you
-named them, so a node whose two subjects change together acts once rather than twice. A
-value that changes and changes back inside one settle did not change; one that changes twice
-reports the first value and the last.
+**Once per round, carrying everything that moved.** A settle runs in rounds
+([Constraints](declare-docs:guide:constraints@the-settle-when-writes-take-effect)): what a
+handler assigns is settled in a round of its own, and the settle ends when a round assigns
+nothing. Each round, your handler is told every tracked value that differs from what it was
+last told. `e.changed` is a list, in the order you named them, so a node whose two subjects
+change together acts once rather than twice. A value that changes and changes back inside one
+round did not change; one that changes twice in a round reports the first value and the last.
+If another handler's assignment moves it again in a later round, you hear that change too.
 
 **Not at boot.** First values are not changes. Setup that must run once belongs in `onInit`,
 or — when it needs the whole tree standing and measured — in the App's `onReady`.
 
-Your handler's writes are the next settle, so a change may cause a change, and the rules are
-the ones you would want. A handler may not assign a value it was told about, which is a loop
-with a name, and it is refused. A ring — mine moves yours, yours moves mine — ends on its
-own, because a value is delivered at most once per settle chain.
+### When a handler changes things
+
+A handler can do more than look: it can assign an attribute — select the next row, record
+that the terms were read. Assigning a value *other* than the ones it tracks is what handlers
+are for.
+
+**A handler doesn't assign a value it tracks.** It would hear its own assignment in the next
+round. The compiler refuses `x = …` in an `onChange` whose `trackChanges` names `x`. Correct
+a value where it is assigned — the method that sets it, or `admit` on a control — or derive
+the corrected one: `shown = { Math.min(raw, 8) }`.
+
+**Handlers that never come to rest are stopped and named.** Two handlers can drive each
+other — mine moves yours, yours moves mine — with no end. A settle stops after 100 rounds,
+with an error naming the handlers and how often each ran, and what was assigned before the
+stop stands.
 
 ### Conditions as attributes
 

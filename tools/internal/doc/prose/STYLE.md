@@ -117,12 +117,12 @@ language file, a diagnostic — carries the current truth only.
 > `fill` — sets the fill of the view. A `Fill` value; defaults to `null`.
 
 **To standard (leads with the gotcha, then the consequence, then the shape):**
-> What paints the box: a solid `Color` or a `gradient(…)`. `null` (the default) paints
+> What paints the box: a solid `Color` or a `Gradient.linear(…)`. `null` (the default) paints
 > **nothing** — an unfilled box is invisible but still lays out and still catches
 > clicks. In a `[ ]` literal a color is `#RRGGBB`; inside a `{ }` body it is
 > `0xRRGGBB` — the one place the spelling differs.
 > ```declare
-> View [ fill = { gradient("90deg", 0x1E2A36, 0x0B141B) } ]
+> View [ fill = { Gradient.linear("90deg", 0x1E2A36, 0x0B141B) } ]
 > ```
 
 The second says nothing the signature already says, and everything it doesn't.

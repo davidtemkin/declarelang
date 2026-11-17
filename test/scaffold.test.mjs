@@ -115,9 +115,9 @@ function typecheck(scaffold, caseSrc, extra = {}) {
 await test("scaffold: the fixed value prelude mirrors value.ts", () => {
   const s = scaffoldFor(PROGRAM);
   for (const line of [
-    "type Percent = { percent: number };",
-    "type Length = number | Percent;",
-    "type Color = number | null;",
+    "type Length = number | { percent: number };",
+    // the runtime holds a color as its number; code may also write the CSS spellings
+    "type Color = number | `#${string}` | ColorName | null;",
     "type ClipPath = string | null;",
     "type Fill = Color | Gradient;",
     "type Radius = number | readonly [number, number, number, number];",
@@ -126,16 +126,20 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
     // construct yet); `unknown` would flag every correct read of a theme token.
     "type Theme = Readonly<Record<string, any>>;",
     "interface DataCursor { readonly data: any; readonly path: readonly string[] }",
-    "declare function gradient(",
-    "declare function stroke(width: number, color: Color): Stroke;",
-    "declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;",
-    "type FilterList = readonly ImageFilter[];",
-    "declare function frost(radius: number, saturation?: number): FilterList;",
-    "declare function blur(radius: number): ImageFilter;",
-    "declare function colorize(color: Color): ImageFilter;",
-    "declare function radialGradient(cx: number, cy: number, r: number, ",
-    "declare function conicGradient(cx: number, cy: number, angle: number, ",
-    "declare function colorWithAlpha(rgb: number, a: number): number;",
+    // the builders, each through the type it builds
+    "declare function Stroke(width: number, color: Color): Stroke;",
+    "declare function Shadow(dx: number, dy: number, blur: number, color: Color): Shadow;",
+    "declare const Gradient: {",
+    "  linear(...args: (Color | `${number}deg` | { offset: number | null; color: Color })[]): Gradient;",
+    "  radial(cx: number, cy: number, r: number, ",
+    "  conic(cx: number, cy: number, angle: number, ",
+    "declare const VisualFilter: {",
+    "  frost(radius: number, saturation?: number): readonly VisualFilter[];",
+    "  blur(radius: number): VisualFilter;",
+    "  colorize(color: Color): VisualFilter;",
+    "declare const Easing: {",
+    "declare const Color: {",
+    "  withAlpha(c: Color, alpha: number): Color;",
     // Rich-text content built by concatenation: a value's own `<` or `'` would
     // otherwise close an attribute or open an element (and a tag in content can
     // name a program class, so it would open a VIEW).
@@ -149,12 +153,12 @@ await test("scaffold: enum-typed attributes emit named string-literal unions", (
   const s = scaffoldFor(PROGRAM);
   assert.ok(s.includes(`type ImageFit = "none" | "width" | "height" | "both" | "cover" | "contain";`), "ImageFit enum alias");
   assert.ok(s.includes(`type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black" | number;`), "FontWeight enum alias — keywords or a number 1–1000");
-  // Axis reaches the scaffold through a DECLARED enum now (the built-in value
-  // enums are declarable — library SimpleLayout's `axis: Axis = y`):
-  const lib = scaffoldFor(`class S extends Layout [ axis: Axis = y, place() { return [] } ]
+  // LayoutAxis reaches the scaffold through a DECLARED enum now (the built-in value
+  // enums are declarable — library SimpleLayout's `axis: LayoutAxis = y`):
+  const lib = scaffoldFor(`class S extends Layout [ axis: LayoutAxis = y, place() { return [] } ]
 App [ width=1, height=1, layout: S [ ] ]`);
-  assert.ok(lib.includes(`type Axis = "x" | "y";`), "Axis enum alias from a declared attr");
-  assert.ok(classBlock(lib, "S").includes("axis: Axis;"), "the declared slot is enum-typed");
+  assert.ok(lib.includes(`type LayoutAxis = "x" | "y";`), "LayoutAxis enum alias from a declared attr");
+  assert.ok(classBlock(lib, "S").includes("axis: LayoutAxis;"), "the declared slot is enum-typed");
 });
 
 await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nouns", () => {
@@ -211,7 +215,7 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   // characters: each prelude declaration now carries its own doc comment (the
   // sentence the reference and declare-help publish), so the file opens with one.
   const firstDecl = s.split("\n").find((l) => /^(?:type|interface|declare) /.test(l));
-  assert.match(firstDecl ?? "", /^type Percent/, "prelude leads the scaffold");
+  assert.match(firstDecl ?? "", /^type Length/, "prelude leads the scaffold");
 });
 
 await test("scaffold: Text extends View with its own leaf attrs", () => {

@@ -16,7 +16,7 @@
 App [ width = 400, height = 250, fill = #202020,
 
     ground: View [ x = 0, y = 0, width = 400, height = 250,
-        fill = { gradient("90deg", 0xFFD24A, 0x2244AA) } ],
+        fill = { Gradient.linear("90deg", 0xFFD24A, 0x2244AA) } ],
 
     chip: View [ x = 30, y = 30, width = 150, height = 80, blendMode = multiply, fill = #CC3344 ],
 

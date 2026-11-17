@@ -46,7 +46,7 @@ const otherDir = path.join(root, "apps", "other");
 mkdirSync(otherDir, { recursive: true });
 writeFileSync(path.join(otherDir, "other.json"), JSON.stringify({ word: "other's own data" }));
 writeFileSync(path.join(otherDir, "other.declare"), `ship [ islands = ["../other/other"] ]
-App [ width = 160, height = 40, d: DataSource [ url = { hostProvided("base", "") + "other.json" }, autoFetch = true ],
+App [ width = 160, height = 40, d: DataSource [ url = { app.hostProvided("base", "") + "other.json" }, autoFetch = true ],
     t: Text [ x = 4, y = 4, text = { app.d.loaded ? app.d.value.word : "waiting" } ] ]`);
 writeFileSync(path.join(srcDir, "demos", "late.declare"), `App [ width = 120, height = 40, fill = teal, Text [ x = 8, y = 8, text = "late compiled" ] ]`);
 writeFileSync(path.join(srcDir, "shipper.declare"), `ship [

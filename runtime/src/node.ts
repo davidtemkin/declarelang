@@ -14,6 +14,10 @@ import { providedRead, defineAttributes, providedChainMoved, PROVIDED_FACE, disp
 import type { Cursor } from "./data.js";
 import { declareName } from "./declare-name.js";
 
+/** What `afterDelay` hands back: the wait, to drop before it runs (`h.cancel()`).
+ *  An attribute that holds one is typed `DelayHandle?` (`pending: DelayHandle? = null`). */
+export interface DelayHandle { cancel(): void }
+
 /** The cursor read, installed by view.ts. A cursor belongs to a VIEW — it comes
  *  from that view's `datapath` and its place in replication — but the things
  *  that want to read one are often not views: a Spring's target, an Animator's
@@ -96,14 +100,14 @@ export class Node {
     return providedRead(this, name, dflt.length > 0, dflt[0]);
   }
 
-  /** The call behind `afterDelay(ms, fn)` — run `fn` once, `ms` milliseconds from
-   *  now. The compiler rewrites the callee to `this.$afterDelay`, so the wait
-   *  belongs to the node whose handler asked: discarding the node cancels it,
+  /** Run `fn` once, `ms` milliseconds from now. A method of the node, so a bare
+   *  `afterDelay(…)` in a body is its own node's, as a bare `width` is, and the
+   *  wait belongs to the node that asked: discarding the node cancels it,
    *  and the handle's `cancel()` drops it sooner. It never runs inside the
    *  frame that asked — the frame is shown first, so `afterDelay(0, fn)` is "next
    *  frame" — and it reads the wall clock through the one test seam
    *  (wallclock.ts), so a driver that advances Time advances this too. */
-  $afterDelay(ms: number, fn: () => void): { cancel(): void } {
+  afterDelay(ms: number, fn: () => void): DelayHandle {
     // asked by a node already discarded (its handler went on after discarding
     // it): nothing is left to run it on
     if (this.$tornDown) return { cancel: () => {} };
@@ -138,16 +142,14 @@ export class Node {
     return { cancel };
   }
 
-  /** The call behind `afterSettle(fn)` in a handler — run `fn` at the close of
-   *  the current settle. The compiler rewrites the callee to
-   *  `this.$afterSettle`, so the step belongs to the node whose handler asked,
-   *  as `afterDelay`'s wait does: a node discarded before the settle closes
+  /** Run `fn` at the close of the current settle. A method of the node, so the
+   *  step belongs to the node that asked, as `afterDelay`'s wait does: a node discarded before the settle closes
    *  drops it, and its step never reads a node that is gone (a form leaving
    *  the screen inside its own refusal handler threw from its deferred
    *  `showProblems()`). A node discarded before it asks — its handler discarded
    *  it and went on, as a refusal handler that leaves the screen does — has no
    *  step to take. */
-  $afterSettle(fn: () => void): void {
+  afterSettle(fn: () => void): void {
     if (this.$tornDown) return;
     let done = false;
     const cancel = (): void => { if (!done) { done = true; pending(this).delete(cancel); } };
@@ -160,26 +162,7 @@ export class Node {
     });
   }
 
-  /** The read behind `hostProvided("name", default)` — a value this program's
-   *  HOST makes available: an island's `provides` name, a page's
-   *  a page's `tenant.provide(…)`, the native host's launch parameters. The compiler
-   *  rewrites the callee to `this.$hostProvided`; the value lives on the
-   *  running App (its host values), so every node in the program reads the
-   *  same one. The default types the read and stands in when nothing is
-   *  provided (running standalone, or the host did not list the name); with
-   *  no default an absent value throws, naming it. */
-  $hostProvided(name: string, ...dflt: unknown[]): unknown {
-    let top: Node = this;
-    while (top.parent !== null) top = top.parent as Node;
-    const hv = (top as unknown as { $hostValues?: { read(n: string, h: boolean, d: unknown): unknown } }).$hostValues;
-    if (hv == null) {
-      if (dflt.length > 0) return dflt[0];
-      throw new Error(`hostProvided("${name}"): this node is not in a running app`);
-    }
-    return hv.read(name, dflt.length > 0, dflt[0]);
-  }
-
-  /** The read behind `providedTextStyle(overrides?)` — the `TextStyle` in force
+  /** The `TextStyle` in force
    *  at THIS node: the five provided face names, each falling to the same default
    *  a `Text` would (attributes.ts PROVIDED_FACE, the one table), with the
    *  caller's fields replacing any of them.
@@ -191,13 +174,14 @@ export class Node {
    *  value is a property of the node, not of where it is read: a value slot and
    *  that same view's `draw()` get the same record, and a drawing's own `d.font`
    *  state is unrelated to it. */
-  $providedTextStyle(overrides?: Record<string, unknown> | null): Record<string, unknown> {
+  providedTextStyle(overrides?: Record<string, unknown> | null): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const [name, def] of PROVIDED_FACE) out[name] = providedRead(this, name, true, def);
     if (overrides == null) return out;
     for (const k of Object.keys(overrides)) out[k] = overrides[k];
     return out;
   }
+
 
   /** The STRUCTURE cell — lazily created on the first tracked read of this
    *  node's child list (extentOf's contentWidth/contentHeight walk), woken by

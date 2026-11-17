@@ -165,7 +165,7 @@ class Chip extends Control [ height = { app.tap }, cornerRadius = { this.height 
     ink: Color = { provided("theme").tagInks[classroot.index] },
     accessibilityRole = toggle,
     accessibilityPressed = { on },
-    stroke = { stroke(1, provided("theme").lineStrong) },
+    stroke = { Stroke(1, provided("theme").lineStrong) },
     fill = { hovered ? provided("theme").hover : null },
     State [ applied = { classroot.on }, fill = { provided("theme").tagTints[classroot.index] }, stroke = null ],
     layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
@@ -218,7 +218,7 @@ class SmartTile [ height = { app.wide ? 68 : 76 }, cornerRadius = { app.wide ? 1
     link = { "#" + classroot.id },
     onClick() { app.listsOpen = false },     // runs before the link is followed
     fill = { app.tintOf(classroot.id) },
-    stroke = { here ? stroke(1.5, app.fillOf(classroot.id)) : null },
+    stroke = { here ? Stroke(1.5, app.fillOf(classroot.id)) : null },
     accessibilityLabel = { classroot.name + ", " + app.countIn(classroot.id) },
     Badge [ width = { app.wide ? 26 : 30 }, height = { this.width }, place = { classroot.id } ],
     TextLabel [ x = end, height = { app.wide ? 26 : 30 }, fontSize = { app.wide ? 20 : 22 }, fontWeight = bold,

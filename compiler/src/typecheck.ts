@@ -47,20 +47,42 @@
 // bindings, method statements) is checked. Datapath islands (`:path`) are no
 // longer a skip class: compile-time resolution (compile.ts resolveBody,
 // data-paths.md §5) lowers each to `this.$data([…])` BEFORE this phase runs,
-// so a datapath body reaches tsc as plain TypeScript (`$data` is typed in the
-// scaffold, returning `any`; schema-check.ts checks the path against the
-// declared schemas). The island guard below remains for a source that somehow
+// so a datapath body reaches tsc as plain TypeScript. schema-check.ts checks each
+// path against the declared schemas, and its type (pathReadTypes) reaches the body
+// through `this` in the block's header: the body's text is never edited. The island guard below remains for a source that somehow
 // still carries one — skipped, never misparsed.
 
 import ts from "typescript";
 import { type Element, type Method, type Param, type Program, type SchemaDecl } from "../../runtime/dist/parser.js";
 import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
+import { pathReadTypes } from "./schema-check.js";
+let PATH_TYPES: Map<object, { text: string; type: string }[]> = new Map();
 import { programSchemas, resolveWrittenType } from "../../runtime/dist/program-schema.js";
 import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
 import { autoIncludableNames } from "../../runtime/dist/include.js";
-import { generateScaffold, PRELUDE_NAMES, memberSig, tsType, signatureTsType, shapeObjectText, themeTokenTypes } from "./scaffold.js";
+import { generateScaffold, PRELUDE_NAMES, LANGUAGE_STATICS, memberSig, tsType, signatureTsType, shapeObjectText, themeTokenTypes } from "./scaffold.js";
+
+/** What one of Declare's names is, for the message that refuses a program's
+ *  declaration under it: a service, a theme preset, a builder's type, or a type. */
+function declareKindOf(name: string): string {
+  if (RUNTIME_SERVICE_NAMES.has(name)) return `Declare's ${name} service`;
+  if (THEME_PRESET_NAMES.includes(name)) return `Declare's ${name} theme preset`;
+  const reached = TYPE_VALUES[name];
+  if (reached !== undefined) return `Declare's ${name} type, ${reached}`;
+  return "one of Declare's own types";
+}
+/** The types a body also reaches as a value, and how. */
+const TYPE_VALUES: Readonly<Record<string, string>> = {
+  Stroke: "which builds one (Stroke(width, color))", Shadow: "which builds one (Shadow(dx, dy, blur, color))",
+  Gradient: "whose builders are Gradient.linear and its kin", VisualFilter: "whose builders are VisualFilter.blur and its kin",
+  Easing: "whose builders are Easing.steps and its kin", Color: "whose operations are Color.withAlpha, Color.mix and the rest",
+};
+
+/** The services a body asks, by name (Focus, Keyboard): in use at run time. */
+const RUNTIME_SERVICE_NAMES: ReadonlySet<string> = new Set(["Focus", "Keyboard", ...Object.keys(LANGUAGE_STATICS)]);
 import { SCHEMAS, attrType, descendsFrom, type ClassSchema } from "../../runtime/dist/schema.js";
-import { declaredType, isAuthoredUnion, DECLARED_TYPE_NAMES, type AttrType } from "../../runtime/dist/value.js";
+import { declaredType, isAuthoredUnion, hexColor, DECLARED_TYPE_NAMES, type AttrType } from "../../runtime/dist/value.js";
+import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 
 /** TS primitives a Declare type name can resolve to — where "declare it" is
@@ -78,6 +100,8 @@ interface TsDiag {
   message: string;
   line: number;
   character: number; // 0-based column within `line` of the case file
+  /** An arithmetic operand (TS2362/2363) whose type is a Color. */
+  colorOperand?: true;
 }
 
 /** One emitted check-block's line footprint. A TS diagnostic can land on the
@@ -88,6 +112,7 @@ interface TsDiag {
  *  diagnostic speaks about "the { } body of 'width' on this View", never about
  *  check-block internals. */
 interface Unit {
+  owner: object; // the body's holder (a value, a default, a method): what a later rewrite applies to
   src: string; // the body as checked: the author's text with the resolver's rewrites applied
   braceOffset: number; // source offset of the `{` that opens the body
   rewrites: readonly BodyRewrite[]; // the rewrites `src` carries, in the author's body coordinates
@@ -172,7 +197,7 @@ function renamedMember(name: string, type: string): string {
 }
 
 /** Type names an earlier Declare used, each answered with the name it has now. */
-const RENAMED_TYPES: Readonly<Record<string, string>> = { Blend: "BlendMode", Motion: "Easing", MotionCurve: "EasingCurve" };
+const RENAMED_TYPES: Readonly<Record<string, string>> = { Blend: "BlendMode", Motion: "Easing", MotionCurve: "Easing" };
 
 function childPath(cls: string, name: string, own?: Element): string | null {
   // the App is no class: its tree is the program's root; an element's own
@@ -203,7 +228,11 @@ function heldHint(held: string): string {
     : `a child's is: '${held}' (reached through the child that holds it)`;
 }
 
-export function typecheckBodies(text: string, program: Program, mainStart = 0, prefix = "My"): { errors: DeclareError[]; oracle: TypeOracle | null } {
+/** A string literal in a body that TypeScript types as a color, by its holder:
+ *  its place in the body as checked and the number that replaces it. */
+export type ColorLiteral = { start: number; end: number; text: string };
+
+export function typecheckBodies(text: string, program: Program, mainStart = 0, prefix = "My"): { errors: DeclareError[]; oracle: TypeOracle | null; colors?: Map<object, ColorLiteral[]> } {
   CHECKING = program;
   const { schemas } = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name)));
   WORD_TYPES = new Set();
@@ -217,6 +246,7 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
   // narrowing below projects from. Idempotent; errors were already reported by
   // check(); this run is for the projection.
   resolveShapes(rprog, (n) => Object.hasOwn(SCHEMAS, n));
+  PATH_TYPES = pathReadTypes(rprog);
 
   const emitter = new CaseEmitter(schemas, rprog.shapes ?? []);
   // Pass 1 — synthesize each element's INSTANCE type (language §5: an element
@@ -271,11 +301,15 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
   const declared: [string, { name: string; pos: import("../../runtime/dist/errors.js").Pos }[]][] = [
     ["class", rprog.classes], ["schema", rprog.shapes ?? []], ["theme", rprog.themes ?? []], ["style", rprog.styles ?? []],
   ];
-  const takesDeclareType = (kind: string, name: string): boolean => PRELUDE_NAMES.has(name) || WORD_TYPES.has(name)
+  // Every name Declare puts in a program's scope — a type, a builder's type, a
+  // service, a theme preset — is refused as a program's own declaration: the
+  // library's classes are typed in the program's namespace, so a program type
+  // under the name would capture the library's own references.
+  const takesDeclareType = (kind: string, name: string): boolean => PRELUDE_NAMES.has(name) || WORD_TYPES.has(name) || RUNTIME_SERVICE_NAMES.has(name)
     || (kind !== "theme" && THEME_PRESET_NAMES.includes(name)) || (/^[A-Z]/.test(name) && DECLARED_TYPE_NAMES.includes(name))
   const declareTypeErrs: DeclareError[] = []
   for (const [kind, list] of declared) for (const d of list)
-    if (takesDeclareType(kind, d.name)) declareTypeErrs.push(Diag.shadowsDeclareType(kind, d.name, prefix + d.name, d.pos))
+    if (takesDeclareType(kind, d.name)) declareTypeErrs.push(Diag.shadowsDeclareType(kind, d.name, prefix + d.name, d.pos, declareKindOf(d.name)))
   if (emitter.units.length === 0 && emitter.declTypePos.size === 0 && regions.length === 0) return { errors: [...scoped, ...declareTypeErrs], oracle: null };
 
   const { diags, program: tsProgram } = runTsc(scaffold, emitter.caseSrc);
@@ -292,7 +326,7 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
   for (const [kind, list] of declared) for (const d of list) {
     const lib = globals.get(d.name);
     if (lib !== undefined && lib.value) out.push(Diag.shadowsTsGlobal(kind, d.name, lib.file, prefix + d.name, d.pos));
-    else if (takesDeclareType(kind, d.name)) out.push(Diag.shadowsDeclareType(kind, d.name, prefix + d.name, d.pos));
+    else if (takesDeclareType(kind, d.name)) out.push(Diag.shadowsDeclareType(kind, d.name, prefix + d.name, d.pos, declareKindOf(d.name)));
   }
   for (const pos of emitter.literalPaths) out.push(Diag.literalDatapath(pos));
   for (const d of diags) {
@@ -351,7 +385,48 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
   // Deterministic report: same input → same diagnostics, same order (position,
   // then TS code, then text — the loop-stability guarantee evals depend on).
   out.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0) || a.message.localeCompare(b.message));
-  return { errors: out, oracle: buildOracle(tsProgram, emitter) };
+  return { errors: out, oracle: buildOracle(tsProgram, emitter), colors: colorLiterals(tsProgram, emitter) };
+}
+
+/** Every string literal in a body that is headed for a color — TypeScript's
+ *  contextual type is `Color` (or holds it, with no plain `string` beside it) —
+ *  with the number it stands for. `Color` is known by holding the color names: a
+ *  program's own `` `#${string}` `` type is text, and its strings stay strings. A color in code is written as CSS writes it
+ *  (`"#4169E1"`, `"royalblue"`) and runs as the number: the CSS names' table
+ *  stays out of the running program. */
+function colorLiterals(tsProgram: ts.Program, emitter: { units: readonly Unit[]; unitAt(line: number): Unit | null }): Map<object, ColorLiteral[]> {
+  const out = new Map<object, ColorLiteral[]>();
+  const sf = tsProgram.getSourceFile("case.ts");
+  if (sf === undefined || emitter.units.length === 0) return out;
+  const checker = tsProgram.getTypeChecker();
+  const isColorType = (t: ts.Type): boolean => {
+    const parts = t.isUnion() ? t.types : [t];
+    if (parts.some((p) => (p.flags & ts.TypeFlags.String) !== 0)) return false;
+    return parts.some((p) => (p.flags & ts.TypeFlags.TemplateLiteral) !== 0 && (p as ts.TemplateLiteralType).texts?.[0] === "#")
+      && parts.some((p) => p.isStringLiteral() && p.value === "rebeccapurple");
+  };
+  const visit = (n: ts.Node): void => {
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
+      const v = hexColor(n.text) ?? (Object.hasOwn(CSS_COLORS, n.text) ? CSS_COLORS[n.text] : undefined);
+      if (v !== undefined) {
+        const ct = checker.getContextualType(n);
+        if (ct !== undefined && isColorType(ct)) {
+          const start = n.getStart(sf);
+          const line = sf.getLineAndCharacterOfPosition(start).line + 1;
+          const u = emitter.unitAt(line);
+          if (u !== null && line >= u.bodyStart && line < u.bodyStart + u.lineCount) {
+            const from = sf.getPositionOfLineAndCharacter(u.bodyStart - 1, 0);
+            const list = out.get(u.owner) ?? (out.set(u.owner, []), out.get(u.owner)!);
+            list.push({ start: start - from, end: n.end - from, text: v < 0x1000000 ? "0x" + v.toString(16).padStart(6, "0").toUpperCase() : String(v) });
+          }
+        }
+      }
+      return;
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
 }
 
 /** A script with no `host` mark runs on every host, so it may use only what
@@ -612,6 +687,10 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>, b
                 // insetOrRadiusShape exists to prevent on the literal path.
                 : m[2] === "Radius"
                   ? ` — ${insetOrRadiusShape(u.slot)}`
+                // A plain string headed for a color: text is not a color until it
+                // is read as one
+                : m[1] === "string" && (m[2] === "Color" || m[2] === "Fill")
+                  ? ` — a string is text, not a color: read it as one with Color.from(s), which gives null when the text is not a color`
                   : ` — make the expression yield a ${m[2]}`;
         const named = wordAsName(u.rewrites, m[2]);
         return `${home} computes ${article(m[1])}, but '${u.slot}' is typed ${m[2]}${named !== "" ? named : canon}`;
@@ -716,6 +795,11 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>, b
         const above = u.declaresAbove?.(m[1]) ?? null;
         if (above !== null && new RegExp(`\\bclassroot\\s*\\??\\.\\s*${m[1]}\\b`).test(u.src))
           return `'${m[1]}' is not a member of ${quoteType(m[2])} — classroot is the class this is written in, and '${m[1]}' belongs to the ${above} this is placed inside: read it from there with provided("${m[1]}")`;
+        // On an object type — a record, or a lookup written as an object — there is nothing to
+        // declare either: the name is wrong, or the lookup lacks the entry its key can take
+        // (a schema's literal union, read as the key, names every value it may hold)
+        if (m[2].trimStart().startsWith("{"))
+          return `'${m[1]}' is not a member of ${quoteType(m[2])} — fix the name; or, where this is a lookup indexed by a value that can be '${m[1]}', add that entry, or type the lookup Record<string, …> so a missing key reads undefined and a ?? fallback takes it`;
         return PRIMITIVE_TYPES.has(m[2])
           ? `'${m[1]}' is not a member of ${m[2]} — fix the name, or widen the type it was read through`
           : `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
@@ -767,9 +851,9 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>, b
       return msg;
     // Arithmetic over a non-number.
     case 2362:
-      return `the left operand of this arithmetic is not a number — ${home} must compute with numeric attributes or convert explicitly`;
     case 2363:
-      return `the right operand of this arithmetic is not a number — ${home} must compute with numeric attributes or convert explicitly`;
+      if (d.colorOperand === true) return `the ${d.code === 2362 ? "left" : "right"} operand of this arithmetic is a Color — a color with alpha is held in an encoding of its own, so compute with Color's operations: Color.mix(a, b, t), Color.withAlpha(c, a), Color.lighter(c, k), Color.components(c)`;
+      return `the ${d.code === 2362 ? "left" : "right"} operand of this arithmetic is not a number — ${home} must compute with numeric attributes or convert explicitly`;
     case 2365:
       m = msg.match(/Operator '(.+?)' cannot be applied to types '(.+?)' and '(.+?)'/s);
       if (m !== null) return `'${m[1]}' cannot compare ${article(m[2])} with ${article(m[3])} — make both sides the same type`;
@@ -1279,6 +1363,7 @@ class CaseEmitter {
     // lowers islands before this phase, so this only guards a caller handing
     // in un-resolved source; skipped, never misparsed.
     if (fillDatapaths(src) !== src) return;
+
     // `array` and `object` mean in a cast what they mean in a declaration: a list
     // or a record of no declared shape. Same length, so no position moves
     src = src.replace(/(?<![\w$.])as(\s+)array(?![\w$])/g, "as$1any[]").replace(/(?<![\w$.])as(\s+)object(?![\w$])/g, "as$1any   ");
@@ -1321,7 +1406,13 @@ class CaseEmitter {
     // A DataSource's own onLoad runs when its value has landed: there, the
     // value is not null.
     const loaded = !expression && slot === null && owner instanceof Object && (owner as { name?: string }).name === "onLoad" && this.isDataSource(levels[0]);
-    const thisTs = loaded ? `${self} & { value: NonNullable<${self}["value"]> }` : self;
+    const selfTs = loaded ? `${self} & { value: NonNullable<${self}["value"]> }` : self;
+    // A `:path` read is its schema's type (schema-check.ts pathReadTypes): `this` carries one
+    // `$data` signature per path the body reads, ahead of the scaffold's own (`any`), so the
+    // read is typed where it stands — in the header line, and the body's text is untouched
+    const reads = PATH_TYPES.get(owner) ?? [];
+    const thisTs = reads.length === 0 ? selfTs
+      : `{ ${reads.map((r) => `$data(path: readonly ${r.text.slice("this.$data(".length, -1)}): ${r.type};`).join(" ")} } & ${selfTs}`;
     const header = `(function (this: ${thisTs}, parent: ${parent}, classroot: ${root}${baseSig}${paramSig}) {`;
     const footer = `}).call(${inst(thisTs)}, ${inst(parent)}, ${inst(root)}${baseArg}${paramArgs});`;
 
@@ -1358,6 +1449,7 @@ class CaseEmitter {
       this.lines.push(footer);
     }
     this.units.push({
+      owner,
       src,
       braceOffset: brace.offset,
       rewrites: bodyRewrites.get(owner) ?? [],
@@ -1575,7 +1667,18 @@ function runTsc(scaffold: string, caseSrc: string): { diags: TsDiag[]; program: 
     .filter((d) => !UNSATISFIABLE.has(d.code) || writtenMemberMissing(d))
     .map((d) => {
       const lc = d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start) : null;
+      // arithmetic on a color: the operand's type says so, and the message names Color's operations
+      let colorOperand = false;
+      if ((d.code === 2362 || d.code === 2363) && d.file !== undefined && d.start !== undefined) {
+        const find = (n: ts.Node): ts.Node | undefined => n.getStart(sf) === d.start && n.end === d.start! + (d.length ?? 0) ? n : ts.forEachChild(n, (c) => (c.pos <= d.start! && c.end >= d.start! ? find(c) : undefined));
+        const node = find(sf);
+        if (node !== undefined) {
+          const t = program.getTypeChecker().getTypeAtLocation(node);
+          colorOperand = (t.isUnion() ? t.types : [t]).some((p) => (p.flags & ts.TypeFlags.TemplateLiteral) !== 0 && (p as ts.TemplateLiteralType).texts?.[0] === "#");
+        }
+      }
       return {
+        ...(colorOperand ? { colorOperand: true as const } : {}),
         code: d.code,
         message: ts.flattenDiagnosticMessageText(d.messageText, "\n").replace(/\$P\./g, ""),   // the namespace is the scaffold's, not the author's
         line: lc ? lc.line + 1 : 0,

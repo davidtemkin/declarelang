@@ -352,6 +352,8 @@ export async function macBoot(url) {
   // app.fullScreen, both ways: writing it asks the window (the host toggles it
   // when it differs); the window entering or leaving says so (__declareFullScreen)
   app.$fullScreenHost = (on) => { try { H.setFullScreen?.(on); } catch {} };
+  // app.unsavedChanges: the window's edited mark, which also makes closing it ask
+  app.$unsavedHost = (on) => { try { H.setUnsaved?.(on); } catch {} };
   globalThis.__app = app;
   liveApps.set(app, null);       // the root app can publish live edits too
 
@@ -470,7 +472,7 @@ function wireMacHistory(app) {
     H.historyEntry(app.location, app.waypoint, verb, entryId);
     mirrored = app.location;
     mirroredW = app.waypoint;
-  }, "host:history");
+  }, "host:history", true);   // once the whole settle has ended: one entry per settle
   globalThis.__declareTravel = (loc, step, id) => {
     if (currentApp !== app) return;
     // the entry just left, noted before anything changes on screen

@@ -349,7 +349,7 @@ class Combobox extends ValueControl [
         // the list) is leaving the combobox
 
         accessibilityError = { classroot.error },
-        stroke = { stroke(1, classroot.error != "" ? provided("theme").error : this.focused ? provided("theme").accent : provided("theme").line) },
+        stroke = { Stroke(1, classroot.error != "" ? provided("theme").error : this.focused ? provided("theme").accent : provided("theme").line) },
         accessibilityRequired = { classroot.accessibilityRequired },
         onBlur() {
             if (!classroot.listShown()) classroot.judged = true

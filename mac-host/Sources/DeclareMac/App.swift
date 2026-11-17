@@ -788,6 +788,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// correct after a clean quit.
     func sessionChanged() { SessionStore.save(windows.compactMap { $0.sessionEntry }) }
 
+    /// Quitting while a program holds unsaved changes (`app.unsavedChanges`)
+    /// asks first, as closing its window does.
+    func applicationShouldTerminate(_ s: NSApplication) -> NSApplication.TerminateReply {
+        guard windows.contains(where: { $0.window.isDocumentEdited }) else { return .terminateNow }
+        let alert = NSAlert()
+        alert.messageText = "Some windows have changes that haven't been saved."
+        alert.informativeText = "If you quit now, they will be lost."
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Quit Anyway")
+        return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
+    }
+
     func applicationWillTerminate(_ n: Notification) { sessionChanged() }
 
     /// Closing the last window does NOT quit: this host can sit with no windows

@@ -140,14 +140,23 @@ showNewest() {
     },
 ```
 
-`afterSettle(fn)` runs `fn` once, when the settle your handler caused has
-closed, and before that state reaches the screen, so whatever it writes lands in
-the same frame. It is tied to your change, not to a clock. (Work that genuinely is about
+`afterSettle(fn)` runs `fn` once, when the constraints of the settle your handler
+caused have come to rest, and before that state reaches the screen, so whatever it
+writes lands in the same frame. It is tied to your change, not to a clock. (Work that genuinely is about
 the clock — dismiss a notice after eight seconds — is `afterDelay(ms, fn)`, in
 [Time and change events](declare-docs:guide:time@one-later-call-afterdelay).) If you find yourself
 wanting it to wait for something else — data arriving, motion finishing — those are
 values changing (`source.loaded`, `spring.arrived`), and a value changing is what a
 constraint is for.
+
+That is because a settle runs in **rounds**. Each round brings every constraint to rest
+(layout included), then runs the `afterSettle` steps, then delivers change events
+(`onChange`, in [Time and change events](declare-docs:guide:time@change-events-onchange)).
+If a step or a handler assigned anything, that assignment gets a round of its own; the
+settle ends when a round assigns nothing, and only then is anything drawn. A settle that
+never comes to rest — a step that keeps scheduling itself, handlers that keep moving each
+other — is stopped after 100 rounds, with an error naming what kept it going, and what was
+assigned before the stop stands.
 
 One settle has no handler inside it: the first, when the program boots. The App's
 **`onReady()`** handler runs once when that settle closes, with the tree standing and

@@ -166,10 +166,7 @@ Whether the active cell is open in its column's editor. Moving the active cell e
 **Internal.** Gives the keyboard to the active cell's text field, its text selected, once the press or move that made it active has finished.
 
 ## _within
-**Internal.** Whether the keyboard is in the grid — on it, or in a cell's field.
-
-## _focusWatch
-**Internal.** Follows the focus, for `_within`.
+**Internal.** Whether the keyboard is in the grid — on it, or in a cell's field (`containsFocus`).
 
 ## _moveWatch
 **Internal.** Ends the edit when the active cell moves.
@@ -450,9 +447,7 @@ class DataGrid extends Table [
 
     // whether the keyboard is in the grid — on it, or in a cell's field
 
-    _within: boolean = false,
-    _focusWatch: Focus [ onFocusChange() { classroot._within = Focus.holds(classroot) }
-        ],
+    _within: boolean = { this.containsFocus },
 
     // the keyboard coming to the grid, on a cell its text editor edits: the
     // cell's field takes it, its text selected, so typing reaches the cell
@@ -638,7 +633,7 @@ class DataGrid extends Table [
             // shadowed, rounded card floating over its neighbors
 
             fill = { dragging && moved ? provided("theme").surface : null },
-            stroke = { dragging && moved ? stroke(1.5, provided("theme").accent) : activeHere ? stroke(2, provided("theme").accent) : null },
+            stroke = { dragging && moved ? Stroke(1.5, provided("theme").accent) : activeHere ? Stroke(2, provided("theme").accent) : null },
             shadow = { dragging && moved ? (provided("theme").dragShadow) : null },
             cornerRadius = { dragging && moved ? 6 : activeHere ? provided("theme").gridCellCornerRadius : 0 },
             opacity = { dragging && moved ? 0.95 : 1 },
@@ -1065,7 +1060,7 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
     _outlined: boolean = { this.activeHere
         && (this._dataGrid?._editable == true || this._dataGrid?._keyed == true || this._dataGrid?.focusVisible == true) },
     editingHere: boolean = { this._atCell && this._dataGrid?.editing == true },
-    stroke = { this._outlined ? stroke(2, provided("theme").accent) : null },
+    stroke = { this._outlined ? Stroke(2, provided("theme").accent) : null },
     cornerRadius = { provided("theme").gridCellCornerRadius },
 
     // the active cell says so to its grid, which names it to a screen reader —
@@ -1202,7 +1197,7 @@ class DataGridEdit [ width = 100%, height = 100%,
         padding = [0, 4, 0, 4],
         fill = { classroot.open ? provided("theme").surface : null },
         showsCaret = { classroot.open },
-        stroke = { classroot.open ? stroke(1, provided("theme").accent) : null },
+        stroke = { classroot.open ? Stroke(1, provided("theme").accent) : null },
         value = { "" + (:@[(classroot.field)] ?? "") },
         commitOn = { classroot._cell != null && classroot._cell._commitOn == "end" ? "end" : "each" },
         onFocus() {

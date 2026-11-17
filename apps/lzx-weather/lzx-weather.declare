@@ -99,7 +99,7 @@ class WeatherTab [ width = 100%,
             fill = #6F79A7, highlight = #BCC4E2, lowlight = #1A2452,
             opacity = { selected ? 0.33 : 1 } ],
         icon: Image [ source = "resources/slider_icon2.png", x = 2, y = 3 ],
-        caption: Text [ text = { label }, x = 15, y = 4, textShadow = shadow(1, 1, 0, #3B4057),
+        caption: Text [ text = { label }, x = 15, y = 4, textShadow = Shadow(1, 1, 0, #3B4057),
             textColor = { selected ? 0xFFFFFF : 0xCAD0EC } ]
         ]
     ]
@@ -200,8 +200,8 @@ App [ width = 240, height = 320, fill = #EAEAEA,
             // rounded corners. Clicking it fetches the weather (and slides the bar away).
 
             pill: View [ width = 236, height = 28, opacity = 0.7, cornerRadius = 13,
-                fill = gradient(colorStop(0, #C2C2DC), colorStop(0.08, #797AB4),
-                colorStop(0.92, #797AB4), colorStop(1, #27283B)),
+                fill = Gradient.linear(Gradient.stop(0, #C2C2DC), Gradient.stop(0.08, #797AB4),
+                Gradient.stop(0.92, #797AB4), Gradient.stop(1, #27283B)),
                 onClick() {
                     slideOut.start()
                     weatherData.fetch()
@@ -212,18 +212,18 @@ App [ width = 240, height = 320, fill = #EAEAEA,
             // where the original app draws it.
 
             caption: Text [ text = "Enter Zip Code:", x = 15, y = 9,
-                textShadow = shadow(1, 0, 0, #222222) ],
+                textShadow = Shadow(1, 0, 0, #222222) ],
 
             // The zip box: it looks like a text field but is not editable — it
             // just displays app.zip.
 
             field: View [ x = 120, y = 5, width = 80, height = 20,
-                fill = #FFFFFF, stroke = stroke(2, #1A1A1A),
+                fill = #FFFFFF, stroke = Stroke(2, #1A1A1A),
 
                 entry: Text [ x = 3, y = 4, text = { app.zip }, textColor = #000000 ]
                 ],
 
-            ok: Text [ text = "OK", x = 205, y = 9, textShadow = shadow(1, 0, 0, #222222) ]
+            ok: Text [ text = "OK", x = 205, y = 9, textShadow = Shadow(1, 0, 0, #222222) ]
             ]
         ],
 
@@ -259,10 +259,10 @@ App [ width = 240, height = 320, fill = #EAEAEA,
                 weatherData.clear()
                 },
 
-            title:    Text [ text = "Rain or Shine?", x = 8, y = 3, textShadow = shadow(1, 1, 0, #1A2452) ],
+            title:    Text [ text = "Rain or Shine?", x = 8, y = 3, textShadow = Shadow(1, 1, 0, #1A2452) ],
             bullet:   View [ x = 150, y = 6, width = 5, height = 5, fill = #BCC4E2 ],
-            zipLabel: Text [ text = "Zipcode:", x = 159, y = 3, textShadow = shadow(1, 1, 0, #1A2452) ],
-            zip:      Text [ text = { app.zip }, x = 208, y = 3, width = 100, textColor = #CAD0EC, textShadow = shadow(1, 1, 0, #1A2452) ]
+            zipLabel: Text [ text = "Zipcode:", x = 159, y = 3, textShadow = Shadow(1, 1, 0, #1A2452) ],
+            zip:      Text [ text = { app.zip }, x = 208, y = 3, width = 100, textColor = #CAD0EC, textShadow = Shadow(1, 1, 0, #1A2452) ]
             ],
 
         weatherContent: TabSlider [ y = 15, height = 305,
@@ -314,7 +314,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
 
                     radarscan: Image [ x = 20, y = 20, width = 200, height = 135, fit = both,
                         source = "resources/radar_us.png",
-                        fill = #00000054, shadow = shadow(3, 3, 0, #00000054) ]
+                        fill = #00000054, shadow = Shadow(3, 3, 0, #00000054) ]
                     ]
                 ],
 

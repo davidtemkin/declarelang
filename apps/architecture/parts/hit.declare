@@ -22,8 +22,8 @@ class SceneCard [ cornerRadius = 12,
     soft: Color = gray,
     lit: boolean = { this.hovered },
     fill = { this.lit ? this.hue : this.soft },
-    stroke = { stroke(this.lit ? 2 : 1, this.hue) },
-    shadow = { shadow(0, 6, 18, 0x0000001A) },
+    stroke = { Stroke(this.lit ? 2 : 1, this.hue) },
+    shadow = { Shadow(0, 6, 18, 0x0000001A) },
     t: Label [ x = 14, y = 12, fontSize = 15, text = { classroot.title },
         textColor = { classroot.lit ? provided("theme").panel : provided("theme").ink } ],
     s: Note [ x = 14, y = 34, fontSize = 12.5, width = { classroot.width - 28 }, text = { classroot.sub },
@@ -94,14 +94,14 @@ class HitFig extends Plate [
                 pane: View [ x = 40, y = 236, width = 200, height = 104, cornerRadius = 10, clip = true,
                     lit: boolean = { classroot.touch ? classroot.tapped == "Clipped pane" || classroot.tapped == "Child" : this.hovered },
                     fill = { this.lit ? provided("theme").run : provided("theme").runSoft },
-                    stroke = { stroke(this.lit ? 2 : 1, provided("theme").run) },
+                    stroke = { Stroke(this.lit ? 2 : 1, provided("theme").run) },
                     onClick() { classroot.tapped = "Clipped pane" },
                     Label [ x = 12, y = 10, fontSize = 14, text = "Clipped pane",
                         textColor = { parent.lit && !parent.inner.lit ? provided("theme").panel : provided("theme").ink } ],
                     inner: View [ x = 100, y = 44, width = 170, height = 90, cornerRadius = 8,
                         lit: boolean = { classroot.touch ? classroot.tapped == "Child" : this.hovered },
                         fill = { this.lit ? provided("theme").ker : provided("theme").kerSoft },
-                        stroke = { stroke(this.lit ? 2 : 1, provided("theme").ker) },
+                        stroke = { Stroke(this.lit ? 2 : 1, provided("theme").ker) },
                         onClick() { classroot.tapped = "Child" },
                         Label [ x = 10, y = 8, fontSize = 13, text = "Child",
                             textColor = { parent.lit ? provided("theme").panel : provided("theme").ink } ]
@@ -145,7 +145,7 @@ class HitFig extends Plate [
                 // seen, never touched
 
                 badge: View [ x = 290, y = 214, width = 140, height = 34, cornerRadius = 17, pointerEvents = "none",
-                    fill = { provided("theme").panel }, stroke = { stroke(1, provided("theme").hostLine) },
+                    fill = { provided("theme").panel }, stroke = { Stroke(1, provided("theme").hostLine) },
                     Note [ x = center, y = center, fontSize = 12, text = "a label: clicks pass through" ]
                     ]
                 ]

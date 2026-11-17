@@ -59,7 +59,12 @@ action from the keyboard gives it a shortcut of its own.
 Centered in its layer.
 
 ## y
-Near the bottom of its layer, rising a little as it appears.
+Near the bottom of its layer — `clearance` above it — rising a little as it appears.
+
+## clearance
+How far above the bottom of its layer the toast sits: 24 by default. A program with a bar
+of its own along the foot (a phone's tab bar, a player) raises it clear of the bar:
+`clearance = { app.wide ? 24 : 100 + app.safeBottom }`.
 
 ## opacity
 Its open blend.
@@ -95,14 +100,15 @@ class Toast extends Floating [
     accessibilityLabel = { message },
     action: object = null,
     duration: number = 4000,
+    clearance: number = 24,
     _round: number = 0,
 
     x = { (this._hostW - this.width) / 2 },
-    y = { this._hostH - this.height - 24 + 16 * (1 - this.openT) },
+    y = { this._hostH - this.height - this.clearance + 16 * (1 - this.openT) },
     opacity = { this.openT },
     cornerRadius = { provided("theme").toastCornerRadius },
     fill = { provided("theme").tooltipFill },
-    stroke = { provided("theme").tooltipStrokeColor != null ? stroke(1, provided("theme").tooltipStrokeColor) : null },
+    stroke = { provided("theme").tooltipStrokeColor != null ? Stroke(1, provided("theme").tooltipStrokeColor) : null },
     shadow = { provided("theme").toastShadow },
 
     say(m: string, a?: object) {

@@ -132,9 +132,11 @@ const work = (): Work => open ?? between;
 /** The finite motion in flight now, each named by what it moves and where —
  *  `Spring (x) on app.panel`: the settle predicate's tickers (perpetual ones,
  *  a Time or a `repeat = Infinity` loop, are life and never listed). */
-export function motionInFlight(nameOf: (node: object) => string = className): string[] {
-  return sharedClock.tickersNow().filter((t) => (t as { perpetual?: boolean }).perpetual !== true).map((t) => {
-    const owner = (t as { $resolveTarget?: () => object | null }).$resolveTarget?.() ?? (t as { parent?: object | null }).parent ?? null;
+export function motionInFlight(nameOf: (node: object) => string = className, keep: (owner: object) => boolean = () => true): string[] {
+  const ownerOf = (t: object): object | null => (t as { $resolveTarget?: () => object | null }).$resolveTarget?.() ?? (t as { parent?: object | null }).parent ?? null;
+  return sharedClock.tickersNow().filter((t) => (t as { perpetual?: boolean }).perpetual !== true)
+    .filter((t) => { const o = ownerOf(t); return o === null || keep(o); }).map((t) => {
+    const owner = ownerOf(t);
     let where = "";
     if (owner !== null) { try { where = ` on ${nameOf(owner)}`; } catch { where = ` on a ${className(owner)}`; } }
     return `${className(t)}${(t as { attribute?: string }).attribute ? ` (${(t as { attribute?: string }).attribute})` : ""}${where}`;

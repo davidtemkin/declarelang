@@ -115,7 +115,7 @@ export function check(input: Element | Program): DeclareError[] {
   // left unchecked (REFUSED_TAGS) rather than reported as if the author meant
   // the built-in. (A LIBRARY name is refused by the include pass, which knows
   // the manifest.)
-  // The same for a class that takes one of Declare's own type names (Axis…):
+  // The same for a class that takes one of Declare's own type names (LayoutAxis…):
   // refused at the declaration (DECLARE4015), its uses not reported again.
   REFUSED_TAGS = new Set(program.classes.filter((c) => Object.hasOwn(SCHEMAS, c.name) || (/^[A-Z]/.test(c.name) && DECLARED_TYPE_NAMES.includes(c.name))).map((c) => c.name));
   const placementErrors = [...checkPlacements(program), ...checkControlledInput(program), ...checkTagStyleNames(program)];
@@ -661,6 +661,23 @@ function checkElement(
             errors.push(new DeclareError(
               `${schema.name}.trackChanges: '${it.value}' is not a reactive value of ${schema.name} — it names this node's own attributes and facts (to hear a record's field, declare an attribute over the path: 'kind: string = { :kind }')`,
               it.pos));
+          }
+        }
+        // A handler doesn't assign a value it tracks: it would hear its own
+        // assignment as the next change. Refused where the code shows it — a
+        // written list and a handler beside it; anything less visible (an
+        // assignment through a method, a computed list) runs, and a handler
+        // that never comes to rest is stopped and named at run time.
+        const handler = el.methods.find((m) => m.name === "onChange");
+        if (handler !== undefined) {
+          for (const it of attr.value.items) {
+            if (it.kind !== "string") continue;
+            const viaApp = schema.name === "App" && new RegExp(`(?:^|[^.\\w$])app\\.${it.value}\\s*=(?![=>])`).test(handler.body.replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""').replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""));
+            if (writesMember(handler, it.value) || viaApp) {
+              errors.push(new DeclareError(
+                `${schema.name}.onChange assigns '${it.value}', which it tracks — a change handler doesn't assign a value it is told about. Correct a value where it is assigned (the method that sets it, or admit on a control), or derive the corrected one ('shown = { … }'); assigning a different value is allowed`,
+                handler.pos));
+            }
           }
         }
         continue;

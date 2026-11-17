@@ -173,3 +173,203 @@ host. Tests: verify-requests.test ("FilePicker.save downloads the file a press m
 files-save.test (what a native host is handed and answers). The Mac panel is not exercised by
 a test, since it would take the screen.
 
+## Global names: four capitalized kinds, no lowercase platform names
+
+The design in `global-names.md`, built on the branch `global-names`. Every name the platform
+puts in a program's scope is capitalized and is a class, a type, a service or a theme preset;
+the platform adds no lowercase names.
+
+- **Builders on their types**, the same spelling in a bare value and in `{ }`:
+  - `Stroke(…)` and `Shadow(…)`;
+  - `Gradient.linear`, `.radial`, `.conic` and `.stop`;
+  - `VisualFilter.blur` and the other filters (`frost` among them);
+  - `Easing.cubicBezier`, `.back`, `.steps` and `.laszlo`.
+
+  `ImageFilter` and `FilterList` are now `VisualFilter` (and `VisualFilter[]`), and
+  `EasingCurve` is merged into `Easing`. Gone with them: the callee-position rule, the
+  reserved filter method names, and the hidden lowering helper.
+- **`Color`'s operations:**
+  - `Color.withAlpha(c, a)`, with alpha from 0 to 1;
+  - `Color.mix(a, b, t)`;
+  - `Color.lighter` and `Color.darker` (OKLCH);
+  - `Color.contrast(a, b)` (the WCAG ratio);
+  - `Color.components(c)`.
+
+  `colorWithAlpha` and `activeTone` are retired. They ship only in a program that names
+  `Color` (capabilities.ts); an `0xRRGGBBAA` literal compiles to its number. The first-load
+  budget is raised to 180 KB by ruling. The calendar's bit-shifting `mix`
+  helper is replaced by `Color.mix`.
+- **Text:** `measureText(text, style, width)` and `escapeHtml(s)` stay plain functions, the
+  rule's two exceptions: they belong to no type and to no class. `measureText` ships only in a program
+  that names it.
+- **Node methods:** `afterDelay`, `afterSettle` and `providedTextStyle` are now Node methods,
+  one method each (the compiler's rewrite to hidden `$` twins is gone). A bare call in a body
+  resolves to the node's member by the ordinary bare-name rule, so it is unchanged;
+  `this.afterDelay(…)` and `row.afterDelay(…)` also work.
+- **`app.hostProvided(name, fallback)`:** an App method, since the value is the program's,
+  the same from every node. Bare `hostProvided(…)` calls are now `app.hostProvided(…)`.
+- **`provided(…)`** is unchanged: a special form (a literal name wired at compile time, typed
+  by the name, read from the nearest providing ancestor).
+- **Facts instead of relays:**
+  - `app.focusedView`, `View.containsFocus`, `app.focusGeometry` and `app.tooltipRequest` are
+    added;
+  - the `Focus [ ]` and `Tooltips [ ]` classes are removed, and `Keyboard` is a service only;
+  - the library's window, grid, focus ring and tooltip read the facts.
+- **Color strings:** inside `{ }` a color may be written `"#RRGGBB"`, `"#RRGGBBAA"` or a CSS
+  name (`"royalblue"`), beside `0x…`, which stays valid; existing programs are unchanged.
+  - `Color` is `` number | `#${string}` | ColorName | null ``; a misspelled name is a type error.
+  - The compiler replaces each literal TypeScript types as a Color with its number, so the
+    names' table stays out of the running program.
+  - A hex string arriving at run time (from data) is read where it lands: a color slot, a
+    declared `Color`, a builder or a `Color` operation. A color name arriving at run time is
+    refused loudly ("use hex") and paints nothing.
+  - `Color` is a schema field type; the data check accepts a number or a hex string.
+  - Arithmetic on a `Color` is a type error that names `Color`'s operations.
+  - Not covered: a theme token is typed `number` (colors and sizes are not told apart), so a
+    color name written in a theme record in a body is not lowered; a hex string there works.
+- **`app.unsavedChanges`** (new): a fact the program states. While true, leaving the page
+  asks first (the browser's own question), and on the Mac the window shows the edited mark
+  and closing it or quitting asks. From Presentify run 11, which wrote `window.onbeforeunload`.
+- **`destructive: true`** on a `Dialog` button record (new): the label takes the theme's
+  error colour (a destructive default keeps the primary look).
+- **`app.focusGeometry` changes only when the outline does** (fixed after Murmur 18): the
+  focus service re-reported the same outline each settle, so a watcher (the focus ring) heard
+  repeated changes and the runtime warned of a change ring.
+- **`Toast.clearance`** (new, after Cadence 37): how far above the bottom of its layer the
+  toast sits (24 by default), so a program with a bar along its foot raises it clear.
+- **`onChange` hears every change in a settle** (changed, DT, after Venue 36's focus ring
+  missed a second move). A settle runs in **rounds**: constraints come to rest, then the
+  `afterSettle` steps, then change events; what a step or handler assigns is settled in the
+  next round, and nothing paints until a round assigns nothing. A handler is told, each
+  round, every tracked value that differs from what it was last told; the once-per-chain rule
+  and its "ring of change handlers" warning are gone. A handler assigning a value it tracks is
+  refused **at compile time**, where a written `trackChanges` list and an `onChange` beside it
+  show it (`x = …`, `this.x = …`, and `app.x = …` on the App); the run-time throw is gone (it
+  left the value unchanged and could jam a flag, as an independent review's probes showed).
+  A settle kept going for 100 rounds stops with an error naming the handlers and their run
+  counts. Taught in guide 3 § The settle, declare.md §5, the glossary and guide 22.
+- **History: one entry per settle, every round of it** (fixed to match the documented rule).
+  The browser and Mac history mirrors now record when the whole settle has ended, so a handler
+  that moves `location` in a later round no longer makes a second entry (`observe(…, atEnd)`).
+- **A Popover given a width gives it to its content** (fixed, after Venue 37): its body sized
+  itself by what it held whatever the popover's width, so `Popover [ width = 380 ]` around a
+  form at `width = 100%` drew a 380-wide popover with a form 0 wide.
+- **The layout check reports a child that collapses**, not only one that spills: a child that
+  takes its size from a content-sized parent (through any number of such parents — a popover's
+  body) and comes out at 0 is named, with the view to give a size.
+- **`DECLARE4043` (new warning):** a view written inside a `Button`, which lays out only its own
+  icon and label, so the child lands at its top-left; the message names `iconLeft`/`iconRight`.
+- **A failed lookup's "motion is still in flight" note names only motion that could explain it**
+  (after Venue 36 and 37, where it named only the focus ring's glide): motion on a view a lookup
+  can neither find nor be blocked by — no role or text in it, no presses taken — is left out
+  (`__declare.moving(true)`); `drive.settleMotion()` still waits for all of it.
+- **Fix round after the 2026-11-15 rotation** (Presentify 13, NYT 2–4, 7GUIs 4, RealWorld 3):
+  - *Platform:* an auto-fetch decides at the settle's close, always — a source given its `url`
+    as the tree was built fetched before the `headers` declared after it existed (RealWorld 3's
+    token-less reload); a line that begins with `:path` starts a statement (two `:field = …`
+    writes without a semicolon were a syntax error); a diagonal wheel over a pane that scrolls
+    both ways moves both axes (the across-scroller's own wheel listener cancelled the down part).
+  - *Checks and messages:* a size capped with `Math.min(…)` is room given (the open `Menu` was
+    flagged "nothing to scroll"); focusing a focusable view that is hidden says hidden — and
+    names the layout that holds an arrival hidden — not "not focusable"; DECLARE4000's `classFor`
+    advice says the script function returns the class's name, kept with `use [ … ]`.
+  - *Reference:* `Color` (how a color is written; a schema field holding one is `Color`),
+    `afterDelay` returns `DelayHandle`, `Dialog.open`'s records name `destructive`, `Menu.items`
+    (a `command` row runs the binding; `key` written platform-neutral), `Form.error` (several
+    unnamed refusals join; a list reads `errorBody`); guide 15 (optional fields read as
+    `T | null | undefined`; a shapeless field is `any`), guide 18 (Escape on a panel that is not
+    a `Floating`), guide 9 (a view drawn over others takes their hover — a veil — or is
+    decoration with `pointerEvents = "none"`); verify.md (path indices count paint order;
+    scrolling the App from a script).
+  - *Tools:* `drive.read` and `expect.attr` read a path through values, as `look --read` does;
+    requests record the headers the program set (`--requests` prints them); `wheel` logs which
+    number is which; clipped screenshots stay within the window (`captureBeyondViewport: false`),
+    which had dropped hover and resized the page mid-check — in verify, look, and the 7GUIs
+    and NYT drives.
+  - *Closed, no change:* hover vs. presses (DT: today's asymmetry is right — a veil is a use);
+    `""` in a color slot stays an error; no persistence this round; the constraint cycle in
+    Presentify 13 did not reproduce.
+- **`minScale` / `maxScale` (new, View):** the range a view's `scale` stays in, as `minWidth`/`maxWidth`
+  bound a width — a scale written, or computed by a constraint, outside it is held at the nearer
+  bound, and a constraint asks again when a bound moves. They change nothing by themselves: how
+  the scale changes (a pinch, buttons) is the program's. The touch-target check judges a control
+  inside such a view at `maxScale` (Venue 37's overview seats). Names from the precedents (iOS's
+  minimumZoomScale/maximumZoomScale, Flutter's InteractiveViewer minScale/maxScale) and Declare's
+  own min/max pairs. Taught in guide 10 § Bounding a scale.
+- **A `:path` read inside `{ }` has its field's type (DT, 2026-11-16).** Names were already
+  checked there against the schema; the read itself was `any`, so `:done * 2` or
+  `fill = { :tone }` (a string headed for a color) compiled. Now the type check gives each
+  body's `this` one `$data` signature per path it reads (schema-check.ts `pathReadTypes`),
+  in the check block's header — the body's text is never edited. An optional field reads as
+  `T | null | undefined`; an index into an array may be absent; data of no declared shape,
+  and a selection over an array, stay `any`. Declared defaults (`name: T = { :field }`) are
+  checked too, names and types, as attribute values and methods already were.
+  - Evidence: Presentify run 16 painted four data colors straight from `:path` reads, past the
+    `Color.from` rule, because the compiler could not see their type.
+  - Measured before turning it on, over every program in the repository (468: apps, docs
+    demos, saved eval apps): of the 343 that compiled, 2 were newly refused — the two games'
+    `classFor` lookups that left one kind of a literal union out, behind a `??` fallback
+    (completed, behavior unchanged); no already-failing program's errors changed; the 341
+    compiled both ways emit **byte-identical programs and dependency tables**, so nothing
+    changes at run time; compile time over all 468 rose from 56.5 s to 59.7 s. The test
+    suite, with it on, failed only on those two games.
+  - The "not a member" message on an object type no longer advises declaring the name; it
+    names the lookup case (add the entry, or type the lookup `Record<string, …>`).
+  - Guide 15's table loses its braced `:path` row ("nobody yet"): the chapter's rule, "the
+    compiler checks every read it can see", now covers it without a line of its own.
+- **A pointer's frames, documented as the runtime has them (2026-11-16; docs only).** The
+  reference said `deltaX`/`deltaY` are "in root space" on every pointer event. On a drag
+  (`onDragStart`/`onDrag`/`onDragEnd`) the runtime gives them in the frame the dragged view's
+  own `x`/`y` are set in — the root travel divided by the parent chain's scale, plus the
+  scrolling around it since the press (`dragDeltas`, drag-autoscroll.ts) — by design, so
+  `x = startX + e.deltaX` holds under any zoom. Presentify runs 15 and 16 read "root space",
+  divided by their zoom, and failed the same three checks. The `PointerEvent` entry, a
+  per-member entry for each field (`declare-help PointerEvent.deltaX`, which now answers
+  for any shared interface's member, inherited ones included), and guide 9 § Dragging now
+  say what is true.
+- **A color is a value in code; data holds text (DT, 2026-11-16).** Replaces the 11-15 rule that
+  a data schema field holding a color is typed `Color`, and the 11-15 change that typed such a
+  required field non-null.
+  - **`Color` leaves the data schema's field types**, which are JSON's: string, number, boolean,
+    any, a schema, a literal union, a nested record. `fill: Color` gets the refusal `fill: Length`
+    gets. The arrival check's `Color` case is gone. A color in data is a `string` (or a `number`)
+    like any other value the program interprets; nothing is taught about colors in data.
+  - **`Color.from(s)` (new):** the color some text writes (`"#RGB"`, `"#RRGGBB"`,
+    `"#RRGGBBAA"`), or null. **`Color.hex(c)` (new, 11-15):** a color as text, from the
+    renderers' own encoding. The two are the only crossings between text and a color.
+  - **The compile's literal step fires on Declare's `Color` only** (known by holding the color
+    names), not on any `` `#${string}` `` type: a program's own hex type is text.
+  - Why: the evidence was Presentify run 15 (minimal). Its schema typed colors `Color`, as the
+    hint said; the literal step turned the records' `"#5B3DF5"` into `5979637`; the service
+    refused every save (422) — 11 of its 14 failed checks (16 of 19 pass with the literals kept as
+    text). Root: `Color` was a union of encodings (number, hex, name), so each patch moved the
+    ambiguity. Now a `Color` is one thing, a number in the runtime's encoding, and two colors
+    compare with `==`.
+  - The hint for a string headed for a color slot now says: "a string is text, not a color: read
+    it as one with Color.from(s)". The run-time message for an unreadable color string says the
+    same.
+  - Considered and dropped: converting data colors on arrival or on send (a hidden conversion,
+    and partial); a `HexColor` data type (special teaching for one kind of string); the compiler
+    turning names into hex text (left `Color` a union, and parsed on the paint path).
+- **The unit tests counted only what ran before a `summarize` call midway**: 23 later tests ran
+  uncounted (all passing); the summary is now at the end.
+- **The run-time color-string error names its place** (`the color "" on app.….fill …`), after
+  Presentify 12 spent three rounds finding an empty-string default.
+- **A quoted color in a bare value** (`fill = "#4169E1"`, `fill = "royalblue"`) is the same
+  color as unquoted, as a quoted enum token already is (DT, after Presentify 12's probe).
+- **Type renames:** `Numerals` is now `NumeralStyle` (with the attribute `numerals` now
+  `numeralStyle`), `Axis` is now `LayoutAxis`, and `Percent` is internal (inlined in `Length`).
+- **Misuse names the kind.** A service or a builder's type written as a tag is told what it is,
+  and a declaration that takes one of Declare's names is told which kind of name.
+- **Collisions: no shadowing (ruled).** Every Declare name stays refused at the declaration, now
+  with a message naming its kind. A program's own declaration shadowing a type-only name was
+  rejected: a word with a program-dependent meaning makes a program unreadable, as operator
+  overloading does.
+- **Not built: color strings** (the design's second stage).
+
+Migration is out of scope by ruling (DT): the old spellings simply no longer exist.
+
+Tests: the full suite; for the changed surfaces, `scaffold`, `unit`, `slim`, `slim-signals`,
+`subclass-roots`, `focus-ring`, `accessibility-browser`, `api-signatures`, `name-scope`,
+`script-block` and `declarec`.
+

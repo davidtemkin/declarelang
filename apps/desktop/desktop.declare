@@ -85,7 +85,7 @@ class DeskWindow extends Window [ width = 560, height = 400,
 
     frame = false,
     fill = { provided("theme").surface },
-    stroke = { stroke(1, provided("theme").line) },
+    stroke = { Stroke(1, provided("theme").line) },
 
     // The front window floats on a deeper, softer shadow; an inactive one sits
     // closer to the desktop on a lighter, tighter one.
@@ -93,7 +93,7 @@ class DeskWindow extends Window [ width = 560, height = 400,
     inkHi: Color = #0000006B,                    // front-window shadow ink
     inkLo: Color = #00000047,                    // inactive-window shadow ink
 
-    shadow = { app.wm.frontWin == this ? shadow(0, 12, 26, this.inkHi) : shadow(0, 5, 14, this.inkLo) },
+    shadow = { app.wm.frontWin == this ? Shadow(0, 12, 26, this.inkHi) : Shadow(0, 5, 14, this.inkLo) },
 
     title = "",
     active: boolean = { app.wm.frontWin == this },
@@ -515,7 +515,7 @@ class DeskWindow extends Window [ width = 560, height = 400,
         // inactive one drops to the flat background tone.
 
         fill = { classroot.active
-                ? (app.darkMode ? gradient(0x3B3B40, 0x2E2E32) : gradient(0xFAFAFC, 0xE6E6EA))
+                ? (app.darkMode ? Gradient.linear(0x3B3B40, 0x2E2E32) : Gradient.linear(0xFAFAFC, 0xE6E6EA))
                 : provided("theme").background },
         onPointerDown() { classroot.beginDrag() },
         onDrag() { classroot.dragTo() },
@@ -745,7 +745,7 @@ class TrafficLight [ y = 0, width = 14, height = 14, cornerRadius = 7,
 
     fill = { on ? c : (app.darkMode ? 0x54545A : 0xD2D2D6) },
     faint: Color = #00000014,                    // the barely-there rim of an inactive control
-    stroke = { stroke(0.5, on ? rim : this.faint) },
+    stroke = { Stroke(0.5, on ? rim : this.faint) },
 
     // The glyph paths are authored in the control's own 14px box.
 
@@ -859,7 +859,7 @@ class AppGlyph [ width = { this.edge }, height = { this.edge },
     appId: string = "",
     ap: DesktopApp = { app.launcher.byId(this.appId) ?? app.launcher.files },   // falls back to Files while appId is still empty
     cornerRadius = { this.edge * 0.23 }, clip = true,
-    fill = { gradient(this.ap!.hue1, this.ap!.hue2) },
+    fill = { Gradient.linear(this.ap!.hue1, this.ap!.hue2) },
 
     g: Text [ x = center, y = center, fontWeight = semibold, textColor = #FFFFFF,
         fontSize = { classroot.edge * classroot.ap!.gsize },
@@ -1181,7 +1181,7 @@ class ListColumn extends FilesColumn [
                 hl: View [ x = 4, y = 2, width = { parent.width - 8 }, height = { classroot.win!.rowH - 4 }, cornerRadius = 5,
                     visible = { parent.on || parent.ringed },
                     fill = { parent.on ? provided("theme").accent : null },
-                    stroke = { parent.ringed && !parent.on ? stroke(2, provided("theme").accent) : null } ],
+                    stroke = { parent.ringed && !parent.on ? Stroke(2, provided("theme").accent) : null } ],
                 fo: FolderIcon [ x = 11, y = center, visible = { :hasKids } ],
                 fi: FileIcon [ x = 12, y = center, visible = { !:hasKids } ],
                 nm: Text [ x = 34, y = center, fontSize = 13, wrap = false, width = { parent.width - 52 },
@@ -1468,7 +1468,7 @@ class AppWindow extends DeskWindow [ width = 880, height = 560,
         onNavigate(n: IslandNavigation) { app.launcher.openAddress(n, classroot.forApp) },
 
         // what the window provides its tenant, each read there with
-        // hostProvided(name, default): the desktop's appearance (a tenant's
+        // app.hostProvided(name, default): the desktop's appearance (a tenant's
         // Auto mode follows it; toggling re-derives the hosted app), and the
         // app's own base and subject. A tenant that never asks ignores them.
 
@@ -1566,10 +1566,10 @@ class JotWindow extends DeskWindow [ width = 300, height = 250, chrome = false,
     // #4E4E52 rim — a full CSS pixel reads as drawn-on lines, not an edge
 
     fill = #FEF49C,
-    stroke = { stroke(0.5, 0x4E4E52) },
+    stroke = { Stroke(0.5, 0x4E4E52) },
     inkHi = #00000052,
     inkLo = #00000038,
-    shadow = { app.wm.frontWin == this ? shadow(0, 10, 26, this.inkHi) : shadow(0, 3, 9, this.inkLo) },
+    shadow = { app.wm.frontWin == this ? Shadow(0, 10, 26, this.inkHi) : Shadow(0, 3, 9, this.inkLo) },
 
     strip: View [ x = 0, y = 0, width = 100%, height = { classroot.barH },
         fill = { classroot.active ? 0xFEEA3D : 0xFEF49C },
@@ -1583,7 +1583,7 @@ class JotWindow extends DeskWindow [ width = 300, height = 250, chrome = false,
         // angle at bottom-right) and the collapse box in from the right
 
         closeBox: View [ visible = { classroot.active }, x = 11, y = 2.25, width = 7.5, height = 7.5,
-            fill = #FFF49C, stroke = { stroke(1.4, 0xDBC501) },
+            fill = #FFF49C, stroke = { Stroke(1.4, 0xDBC501) },
             onClick() { app.wm.closeWin(classroot) }
             ],
         zoomW: View [ visible = { classroot.active }, x = { parent.width - 33 }, y = 2.25, width = 8, height = 8,
@@ -1843,7 +1843,7 @@ class DockIcon [
 
         scale = { classroot.width / classroot.face },
         cornerRadius = { this.width * 0.23 }, clip = true,
-        fill = { gradient(classroot.ap!.hue1, classroot.ap!.hue2) },
+        fill = { Gradient.linear(classroot.ap!.hue1, classroot.ap!.hue2) },
 
         // Glyph sizes stay fractional — rounding them would tick the art in
         // whole-pixel steps while the plate glides subpixel, a visible jitter.
@@ -3215,7 +3215,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     shortcutPanel: View [ visible = { app.shortcutsShown }, width = 340, x = center,
         y = { Math.max(app.menuBarH + 20, (app.height - this.height) / 2) },
         padding = [8, 18, 14, 18], cornerRadius = 14,
-        fill = { provided("theme").surface }, shadow = shadow(0, 16, 50, #00000059),
+        fill = { provided("theme").surface }, shadow = Shadow(0, 16, 50, #00000059),
         layout: SimpleLayout [ axis = y ],
         datapath = { app.shortcutData.value },
         ShortcutRow [ datapath = :rows[], classFor = { :kind == "head" ? ShortcutHead : ShortcutLine } ]
@@ -3476,8 +3476,8 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             x = center, y = { (parent.height - this.height) / 3 },
             cornerRadius = 20,
             fill = { provided("theme").menuFill != null ? provided("theme").menuFill : provided("theme").surface },
-            stroke = stroke(1, #FFFFFF80),
-            shadow = shadow(0, 16, 50, #00000059),
+            stroke = Stroke(1, #FFFFFF80),
+            shadow = Shadow(0, 16, 50, #00000059),
 
             icon: AppGlyph [ x = 118, y = 26, edge = 64, appId = { app.alert.subject != null ? app.alert.subject.id : "" } ],
             badge: CautionBadge [ x = 162, y = 70, edge = 30 ],
@@ -3493,7 +3493,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
             rick: Image [ source = "rick.jpeg", x = 22, y = 184, width = 256, height = 160,
                 fit = both, cornerRadius = 10, clip = true,
-                stroke = { stroke(1, app.darkMode ? 0xFFFFFF2E : 0x0000002E) } ],
+                stroke = { Stroke(1, app.darkMode ? 0xFFFFFF2E : 0x0000002E) } ],
 
             ok: Button [ x = 16, y = { parent.height - 46 }, width = { parent.width - 32 },
                 label = "OK", primary = true,

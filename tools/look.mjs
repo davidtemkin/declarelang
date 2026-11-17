@@ -76,7 +76,8 @@ actions, run in the order written (each may repeat)
   --filmstrip DIR              with --from-start, a picture of the window at each step too,
                                saved in DIR as 0000ms.png, 0050ms.png, …
   --requests                   print the requests the program has sent so far — its
-                               data sources and streams: method, path, body, status
+                               data sources and streams: method, path, body, the
+                               headers it set (Authorization, Content-Type), status
                                (roles, names, values, states, actions), as it stands then
   --url ADDRESS                look at the app where it is served — a dev server's address
                                (http://127.0.0.1:8200/my-apps/shop/shop.declare) — rather
@@ -254,7 +255,7 @@ const step = (x) => {
         no(new Error("--js is still waiting after 5 s" + (waiting > 0 ? ": " + waiting + " timer" + (waiting === 1 ? " is" : "s are") + " waiting on the app's clock, which moves only with --wait <ms> (a page setTimeout runs on the app's time here)" : " — it never finished")));
       }, 5000).unref?.()),
     ]).catch((e) => expect.fail(e.message))));`;
-    case "requests": return `for (const q of drive.requests()) console.log("request " + q.method + " " + q.path + (q.body !== null ? " " + JSON.stringify(q.body) : "") + (q.status !== null ? " → " + q.status : ""));`;
+    case "requests": return `for (const q of drive.requests()) console.log("request " + q.method + " " + q.path + (q.body !== null ? " " + JSON.stringify(q.body) : "") + (q.headers && Object.keys(q.headers).length ? " headers " + JSON.stringify(q.headers) : "") + (q.status !== null ? " → " + q.status : ""));`;
     case "shot": return `{ const t0 = performance.now(); await page.screenshot({ path: ${JSON.stringify(x.file)} }); globalThis.__declareTiming?.add("screenshot: capture and write", performance.now() - t0); } console.log(${JSON.stringify("shot: " + x.file)});`;
     // a view below the fold is swiped into sight first, as a press on it is
     case "shotOf": return `{ const box = () => page.evaluate((p) => { const n = window.__declare.inspect(p); return n === null ? null : { x: n.rootX, y: n.rootY, width: n.rootWidth, height: n.rootHeight }; }, ${p});
@@ -266,7 +267,7 @@ const step = (x) => {
     if (w <= 0 || h <= 0) expect.fail(${p} + " is outside the window");
     // the box is in the window's frame; a clip is in the page's, which the page's scroll offsets
     const sc = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
-    await page.screenshot({ path: ${JSON.stringify(x.file)}, clip: { x: x + sc.x, y: y + sc.y, width: w, height: h } }); console.log(${JSON.stringify("shot: " + x.file)}); }`;
+    await page.screenshot({ path: ${JSON.stringify(x.file)}, clip: { x: x + sc.x, y: y + sc.y, width: w, height: h }, captureBeyondViewport: false }); console.log(${JSON.stringify("shot: " + x.file)}); }`;
   }
 };
 

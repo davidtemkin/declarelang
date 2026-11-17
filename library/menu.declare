@@ -61,7 +61,11 @@ App [ width = 320, height = 130,
 The rows, as **records — never children**. A menu arranges its own rows, so handing it
 views is not merely discouraged, there is nowhere to put them. The record is
 `{ id, label, key?, command?, icon?, enabled?, checked?, group?, selected?, divider?, submenu?, kind?, props?, minWidth? }`
-(`selected` is read only in a list of choices, a menu whose role is `listbox`);
+(`selected` is read only in a list of choices, a menu whose role is `listbox`).
+**A row that does what a key binding does names its `command`** (`command: "undo"`): choosing
+it runs the binding's method — no switch on `id` in `picked()` — and the row greys while
+nothing answers it. Its `key` is written once, platform-neutral (`key: "Ctrl+Z"`), and shows
+as the person's keyboard spells it (⌘Z on a Mac);
 a plain array is fine (no `Dataset` required). Because it is an ordinary attribute it
 can be a constraint — **derive it from `opener` and one menu serves every row of a
 table**, live while it is open.
@@ -662,7 +666,7 @@ class Menu extends Floating [
 
         fill = { provided("theme").menuFill ?? provided("theme").surface },
         backdrop = { provided("theme").menuBackdrop ?? null },
-        stroke = { stroke(1, provided("theme").line) },
+        stroke = { Stroke(1, provided("theme").line) },
         shadow = { provided("theme").menuShadow },
 
         body: View [ x = 0, y = 5, width = 100%,

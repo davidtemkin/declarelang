@@ -132,8 +132,8 @@ class Tile [ cornerRadius = 20, clip = true,
     span: number = 1,
     baseH: number = 0,
     grows: boolean = true,
-    fill = #FFFFFF14, backdrop = { frost(14, 1.25) },
-    stroke = { stroke(1, 0xFFFFFF29) },
+    fill = #FFFFFF14, backdrop = { VisualFilter.frost(14, 1.25) },
+    stroke = { Stroke(1, 0xFFFFFF29) },
     label: string = "",
     icon: string = "",
 
@@ -196,7 +196,7 @@ class HourStrip extends Tile [ height = 196,
 // the drawn bar.
 
 class DayRow [ height = 42,
-    stroke = [null, null, stroke(1, #FFFFFF22), null],   // the separator is the row's own bottom edge
+    stroke = [null, null, Stroke(1, #FFFFFF22), null],   // the separator is the row's own bottom edge
 
     lo10: number = 0,
     hi10: number = 0,
@@ -518,7 +518,7 @@ class RowSky [ clip = true,
 
     top: number = { ({ night: 0x0A1230, sunny: 0x2E7FD0, cumulus: 0x4A648A })[this.cond] ?? 0x6E7F8E },
     bot: number = { ({ night: 0x2A3A66, sunny: 0x9CC6E8, cumulus: 0x7E9AC0 })[this.cond] ?? 0xA9B6C0 },
-    fill = { gradient("180deg", this.top, this.bot) },
+    fill = { Gradient.linear("180deg", this.top, this.bot) },
 
     // the two photographic conditions wear their photograph. `source` is never
     // empty — an empty src resolves against the document and fetches the page
@@ -593,7 +593,7 @@ class CityRow extends Control [ width = 100%, height = { ROW_H }, cursor = "poin
     scrim: View [ width = 100%, height = 100%, cornerRadius = 14, fill = #0A1422,
         opacity = 0.28, pointerEvents = "none" ],
     ring: View [ width = 100%, height = 100%, cornerRadius = 14, pointerEvents = "none",
-        stroke = { stroke(2, classroot.selected ? 0xFFFFFFE0 : 0xFFFFFF1F) } ],
+        stroke = { Stroke(2, classroot.selected ? 0xFFFFFFE0 : 0xFFFFFF1F) } ],
 
     cityName: Text [ pointerEvents = "none", wrap = false, textColor = white,
         fontWeight = medium, fontSize = 19, x = 14, y = 12, text = :name ],
@@ -721,7 +721,7 @@ class CityView [
         height = { classroot.back.height },
         cornerRadius = { lerp(14, 0, classroot.open) }, pointerEvents = "none",
         opacity = { fadeOut(classroot.open, 4) },
-        stroke = { stroke(2, 0xFFFFFFE0) } ],
+        stroke = { Stroke(2, 0xFFFFFFE0) } ],
 
     // ── the travelling facts ───────────────────────────────────────────────
     // Each lerps between the seat the row gave it and the seat the page wants
@@ -804,8 +804,8 @@ class CityView [
 
 class GlassChip [
     fill = #6E7C8C4D,
-    backdrop = { frost(26, 1.5) },
-    stroke = { stroke(1, 0xFFFFFF4D) }
+    backdrop = { VisualFilter.frost(26, 1.5) },
+    stroke = { Stroke(1, 0xFFFFFF4D) }
     ]
 
 
@@ -1250,11 +1250,10 @@ App [ textColor = whitesmoke, appName = "Weather",
 
     // the same tone fading into the clouds, so the flat band behind the
     // browser's chrome and the textured sky never meet at a hard edge.
-    // `colorWithAlpha` takes alpha as 0…255, not 0…1.
 
     haze: View [ width = 100%, y = { app.scrollY }, height = 140,
         visible = { app.phone }, pointerEvents = "none",
-        fill = { gradient("180deg", colorWithAlpha(app.skyTone, 255), colorWithAlpha(app.skyTone, 0)) } ],
+        fill = { Gradient.linear("180deg", app.skyTone, Color.withAlpha(app.skyTone, 0)) } ],
 
     // ── the phone dialect ─────────────────────────────────────────────────
     // The list is the app, and a city opens in place over its row. The tapped
@@ -1410,7 +1409,7 @@ App [ textColor = whitesmoke, appName = "Weather",
         // the width of a phone
 
         side: View [ width = { SIDEBAR_W }, height = 100%, scrolls = y,
-            fill = #0A1422B8, backdrop = { frost(30, 1.2) },
+            fill = #0A1422B8, backdrop = { VisualFilter.frost(30, 1.2) },
 
             // the sidebar has an inside: the field, the empty note and the list
             // are all written against it, and the scroller's extent counts it

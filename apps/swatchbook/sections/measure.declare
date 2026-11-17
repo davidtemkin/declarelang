@@ -16,7 +16,7 @@ class MeasureSwatch extends Swatch [ name = :name ]
 
 class LineMeasure extends MeasureSwatch [
     line: Text [ x = 14, y = 40, fontSize = 22, wrap = false, text = { :one } ],
-    ring: View [ x = 14, y = 40, width = { parent.line.width }, height = { parent.line.height }, stroke = stroke(1, #E4572E) ]
+    ring: View [ x = 14, y = 40, width = { parent.line.width }, height = { parent.line.height }, stroke = Stroke(1, #E4572E) ]
     ]
 
 
@@ -79,19 +79,19 @@ class MeasureSection extends Section [ title = "Measure",
             ],
         Swatch [ name = "letterSpacing in the measure",
             t: Text [ x = 14, y = 40, fontSize = 18, letterSpacing = 4, text = "TRACKED" ],
-            ring: View [ x = 14, y = 40, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ring: View [ x = 14, y = 40, width = { parent.t.width }, height = { parent.t.height }, stroke = Stroke(1, #E4572E) ]
             ],
         Swatch [ name = "uppercase in the measure",
             t: Text [ x = 14, y = 40, fontSize = 18, textTransform = uppercase, text = "measured caps" ],
-            ring: View [ x = 14, y = 40, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ring: View [ x = 14, y = 40, width = { parent.t.width }, height = { parent.t.height }, stroke = Stroke(1, #E4572E) ]
             ],
         Swatch [ name = "smallCaps in the measure",
             t: Text [ x = 14, y = 40, fontSize = 18, smallCaps = true, text = "Small Caps" ],
-            ring: View [ x = 14, y = 40, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ring: View [ x = 14, y = 40, width = { parent.t.width }, height = { parent.t.height }, stroke = Stroke(1, #E4572E) ]
             ],
         Swatch [ name = "italic overhang",
             t: Text [ x = 14, y = 36, fontSize = 30, italic = true, fontFamily = "Georgia", text = "fjord" ],
-            ring: View [ x = 14, y = 36, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ring: View [ x = 14, y = 36, width = { parent.t.width }, height = { parent.t.height }, stroke = Stroke(1, #E4572E) ]
             ],
         Swatch [ name = "tabular vs proportional",
             a: Text [ x = 14, y = 20, fontSize = 18, numeralWidth = tabular, text = "1111 0000" ],

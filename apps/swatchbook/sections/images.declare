@@ -75,17 +75,17 @@ class ImagesSection extends Section [ title = "Images",
                 ]
             ],
         Swatch [ name = "stroke over an image",
-            View [ x = 36, y = 12, width = 140, height = 96, cornerRadius = 12, clip = true, fill = #DCE3EC, stroke = stroke(5, #111111),
+            View [ x = 36, y = 12, width = 140, height = 96, cornerRadius = 12, clip = true, fill = #DCE3EC, stroke = Stroke(5, #111111),
                 Image [ width = 140, height = 96, fit = cover, source = "assets/badge.png" ]
                 ]
             ],
         Swatch [ name = "shadow around an image",
-            View [ x = 36, y = 12, width = 140, height = 96, cornerRadius = 12, fill = white, shadow = shadow(0, 8, 16, #00000066),
+            View [ x = 36, y = 12, width = 140, height = 96, cornerRadius = 12, fill = white, shadow = Shadow(0, 8, 16, #00000066),
                 Image [ width = 140, height = 96, fit = contain, source = "assets/badge.png" ]
                 ]
             ],
         Swatch [ name = "image's own shadow filter",
-            Image [ x = 36, y = 12, width = 140, height = 96, fit = contain, source = "assets/badge.png", visualFilter = shadow(0, 6, 10, #000000AA) ]
+            Image [ x = 36, y = 12, width = 140, height = 96, fit = contain, source = "assets/badge.png", visualFilter = Shadow(0, 6, 10, #000000AA) ]
             ]
         ]
     ]

@@ -18,7 +18,7 @@
 // tracking path (dep-extract.ts), as a drawing always is.
 
 import { capHeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type FontWeight, type TextTransform } from "./measure.js";
-import type { Numerals, NumeralWidth } from "./font-features.js";
+import type { NumeralStyle, NumeralWidth } from "./font-features.js";
 
 /** What measureText reports — a Text's own fact names. */
 export interface TextMeasure {
@@ -32,7 +32,7 @@ export interface TextMeasure {
 interface StyleFields {
   fontFamily?: unknown; fontSize?: unknown; fontWeight?: unknown; italic?: unknown;
   letterSpacing?: unknown; lineHeight?: unknown; textTransform?: unknown;
-  smallCaps?: unknown; numerals?: unknown; numeralWidth?: unknown; slashedZero?: unknown;
+  smallCaps?: unknown; numeralStyle?: unknown; numeralWidth?: unknown; slashedZero?: unknown;
 }
 
 const num = (v: unknown, dflt: number): number => (typeof v === "number" && Number.isFinite(v) ? v : dflt);
@@ -47,7 +47,7 @@ export function measureText(text: unknown, style: StyleFields | null, width?: nu
     fontWeight: (typeof s.fontWeight === "string" || typeof s.fontWeight === "number" ? s.fontWeight : "normal") as FontWeight,
     italic: s.italic === true,
     smallCaps: s.smallCaps === true,
-    numerals: s.numerals as Numerals | undefined,
+    numeralStyle: s.numeralStyle as NumeralStyle | undefined,
     numeralWidth: s.numeralWidth as NumeralWidth | undefined,
     slashedZero: s.slashedZero === true,
   });

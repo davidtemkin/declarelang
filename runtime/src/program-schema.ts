@@ -24,7 +24,7 @@ export { coerceToken };
 
 /** The default (no schemas declared) — one shared frozen set. */
 const EMPTY_SHAPES: ReadonlySet<string> = new Set();
-import { validateExpr, CONSTRUCTOR_NAMES, FILTER_FN_NAMES } from "./expr.js";
+import { validateExpr } from "./expr.js";
 /** The text face a container provides by declaring it (schema.ts FACE_ATTRS). */
 const PROVIDED_FACE: readonly string[] = ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing"];
 
@@ -33,12 +33,6 @@ const PROVIDED_FACE: readonly string[] = ["textColor", "fontSize", "fontFamily",
  *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
 export const NOUNS = ["this", "parent", "classroot", "app"];
 
-/** The value-constructor names are reserved as member names:
- *  in call position a body's `gradient(…)` is always the constructor, so a
- *  member wearing the name would be unreachable there. (`fill`/`stroke`/
- *  `shadow` are already View attributes — the ordinary collision rules cover
- *  them; this catches the two that are not.) */
-export const RESERVED = CONSTRUCTOR_NAMES;
 
 /** The other node reference the scaffold declares on every View, beside the
  *  §11 nouns above: `children`, Node's own child list. It is not a scope noun
@@ -76,6 +70,7 @@ export interface ClassInfo {
  *  order-free. The two unbuildable shapes are loud errors here: an `extends`
  *  cycle (the chain can never bottom out) and a class that (transitively)
  *  contains itself (it could never finish instantiating). */
+
 const DECLARED_TYPE_SET: ReadonlySet<string> = new Set(DECLARED_TYPE_NAMES);
 
 export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySet<string> = EMPTY_SHAPES): {
@@ -94,7 +89,7 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
   // regardless of source order. `extends` needs the base's ATTRIBUTES to build
   // the chain, so the loop below runs base-before-derived too — by RECURSING
   // into a not-yet-built user base, never by demanding the author sort the file.
-  // A class may not take the name of one of Declare's own value types (Axis,
+  // A class may not take the name of one of Declare's own value types (LayoutAxis,
   // CrossAlign, Color…): every attribute typed by that name — the library's
   // own `axis = y` among them — would resolve to the class, and the errors
   // would land in library files, far from the cause. The class is kept out of
@@ -382,9 +377,6 @@ export function checkDecl(
   const err = (message: string, pos: Pos): CheckedDecl => ({ ok: false, error: new DeclareError(message, pos) });
   if (NOUNS.includes(d.name)) {
     return err(diag`'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
-  }
-  if (RESERVED.includes(d.name) && !FILTER_FN_NAMES.includes(d.name)) {
-    return err(diag`'${d.name}' is a value constructor (gradient, stroke, shadow, colorStop, frost, radialGradient, conicGradient) — it cannot be a member name`, d.pos);
   }
   const structural = structuralReason(d.name);
   if (structural !== null) {

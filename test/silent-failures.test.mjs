@@ -226,12 +226,14 @@ await test("a path by name reaches the field a person means: shown before hidden
   assert.equal(r.status, 0, r.out);
 });
 
-await test("expect.attr on an attribute of a node, written with a dot, says how to split the path", () => {
+await test("expect.attr with a dotted name reads through, as drive.read and look --read do; a wrong value still fails", () => {
   const f = join(DIR, "nodeattr.declare");
   writeFileSync(f, `App [ width = 200, height = 100, weekCount: Node [ shown: number = 3 ] ]`);
-  const r = run("verify.mjs", f, "--assert", script("nodeattr.mjs", `  await expect.attr("app", "weekCount.shown", 3);`), "--rung=5", "--no-boot");
-  assert.notEqual(r.status, 0, r.out);
-  assert.match(r.out, /'weekCount' is a node, not an attribute: the path is "app.weekCount" and the attribute "shown"/, r.out);
+  const ok = run("verify.mjs", f, "--assert", script("nodeattr.mjs", `  await expect.attr("app", "weekCount.shown", 3);`), "--rung=5", "--no-boot");
+  assert.equal(ok.status, 0, ok.out);
+  const bad = run("verify.mjs", f, "--assert", script("nodeattr2.mjs", `  await expect.attr("app", "weekCount.shown", 4);`), "--rung=5", "--no-boot");
+  assert.notEqual(bad.status, 0, bad.out);
+  assert.match(bad.out, /expected app\.weekCount\.shown = 4, got 3/, bad.out);
 });
 
 await test("a path that names nothing is answered with what is nearest there, by name or by what it says", () => {

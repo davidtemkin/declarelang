@@ -54,7 +54,9 @@ says so. To send writes one after another, call the next from `onLoad`, or wait 
 lands in `failed` and `error` — but the flags and `onLoad` are the idiomatic path.
 
 ## autoFetch
-Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.
+Fetch unprompted whenever a non-empty `url` arrives or changes, instead of waiting for
+`fetch()`. An empty `url` fetches nothing: `url = { app.slug == "" ? "" : … }` waits for
+the address.
 **Off by default, and the default is the discipline** — explicit loading is what stops a
 source firing requests nobody asked for as unrelated dependencies settle. Turn it on when
 the address *is* the reactive thing: a detail pane whose `url` derives from the current

@@ -21,7 +21,7 @@
 // So a run asking for features resolves to a DERIVED family name, and the name
 // is what travels:
 //
-//   fontFamily = [Hoefler, "Georgia"] + numerals = lining
+//   fontFamily = [Hoefler, "Georgia"] + numeralStyle = lining
 //     → "Hoefler--ot--lnum, Hoefler, Georgia--ot--lnum, Georgia"
 //
 // Every base family stays in the list right behind its derived twin, so a
@@ -37,17 +37,17 @@
 import { derivedName, ensureDerived } from "./font-derive.js";
 
 /** The shape of the digits: `normal` is whatever the face does by default. */
-export type Numerals = "normal" | "lining" | "oldstyle";
+export type NumeralStyle = "normal" | "lining" | "oldstyle";
 /** The advance of the digits: `tabular` = every digit the same width. */
 export type NumeralWidth = "normal" | "tabular" | "proportional";
 
 /** A style's OpenType feature tags, sorted so one combination has one name. */
 export function featureTags(style: {
-  numerals?: Numerals; numeralWidth?: NumeralWidth; slashedZero?: boolean;
+  numeralStyle?: NumeralStyle; numeralWidth?: NumeralWidth; slashedZero?: boolean;
 }): string[] {
   const tags: string[] = [];
-  if (style.numerals === "lining") tags.push("lnum");
-  else if (style.numerals === "oldstyle") tags.push("onum");
+  if (style.numeralStyle === "lining") tags.push("lnum");
+  else if (style.numeralStyle === "oldstyle") tags.push("onum");
   if (style.numeralWidth === "tabular") tags.push("tnum");
   else if (style.numeralWidth === "proportional") tags.push("pnum");
   if (style.slashedZero === true) tags.push("zero");

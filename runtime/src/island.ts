@@ -32,7 +32,10 @@ export function islandProvision(island: Island, name: string): unknown {
   const v = (island as unknown as { $provided(n: string, d: unknown): unknown }).$provided(name, undefined);
   // the overlay layer goes on up the chain: nothing in this program provides
   // one, so the one this program's own host provides (planes.md §12)
-  if (v === undefined && name === OVERLAYS) return (island as unknown as { $hostProvided(n: string, d: unknown): unknown }).$hostProvided(name, undefined);
+  if (v === undefined && name === OVERLAYS) {
+    const app = (island as unknown as { $root: { hostProvided?(n: string, d: unknown): unknown } | null }).$root;
+    return app?.hostProvided?.(name, undefined);
+  }
   return v;
 }
 
@@ -141,7 +144,7 @@ export class Island extends View {
    *  it). What a hosted side's read resolves to. */
   $providedValue(name: string): unknown {
     if (!providesOf(this).includes(name)) {
-      console.warn(`[Declare] hostProvided("${name}"): this island does not list '${name}' in its provides (${providesOf(this).join(", ") || "none"})`);
+      console.warn(`[Declare] app.hostProvided("${name}"): this island does not list '${name}' in its provides (${providesOf(this).join(", ") || "none"})`);
       return undefined;
     }
     return islandProvision(this, name);

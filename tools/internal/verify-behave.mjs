@@ -40,6 +40,28 @@ function findChrome() {
 }
 
 /** The one failure type the runners report in the diagnostic register. */
+/** A path read through: the longest prefix that names a view, then the rest as members of
+ *  its values (`app.deck.value.slides.length`, `app.hist.undos.length`) — one reading for
+ *  drive.read, expect.attr and `declare-look --read`. Runs in the page. */
+const READ_THROUGH = (full) => {
+  const d = window.__declare, segs = full.match(/"[^"]*"|[^.]+/g) ?? [];
+  for (let k = segs.length - 1; k > 0; k--) {
+    let v = d.find(segs.slice(0, k).join("."));
+    if (v == null) continue;
+    for (const s of segs.slice(k)) {
+      const name = s.replace(/^"|"$/g, "");
+      if (v == null || typeof v !== "object" || !(name in Object(v))) {
+        if (v != null && typeof v !== "object" && name in Object(v)) { v = v[name]; continue; }
+        return { noMember: `'${segs.slice(0, k).join(".")}' has no '${segs.slice(k).join(".")}'${v == null ? ` (it reads ${v} before '${name}')` : ""}` };
+      }
+      v = v[name];
+    }
+    if (typeof v === "object" && v !== null && "children" in v) return { value: `(a ${v.constructor?.name ?? "view"})` };
+    try { return { value: JSON.parse(JSON.stringify(v ?? null)) }; } catch { return { value: String(v) }; }
+  }
+  return { missing: segs.length > 1 ? segs.slice(0, -1).join(".") : full };
+};
+
 export class VerifyAssertion extends Error {}
 
 // ── the ephemeral host (shared by rungs 5 and 6) ────────────────────────────
@@ -262,7 +284,9 @@ bootHost(cfg);
         let pageOrigin = null;
         try { pageOrigin = new URL(page.url()).origin; } catch { /* no page yet */ }
         if (u.origin === pageOrigin && u.pathname === "/compile") return;
-        const q = { method: r.method(), url: r.url(), path: u.pathname + u.search, body: parseBody(r.postData()), status: null, $req: r };
+        // the headers the program set (an Authorization, a Content-Type), not the ones the browser adds
+        const headers = Object.fromEntries(Object.entries(r.headers()).filter(([k]) => !/^(sec-|user-agent$|accept|referer$|origin$|cache-control$|pragma$|connection$|host$|content-length$|priority$)/.test(k)));
+        const q = { method: r.method(), url: r.url(), path: u.pathname + u.search, body: parseBody(r.postData()), headers, status: null, $req: r };
         // a request the script answers itself (request interception's respond)
         // or aborts never reaches the service: it is not a write to it
         for (const verb of ["respond", "abort"]) {
@@ -985,7 +1009,7 @@ bootHost(cfg);
       // beside a refused press or a value read now: there it reads as a cause
       const heldNote = async () => {
         const h = await page.evaluate(() => ({ timers: globalThis.__declareTimers?.pending?.() ?? 0 })).catch(() => ({ timers: 0 }));
-        const moving = await inFlight(page);
+        const moving = await inFlight(page, true);   // only motion a lookup could see or be blocked by
         const said = [];
         if (moving !== "") said.push(`motion is still in flight (${moving}) — the program's time stands still between steps; drive.settleMotion() runs it to rest`);
         if (h.timers > 0) said.push(`${h.timers} timer${h.timers === 1 ? "" : "s"} still waiting — drive.wait(ms) runs them`);
@@ -1365,7 +1389,7 @@ bootHost(cfg);
          *  takes it. */
         async wheel(path, dy, dx = 0) {
           const c = await reach(path);
-          step(`wheel ${path} by (${dx}, ${dy})`);
+          step(`wheel ${path} by ${dy} down${dx !== 0 ? `, ${dx} across` : ""}`);
           await page.mouse.move(c.x, c.y);
           // A native scroll lands after the wheel event, over frames of its own:
           // count the page's scroll events, and wait until three frames go by
@@ -1518,17 +1542,17 @@ bootHost(cfg);
          *  for the file; none is said, never taken for an empty one. */
         async download(fn, { timeout = 5000 } = {}) {
           const dir = mkdtempSync(join(tmpdir(), "declare-download-"));
-          // the browser's own target, in a Chrome shared between calls: an attach
-          // can miss while other calls open and close their pages ("No target with
-          // given id found", the full suite, 2026-11-14) — asked again, briefly
-          let s = null;
-          for (let tries = 0; s === null; tries++) {
-            try { s = await page.browser().target().createCDPSession(); }
-            catch (e) {
-              if (tries >= 4 || !/No target with given id/.test(String(e?.message))) throw e;
-              await new Promise((r) => setTimeout(r, 100));
-            }
-          }
+          // Browser-level commands and events go over the connection's ROOT
+          // session, which every connection has: no target is attached, so
+          // nothing can race the other calls sharing this Chrome.
+          const pageSession = await page.createCDPSession();
+          const root = pageSession.connection();
+          const handlers = [];
+          const s = {
+            send: (method, params) => root.send(method, params),
+            on: (event, fn) => { root.on(event, fn); handlers.push([event, fn]); },
+            detach: async () => { for (const [event, fn] of handlers) root.off(event, fn); await pageSession.detach(); },
+          };
           try {
             const ctx = page.browserContext().id;
             await s.send("Browser.setDownloadBehavior", { behavior: "allowAndName", downloadPath: dir, eventsEnabled: true, ...(ctx ? { browserContextId: ctx } : {}) });
@@ -1590,15 +1614,9 @@ bootHost(cfg);
          *  attribute after the last dot, on the view the rest names. A view comes
          *  back as its class's name; a path that names no view is said. */
         async read(path) {
-          const r = await page.evaluate((full) => {
-            const k = full.lastIndexOf(".");
-            const n = k > 0 ? window.__declare.find(full.slice(0, k)) : null;
-            if (n == null) return { missing: full.slice(0, k > 0 ? k : full.length) };
-            const v = n[full.slice(k + 1)];
-            if (typeof v === "object" && v !== null && "children" in v) return { value: `(a ${v.constructor?.name ?? "view"})` };
-            try { return { value: JSON.parse(JSON.stringify(v ?? null)) }; } catch { return { value: String(v) }; }
-          }, path);
+          const r = await page.evaluate(READ_THROUGH, path);
           if (r.missing !== undefined) throw new VerifyAssertion(await noNode(r.missing));
+          if (r.noMember !== undefined) throw new VerifyAssertion(r.noMember);
           return r.value;
         },
         page,
@@ -1734,10 +1752,13 @@ const expect = {
           // find(path)[attr] is the LIVE read — it answers for formula-defaulted
           // slots too, where explain()'s value can be absent (a formula has no
           // cell); explain stays the fallback for what find cannot reach.
-          const v = await page.evaluate((p, a) => {
+          // a dotted name reads on through the value (`expect.attr("app.deck", "value.title", …)`),
+          // as drive.read and `declare-look --read` do
+          const v = await page.evaluate((p, a, through) => {
+            if (a.includes(".")) { const r = eval("(" + through + ")")(p + "." + a); return r.value; }
             const n = window.__declare.find(p);
             return n != null && a in n ? n[a] : window.__declare.explain(p, a)?.value;
-          }, path, name);
+          }, path, name, READ_THROUGH.toString());
           // STRUCTURAL equality: these values crossed the page boundary as
           // JSON, so identity is the wrong comparator — it failed every array
           // while printing two identical-looking values at the reader.
@@ -2255,9 +2276,14 @@ async function shootApp(page) {
     const a = window.__declare.inspect();
     return { width: a.width, height: a.height, top: window.scrollY };
   });
+  // A capture wider than the window resizes the page for the shot, and the pointer leaves it:
+  // every hover is gone from the picture. Within the window, it is taken as the person sees it.
+  const vp = page.viewport();
+  const fits = vp !== null && app.width <= vp.width && app.height <= vp.height;
   return page.screenshot({
     clip: { x: 0, y: app.top, width: Math.max(1, Math.ceil(app.width)), height: Math.max(1, Math.ceil(app.height)) },
     encoding: "base64",
+    captureBeyondViewport: !fits,
   });
 }
 
@@ -2304,6 +2330,7 @@ async function shootFrames(page, viewportH) {
       data: await page.screenshot({
         clip: { x: 0, y: top, width: Math.max(1, Math.ceil(extent.w)), height: Math.min(step, total - top) },
         encoding: "base64",
+        captureBeyondViewport: false,   // a frame of the window: keep the hover the person would see
       }),
     });
   }

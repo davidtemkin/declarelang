@@ -125,9 +125,11 @@ export interface Capability {
 /** The rich text classes: what reads tags and attributes from text as it arrives. */
 const RICH_TEXT = ["Markdown", "HTMLText", "RichText"] as const;
 
-/** The effect constructors a literal slot or a body can name (effects.ts). */
-const EFFECT_CALLS = ["blur", "brightness", "contrast", "saturate", "grayscale", "invert",
-  "sepia", "hueRotate", "colorize", "frost", "radialGradient", "conicGradient"] as const;
+/** The globals whose builders live in effects.ts: every `VisualFilter`, and the
+ *  radial and conic `Gradient`s. Keyed on the GLOBAL, a signal with no exceptions
+ *  (never on a member's name): a program naming `Gradient` carries the module,
+ *  though `Gradient.linear` alone would not need it. */
+const EFFECT_GLOBALS = ["VisualFilter", "Gradient"] as const;
 
 export const CAPABILITIES: readonly Capability[] = [
   // ── what a production build leaves out unless the build asks ─────────────
@@ -167,8 +169,18 @@ export const CAPABILITIES: readonly Capability[] = [
   { id: "theme-table", describe: "the Themes preset records, whole (a build ships the presets its program names)",
     // the default preset is the runtime's own answer to a theme read with none set
     modules: ["themes-data"], when: [], hostsKeep: true, refusal: "unused", subset: { export: "THEME_RECORDS", keys: "mentions", always: ["SanFrancisco"] } },
+  // Color's operations, behind the one global a body reaches them by: a program
+  // whose code never names `Color` carries none (an 0xRRGGBBAA literal compiles
+  // to its number, not a call). The body scope holds the stand-in, never reached.
+  { id: "color", describe: "Color's operations: withAlpha, mix, lighter, darker, contrast, components", modules: ["color"], hostsKeep: true, refusal: "unused",
+    when: [{ mentions: ["Color", "eval"] }], inert: { ColorOps: { members: {} } } },
+  // measureText, behind its own name: a program whose code never writes
+  // `measureText` carries no measurer of its own (a Text's measuring is measure.ts,
+  // in every build). The body scope holds the stand-in, never reached.
+  { id: "text-measure", describe: "measureText: a run of text measured in a style", modules: ["text-measure"], hostsKeep: true, refusal: "unused",
+    when: [{ mentions: ["measureText", "eval"] }] },
   { id: "effects", describe: "the filter, gradient and backdrop constructors", modules: ["effects"], hostsKeep: true, refusal: "unused",
-    when: [{ mentions: [...EFFECT_CALLS, "frost", "eval"] }] },
+    when: [{ mentions: [...EFFECT_GLOBALS, "eval"] }] },
   { id: "rich-dom", describe: "rich text's DOM flow", modules: ["dom-rich"], hostsKeep: true, refusal: "unused",
     when: [{ classes: RICH_TEXT }],
     inert: { richInlineSlots: "false", richBlocks: "false", revealRichAnchor: "false" } },
@@ -311,7 +323,9 @@ function readBody(src: string, into: ProgramFacts): void {
   visit(file);
 }
 
-/** Constructor calls inside a literal value (`visualFilter = [blur(3)]`, `fill = gradient(…)`). */
+/** Builder calls inside a literal value (`visualFilter = [VisualFilter.blur(3)]`,
+ *  `fill = Gradient.linear(…)`). Not a mention of the global: the compile turns
+ *  the literal into its value, so the runtime's builder is never called for it. */
 function literalCalls(v: unknown, into: Set<string>): void {
   if (v === null || typeof v !== "object") return;
   const o = v as Record<string, unknown>;

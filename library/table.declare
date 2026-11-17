@@ -540,5 +540,5 @@ class TableRow extends Control [
     // same tokens
 
     fill = { selected ? provided("theme").controlSelected : hovered ? provided("theme").controlHovered : null },
-    stroke = { active && (parent as Table).focusVisible ? stroke(1, provided("theme").accent) : null }
+    stroke = { active && (parent as Table).focusVisible ? Stroke(1, provided("theme").accent) : null }
     ]

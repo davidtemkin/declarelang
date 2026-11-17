@@ -1,6 +1,8 @@
 // sources — the runtime's event SOURCES, as classes. A source is a
 // non-visual member you put in a tree whose handlers are called by something
-// OUTSIDE the tree: the keyboard, the focus service, the tip service.
+// OUTSIDE the tree: the keyboard. (Focus and tips are states, not events: the
+// App's focusedView, focusGeometry and tooltipRequest, and a view's
+// containsFocus, read as any attribute is.)
 //
 //     keys: KeyListener [ onKeyUp(e) { if (e.key == "Escape") classroot.close() } ],
 //
@@ -28,8 +30,6 @@
 
 import { Node, onDiscard } from "./node.js";
 import { Keys } from "./keys.js";
-import { Focus } from "./focus.js";
-import { Tooltips } from "./tooltips.js";
 
 /** One subscribable channel: the handler member's name, and the service call
  *  that registers a listener and hands back its unsubscribe thunk. The payload
@@ -88,26 +88,3 @@ const CHANNELS_KEYS: readonly Channel[] = [
   ["onCommandHeld", (fn) => Keys.onCommandHeld(fn)],
 ];
 
-/** The focus service, as a member: `onFocusChange(v)` when focus moves, and
- *  `onGeometry(g)` for the focused control's live silhouette — what a focus
- *  ring follows. */
-export class FocusSource extends Source {
-  protected $channels(): readonly Channel[] {
-    return CHANNELS_FOCUS;
-  }
-}
-const CHANNELS_FOCUS: readonly Channel[] = [
-  ["onFocusChange", (fn) => Focus.onFocusChange(fn)],
-  ["onGeometry", (fn) => Focus.onGeometry(fn)],
-];
-
-/** The tip service, as a member: `onTooltip(e)` when a tip-carrying view asks for
- *  its tooltip to show (`null` to hide). */
-export class TooltipsSource extends Source {
-  protected $channels(): readonly Channel[] {
-    return CHANNELS_TIP;
-  }
-}
-const CHANNELS_TIP: readonly Channel[] = [
-  ["onTooltip", (fn) => Tooltips.onTooltip(fn)],
-];

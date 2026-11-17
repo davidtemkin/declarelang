@@ -215,7 +215,7 @@ will tell you the palette is wrong.
 ## From a Declare program — the `Inspect` service
 
 A Declare program that is *about* another program (the Inspector itself) reads the same
-surface as a body service, alongside `Themes`, `Keys` and `Focus` — a `{ }` body cannot
+surface as a body service, alongside `Focus` and `Keyboard` — a `{ }` body cannot
 reach `window`, and should not have to:
 
 ```declare-fragment

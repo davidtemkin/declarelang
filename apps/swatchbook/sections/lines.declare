@@ -16,7 +16,7 @@ class LeadSwatch extends Swatch [ name = :name,
 
 
 class AlignSwatch extends Swatch [ name = :name,
-    frame: View [ x = 10, y = 8, width = 192, height = 100, stroke = stroke(1, #2E6FE033) ],
+    frame: View [ x = 10, y = 8, width = 192, height = 100, stroke = Stroke(1, #2E6FE033) ],
     p: Text [ x = 10, y = 8, width = 192, fontSize = 13, wrap = { :wrap }, textAlign = { :align },
         textColor = { provided("theme").text },
         text = { :wrap ? "Aligned within the box, line by line, as the paragraph wraps." : "One line, aligned" } ]
@@ -67,7 +67,7 @@ class LinesSection extends Section [ title = "Lines",
     Grid [ visible = { classroot.showing("box") },
         Swatch [ name = "auto size",
             t: Text [ x = 20, y = 30, fontSize = 24, text = "Auto" ],
-            ring: View [ x = 20, y = 30, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ring: View [ x = 20, y = 30, width = { parent.t.width }, height = { parent.t.height }, stroke = Stroke(1, #E4572E) ]
             ],
         Swatch [ name = "y = center",
             band: View [ x = 10, y = 20, width = 192, height = 80, fill = #2E6FE011 ],
@@ -96,7 +96,7 @@ class LinesSection extends Section [ title = "Lines",
             ],
         Swatch [ name = "padding · auto size",
             t: Text [ x = 20, y = 30, padding = [6, 16, 6, 16], fill = #2E6FE011, fontSize = 20, text = "Padded" ],
-            ring: View [ x = 20, y = 30, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ring: View [ x = 20, y = 30, width = { parent.t.width }, height = { parent.t.height }, stroke = Stroke(1, #E4572E) ]
             ],
         Swatch [ name = "padding · centred",
             t: Text [ x = 10, y = 30, width = 192, padding = [8, 40, 8, 10], textAlign = center, fill = #2E6FE011, fontSize = 16,

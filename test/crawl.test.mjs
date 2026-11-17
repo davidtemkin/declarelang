@@ -151,7 +151,7 @@ await test("crawl: an AppIsland's tenant program is extracted where the island s
     ]`;
   const tenant = `App [ location = "main",
     main: View [ shows = "main",
-        Text [ text = { hostProvided("dark", false) ? "tenant, dark" : "tenant, light" } ],
+        Text [ text = { app.hostProvided("dark", false) ? "tenant, dark" : "tenant, light" } ],
         Text [ text = "an internal link", link = "#tenant-only" ],
         Image [ source = "pic.png" ]
         ],

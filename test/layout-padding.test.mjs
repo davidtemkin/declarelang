@@ -498,15 +498,15 @@ await test("padding on the Layout is now an error that names the view", async ()
 await test("stroke: four clockwise from the top, null for a bare side", async () => {
   const app = await boot(`App [ width = 400, height = 300,
     rules: View [ width = 100, height = 40, fill = white,
-      stroke = [ stroke(1, #DBE1E9), null, stroke(2, #99A0AA), null ] ],
-    ring: View [ width = 100, height = 40, stroke = stroke(1, #DBE1E9) ],
+      stroke = [ Stroke(1, #DBE1E9), null, Stroke(2, #99A0AA), null ] ],
+    ring: View [ width = 100, height = 40, stroke = Stroke(1, #DBE1E9) ],
   ]`);
   assert.deepEqual(app.rules.stroke, [{ width: 1, color: 0xdbe1e9 }, null, { width: 2, color: 0x99a0aa }, null]);
   assert.deepEqual(app.ring.stroke, { width: 1, color: 0xdbe1e9 }, "the one-value form is unchanged");
 });
 
 await test("stroke: a list that is not four is refused, and says the shape", async () => {
-  const b = await compileProgram(`App [ View [ stroke = [ stroke(1, #000000), null ] ] ]`,
+  const b = await compileProgram(`App [ View [ stroke = [ Stroke(1, #000000), null ] ] ]`,
     { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 1);
   assert.match(b.errors[0].message, /top, right, bottom, left/);
@@ -599,10 +599,10 @@ await test("stroke: the canvas paints each side as the box minus a shifted copy 
 await test("stroke: a { } binding computes the four sides — the same value the literal writes", async () => {
   const app = await boot(`App [ width = 400, height = 300,
     lit: View [ width = 100, height = 40,
-      stroke = [ stroke(1, #DBE1E9), null, stroke(2, #99A0AA), null ] ],
+      stroke = [ Stroke(1, #DBE1E9), null, Stroke(2, #99A0AA), null ] ],
     calc: View [ width = 100, height = 40,
-      stroke = { [ stroke(1, 0xDBE1E9), null, stroke(2, 0x99A0AA), null ] } ],
-    one: View [ width = 100, height = 40, stroke = { stroke(1, 0xDBE1E9) } ],
+      stroke = { [ Stroke(1, 0xDBE1E9), null, Stroke(2, 0x99A0AA), null ] } ],
+    one: View [ width = 100, height = 40, stroke = { Stroke(1, 0xDBE1E9) } ],
   ]`);
   assert.deepEqual(app.calc.stroke, app.lit.stroke, "the computed list is the literal list");
   assert.deepEqual(app.one.stroke, { width: 1, color: 0xdbe1e9 },
@@ -615,7 +615,7 @@ await test("stroke: the themed computed list — the form the corpus actually ne
   const app = await boot(`theme Brand [ line = #DBE1E9 ]
     App [ width = 400, height = 300, theme = Brand,
       rows: View [ width = 100, height = 40,
-        stroke = { [ stroke(1, provided("theme").line), null, stroke(1, provided("theme").line), null ] } ],
+        stroke = { [ Stroke(1, provided("theme").line), null, Stroke(1, provided("theme").line), null ] } ],
     ]`);
   assert.deepEqual(app.rows.stroke,
     [{ width: 1, color: 0xdbe1e9 }, null, { width: 1, color: 0xdbe1e9 }, null],
@@ -625,9 +625,9 @@ await test("stroke: the themed computed list — the form the corpus actually ne
 await test("stroke: a computed list paints the same sides as a literal one, on BOTH backends", async () => {
   const app = await boot(`App [ width = 400, height = 300,
     lit: View [ width = 100, height = 40,
-      stroke = [ stroke(1, #336699), null, stroke(2, #AA0000), null ] ],
+      stroke = [ Stroke(1, #336699), null, Stroke(2, #AA0000), null ] ],
     calc: View [ width = 100, height = 40,
-      stroke = { [ stroke(1, 0x336699), null, stroke(2, 0xAA0000), null ] } ],
+      stroke = { [ Stroke(1, 0x336699), null, Stroke(2, 0xAA0000), null ] } ],
   ]`);
   // DOM: four inset box-shadows, one per stroked side.
   const el = () => ({ style: {}, dataset: {}, classList: { add() {}, remove() {} }, appendChild() {} });
@@ -677,8 +677,8 @@ await test("stroke: a computed list that CHANGES repaints — two sides, then on
   const log = [];
   const app = await boot(`App [ width = 400, height = 300, rules: number = 2,
     v: View [ width = 100, height = 40,
-      stroke = { app.rules === 2 ? [ stroke(1, 0x336699), null, stroke(1, 0x336699), null ]
-               : app.rules === 1 ? [ stroke(1, 0x336699), null, null, null ]
+      stroke = { app.rules === 2 ? [ Stroke(1, 0x336699), null, Stroke(1, 0x336699), null ]
+               : app.rules === 1 ? [ Stroke(1, 0x336699), null, null, null ]
                : null } ] ]`);
   const methods = ["setX", "setY", "setWidth", "setHeight", "setFill", "setCornerRadius", "setStroke",
     "setShadow", "setVisible", "setOpacity", "setClip", "setBoxClip", "setDrawing", "setText",
@@ -717,7 +717,7 @@ await test("stroke: a re-derived list that is EQUAL never reaches the surface", 
   const app = await boot(`script { function counted<T>(v: T): T { (globalThis as any).__strokeRuns++; return v } }
     App [ width = 400, height = 300, wide: number = 400,
     v: View [ width = 100, height = 40,
-      stroke = { counted([ stroke(1, app.wide > 100 ? 0x336699 : 0xFF0000), null, null, null ]) } ] ]`);
+      stroke = { counted([ Stroke(1, app.wide > 100 ? 0x336699 : 0xFF0000), null, null, null ]) } ] ]`);
   const methods = ["setX", "setY", "setWidth", "setHeight", "setFill", "setCornerRadius", "setStroke",
     "setShadow", "setVisible", "setOpacity", "setClip", "setBoxClip", "setDrawing", "setText",
     "setTextStyle", "setImage", "setImageStretch", "setInput", "setEditable", "activateEditable",
@@ -743,7 +743,7 @@ await test("stroke: a re-derived list that is EQUAL never reaches the surface", 
 });
 
 await test("stroke: a malformed COMPUTED list is refused, and says the shape", async () => {
-  const b = await compileProgram(`App [ View [ stroke = { [ stroke(1, 0x000000), null ] } ] ]`,
+  const b = await compileProgram(`App [ View [ stroke = { [ Stroke(1, 0x000000), null ] } ] ]`,
     { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 1, b.errors.map((e) => e.message).join("; "));
   // The same sentence the LITERAL form's coercion says (runtime/src/errors.ts

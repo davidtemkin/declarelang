@@ -35,6 +35,7 @@ const SUITE = [
   "test/scaffold.test.mjs",
   "test/declarec.test.mjs",
   "test/lower-literals.test.mjs",  // a compiled program carries values, not literal text
+  "test/color-strings.test.mjs",   // a color written as CSS writes it, in code, runs as its number
   "test/diagnostics-hints.test.mjs",
   "test/locations.test.mjs",
   "test/error-codes.test.mjs",
@@ -61,6 +62,8 @@ const SUITE = [
   "test/visible-rows.test.mjs",    // which records a list shows: firstVisibleRow / lastVisibleRow, windowed or not
   "test/row-lifetime.test.mjs",    // what a virtualized list drops as it scrolls is collected (nothing the runtime keeps holds it)
   "test/dataschema.test.mjs",
+  "test/typed-paths.test.mjs",      // a :path read inside { } has its field's type
+  "test/docs-demos.test.mjs",       // every example the docs app runs beside a page compiles
   "test/datasource-failure.test.mjs",
   "test/request-failures.test.mjs",   // why a request failed (failure), and its silence timeout
   "test/table.test.mjs",
@@ -129,6 +132,7 @@ const SUITE = [
   "test/script-host.test.mjs",
   "test/files-browser.test.mjs",
   "test/files-save.test.mjs",      // FilePicker.save: what a native host is handed, and what it answers
+  "test/unsaved-changes.test.mjs",  // app.unsavedChanges: leaving the page asks while it is true
   "test/clipboard-browser.test.mjs", // copy, cut and paste at the focused view, by the page's own events
   "test/island-browser.test.mjs",
   "test/two-way.test.mjs",         // the apps/two-way showcase: the whole embedder surface on one page

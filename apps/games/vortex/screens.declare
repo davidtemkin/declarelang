@@ -107,7 +107,7 @@ class TitleScreen [ x = center, y = center,
 
     title: Text [ fontSize = 72, fontWeight = bold, letterSpacing = 18,
         textColor = { provided("theme").title },
-        textShadow = { shadow(0, 0, 18, provided("theme").title) }, text = "VORTEX" ],
+        textShadow = { Shadow(0, 0, 18, provided("theme").title) }, text = "VORTEX" ],
     keys: View [ padding = [18, 0, 18, 0], datapath = { app.help.value }, visible = { !app.touchFirst },
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         KeyRow [ datapath = :keys[] ]
@@ -167,7 +167,7 @@ class ChooseScreen [ x = center, y = center,
             ChoiceColumn [ datapath = :list[] ]
             ],
         box: View [ x = 240, width = 120, height = 200, cornerRadius = 10,
-            stroke = { stroke(2, provided("theme").claw) } ]
+            stroke = { Stroke(2, provided("theme").claw) } ]
         ],
     time: Text [ fontSize = 16, letterSpacing = 4, textColor = { provided("theme").claw }, text = { "TIME  " + app.secondsLeft } ]
     ]
@@ -187,7 +187,7 @@ class Notice [ x = center, y = center, padding = [14, 28, 14, 28], cornerRadius 
 
 class Headline extends Text [ fontSize = 40, fontWeight = bold, letterSpacing = 10,
     textColor = { provided("theme").ink },
-    textShadow = { shadow(0, 0, 12, provided("theme").ink) }
+    textShadow = { Shadow(0, 0, 12, provided("theme").ink) }
     ]
 
 

@@ -552,7 +552,7 @@ await test("a literal union is sayable in EVERY type position, not just a schema
 });
 
 await test("spell a member the way its declaration spells it — an authored union takes the QUOTED member only (ruling 2026-09-05)", async () => {
-  // `Axis` declares `y`, so `axis = y`; a literal union declares `"idle"`, so
+  // `LayoutAxis` declares `y`, so `axis = y`; a literal union declares `"idle"`, so
   // `phase = "idle"`. The bare token was accepted for authored unions too until
   // the ruling — two spellings for one thing.
   const H = `class Fetcher extends View [ phase: "idle" | "loading" | "done" = "idle" ]\n`;
@@ -565,7 +565,7 @@ await test("spell a member the way its declaration spells it — an authored uni
   const axisTok = await compile(`App [ width=1, height=1, layout: SimpleLayout [ axis = y ] ]`);
   assert.deepEqual(axisTok.errors.map((e) => e.message), []);
   const axisStr = await compile(`App [ width=1, height=1, layout: SimpleLayout [ axis = "y" ] ]`);
-  assert.match(axisStr.errors[0].message, /expects an Axis \(one of x \| y\), got the string/);
+  assert.match(axisStr.errors[0].message, /expects a LayoutAxis \(one of x \| y\), got the string/);
 });
 
 await test("DataSource.method / .format are closed sets checked at compile — slot AND body (2026-09-05)", async () => {

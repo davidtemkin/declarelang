@@ -27,9 +27,10 @@ name the same thing, the one here is the one the platform means.
   (`width = { … }`), which refuses a direct write. → [Constraints](declare-docs:guide:constraints)
 - **fact** — a value the runtime writes and a program only reads: [`hovered`](declare-docs:View.hovered), [`scrollY`](declare-docs:View.scrollY),
   [`contentWidth`](declare-docs:View.contentWidth), `loaded`, `arrived`. Assigning one is a compile error.
-- **settle** — the update step. A handler's writes are applied together when it returns:
-  constraints re-evaluate, views appear and leave, layouts place, sizes update, as one step
-  run to completion. Nothing paints in the middle of one. → [Constraints](declare-docs:guide:constraints)
+- **settle** — how Declare answers a change. A handler's writes are applied together when it
+  returns: constraints re-evaluate, views appear and leave, layouts place, sizes update, as one
+  step run to completion. It runs in rounds — what an `afterSettle` step or an `onChange`
+  assigns is settled in the next — and nothing paints until the last. → [Constraints](declare-docs:guide:constraints)
 - **provided value** — a value an ancestor makes available to its subtree, read with
   `provided("name")`. The text face and `theme` work this way, and so can your own
   declared attributes. → [Paint and themes](declare-docs:guide:paint-and-themes)
@@ -58,7 +59,7 @@ name the same thing, the one here is the one the platform means.
 - **dataset class** — a class that extends [`Dataset`](declare-docs:Dataset) or [`DataSource`](declare-docs:DataSource): the data itself, with its
   derivations and rules as members; views bind to it directly. → [Data](declare-docs:guide:data@deriving-summaries-methods-and-a-typed-result)
 - **non-visual child** — a child with no pixels that lives and dies with its node: a
-  [`Dataset`](declare-docs:Dataset), [`DataSource`](declare-docs:DataSource), [`Spring`](declare-docs:Spring), [`Animator`](declare-docs:Animator), [`Time`](declare-docs:Time), [`KeyListener`](declare-docs:KeyListener), [`Focus`](declare-docs:Focus), a stream, a
+  [`Dataset`](declare-docs:Dataset), [`DataSource`](declare-docs:DataSource), [`Spring`](declare-docs:Spring), [`Animator`](declare-docs:Animator), [`Time`](declare-docs:Time), [`KeyListener`](declare-docs:KeyListener), a stream, a
   class with no view.
 - **classroot** — the instance of the class being defined, reachable from any depth inside
   its body.

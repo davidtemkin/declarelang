@@ -32,7 +32,7 @@ class TintDot [ width = 16, height = 16,
         pivotX = 8,
         pivotY = 8,
         fill = { classroot.c },
-        stroke = { classroot.hovered ? stroke(2, provided("theme").text) : app.accentPick == classroot.c ? stroke(2, provided("theme").textMuted) : null } ]
+        stroke = { classroot.hovered ? Stroke(2, provided("theme").text) : app.accentPick == classroot.c ? Stroke(2, provided("theme").textMuted) : null } ]
     ]
 
 
@@ -113,7 +113,7 @@ class CodeCell [ width = { (parent.width - 5 * 8) / 6 }, height = 48, cornerRadi
     field: TextInput? = { parent.parent as TextInput },
     next: boolean = { classroot.field != null && classroot.field.focused && Math.min(5, (classroot.field.shown as string).length) == classroot.at },
     fill = { provided("theme").surface },
-    stroke = { stroke(classroot.next ? 2 : 1, classroot.next ? provided("theme").accent : provided("theme").line) },
+    stroke = { Stroke(classroot.next ? 2 : 1, classroot.next ? provided("theme").accent : provided("theme").line) },
     TextLabel [ x = center, y = center, fontSize = 20, fontWeight = semibold, numeralWidth = tabular,
         textColor = { provided("theme").text },
         text = { ((classroot.field?.shown ?? "") as string).charAt(classroot.at) } ]
@@ -282,7 +282,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         // switched on, the app overrides that one token to "both" so it moves
         // too. The preset stays as shipped.
         ...(style == "redmond" && animateFocus ? ({ focusRingStyle: "both" }) : ({})),
-        ...(accentPick != 0 ? ({ accent: accentPick, controlSelected: activeTone(accentPick, app.preset.surface) }) : ({})),
+        ...(accentPick != 0 ? ({ accent: accentPick, controlSelected: Color.mix(app.preset.surface, accentPick, 0.22) }) : ({})),
     } },
 
     // the type stack is part of the styling: Roboto for Mountain View, the system face for Cupertino
@@ -493,7 +493,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         // the rule under the bar is the bar's own bottom edge — a per-side stroke,
         // not a child view
 
-        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        stroke = { [null, null, Stroke(1, provided("theme").line), null] },
 
         brand: View [ x = 20, y = 15, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
@@ -502,7 +502,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             // distro root, so this works on either host at any mount point
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
+                textFill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
                 onClick() { app.openURL("apps/homepage/homepage.declare") }
                 ],
 
@@ -637,7 +637,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
                     Specimen [ label = "Context menu",
                         pad: View [ width = 100%, height = 74,
-                            cornerRadius = 8, fill = { provided("theme").background }, stroke = { stroke(1, provided("theme").line) },
+                            cornerRadius = 8, fill = { provided("theme").background }, stroke = { Stroke(1, provided("theme").line) },
                             onContextMenu(e: PointerEvent) { app.ctxMenu.showAt(this, e) },
                             onHold(e: PointerEvent) { app.ctxMenu.showAt(this, e) },
                             Text [ x = 14, y = 14, fontSize = 13, textColor = { provided("theme").textMuted },
@@ -858,7 +858,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                 tbl: Table [ width = 100%, accessibilityLabel = "Cities",
                     height = { Math.max(240, app.height - app.barH - 190) },
                     datapath = { app.cities.value }, selects = "multi",
-                    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) }, cornerRadius = 8,
+                    fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) }, cornerRadius = 8,
                     TableRow [ datapath = :rows[], height = 30,
                         n: Text [ x = 12, y = center, fontSize = 13, text = :name ],
                         p: Text [ x = 260, y = center, fontSize = 13, textColor = { provided("theme").textMuted }, text = :pop ]
@@ -880,7 +880,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                 grid: DataGrid [ width = 100%, accessibilityLabel = "Tasks",
                     height = { Math.max(280, app.height - app.barH - 220) },
                     items = { app.gd.value.rows }, selects = "multi",
-                    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) }, cornerRadius = 8,
+                    fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) }, cornerRadius = 8,
                     widths = { app.gridNarrow
                         ? ({ id: 34, title: 116, state: 84, owner: 74, done: 44, ...(app.gridWidths ?? ({})) })
                         : app.gridWidths },
@@ -996,7 +996,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
                     Specimen [ label = "Splitter",
                         panes: View [ width = 100%, height = 140, clip = true, cornerRadius = 8,
-                            stroke = { stroke(1, provided("theme").line) },
+                            stroke = { Stroke(1, provided("theme").line) },
                             layout: SimpleLayout [ axis = x ],
                             side: View [ width = { parent.split.value }, height = 100%, fill = { provided("theme").background },
                                 Text [ x = 12, y = 12, fontSize = 13, text = "Mailboxes" ]

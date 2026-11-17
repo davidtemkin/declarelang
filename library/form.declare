@@ -119,7 +119,10 @@ Whether nothing is wrong: no member has a problem and `validate()` is satisfied.
 The message that belongs to no field: a refusal that names none (an account locked), a name
 no counted member has, the form's own `validate()` on submit, or, when the send did not go
 through, the message for how it failed — `failedMessage`, `uncertainMessage`, `offlineMessage`
-or `unreadableMessage` (each below). Shown wherever the program places it.
+or `unreadableMessage` (each below). Shown wherever the program places it. Several
+refusals that name no field arrive here as one sentence, joined; a form that lists them
+one per line reads them from `errorBody` (or returns them from its own `refusal()`, kept
+in an attribute of its own).
 
 ## validate()
 The form's own rule, for what belongs to no one field — return `""` when it is fine, or

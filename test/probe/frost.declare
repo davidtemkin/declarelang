@@ -15,5 +15,5 @@ App [ width = 400, height = 250, fill = #101418,
         ],
 
     panel: View [ x = 60, y = 45, width = 280, height = 160,
-        backdrop = frost(18, 1.4), fill = #F9F9FB66, cornerRadius = 16 ]
+        backdrop = VisualFilter.frost(18, 1.4), fill = #F9F9FB66, cornerRadius = 16 ]
     ]

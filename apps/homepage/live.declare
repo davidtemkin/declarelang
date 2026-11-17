@@ -39,7 +39,7 @@ class CodeField extends TextInput [ multiline = true, spellcheck = false,
 class SourcePanel [
     editName: string = "",
     src: string = "",
-    fill = { provided("theme").panel }, cornerRadius = 12, stroke = { stroke(1, provided("theme").panelLine) },
+    fill = { provided("theme").panel }, cornerRadius = 12, stroke = { Stroke(1, provided("theme").panelLine) },
 
     // A control surface inside the copy column, so the column's provision
     // stops at this box: the chip, the Revert label and the compile report are
@@ -66,7 +66,7 @@ class SourcePanel [
         t: Text [ fontFamily = { app.uiFace }, fontSize = 9, fontWeight = bold,
             letterSpacing = 0.8, wrap = false, textColor = { provided("theme").ink }, text = "LIVE · EDITABLE" ]
         ],
-    revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").revertLine) },
+    revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { Stroke(1, provided("theme").revertLine) },
         padding = [3, 8, 3, 8],
         x = { parent.width - this.width - 10 },
         width = { this.contentWidth },
@@ -106,7 +106,7 @@ class SourcePanel [
 // the page, and draws only in colours that read on either ground
 
 class PreviewFrame [ cornerRadius = 12, clip = true, fill = { provided("theme").stage },
-    stroke = { stroke(1, provided("theme").line) },
+    stroke = { Stroke(1, provided("theme").line) },
     runName: string = "",
     run: AppIsland [ width = 100%, height = 100%, program = { classroot.runName },
         focusable = true,

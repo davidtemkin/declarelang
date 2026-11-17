@@ -80,7 +80,10 @@ A single-OK acknowledgement with the title in the theme's error colour. Delivers
 The general form the three idioms are built on: title, message, your own button
 records, a tone (`"error"` or `""`), and an optional callback. Reach for it when the
 three idioms do not spell your choices — **button records are `{ id, label, default?,
-cancel? }`**, and the two flags are what Return and Escape key off.
+cancel?, destructive? }`**: the first two flags are what Return and Escape key off, and
+`destructive` marks a step that can't be undone (Delete) in the theme's error ink. Where it
+can't be undone, Cancel is the default: `({ id: "delete", label: "Delete", destructive:
+true })` beside `({ id: "cancel", label: "Cancel", default: true, cancel: true })`.
 
 ## pick()
 Delivers a button by id: **dismisses first, then delivers**, one painted frame later —
@@ -110,7 +113,11 @@ The body text under the title. `""` hides the line entirely rather than leaving 
 ## buttons
 The button records currently rendered, in authored order. The `"stack"` arrangement
 reorders them for display — default on top, cancel at the bottom — without touching
-this.
+this. Each is `{ id, label, default?, cancel?, destructive? }`: `default` is Return's,
+`cancel` is Escape's, and `destructive` marks the one that destroys — a delete — in the
+theme's error colour. Return should not destroy, so a destructive button is rarely the
+default: `[ { id: "cancel", label: "Cancel", cancel: true, default: true },
+{ id: "delete", label: "Delete", destructive: true } ]`.
 
 ## tone
 `"error"` tints the title with the theme's error colour; `""` is the ordinary tone.
@@ -215,7 +222,7 @@ include [ "floating.declare" ]
 
 // a dialog button, as data
 
-schema DialogButtonRecord [ id: string, label: string, default?: boolean, cancel?: boolean ]
+schema DialogButtonRecord [ id: string, label: string, default?: boolean, cancel?: boolean, destructive?: boolean ]
 
 class Dialog extends Floating [
     pressPolicy = "block",
@@ -383,7 +390,7 @@ class Dialog extends Floating [
     _panel: View [ width = 100%, height = 100%,
         cornerRadius = { classroot.cornerRadius },
         fill = { classroot.fill == null ? provided("theme").surface : null },
-        stroke = { classroot._full ? null : stroke(1, provided("theme").line) },
+        stroke = { classroot._full ? null : Stroke(1, provided("theme").line) },
         shadow = { classroot._full ? null : provided("theme").dialogShadow ?? provided("theme").menuShadow } ],
 
     // the 20pt margin is the column's own content box; the fill, the edge and
@@ -430,6 +437,10 @@ class Dialog extends Floating [
                             ? (this.parent.width - 10 * (((classroot.buttons || []).length || 1) - 1)) / ((classroot.buttons || []).length || 1)
                             : Math.max(86, this._run.width + this.padH * 2) },
                     primary = { !!:default },
+
+                    // a button that destroys says so in the theme's error colour
+
+                    ink = { :destructive == true && !primary ? provided("theme").error : primary ? provided("theme").accentTextColor : provided("theme").text },
                     onClick() { classroot.pick("" + :id) }
                     ]
                 ],
@@ -441,6 +452,10 @@ class Dialog extends Floating [
                 Button [ datapath = :b[], label = { "" + :label },
                     width = 100%,
                     primary = { !!:default },
+
+                    // a button that destroys says so in the theme's error colour
+
+                    ink = { :destructive == true && !primary ? provided("theme").error : primary ? provided("theme").accentTextColor : provided("theme").text },
                     onClick() { classroot.pick("" + :id) }
                     ]
                 ]

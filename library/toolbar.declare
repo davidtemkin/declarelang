@@ -161,7 +161,7 @@ class ToolButton extends Control [
     // the pill's own label colour, as Segmented's: a dark pill takes a light one
 
     _onPill: Color = { provided("theme").segmentedSelectedTextColor ?? provided("theme").text },
-    stroke = { toggle && on ? stroke(1, provided("theme").line) : null },
+    stroke = { toggle && on ? Stroke(1, provided("theme").line) : null },
     opacity = { disabled ? provided("theme").disabledOpacity : 1 },
 
     _t: TextLabel [ x = center, wrap = false, visible = { classroot.icon == "" },

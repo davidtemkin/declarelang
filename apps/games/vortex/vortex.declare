@@ -571,7 +571,7 @@ App [ appName = "Vortex", fontFamily = ["Menlo", "Consolas", "monospace"],
             ],
         foes: View [ width = 100%, height = 100%, datapath = { app.field.value },
             FoeView [ datapath = :foes[],
-                classFor = { ({ flipper: Flipper, tanker: Tanker, spiker: Spiker, fuseball: Fuseball })[:kind] ?? Pulsar } ]
+                classFor = { ({ flipper: Flipper, tanker: Tanker, spiker: Spiker, fuseball: Fuseball, pulsar: Pulsar })[:kind] ?? Pulsar } ]
             ],
         shots: View [ width = 100%, height = 100%, datapath = { app.field.value },
             ShotView [ datapath = :shots[] ]

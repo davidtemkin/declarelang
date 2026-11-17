@@ -26,9 +26,9 @@ App [ minWidth = 360,
     // what the host provides, each with a default, so an unhosted open (a
     // person double-clicking this file) still renders a sensible page
 
-    errors: string = { hostProvided("errors", "") || "No diagnostics were passed." },
-    subject: string = { hostProvided("subject", "") },
-    hint: string = { hostProvided("hint", "") || "Fix the file, then press Retry." },
+    errors: string = { app.hostProvided("errors", "") || "No diagnostics were passed." },
+    subject: string = { app.hostProvided("subject", "") },
+    hint: string = { app.hostProvided("hint", "") || "Fix the file, then press Retry." },
 
     // HTML-escape a diagnostic so its own `<`/`&` render literally, then one
     // paragraph per line in the monospace style — a wrapped, selectable list.

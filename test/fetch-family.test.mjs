@@ -95,6 +95,17 @@ await test("DataSource: a fetch() beside autoFetch, after a write that moves the
   assert.equal(app.d.value?.method, "GET");
 });
 
+await test("DataSource: an auto-fetch whose address is set as the tree is built sends the headers declared after it", async () => {
+  // RealWorld run 3: a signed-in reload sent GET /user before its `headers` were bound — no
+  // token, answered 401. The auto-fetch decides at the settle's close, on the source as settled.
+  const app = await boot(`App [ width = 10, height = 10, token: string = "abc",
+    d: DataSource [ url = { app.token == "" ? "" : "${B}/echo" }, autoFetch = true,
+        headers = { { "X-Token": app.token } } ] ]`);
+  await until(() => app.d.loaded || app.d.failed);
+  assert.equal(app.d.failed, false, `failed: ${app.d.error}`);
+  assert.equal(app.d.value?.token, "abc", "the header declared after the url went with the first request");
+});
+
 await test("DataSource: a newer fetch, or clear(), stops the request in flight", async () => {
   const app = await boot(`App [ width = 10, height = 10,
     d: DataSource [ url = { app.u } ],

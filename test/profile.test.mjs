@@ -39,7 +39,7 @@ writeFileSync(join(DIR, "ghost.declare"), `App [ width = 900, height = 600,
   clock: Time [ tick = frame ],
   grid: View [ width = 900, height = 600, layout: WrappingLayout [ spacing = 8 ],
     Tile [ ], Tile [ ], Tile [ ], Tile [ ], Tile [ ], Tile [ ], Tile [ ], Tile [ ], Tile [ ], Tile [ ], Tile [ ], Tile [ ] ],
-  ghost: View [ width = 140, height = 180, fill = white, cornerRadius = 6, shadow = { shadow(0, 8, 28, 0x00000066) },
+  ghost: View [ width = 140, height = 180, fill = white, cornerRadius = 6, shadow = { Shadow(0, 8, 28, 0x00000066) },
     x = { 100 + 300 * Math.sin(app.clock.now / 400) }, y = { 200 + 120 * Math.cos(app.clock.now / 500) } ] ]
 class Tile [ width = 140, height = 180, fill = #dde4f0, cornerRadius = 4 ]`);
 // a panel of thirty views, hidden: built and kept current all the same

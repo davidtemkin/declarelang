@@ -2,10 +2,12 @@
 // and `onChange(e: ChangeEvent)` fires at the CLOSE of any settle in which one
 // of them ended different from where it started — ONE call per settle carrying
 // every value that moved, in the order the names were written. Silent at boot;
-// a handler may not write what it was told changed; rings end on their own.
+// every change a handler's assignment causes in a later round of the settle is heard
+// too; a handler doesn't assign what it tracks (refused at compile time, where
+// the code shows it); an update whose handlers never rest stops, naming them.
 import assert from "node:assert";
 import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
-import { settle } from "../runtime/dist/reactive.js";
+import { settle, observe } from "../runtime/dist/reactive.js";
 import { provideMeasurer } from "../runtime/dist/measure.js";
 provideMeasurer({ set font(_) {}, set letterSpacing(_) {}, measureText: (t) => ({ width: t.length * 7, fontBoundingBoxAscent: 11, fontBoundingBoxDescent: 3, actualBoundingBoxAscent: 10, actualBoundingBoxDescent: 3 }) });
 let pass = 0, fail = 0;
@@ -87,45 +89,88 @@ await (async () => {
 })();
 
 await (async () => {
-  // a ring: A's handler moves B, B's handler moves A. The second change of A in
-  // the chain is not delivered (warned), so the ring ends.
+  // a value stepped toward a target by its own consequence: every change in
+  // the update is delivered, so the steps run until it arrives
   const app = await build(`App [ width = 300, height = 300,
-    a: number = 0, b: number = 0, fires: number = 0,
-    trackChanges = [ "a", "b" ],
-    onChange(e: ChangeEvent) {
-        app.fires = app.fires + 1
-        for (const c of e.changed) {
-            if (c.name == "a") app.b = (c.currentValue as number) + 1
-            else app.a = (c.currentValue as number) + 1
-            }
-        }
+    raw: number = 0, fires: number = 0,
+    level: number = { app.raw },
+    trackChanges = [ "level" ],
+    onChange(e: ChangeEvent) { app.fires = app.fires + 1; if (this.level < 5) app.raw = this.level + 1 }
   ]`);
-  test("a ring of change handlers ends: each value is delivered once per chain", () => {
-    const warn = console.warn; const warned = [];
-    console.warn = (m) => warned.push(String(m));
-    try { app.a = 1; settle(); } finally { console.warn = warn; }
-    assert.equal(app.fires, 2, "a was delivered, then b; a's second change was not");
-    assert.equal(app.a, 3, "the last write still landed — only the EVENT is withheld");
-    assert.ok(warned.some((m) => m.includes("ring")), "a warning names the ring");
-  });
-  test("the next settle starts a fresh chain", () => {
-    app.fires = 0; app.a = 10; settle();
-    assert.equal(app.fires, 2);
+  test("a change caused in a later round of the settle is delivered too", () => {
+    app.raw = 1; settle();
+    assert.equal(app.raw, 5, "each step was heard, to the end");
+    assert.equal(app.fires, 5, "1, 2, 3, 4, 5: one call per round");
   });
 })();
 
 await (async () => {
+  // the history mirror's vantage: an observer that waits for the whole settle
+  const app = await build(`App [ width = 300, height = 300,
+    raw: number = 0,
+    level: number = { app.raw },
+    trackChanges = [ "level" ],
+    onChange(e: ChangeEvent) { if (this.level < 5) app.raw = this.level + 1 }
+  ]`);
+  test("an observer at the settle's end hears it once, with the final value (history: one entry per settle)", () => {
+    const perRound = [], atEnd = [];
+    const a = observe(() => app.raw, (v) => perRound.push(v), "t:round");
+    const b = observe(() => app.raw, (v) => atEnd.push(v), "t:end", true);
+    try { app.raw = 1; settle(); app.raw = 0; app.raw = 5; settle(); }
+    finally { a(); b(); }
+    assert.deepEqual(atEnd, [5], "once, where it ended; a settle that ends where it began says nothing");
+    assert.deepEqual(perRound, [1, 2, 3, 4, 5], "the per-round observer heard every round");
+  });
+})();
+
+await (async () => {
+  // a ring that never rests: A's handler moves B, B's moves A
   const app = await build(`App [ width = 300, height = 300,
     a: number = 0,
     trackChanges = [ "a" ],
-    onChange(e: ChangeEvent) { app.a = 99 }
+    onChange(e: ChangeEvent) { app.child.v = this.a + 1 },
+    child: View [ v: number = 0, trackChanges = [ "v" ],
+      onChange(e: ChangeEvent) { app.a = this.v + 1 } ]
   ]`);
-  test("a handler writing what it was told changed is refused", () => {
-    const err = console.error; const said = [];
-    console.error = (...m) => said.push(m.map(String).join(" "));
-    try { app.a = 1; settle(); } finally { console.error = err; }
-    assert.ok(said.some((m) => /may not write what it was told changed/.test(m)), said.join("\n"));
-    assert.equal(app.a, 1, "the refused write did not land");
+  test("a settle whose handlers never come to rest stops, naming them", () => {
+    app.a = 1;
+    assert.throws(() => settle(), (e) => /change handlers kept one settle going for 100 rounds — .*app's onChange \(\d+ times\).*app\.child's onChange \(\d+ times\)|change handlers kept one settle going for 100 rounds — .*app\.child's onChange \(\d+ times\).*app's onChange/.test(e.message), "the error names both handlers");
+  });
+  test("what was assigned before the stop stands", () => {
+    assert.ok(app.a > 1);
+  });
+})();
+
+await (async () => {
+  for (const body of ["this.a = 99", "a = 99", "app.a = 99"]) {
+    const errs = await errorsOf(`App [ width = 300, height = 300, a: number = 0, b: number = 0,
+      trackChanges = [ "a" ],
+      onChange(e: ChangeEvent) { ${body} } ]`);
+    test(`'${body}' in onChange, with a tracked: refused`, () => {
+      assert.ok(errs.some((m) => /App\.onChange assigns 'a', which it tracks/.test(m)), errs.join("\n"));
+    });
+  }
+  const ok = await errorsOf(`App [ width = 300, height = 300, a: number = 0, b: number = 0,
+    trackChanges = [ "a" ],
+    onChange(e: ChangeEvent) { const a = 3; this.b = a; app.b = this.a } ]`);
+  test("assigning a different value, or a local of the same name, is allowed", () => {
+    assert.deepEqual(ok, []);
+  });
+})();
+
+await (async () => {
+  // an assignment the compiler can't see (through a method) runs; one that
+  // comes to rest — a clamp — ends the update in two settles
+  const app = await build(`App [ width = 300, height = 300,
+    zoom: number = 1, fires: number = 0,
+    trackChanges = [ "zoom" ],
+    clamp() { this.zoom = Math.min(this.zoom, 8) },
+    onChange(e: ChangeEvent) { app.fires = app.fires + 1; this.clamp() }
+  ]`);
+  test("a correction through a method runs and comes to rest", () => {
+    app.zoom = 20; settle();
+    assert.equal(app.zoom, 8);
+    assert.equal(app.fires, 2, "told 1→20, then 20→8 in the next round; the second clamp assigns nothing");
   });
 })();
 

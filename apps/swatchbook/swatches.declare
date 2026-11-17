@@ -39,7 +39,7 @@ absorbed by a neighbour. The stage is the top 120px; the name sits under it.
 
 class Swatch [ width = 212, height = 152, cornerRadius = 10, clip = true,
     fill = { provided("theme").surface },
-    stroke = { stroke(1, provided("theme").line) },
+    stroke = { Stroke(1, provided("theme").line) },
     name: string = "",
     stageH: number = 120,
     cap: Text [ x = 10, y = { classroot.stageH + 8 }, width = { classroot.width - 20 }, fontSize = 11, wrap = false,

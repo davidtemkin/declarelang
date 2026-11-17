@@ -74,8 +74,8 @@ class EventBar [
 
 class InfoButton extends Control [
     width = 14, height = 14, cornerRadius = 7,
-    fill = gradient(colorStop(0, 0xF4F4F4), colorStop(1, 0xAEB6BD)),
-    stroke = stroke(1, #7C8A92),
+    fill = Gradient.linear(Gradient.stop(0, 0xF4F4F4), Gradient.stop(1, 0xAEB6BD)),
+    stroke = Stroke(1, #7C8A92),
 
     glyph: Text [ x = 5, y = 2, fontSize = 9, fontWeight = bold,
         textColor = #4B5D6C, text = "i" ],
@@ -91,8 +91,8 @@ class InfoButton extends Control [
 class PlusMinus [
     isOpen: boolean = false,
     width = 11, height = 11, cornerRadius = 2,
-    fill = gradient(colorStop(0, 0xE8ECEC), colorStop(0.5, 0xC2CBCE), colorStop(1, 0x8A9BA3)),
-    stroke = stroke(1, #46606C),
+    fill = Gradient.linear(Gradient.stop(0, 0xE8ECEC), Gradient.stop(0.5, 0xC2CBCE), Gradient.stop(1, 0x8A9BA3)),
+    stroke = Stroke(1, #46606C),
 
     draw(d: DrawContext) {
         d.fillStyle = 0x2E4550
@@ -125,18 +125,18 @@ class Nudger [
     label: string = "",
     width = 120, height = 16,
     fill = #FFFFFF,
-    stroke = stroke(1, #A8ACA6),
+    stroke = Stroke(1, #A8ACA6),
 
     val: Text [ x = 5, y = 2, fontSize = 10, textColor = #2E3E48, text = { classroot.label } ],
 
     left: View [ x = { parent.width - 28 }, y = 1, width = 13, height = 14, cornerRadius = 2,
-        fill = gradient(colorStop(0, 0xE6EAEA), colorStop(1, 0x99A5AD)),
+        fill = Gradient.linear(Gradient.stop(0, 0xE6EAEA), Gradient.stop(1, 0x99A5AD)),
         draw(d: DrawContext) { d.fillStyle = 0x33454F
                   d.beginPath(); d.moveTo(8, 3); d.lineTo(4, 7); d.lineTo(8, 11); d.fill() },
         onClick() { app.stepField(classroot.field, -1) }
         ],
     right: View [ x = { parent.width - 14 }, y = 1, width = 13, height = 14, cornerRadius = 2,
-        fill = gradient(colorStop(0, 0xE6EAEA), colorStop(1, 0x99A5AD)),
+        fill = Gradient.linear(Gradient.stop(0, 0xE6EAEA), Gradient.stop(1, 0x99A5AD)),
         draw(d: DrawContext) { d.fillStyle = 0x33454F
                   d.beginPath(); d.moveTo(5, 3); d.lineTo(9, 7); d.lineTo(5, 11); d.fill() },
         onClick() { app.stepField(classroot.field, 1) }
@@ -448,13 +448,13 @@ class CalButton extends Control [
     cornerRadius = 8,
 
     fill = { pressed
-        ? gradient(colorStop(0, 0x8FA0A6), colorStop(0.35, 0x7D8E96), colorStop(1, 0x4E626E))
-        : gradient(colorStop(0, 0xD9DFDF), colorStop(0.35, 0xB4BDBF), colorStop(1, 0x5C717D)) },
-    stroke = stroke(1, #143B45),
+        ? Gradient.linear(Gradient.stop(0, 0x8FA0A6), Gradient.stop(0.35, 0x7D8E96), Gradient.stop(1, 0x4E626E))
+        : Gradient.linear(Gradient.stop(0, 0xD9DFDF), Gradient.stop(0.35, 0xB4BDBF), Gradient.stop(1, 0x5C717D)) },
+    stroke = Stroke(1, #143B45),
 
     caption: Text [ fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
         x = center, y = 3,
-        textShadow = shadow(0, -1, 0, #33555577),
+        textShadow = Shadow(0, -1, 0, #33555577),
         text = { label } ]
 
     ]
@@ -1004,8 +1004,8 @@ App [ width = 835, height = 600, fill = #1E3A49,
             logo:  Image [ source = "resources/logo.png" ],
 
             viewBtns: View [ x = 142, y = 4, width = 174, height = 17, cornerRadius = 8,
-                fill = gradient(colorStop(0, 0xD9DFDF), colorStop(0.35, 0xB4BDBF), colorStop(1, 0x5C717D)),
-                stroke = stroke(1, #143B45),
+                fill = Gradient.linear(Gradient.stop(0, 0xD9DFDF), Gradient.stop(0.35, 0xB4BDBF), Gradient.stop(1, 0x5C717D)),
+                stroke = Stroke(1, #143B45),
 
                 // segment separators + the three tiny icons, drawn
 
@@ -1026,11 +1026,11 @@ App [ width = 835, height = 600, fill = #1E3A49,
                     },
 
                 dayLbl:   Text [ x = 20,  y = 3, fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
-                    textShadow = shadow(0, -1, 0, #33555577), text = "day" ],
+                    textShadow = Shadow(0, -1, 0, #33555577), text = "day" ],
                 weekLbl:  Text [ x = 69,  y = 3, fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
-                    textShadow = shadow(0, -1, 0, #33555577), text = "week" ],
+                    textShadow = Shadow(0, -1, 0, #33555577), text = "week" ],
                 monthLbl: Text [ x = 124, y = 3, fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
-                    textShadow = shadow(0, -1, 0, #33555577), text = "month" ],
+                    textShadow = Shadow(0, -1, 0, #33555577), text = "month" ],
 
                 dayHit:   View [ x = 0,   width = 47, height = 17,
                     onClick() { app.showDay() }
@@ -1044,8 +1044,8 @@ App [ width = 835, height = 600, fill = #1E3A49,
                 ],
 
             monthCtl: View [ x = 321, y = 8, width = 161, height = 17, cornerRadius = 8,
-                fill = gradient(colorStop(0, 0xBBC3C5), colorStop(0.4, 0xC5CCCF), colorStop(1, 0x7A8B94)),
-                stroke = stroke(1, #24424F),
+                fill = Gradient.linear(Gradient.stop(0, 0xBBC3C5), Gradient.stop(0.4, 0xC5CCCF), Gradient.stop(1, 0x7A8B94)),
+                stroke = Stroke(1, #24424F),
 
                 // the segment separators: incised vertical grooves (dark line
                 // + a highlight one px to its right), dividing the arrow caps
@@ -1081,7 +1081,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
             monthTitle: Text [ y = 10, fontWeight = bold, textColor = #FFFFFF,
                 x = { (parent.width - this.width) / 2 - 2 },
-                textShadow = shadow(0, -1, 0, #143B4580),
+                textShadow = Shadow(0, -1, 0, #143B4580),
                 text = { app.month > 0 ? app.monthName(app.month) + " " + app.year : "" } ],
 
             addBtn: CalButton [ x = 496, y = 5, width = 76, label = "Add Event",
@@ -1116,7 +1116,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
         visible = { opacity > 0 },
         datapath = { app.selRec() },
         fill = #C6CAC4,
-        stroke = stroke(1, #83877F),
+        stroke = Stroke(1, #83877F),
 
         slideIn:  AnimatorGroup [ process = simultaneous, duration = 500, easing = laszloBoth,
             Animator [ attribute = x, to = 622 ],
@@ -1172,7 +1172,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
     dragGhost: View [ visible = { app.dragId >= 0 && app.dragArmed },
         x = { app.dragX - 10 }, y = { app.dragY - 9 },
         width = 132, height = 18, opacity = 0.82, cornerRadius = 3,
-        fill = { app.catFill(app.dragCat) }, stroke = stroke(1, #8A98A4),
+        fill = { app.catFill(app.dragCat) }, stroke = Stroke(1, #8A98A4),
         label: Text [ x = 7, y = 3, fontSize = 10, textColor = #3A4650, text = { app.dragTitle } ]
         ]
     ]

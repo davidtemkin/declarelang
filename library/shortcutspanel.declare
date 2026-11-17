@@ -76,7 +76,7 @@ class ShortcutsPanel [ x = center, y = center, width = 340, ignoreLayout = true,
 
     visible = { this.shown },
     padding = [8, 18, 14, 18], cornerRadius = 14,
-    fill = { provided("theme").surface }, shadow = shadow(0, 16, 50, #00000059),
+    fill = { provided("theme").surface }, shadow = Shadow(0, 16, 50, #00000059),
     accessibilityRole = region, accessibilityLabel = "Keyboard shortcuts",
     layout: SimpleLayout [ axis = y ],
     datapath = { this._rows.value },

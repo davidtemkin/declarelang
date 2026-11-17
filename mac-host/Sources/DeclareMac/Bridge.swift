@@ -570,6 +570,12 @@ final class Bridge {
             }
         } as @convention(block) (Bool) -> Void, forKeyedSubscript: "setFullScreen")
 
+        // app.unsavedChanges: the window's edited mark (the dot in its close
+        // button), which ProgramWindow reads to ask before the window closes
+        host.setObject({ [weak self] (on: Bool) in
+            DispatchQueue.main.async { self?.program?.window.isDocumentEdited = on }
+        } as @convention(block) (Bool) -> Void, forKeyedSubscript: "setUnsaved")
+
         // WebSocket (the env's WebSocket class): URLSessionWebSocketTask does
         // the protocol — the HTTP upgrade handshake, framing, ping/pong, the
         // closing handshake; the reply comes back as __declareWsOpen /

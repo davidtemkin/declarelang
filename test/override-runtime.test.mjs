@@ -70,6 +70,7 @@ App [ width = 1, height = 1, log: string = "",
       // arrives after boot — the reactive-address case auto exists for)
       assert.equal(app.g.log, "", "an empty url fetches nothing");
       app.g.url = "/g.json";
+      settle();   // an auto-fetch decides at the settle's close, on the source as it settled
       assert.equal(app.g.log, "before;", "the url push ran maybeAuto, which called this.fetch() — the override");
       await landed();
       assert.equal(app.g.loaded, true);

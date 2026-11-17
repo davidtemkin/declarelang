@@ -1,7 +1,12 @@
 # Global names: a design
 
-*Design note, 2026-11-14. Status: for rulings. Color strings (§ Color, the second stage) are
-built and tested as a separate step that can be reverted on its own.*
+*Design note, 2026-11-14. Status: built on the branch `global-names`, except two parts:*
+
+- *§ Collisions: shadowing was ruled out (see there); every Declare name stays refused, with a
+  message naming its kind.*
+- *§ Color, the second stage: color strings.*
+
+*What was built is listed in `language-changes-2026-11.md`.*
 
 ## The rule
 
@@ -14,7 +19,9 @@ Every name the platform puts in a program's scope is capitalized, and is one of 
 | **Service** | The one instance an app has of something: the clipboard, the keyboard, focus | `Clipboard.copy(text)` |
 | **Theme** | A value of type `Theme`. The presets are the platform's themes, as a program's `theme` declarations are its own | `theme = { SanFrancisco }` |
 
-The platform adds **no lowercase names**. A lowercase name in a body is one of these:
+The platform adds **no lowercase names** but two plain functions, `measureText` and
+`escapeHtml`, which belong to no type and no class. Otherwise a lowercase name in a body is
+one of these:
 
 - the node's own: its attributes and methods, `this`, `parent`, `classroot`, `app`;
 - a local;
@@ -76,7 +83,7 @@ filter". The word `filter` stays free for what an app means by it.
 | `activeTone(accent, surface)` | Retired: it is `Color.mix(surface, accent, 0.22)` |
 | A hand-written bit-shifting `mix` (§ Evidence) | `Color.mix(a, b, t)`, `Color.lighter(c, k)`, `Color.darker(c, k)`, `Color.contrast(a, b)`, `Color.components(c)` |
 
-Each operation ships only in a program that uses it. `lighter` and `darker` work in OKLCH,
+They ship in every program. `lighter` and `darker` work in OKLCH,
 so the steps look even. `contrast` is the WCAG ratio.
 
 ### Motion: one `Easing`
@@ -90,20 +97,30 @@ so the steps look even. `contrast` is the WCAG ratio.
 
 | Before | After |
 |---|---|
-| `measureText(text, style, width)` | `TextStyle.measure(text, style, width)`: the style says everything the measurement uses |
-| `escapeHtml(s)` | `HTMLText.escape(s)`, beside the content it protects |
+| `measureText(text, style, width)` | Unchanged: a plain function, an exception to the rule. It belongs to no type and no class |
+| `escapeHtml(s)` | Unchanged, for the same reason |
 
 ### Functions that answer for the node that calls them become its methods
 
 | Before | After |
 |---|---|
-| `provided(…)`, `hostProvided(…)`, `providedTextStyle(…)`: shared functions that "answer for the view that calls them" and cannot be called in a script | View methods |
+| `providedTextStyle(…)`: a shared function that "answers for the view that calls it" and cannot be called in a script | A Node method: the face in force where the node is |
 | `afterDelay(ms, fn)`: a shared function whose wait "belongs to the node whose handler asked" | A Node method |
 | `afterSettle(fn)` | A Node method, beside `afterDelay` |
+| `hostProvided(…)`: a shared function that climbs to the top of the tree for a value the same from every node | An App method: `app.hostProvided(name, fallback)` |
+| `provided(…)` | Unchanged: a special form, not a method (below) |
 
-A bare name in a body already resolves to the node's members, so **every call site in a body
-is unchanged**. What changes is what the name *is*: the node's own, which is what each of
-these already behaves as.
+A bare name in a body already resolves to the node's members, so **every bare call of the
+three Node methods is unchanged**, and each is one method with no hidden twin. What changes is
+what the name *is*: the node's own, which is what each of these already behaves as.
+`hostProvided` depends on no node, only on the program, so it is the App's, written
+`app.hostProvided(…)`.
+
+`provided("name")` stays a special form. Its argument must be a literal name, because the
+compiler wires the read to that name's providers at compile time; its type follows the name
+(`provided("theme")` is the theme's tokens); it reads the nearest *ancestor* that provides the
+name, never the node itself; and a member of the same name cannot shadow it. A method has
+none of these properties.
 
 ### JavaScript's own
 
@@ -160,36 +177,20 @@ not a state.
 
 ## Collisions: one rule
 
-A program's top-level names (classes, schemas, themes, styles, script functions and
-constants) meet the platform's under one rule:
+**Every name the platform puts in a program's scope is refused as a program's own top-level
+name** (a class, schema, theme, style, or a script's function or constant), whatever kind of
+name it is. The refusal comes at the declaration and names the kind: a type, a builder's type,
+a service, or a theme preset. It suggests the program-prefixed rename.
 
-- **A name that exists only as a type, the program may take.** Its own declaration shadows
-  the platform's inside the program. This is how TypeScript's `Pick` and `Record` work today,
-  and it extends to Declare's type-only names: enums (`LayoutAxis`, `Easing` while it has no
-  builders), payloads (`PointerEvent`), interfaces (`Touch`).
-- **A name that exists at run time, the program may not.** That covers:
-  - a class;
-  - a service;
-  - a theme preset;
-  - a type with builders or operations (`Stroke`, `Color`, `Gradient`, `VisualFilter`,
-    `TextStyle`, `Easing`);
-  - JavaScript's values (`Map`, `Date`).
+**Ruled (DT, 2026-11-14): no shadowing.** Letting a program's own declaration shadow a
+type-only name (a chart's `LayoutAxis`, as a program's `Pick` shadows TypeScript's) was
+considered and rejected. It is the equivalent of operator overloading: a word would mean one
+thing in one program and another elsewhere, and the reference and the docs would describe a
+`Touch` that is not the one in front of the reader. Every platform name means one thing
+everywhere.
 
-  The program's declaration is refused, with a message that names what the name is and
-  suggests the program-prefixed rename.
-
-The list of names is generated from the reference, and one check applies it. Today three
-partial lists are checked in three places, and messages name the wrong kind: `Clipboard` is
-called "one of Declare's own types", and `Clipboard [ ]` gets "unknown class".
-
-**To prove before building:** that a program's own type-only name shadows Declare's without
-disturbing the library, which must keep reading Declare's. `Pick` shows the mechanism works
-for TypeScript's names. The `Axis` failure on 2026-11-14 shows what happens when the
-library's own annotations are not kept apart.
-
-**What the rule costs.** Most of the names agents hit are types that build values
-(`Stroke`, 5 runs; `TextStyle`, 2), so they stay refused. Under this rule they are refused
-for a reason that can be stated: the name is in use at run time.
+`Pick`, `Record` and the rest of TypeScript's type-only names are TypeScript's, not Declare's,
+and stay as they are.
 
 ## Misuse names the kind
 
@@ -204,7 +205,9 @@ notes it has now.
 
 ## Color: the second stage
 
-Separate, and revertible on its own, after the rest.
+Built with the rest, as one unit (2026-11-15). A color name that arrives at run time is
+refused with "use hex", so the names' table never ships. The bit-operation warning is a type
+error that names `Color`'s operations, since a `Color` that may be a string is not arithmetic.
 
 1. **A hex string, or a CSS name, wherever a color goes, `{ }` included**:
    `fill = { hovered ? "#4169E1" : "#191970" }`. Hex is how colors are written in CSS, in

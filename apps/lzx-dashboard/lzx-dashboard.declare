@@ -317,12 +317,12 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
         panel: View [ x = center,
             y = { app.height / 3 - this.height / 2 },
             width = 290, height = 100,
-            shadow = shadow(3, 5, 9, #00000066),
+            shadow = Shadow(3, 5, 9, #00000066),
             cornerRadius = 10,
 
             // the dark frame the original's edge strips draw around the body
 
-            stroke = stroke(3, #3E3E3E),
+            stroke = Stroke(3, #3E3E3E),
             clip = true, fill = #C26E54,
 
             // the form fades up as the grow lands — the group's own stop hook,
@@ -347,7 +347,7 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
                 well: View [ x = center, y = 29, width = 258, height = 19,
                     fill = #00000033, cornerRadius = 9 ],
                 barFill: View [ x = center, y = 31, width = 254, height = 15,
-                    fill = gradient(colorStop(0, #E8A88E), colorStop(1, #A34E34)), cornerRadius = 7 ],
+                    fill = Gradient.linear(Gradient.stop(0, #E8A88E), Gradient.stop(1, #A34E34)), cornerRadius = 7 ],
                 fadeOut: Animator [ attribute = opacity, to = 0, duration = 700 ]
                 ],
 
@@ -371,12 +371,12 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
 
                 nameLbl: Text [ x = 8, y = 36, text = "Name" ],
                 nameIn: TextInput [ x = 50, y = 34, width = 170, height = 20,
-                    fill = #FFFFFF, stroke = stroke(1, #1A1A1A), cornerRadius = 0, accessibilityLabel = "Name",
+                    fill = #FFFFFF, stroke = Stroke(1, #1A1A1A), cornerRadius = 0, accessibilityLabel = "Name",
                     onEnter() { Focus.next() }
                     ],
                 titleLbl: Text [ x = 8, y = 66, text = "Title" ],
                 titleIn: TextInput [ x = 50, y = 64, width = 170, height = 20,
-                    fill = #FFFFFF, stroke = stroke(1, #1A1A1A), cornerRadius = 0, accessibilityLabel = "Title",
+                    fill = #FFFFFF, stroke = Stroke(1, #1A1A1A), cornerRadius = 0, accessibilityLabel = "Title",
                     onEnter() { app.signIn(nameIn.text) }
                     ],
                 signBtn: DashButton [ x = 230, y = 64, width = 55, height = 20, label = "sign in",

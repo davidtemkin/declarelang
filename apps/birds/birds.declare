@@ -53,10 +53,10 @@ theme Birds [
 
 // ── one plate in a frame: cream mat, hairline, the engraving contained ───────
 
-class Plate [ fill = { provided("theme").mat }, stroke = { stroke(1, provided("theme").hair) }, clip = true,
+class Plate [ fill = { provided("theme").mat }, stroke = { Stroke(1, provided("theme").hair) }, clip = true,
     slug: string = "",
     lift: number = 0,                            // 0 = at rest, 1 = raised (hover) — the shadow deepens
-    shadow = { shadow(0, 2 + 5 * this.lift, 9 + 13 * this.lift, 0x00000024) },
+    shadow = { Shadow(0, 2 + 5 * this.lift, 9 + 13 * this.lift, 0x00000024) },
 
     // the cream mat is the frame's own inset — the engraving simply fills the
     // room it is given, and the hairline still runs around the outside
@@ -104,7 +104,7 @@ class Choice extends Control [ width = 100%, height = 44, cornerRadius = 8,
     fill = { this.hovered ? provided("theme").hoverWash : provided("theme").mat },
     State [ applied = { classroot.state == "right" }, fill = { provided("theme").rightWash } ],
     State [ applied = { classroot.state == "wrong" }, fill = { provided("theme").wrongWash } ],
-    stroke = { stroke(1, this.state == "right" ? provided("theme").right : this.state == "wrong" ? provided("theme").wrong : provided("theme").hair) },
+    stroke = { Stroke(1, this.state == "right" ? provided("theme").right : this.state == "wrong" ? provided("theme").wrong : provided("theme").hair) },
     press() { app.pick(:n) },
     t: TextLabel [ x = 16, fontSize = 15,
         textColor = { classroot.state == "wrong" ? provided("theme").wrong : provided("theme").ink }, text = :label ]
@@ -170,7 +170,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
        resolves through it. The url is a constraint, so a base that arrives
        late refetches. */
 
-    data: DataSource [ autoFetch = true, url = { hostProvided("base", "") + "birds.json" }, schema = [ groups[]: Group ] ],
+    data: DataSource [ autoFetch = true, url = { app.hostProvided("base", "") + "birds.json" }, schema = [ groups[]: Group ] ],
     birds: Bird[] = { (data.value?.groups ?? []).flatMap((g) => g.birds) },
 
     // ── location → the address, parsed (grammar: "" · "b/<slug>" · "quiz") ──
@@ -311,7 +311,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
     // ── fixed chrome: the masthead rides the window over the page scroll ─────
 
     bar: View [ ignoreScroll = true, x = 0, y = 0, width = { app.width }, height = 58, fill = { provided("theme").glass },
-        stroke = { [null, null, stroke(1, provided("theme").hair), null] },   // the rule under the masthead, not a child view
+        stroke = { [null, null, Stroke(1, provided("theme").hair), null] },   // the rule under the masthead, not a child view
         mark: Text [ x = { app.colX }, y = center, fontSize = 19, letterSpacing = 2,
             text = "50 BIRDS", link = "#", textColor = { provided("theme").ink } ],
         sub: Text [ x = { app.colX + 118 }, y = 22, fontSize = 12, textColor = { provided("theme").muted }, wrap = false,
@@ -408,7 +408,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         // follow, so it makes an entry like any other move.
 
         closeBox: View [ x = { parent.width - 34 }, y = 6, width = 28, height = 28, cornerRadius = 14,
-            fill = { provided("theme").glass }, stroke = { stroke(1, provided("theme").hair) }, link = "#", opacity = { parent.flyT },
+            fill = { provided("theme").glass }, stroke = { Stroke(1, provided("theme").hair) }, link = "#", opacity = { parent.flyT },
             mark: CloseIcon [ x = center, y = center, iconSize = 15, ink = { provided("theme").muted } ]
             ]
         ],

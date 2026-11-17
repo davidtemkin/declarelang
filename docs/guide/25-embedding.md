@@ -91,7 +91,7 @@ its own asset directory, none with any page-scoped wiring:
 <script type="module">
   import boot from "/declare/bundles/declare-boot.js";
   const birds = await boot({ main: "/apps/birds/birds.declare", host: document.getElementById("a"),
-    provides: { base: "/apps/birds/" } });                 // read in the app with hostProvided("base", "")
+    provides: { base: "/apps/birds/" } });                 // read in the app with app.hostProvided("base", "")
   await boot({ main: "/apps/weather/weather.declare", host: document.getElementById("b") });
 </script>
 ```
@@ -250,7 +250,7 @@ Here is the boundary rule in code, from both sides of an `AppIsland`.
 **Down, from host to tenant.** The island lists the names it offers in
 [`provides`](declare-docs:DOMIsland.provides), and each resolves *at the island* the way `provided()` does: the
 island's own attribute of that name first, then whatever its ancestors
-provide. The tenant reads one with `hostProvided(name, default)`.
+provide. The tenant reads one with `app.hostProvided(name, default)`.
 
 **Up, from tenant to host.** The tenant's App lists the names it offers in
 [`exposes`](declare-docs:App.exposes); the host reads one with `island.exposed(name, default)`.
@@ -273,7 +273,7 @@ list of what it offers back:
 
 ```declare-fragment
 App [ exposes = ["pos"],
-    volume: number = { hostProvided("volume", 0) },   // the host's value; 0 when nothing hosts it
+    volume: number = { app.hostProvided("volume", 0) },   // the host's value; 0 when nothing hosts it
     pos: number = 3,                                   // this app writes it; the host reads it
     onHostMessage(m: IslandMessage) { app.pos = app.pos + 1; app.postToHost("ack", m.topic) },
     ]
@@ -295,7 +295,7 @@ host can hand it any address to read. A tenant that reads its *own* data asks
 where home is, and falls back to beside itself when it runs alone:
 
 ```declare-fragment
-data: DataSource [ autoFetch = true, url = { hostProvided("base", "") + "data/events.json" } ]
+data: DataSource [ autoFetch = true, url = { app.hostProvided("base", "") + "data/events.json" } ]
 ```
 
 The host provides each tenant's `base` — an island's `provides`, or a page's

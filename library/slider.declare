@@ -210,7 +210,7 @@ class Slider extends ValueControl [
         cornerRadius = { this.width / 2 },
         x = { (classroot.width - 18) * frac + (classroot.barStyle() ? 6 : classroot.dotStyle() ? -1 : 0) },
         fill = { classroot.barStyle() ? provided("theme").accent : (provided("theme").sliderThumbFill ?? provided("theme").surface) },
-        stroke = { classroot.barStyle() ? stroke(0, provided("theme").accent) : stroke(1, classroot.hovered || classroot.pressed || classroot.dragging ? provided("theme").accent : provided("theme").line) },
+        stroke = { classroot.barStyle() ? Stroke(0, provided("theme").accent) : Stroke(1, classroot.hovered || classroot.pressed || classroot.dragging ? provided("theme").accent : provided("theme").line) },
         dot: View [ visible = { classroot.dotStyle() },
             width  = { classroot.hovered || classroot.pressed || classroot.dragging ? 14 : 12 },
             height = { this.width }, cornerRadius = { this.width / 2 },

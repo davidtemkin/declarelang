@@ -1,6 +1,6 @@
 // The ISLAND BOUNDARY, headless: what crosses says its direction. DOWN, the
 // island lists names in `provides` and the tenant reads them with
-// `hostProvided(name, default)`; UP, the tenant's App lists names in `exposes`
+// `app.hostProvided(name, default)`; UP, the tenant's App lists names in `exposes`
 // and the host reads them with `island.exposed(name, default)`; post/onPost
 // carry the verbs; linkIslandTenant is the linker. Pins, one per clause:
 //   - values cross both directions, per settle, from the first frame;
@@ -52,8 +52,8 @@ const HOST = `App [ width = 200, height = 100,
 
 const TENANT = `App [ width = 10, height = 10,
     exposes = ["pos"],
-    volume: number = { hostProvided("volume", 0) },
-    secret: number = { hostProvided("secret", -1) },
+    volume: number = { app.hostProvided("volume", 0) },
+    secret: number = { app.hostProvided("secret", -1) },
     pos: number = 5,
     hidden: number = 8,
     heard: string = "",
@@ -86,7 +86,7 @@ await test("built with its island's provisions, a tenant's very first evaluation
   // before any link — so a host builds the tenant WITH the values
   const host = await boot(`App [ width = 100,
       isl: DOMIsland [ width = 10, height = 10, provides = ["base"], base: string = "../cal/" ] ]`);
-  const r = await compile(`App [ width = 10, seen: string = "", onInit() { this.seen = hostProvided("base", "none") } ]`, {});
+  const r = await compile(`App [ width = 10, seen: string = "", onInit() { this.seen = app.hostProvided("base", "none") } ]`, {});
   const program = parseProgram(r.source);
   applyDeps(program, r.deps);
   const tenant = withHostProvides(islandProvisions(host.isl), () => instantiate(program));
@@ -109,7 +109,7 @@ await test("only listed names cross, either way", async () => {
 await test("the default types a read: another kind answers the default, with a warning", async () => {
   const host = await boot(`App [ width = 100,
       isl: DOMIsland [ width = 10, height = 10, provides = ["volume"], volume: number = 3 ] ]`);
-  const tenant = await boot(`App [ width = 10, loud: string = { hostProvided("volume", "quiet") } ]`, { settled: false });
+  const tenant = await boot(`App [ width = 10, loud: string = { app.hostProvided("volume", "quiet") } ]`, { settled: false });
   const unlink = linkIslandTenant(host.isl, tenant);
   let loud;
   // the default stands as a rule: it reads the host's value when it runs (the
@@ -124,8 +124,8 @@ await test("the default types a read: another kind answers the default, with a w
 await test("a read with no default and nothing provided throws, naming it", async () => {
   const tenant = await boot(`App [ width = 10 ]`);
   try {
-    assert.throws(() => tenant.$hostProvided("volume"), /volume/);
-    assert.equal(tenant.$hostProvided("volume", 4), 4, "with a default, the default");
+    assert.throws(() => tenant.hostProvided("volume"), /volume/);
+    assert.equal(tenant.hostProvided("volume", 4), 4, "with a default, the default");
   } finally { tenant.discard(); }
 });
 
@@ -181,7 +181,7 @@ await test("foreign handle: provides, hostProvided, watchProvided, expose, verbs
 await test("the page is the topmost host: what it provides arrives, and what the app exposes is readable", async () => {
   const app = await boot(`App [ width = 10,
       exposes = ["total"],
-      theme2: string = { hostProvided("mode", "light") },
+      theme2: string = { app.hostProvided("mode", "light") },
       total: number = { app.theme2 == "dark" ? 2 : 1 },
       ]`);
   try {

@@ -47,11 +47,9 @@ How far one arrow press moves a thumb; values land on steps from `min`.
 **Where a change goes**, receiving the range `{ low, high }` — already within `min` and `max`,
 on a step, and in order. The default writes `value`; override it to own the destination.
 
-## disabled
-Takes no drags and no keys; both thumbs say so to a screen reader.
-
 ## opacity
-Disabled dims the whole control, to the theme's `disabledOpacity`.
+Disabled dims the whole control, to the theme's `disabledOpacity`. It then takes no drags
+and no keys, and both thumbs say so to a screen reader.
 
 ## lowLabel
 What a screen reader calls the low thumb: "Minimum …", after the slider's own name.
@@ -239,5 +237,5 @@ class RangeThumb extends Control [
 
     width = 18, height = 18, y = 5, cornerRadius = 9,
     fill = { provided("theme").sliderThumbFill ?? provided("theme").surface },
-    stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").line) }
+    stroke = { Stroke(1, this.focused ? provided("theme").accent : provided("theme").line) }
     ]

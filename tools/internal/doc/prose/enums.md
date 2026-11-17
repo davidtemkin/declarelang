@@ -8,7 +8,7 @@ page per entry (`type/<Name>`); `declare-help <Name>` answers from the same text
 Keep each entry to a paragraph. The attribute that carries the vocabulary already
 documents what setting it does; say what is true of the vocabulary itself.
 
-## Axis
+## LayoutAxis
 
 Which way an arrangement runs. It is a **bare token, not a string** — `axis = x`
 names the axis, and the `x` here is unrelated to the position attribute of the same
@@ -148,7 +148,7 @@ weight. `laszlo` is the one curve that reads how far the animator is actually
 travelling, so its bend adapts to the distance rather than being fixed by the
 token. `linear` is no easing at all.
 
-## Numerals
+## NumeralStyle
 
 The **shape** of the digits in a face that carries more than one set. `normal` is
 whatever the face does by itself, and faces differ on that, so it is worth naming

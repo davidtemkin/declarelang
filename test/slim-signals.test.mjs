@@ -47,13 +47,9 @@ await test("a class classFor picks is permitted", async () => {
 });
 
 // ── globals: naming one carries what it reaches ───────────────────────────────
-// the body's names that come from the effects module, read from the runtime's
-// own import of it (expr.ts), not listed by hand
-const EFFECT_GLOBALS = (() => {
-  const m = /import\s*\{([^}]*)\}\s*from\s*"\.\/effects\.js"/.exec(readFileSync(resolve(HERE, "../runtime/dist/expr.js"), "utf8"));
-  assert.ok(m !== null, "expr.js imports the decoration constructors from effects.js");
-  return m[1].split(",").map((x) => x.trim()).filter(Boolean);
-})();
+// the globals whose builders come from the effects module: named at all, they
+// carry it (a signal with no exceptions: the global, never a member's name)
+const EFFECT_GLOBALS = ["VisualFilter", "Gradient"];
 const GLOBAL_WAYS = {
   "named in a body": (G) => `App [ k: any = { ${G} } ]`,
   "aliased": (G) => `App [ onInit() { const f: any = ${G}; console.log(f) } ]`,
@@ -103,6 +99,18 @@ await test("no capability is decided by a view member", () => {
   assert.deepEqual(bad, []);
 });
 
+// …and a `mentions` signal names a GLOBAL a body can name (one of the runtime's
+// body-scope names, or `eval`), never a property: `lighter` in `Color.lighter`
+// or `radial` in `Gradient.radial` is a member's name, which code can assemble.
+await test("a capability decided by a name decides by a global, never a property's name", async () => {
+  await import("../runtime/dist/services.js");   // the services and presets join the body scope
+  const { bodyScopeNames, CONSTRUCTOR_NAMES } = await import("../runtime/dist/expr.js");
+  const globals = new Set([...bodyScopeNames(), ...CONSTRUCTOR_NAMES, "eval"]);
+  const bad = [];
+  for (const c of CAPABILITIES) for (const t of c.when) for (const n of t.mentions ?? []) if (!globals.has(n)) bad.push(`${c.id}: ${n}`);
+  assert.deepEqual(bad, []);
+});
+
 // ── every import from core into a slimmable module is classified ──────────────
 // A left-out module is a stand-in. Core reaching one must either be reached only
 // under that module's own signal (a class's code through the class), or call an
@@ -116,6 +124,8 @@ const CLASSIFIED = {
   "registry→islands": "class",
   "instantiate→class-for": "slot (classFor)", "instantiate→virtualize": "slot (virtualize)",
   "instantiate→replication": "syntax ([])", "expr→effects": "global (the constructors are the body's names)",
+  "expr→color": "global (Color: its operations are reached only through the name)",
+  "services→text-measure": "global (measureText: reached only through the name)",
   "rich-text→rich-doc": "build (dom)", "rich-text→rich-views": "class (rich text) or build (canvas)",
   "dom-backend→rich-dom": "class (rich text); the inert three proven: only rich text sets the slots they read",
   "instantiate→routing": "syntax (unrouted), class (rich text), build",

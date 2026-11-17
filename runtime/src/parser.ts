@@ -1314,7 +1314,14 @@ class Parser {
       case "string": return { kind: "string", value: t.str!, pos: t.pos };
       case "hexColor": return { kind: "hexColor", raw: t.text, pos: t.pos };
       case "ident":
-        // `name(args)` — a value constructor (gradient/stroke/shadow/stop).
+        // `Type.builder(args)` — a builder reached through its type
+        // (`Gradient.linear(…)`, `VisualFilter.blur(3)`, `Easing.steps(4)`)
+        let callee = t.text;
+        if (this.peek().kind === "dot" && this.peekAt(1).kind === "ident" && this.peekAt(2).kind === "lparen") {
+          this.next();
+          callee = callee + "." + this.next().text;
+        }
+        // `Name(args)` — a builder call (`Stroke(1, #ccc)`, `Shadow(…)`, or the dotted form above).
         if (this.peek().kind === "lparen") {
           this.next();
           const args: Literal[] = [];
@@ -1324,7 +1331,7 @@ class Parser {
             else break;
           }
           this.expect("rparen", "')'");
-          return { kind: "call", name: t.text, args, pos: t.pos };
+          return { kind: "call", name: callee, args, pos: t.pos };
         }
         // `Name[]` — an array-of-schema type expression (`schema = Task[]`,
         // a response that is a bare array of records). The suffix folds into

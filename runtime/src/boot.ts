@@ -173,6 +173,17 @@ function wireFullScreen(app: App, el: HTMLElement): () => void {
   return () => { document.removeEventListener("fullscreenchange", update); app.$fullScreenHost = null; };
 }
 
+/** `app.unsavedChanges`: while it is true, leaving the page asks first — the
+ *  browser's own question, whose words a page can't set. Read when the page is
+ *  about to go, so nothing is kept in step. An embedded app's work goes with
+ *  its page, so it asks the same way. */
+function wireLeaving(app: App): () => void {
+  if (typeof window === "undefined") return () => {};
+  const ask = (e: BeforeUnloadEvent) => { if (app.unsavedChanges) { e.preventDefault(); e.returnValue = ""; } };
+  window.addEventListener("beforeunload", ask);
+  return () => window.removeEventListener("beforeunload", ask);
+}
+
 /** Feed the SAFE-AREA facts (`app.safeTop`…`safeRight`) and honor `edges = cover`.
  *
  *  The default is the letterbox: the browser keeps the app clear of the
@@ -298,6 +309,7 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   wireAccessibilitySettings(app);          // the person's preferences — likewise page-lived
   wireVisibility(app);                     // page visibility fact — likewise page-lived
   wireFullScreen(app, document.documentElement);   // full screen, both ways — likewise page-lived
+  wireLeaving(app);                        // unsaved work asks before the page goes — likewise page-lived
   wireInputFacts(app);                    // device pointer kind — likewise page-lived
   wireSafeArea(app, w);                    // notch/home-indicator insets — likewise page-lived
   // The LAYOUT viewport, never the visual one: on iOS/iPadOS `window.inner*`
@@ -430,6 +442,7 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
   const unSettings = wireAccessibilitySettings(app);
   const unVisible = wireVisibility(app);   // …and the visibilitychange listener
   const unFull = wireFullScreen(app, host);   // …and the fullscreenchange one
+  const unLeaving = wireLeaving(app);      // …and the beforeunload one
   const unPointer = wireInputFacts(app);
   const down = (e: PointerEvent) => {
     const p = localPoint(host, e.clientX, e.clientY);
@@ -463,6 +476,7 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
     unSettings();
     unVisible();
     unFull();
+    unLeaving();
     unPointer();
   });
 }

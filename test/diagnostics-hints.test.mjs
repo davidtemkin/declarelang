@@ -135,7 +135,7 @@ await test("input, openFor, openAt and ContextMenu.open name commit, showFor and
 
 await test("filter, choices, selected, active and the minor renames name what holds them now", async () => {
   // the attribute: `filter` on a view names visualFilter, in either position…
-  await says(`App [ View [ filter = blur(4) ] ]`, "has no attribute 'filter' — a view's own visual effects are 'visualFilter'");
+  await says(`App [ View [ filter = VisualFilter.blur(4) ] ]`, "has no attribute 'filter' — a view's own visual effects are 'visualFilter'");
   await says(`App [ View [ onClick() { console.log(this.filter) } ] ]`, "'visualFilter'");
   // …and on a class with no view behind it, the CSS name still points there
   await says(`App [ Node [ filter = 1 ] ]`, "the CSS instinct: a view's own effects are 'visualFilter'");

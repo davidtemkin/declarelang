@@ -15,7 +15,7 @@ App [ width = 600, height = 400, fill = #6A6A72,
 
     a: View [ x = 60, y = 50, width = 200, height = 120, cornerRadius = 16,
         fill = #FFFFFF,
-        shadow = { shadow(0, 10, 24, 0x00000066) } ],
+        shadow = { Shadow(0, 10, 24, 0x00000066) } ],
 
     // rotated — the case the desktop is in, and where the off-canvas trick's
     // uncompensated y term throws the shadow away
@@ -24,7 +24,7 @@ App [ width = 600, height = 400, fill = #6A6A72,
         pivotX = 100, pivotY = 60,
         rotation = 12,
         fill = #FFFFFF,
-        shadow = { shadow(0, 10, 24, 0x00000066) } ],
+        shadow = { Shadow(0, 10, 24, 0x00000066) } ],
 
     // a scaled box too — the memo's exact-at-rest path carries the shadow
 
@@ -32,5 +32,5 @@ App [ width = 600, height = 400, fill = #6A6A72,
         pivotX = 60, pivotY = 45,
         scale = 1.6,
         fill = #FFFFFF,
-        shadow = { shadow(0, 8, 20, 0x00000066) } ]
+        shadow = { Shadow(0, 8, 20, 0x00000066) } ]
     ]

@@ -339,7 +339,10 @@ function analyze(tokens) {
         return nc[p++];
       case "ident": {
         const at = nc[p++];
-        if (tok().kind === "lp") { // value constructor `name(args)`
+        // a builder through its type, `Gradient.linear(…)`: the dot and the
+        // builder's name ride the call
+        if (tok().kind === "dot" && tok(1).kind === "ident" && tok(2).kind === "lp") p += 2;
+        if (tok().kind === "lp") { // a builder call `Name(args)`
           p++;
           while (tok().kind !== "rp" && tok().kind !== "eof") {
             parseLiteral();

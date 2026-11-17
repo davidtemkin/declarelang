@@ -163,7 +163,7 @@ class Plate [ cornerRadius = 14,
     gap: number = 16,
     padding = { this.pad },                     // the inset is the view's own
     layout: Run [ spacing = { classroot.gap } ],
-    fill = { provided("theme").panel }, stroke = { stroke(1, provided("theme").line) }
+    fill = { provided("theme").panel }, stroke = { Stroke(1, provided("theme").line) }
     ]
 
 

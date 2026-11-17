@@ -827,6 +827,7 @@ function synthesize(
         // makes the accessor's setter throw (its `{ }` default is the value,
         // evaluated live and un-overridable).
         readOnly: d.readOnly || undefined,
+        color: written === "Color" || undefined,
         defBinding,
         defRule: rule || undefined,
         defOuter: outer || undefined,

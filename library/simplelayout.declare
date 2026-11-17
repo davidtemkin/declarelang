@@ -84,7 +84,7 @@ one place that is allowed.
 */
 
 class SimpleLayout extends Layout [
-    axis: Axis = y,
+    axis: LayoutAxis = y,
     spacing: number = 0,
     align: CrossAlign = none,
 

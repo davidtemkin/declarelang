@@ -172,6 +172,16 @@ App [ width = 400, height = 400, layout: SimpleLayout [ axis = y ],
   assert.match(b.warnings.find((w) => w.code === "DECLARE4020" && w.pos.line === 6).message, /Checkbox in Row/);
 });
 
+await test("a view written inside a Button is warned of, naming iconLeft; a State or a Button's own slots are not", async () => {
+  const b = await compile(`class Pill extends Button [ dot: View [ width = 4, height = 4 ] ]
+App [ width = 400, height = 300, layout: SimpleLayout [ axis = y ],
+    back: Button [ label = "Back", ArrowIcon [ iconSize = 14 ] ],
+    ok: Button [ label = "Save", iconLeft = "PlusIcon", State [ applied = { true }, label = "Saved" ] ],
+    Pill [ label = "New" ] ]`);
+  assert.deepEqual(warnedLines(b, "DECLARE4043"), [1, 3], "the subclass's child once, at the class; the icon at its use");
+  assert.match(b.warnings.find((w) => w.code === "DECLARE4043" && w.pos.line === 3).message, /ArrowIcon is inside back, a Button.*iconLeft or iconRight/);
+});
+
 await test("a control showing it is the one chosen, with no state reported, is warned of; one that reports it, or opens a menu, is not", async () => {
   const b = await compile(`class Choice extends Control [ width = 60, height = 44, on: boolean = false, label: string = "",
     TextLabel [ text = { classroot.label } ] ]

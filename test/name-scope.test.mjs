@@ -78,9 +78,9 @@ App [ width = 200, height = 100, Card2 [ ] ]`);
 });
 
 await test("a script binding named like a runtime body name is refused where it is declared", async () => {
-  const r = await build(`script { function sepia(x: number): number { return x * 2 } }
-App [ width = 200, height = 100, Text [ text = { "v" + sepia(2) } ] ]`);
-  assert.ok(texts(r.errors).some((m) => /script \{ \} declares 'sepia', a name the runtime already gives every \{ \} body/.test(m)), texts(r.errors).join("\n"));
+  const r = await build(`script { function Gradient(x: number): number { return x * 2 } }
+App [ width = 200, height = 100, Text [ text = { "v" + Gradient(2) } ] ]`);
+  assert.ok(texts(r.errors).some((m) => /script \{ \} declares 'Gradient', a name the runtime already gives every \{ \} body/.test(m)), texts(r.errors).join("\n"));
   assert.equal(r.source, null, "nothing is emitted that could not start");
 });
 

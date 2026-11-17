@@ -48,5 +48,5 @@ class SearchField extends TextInput [ height = { provided("theme").searchFieldHe
     placeholder = "Search",
     padding = { [0, provided("theme").searchFieldPadding, 0, provided("theme").searchFieldPadding] },
     fill = { provided("theme").searchFieldFill ?? provided("theme").surface },
-    stroke = { stroke(1, this.focused ? provided("theme").accent : (provided("theme").searchFieldStroke ?? provided("theme").line)) }
+    stroke = { Stroke(1, this.focused ? provided("theme").accent : (provided("theme").searchFieldStroke ?? provided("theme").line)) }
     ]

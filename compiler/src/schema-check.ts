@@ -18,6 +18,7 @@
 import type { Program, Element, ShapeField } from "../../runtime/dist/parser.js";
 import { DeclareError } from "../../runtime/dist/errors.js";
 import { splitPath, type PathSeg } from "../../runtime/dist/datapath.js";
+import { shapeFieldTsType, shapeObjectText } from "./scaffold.js";
 
 type Ctx =
   | { kind: "record"; fields: readonly ShapeField[] }
@@ -35,9 +36,11 @@ const describeCtx = (ctx: Ctx): string =>
 
 /** Walk one plan from a context. Returns the endpoint context (plus whether
  *  a selective segment made it PLURAL — legal ground for `[]`) or an error. */
-function walkPlan(start: Ctx, plan: readonly PathSeg[], spelled: string): { ctx: Ctx; plural: boolean } | { error: string } {
+function walkPlan(start: Ctx, plan: readonly PathSeg[], spelled: string): { ctx: Ctx; plural: boolean; last?: ShapeField; indexed?: boolean } | { error: string } {
   let ctx = start;
   let plural = false;
+  let last: ShapeField | undefined;
+  let indexed = false;
   const enter = (f: ShapeField): Ctx =>
     f.fields !== undefined ? { kind: "record", fields: f.fields }
     : f.type === "any" ? OPEN
@@ -56,11 +59,14 @@ function walkPlan(start: Ctx, plan: readonly PathSeg[], spelled: string): { ctx:
         return { error: `':${spelled}' — '${seg}' is not in the schema here; fields: ${fieldList(ctx.fields)}` };
       }
       ctx = f.array ? { kind: "array", field: f } : enter(f);
+      last = f;
+      indexed = false;
     } else if ("i" in seg) {
       if (ctx.kind !== "array") {
         return { error: `':${spelled}' — [${seg.i}] indexes an array, and the schema says this is ${describeCtx(ctx)}` };
       }
       ctx = enter(ctx.field);
+      indexed = true;
     } else {
       // Slice / wildcard — a selection over the array's elements; further
       // names apply per element (RFC nodelist semantics).
@@ -72,7 +78,29 @@ function walkPlan(start: Ctx, plan: readonly PathSeg[], spelled: string): { ctx:
       plural = true;
     }
   }
-  return { ctx, plural };
+  return { ctx, plural, last, indexed };
+}
+
+/** The TypeScript type a read reaches, or null where it is open (data of no declared shape)
+ *  or plural (a selection over an array). An optional field, read directly, may be null or
+ *  absent; an index into an array may land past its end. */
+function tsOfRead(r: { ctx: Ctx; plural: boolean; last?: ShapeField; indexed?: boolean }): string | null {
+  if (r.plural || r.ctx.kind === "open") return null;
+  const base =
+    r.ctx.kind === "scalar" ? shapeFieldTsType({ ...r.ctx.field, array: false })
+    : r.ctx.kind === "record" ? shapeObjectText(r.ctx.fields)
+    : shapeFieldTsType(r.ctx.field);
+  const maybe = r.indexed === true || (r.last?.optional === true);
+  return maybe ? `(${base}) | null | undefined` : base;
+}
+/** Each body's `:path` reads, by the body's owner, with the type its schema gives: what the
+ *  type check gives each read in place of `any` (typecheck.ts). */
+let COLLECT: Map<object, { text: string; type: string }[]> | null = null;
+export function pathReadTypes(program: Program): Map<object, { text: string; type: string }[]> {
+  const out = new Map<object, { text: string; type: string }[]>();
+  COLLECT = out;
+  try { schemaCheck(program); } finally { COLLECT = null; }
+  return out;
 }
 
 /** Check a program's path literals against its datasets' schemas. */
@@ -248,18 +276,23 @@ export function schemaCheck(program: Program): DeclareError[] {
           : `declare a member on an element above, where that record is current (${decl}), and read that member here`;
         return `${error} — '${attr}' is written on the element whose datapath is '${via}', and an element's own attributes read its own record; '${spelled}' is in the record above. To pass it down, ${pass}`;
       };
-      const islands = (src: string, pos: Element["pos"], attr?: string): void => {
+      const islands = (src: string, pos: Element["pos"], attr?: string, owner?: object): void => {
         if (here.kind === "open") return;
         for (const m of src.matchAll(/this\.\$(?:data|cell)\(\[((?:\s*"(?:[^"\\]|\\.)*"\s*,?)*)\]\)/g)) {
           const segs = [...m[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((x) => JSON.parse(`"${x[1]}"`));
           if (segs.length === 0) continue;
           const r = walkPlan(here, segs, segs.join("."));
-          if ("error" in r) push(new DeclareError(ownRecord(attr, segs, r.error), pos));
+          if ("error" in r) { push(new DeclareError(ownRecord(attr, segs, r.error), pos)); continue; }
+          if (COLLECT !== null && owner !== undefined && m[0].startsWith("this.$data(")) {
+            const type = tsOfRead(r);
+            if (type !== null) (COLLECT.get(owner) ?? (COLLECT.set(owner, []), COLLECT.get(owner)!)).push({ text: m[0], type });
+          }
         }
       };
-      for (const m of el.methods) islands(m.body, m.bodyPos);
+      for (const m of el.methods) islands(m.body, m.bodyPos, undefined, m);
+      for (const d of el.decls) if (d.def?.kind === "code") islands(d.def.src, d.def.pos, d.name, d.def);
       for (const a of el.attrs) {
-        if (a.name !== "datapath" && a.value.kind === "code") islands(a.value.src, a.value.pos, a.name);
+        if (a.name !== "datapath" && a.value.kind === "code") islands(a.value.src, a.value.pos, a.name, a.value);
         if (a.name === "datapath" || a.value.kind !== "path") continue;
         const v = a.value;
         const plan = v.plan ?? splitPath(v.path);

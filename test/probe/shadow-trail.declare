@@ -8,6 +8,6 @@ App [ width = 640, height = 400, fill = #E9EDF3,
     pos: number = 40,
     card: View [ x = { app.pos }, y = 120, width = 200, height = 150, cornerRadius = 10,
         fill = #3A6EA5,
-        shadow = { shadow(0, 10, 30, 0x00000066) } ],
+        shadow = { Shadow(0, 10, 30, 0x00000066) } ],
     Text [ x = 300, y = 300, text = "text beside the card's path" ]
     ]

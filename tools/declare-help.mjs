@@ -196,6 +196,9 @@ const model = JSON.parse(readFileSync(join(ROOT, "docs/declare-model.json"), "ut
 // no prototype: a name every object inherits (toLocaleString) is not an entry
 const REF = Object.assign(Object.create(null), model.reference);
 const SPINE = model.spine;
+/** What a dotted lookup's owner is to the reader: a type's operations, or a namespace. */
+const nsKind = (name) => (SPINE.types.shared.aliases ?? []).some((a) => a.name === name) || (SPINE.types.shared.interfaces ?? []).some((i) => i.name === name) || SPINE.enums[name] !== undefined
+  ? `an operation on the type ${name}` : `a member of the shared namespace ${name}`;
 const TYPES = model.types ?? { pages: {}, order: [] };
 /** The reference PAGE a named vocabulary has — every enum and every shared type
  *  is a page of its own (`type/<Name>`), so an answer here ends where a form's
@@ -287,7 +290,8 @@ function firstSentence(md) {
 function sayEntry(e) {
   // the page's side of embedding (origin "page", browser/declare-boot.d.ts) is
   // JavaScript a page calls, not a class a program writes — say which it is
-  const bits = [e.origin === "page" && e.kind === "class" ? (e.signature ? "page API function" : "page API handle") : e.kind ?? "entry"];
+  const bits = [e.origin === "page" && e.kind === "class" ? (e.signature ? "page API function" : "page API handle")
+    : TREE.get(e.id)?.service === true ? "service · ask it from any { } body, nothing to place" : e.kind ?? "entry"];
   if (e.type) bits.push(`type ${e.type}`);
   if (e.default !== undefined && e.default !== null && e.default !== "") bits.push(`default ${String(e.default)}`);
   if (e.readOnly) bits.push("read-only");
@@ -360,7 +364,7 @@ function sayClass(cls) {
   }
   const lib = ownKey(SPINE.library, cls);
   const chain = chainOf(cls);
-  const head = [lib ? `library class (${lib})` : "class", s?.base ? `extends ${s.base}` : null]
+  const head = [t?.service === true ? "service · ask it from any { } body, nothing to place" : lib ? `library class (${lib})` : "class", s?.base ? `extends ${s.base}` : null]
     .filter(Boolean).join(" · ");
   say(`${cls} — ${head}`);
   if (t?.doc) say(`  ${firstSentence(t.doc)}`);
@@ -439,7 +443,8 @@ let json = null; // the --json payload for the shape that answered
 
 function answerDotted(cls, member) {
   const schema = schemaOf(cls);
-  if (schema === null) return false;
+  // a service's page has no class schema, only its calls (Focus.focus, Keyboard.isDown)
+  if (schema === null && TREE.get(cls)?.service !== true) return false;
   const hit = findMember(cls, member);
   if (hit) { sayEntry(hit); json = { kind: "entry", entry: hit }; return true; }
   // a BUILT-IN provided value (schema.ts BUILTIN_PROVIDED): any container sets it
@@ -542,7 +547,7 @@ function answer() {
   const dot = query.match(/^([A-Za-z][A-Za-z0-9]*)\.([A-Za-z][A-Za-z0-9]*)$/);
   if (dot) {
     const [, cls, member] = dot;
-    if (schemaOf(cls) !== null) return answerDotted(cls, member);
+    if (schemaOf(cls) !== null || TREE.get(cls)?.service === true) return answerDotted(cls, member);
     // a page-API handle's member (Tenant.post, IslandHandle.watchProvided, boot.host)
     if (REF[cls]?.origin === "page") {
       const hit = REF[`${cls}.${member}`] ?? REF[`${cls}.method.${member}`];
@@ -556,9 +561,31 @@ function answer() {
     const ns = (SPINE.types.shared.namespaces ?? []).find((x) => x.name === cls);
     if (ns !== undefined) {
       const line = ns.members.find((l) => l.startsWith(member) && /^[(:?\s]/.test(l.slice(member.length)));
-      if (line !== undefined) { say(`${ns.name}.${line}`); say(`  a member of the shared namespace ${ns.name}: declare-help ${ns.name}`); }
+      if (line !== undefined) {
+        say(`${ns.name}.${line}`);
+        if (ns.memberDocs?.[member]) say(`  ${ns.memberDocs[member]}`);
+        say(`  ${nsKind(ns.name)}: declare-help ${ns.name}`);
+      }
       else say(`no '${member}' in ${ns.name} — declare-help ${ns.name} lists what it has`);
       json = { kind: line !== undefined ? "namespace-member" : "miss", name: query };
+      return true;
+    }
+    // a member of a shared interface (`PointerEvent.deltaX`): its line and its own prose,
+    // found on the interface or on the one it extends
+    const ifaces = SPINE.types.shared.interfaces ?? [];
+    const iface = ifaces.find((x) => x.name === cls);
+    if (iface !== undefined) {
+      for (let at = iface; at !== undefined; at = at.extends ? ifaces.find((x) => x.name === at.extends) : undefined) {
+        const line = (at.members ?? []).find((l) => l.startsWith(member) && /^[(:?\s]/.test(l.slice(member.length)));
+        if (line === undefined) continue;
+        say(`${cls}.${line}${at !== iface ? ` (from ${at.name})` : ""}`);
+        if (at.memberDocs?.[member]) say(`  ${at.memberDocs[member]}`);
+        say(`  a shared interface: declare-help ${cls}`);
+        json = { kind: "interface-member", name: query, on: at.name };
+        return true;
+      }
+      say(`no '${member}' on ${cls} — declare-help ${cls} lists what it has`);
+      json = { kind: "miss", name: query };
       return true;
     }
     const nearCls = nearestName(cls, CLASS_NAMES);
@@ -669,6 +696,12 @@ function answer() {
         ty.slice(5, -1).split("|").join() === SPINE.enums[enumByName].join())
       .map(([a]) => `${c}.${a}`))[0];
     if (carrier) say(`  carried by ${carrier} — full entry: declare-help ${carrier}`);
+    // …and the curves a token can't name, built on the type (`Easing.cubicBezier`)
+    const ops = (SPINE.types.shared.namespaces ?? []).find((x) => x.name === enumByName);
+    if (ops !== undefined) {
+      say(`  called on it:`);
+      for (const mline of ops.members) say(`    ${ops.name}.${mline}`);
+    }
     // the vocabulary's own prose and its page — the same answer the reference
     // shows, from the same place (tools/internal/doc/prose/enums.md → model.types)
     const page = typePage(enumByName);
@@ -698,6 +731,14 @@ function answer() {
     const hit = (SPINE.types.shared[list] ?? []).find((x) => x.name.toLowerCase() === query.toLowerCase());
     if (!hit) return false;
     render(hit);
+    // a type with its operations (`Color`, `Gradient`): the type, then what is
+    // called on it — the type and the namespace are one name to the reader
+    const ops = list !== "namespaces" ? (SPINE.types.shared.namespaces ?? []).find((x) => x.name === hit.name) : undefined;
+    if (ops !== undefined) {
+      say(`  called on it:`);
+      for (const mline of ops.members) say(`    ${ops.name}.${mline}`);
+      say(`  each one: declare-help ${ops.name}.<name>`);
+    }
     // …and what it IS. The signature alone was the whole answer for every shared
     // name — a name, a type, and a blank body, which reads as an answer and
     // teaches nothing. The sentence is the declaration's own doc comment in the
@@ -886,7 +927,10 @@ function answer() {
   // the curated absences, which a coincidental method (`select`) must not mask
   const methodOwners = Object.keys(REF).filter((id) => REF[id].internal !== true && id.endsWith(`.method.${query}`) && id.split(".").length === 3).map((id) => id.split(".")[0]);
   if (methodOwners.length > 0) {
-    const base = [...methodOwners].sort((a, b) => chainOf(a).length - chainOf(b).length)[0];
+    // a program's own class before a page-API handle (`hostProvided` is App's;
+    // IslandHandle's is the page side of the same boundary)
+    const page = (c) => (REF[c]?.origin === "page" ? 1 : 0);
+    const base = [...methodOwners].sort((a, b) => page(a) - page(b) || chainOf(a).length - chainOf(b).length)[0];
     sayEntry(REF[`${base}.method.${query}`]);
     const others = methodOwners.filter((c) => c !== base);
     if (others.length > 0) say(`  also declared by: ${others.slice(0, ALL ? Infinity : 8).join(", ")}${others.length > 8 && !ALL ? `, …and ${others.length - 8} more (--all)` : ""} — declare-help <Class>.${query}`);

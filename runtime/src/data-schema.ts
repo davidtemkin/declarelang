@@ -35,6 +35,7 @@ const showPtr = (segs: readonly (string | number)[]): string =>
 
 function typeOk(type: "string" | "number" | "boolean" | "any", v: unknown): boolean {
   if (type === "any") return v !== undefined;
+  // a color as data carries it: its number, or the "#RRGGBB" string JSON writes
   return typeof v === type;
 }
 

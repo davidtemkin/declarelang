@@ -73,6 +73,24 @@ another way in with `lastPointerType`; to size for the device, read `touchFirst`
 a custom cursor to the native I-beam by gating on `!app.pointerOverText`, so text stays
 comfortably selectable.
 
+## focusedView
+**Read-only.** The view that holds keyboard focus in this program, or `null`. A constraint
+reading it re-derives as focus moves; to act when it moves, track it
+(`trackChanges = ["focusedView"]` on the App, or a watcher's own attribute) and handle
+`onChange`. Move focus with `Focus.focus(v)`.
+
+## focusGeometry
+**Read-only.** The focused control's live outline in this program — `x`, `y`, `w`, `h`,
+`rad`, `view`, `scroller`, `root` — kept current as it moves, scrolls or reshapes, or
+`null` when nothing here is focused. What a focus indicator of your own follows; the
+library's `FocusRing` reads it.
+
+## tooltipRequest
+**Read-only.** The tooltip a view in this program asks for now — its `text` and the view's
+box (`x`, `y`, `w`, `h`) — or `null` when none should show. The platform's tip service sets
+it, with its conventions (the show delay, an instant retarget while one shows, hiding on a
+press); the library's `Tooltip` renders it. Read it only to replace that rendition.
+
 ## accessibilitySettings
 **Read-only.** The person's accessibility preferences, kept live: `reduceMotion`
 (`prefers-reduced-motion`), `increaseContrast` (`prefers-contrast: more`),
@@ -99,6 +117,14 @@ whole page; an embedded app, its own box.
 Button [ label = { app.fullScreen ? "Exit full screen" : "Full screen" },
     onClick() { app.fullScreen = !app.fullScreen } ]
 ```
+
+## unsavedChanges
+Whether the app holds changes it hasn't saved yet — a fact the program states, usually as a
+constraint on whatever does the saving (`unsavedChanges = { app.sync.pending }`). While it is
+true the host asks before the app goes: in a browser, closing or leaving the page brings the
+browser's own "Leave site?" (its words are the browser's); on the Mac, the window's close
+button shows the edited mark, and closing the window or quitting asks first. Save on the way
+out too, where you can: `pageVisible` turning false is the moment a page is being put away.
 
 ## pageVisible
 **Read-only.** Is the page this app lives on **visible** — `false` when the tab is
@@ -336,7 +362,7 @@ The names this app offers UP to whatever hosts it — `exposes = ["docH"]`. Each
 one of the app's own attributes; the host reads it with `island.exposed("docH", 0)`
 (an island hosting this app) or `tenant.exposed("docH", 0)` (a page, through the handle
 `boot()` resolves to). Nothing unlisted is
-readable from outside. The down direction is `hostProvided(name, default)`, which reads
+readable from outside. The down direction is `app.hostProvided(name, default)`, which reads
 what the host provides.
 
 ## language
@@ -351,6 +377,14 @@ What this app calls itself — the host reflects it into the window or document 
 ordinary reactive attribute, so a title that tracks the open document is a constraint rather
 than a mechanism: `appName = { "Viewer — " + app.fileName }`. `""` (the default) means no
 opinion, and the host keeps whatever title it served.
+
+## hostProvided()
+A value this program's host provides — the program that embeds it lists the name in its
+island's `provides`; a page embedding it passes `boot({ provides })`. The fallback stands
+in when nothing is provided and states the type: a value of a different kind is refused at
+the read, with a warning. The name must be a literal. Reactive: when the host's value
+changes, everything that read it re-derives.
+`theme = { app.hostProvided("theme", app.systemDark ? SanFranciscoDark : SanFrancisco) }`.
 
 ## openWindow()
 Opens a URL in a new window or tab — the service action, so a `{ }` body never touches the
@@ -375,7 +409,7 @@ page's `tenant.post(topic, payload)`, arrives as `onHostMessage(m: IslandMessage
 `m.topic`, `m.payload`. Continuous values cross by name, each saying its direction: this app
 lists what it offers UP in `exposes`, and the host reads one with the island's
 `exposed(name, default)`; the host lists what it offers DOWN in the island's
-`provides`, and this app reads one with `hostProvided(name, default)`. Both reads are
+`provides`, and this app reads one with `app.hostProvided(name, default)`. Both reads are
 reactive — constraints over them re-derive when the other side changes the value — and
 each value has exactly one owner, so neither side can write what the other offers.
 

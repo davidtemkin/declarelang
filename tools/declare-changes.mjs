@@ -141,17 +141,20 @@ if (isMain) {
     console.error("declare-changes <file.declare> [--since <release>] | --since <release> | --done <file.declare> [--json]");
     process.exit(1);
   }
+  // A report ends by leaving the block, never by process.exit: exit cuts off output a pipe has
+  // not drained, and a long plan as JSON (more than 64 KB) arrived truncated.
+  report: {
   const files = program === undefined ? [] : programFiles(program).map((path) => ({ path, text: readFileSync(path, "utf8") }));
   const since = sinceArg ?? (program === undefined ? null : writtenFor(files[0]?.text ?? ""));
   const entries = plan({ since, files });
-  if (json) { console.log(JSON.stringify({ version: VERSION, since, program: program ?? null, entries }, null, 2)); process.exit(0); }
+  if (json) { console.log(JSON.stringify({ version: VERSION, since, program: program ?? null, entries }, null, 2)); break report; }
 
   const from = since === null ? "any earlier release" : since;
-  if (entries.length === 0) { console.log(`declare-changes: nothing to change between ${from} and ${VERSION}.`); process.exit(0); }
+  if (entries.length === 0) { console.log(`declare-changes: nothing to change between ${from} and ${VERSION}.`); break report; }
   if (program === undefined) {
     console.log(`# Changes from ${from} to ${VERSION}`);
     for (const e of entries) printEntry(e, false);
-    process.exit(0);
+    break report;
   }
   const apply = entries.filter((e) => e.hits.length > 0);
   const check = entries.filter((e) => e.hits.length === 0 && (e.watch || e.find === null));
@@ -164,4 +167,5 @@ if (isMain) {
   }
   console.log(`\nNext: make these changes, reading the docs named, then npx declare-verify ${relative(process.cwd(), program)};`);
   console.log(`when it is clean, npx declare-changes --done ${relative(process.cwd(), program)}.`);
+  }
 }

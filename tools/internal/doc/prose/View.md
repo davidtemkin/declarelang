@@ -91,14 +91,14 @@ App [ fill = white, textColor = black,
 ```
 
 ## fill
-What paints the box: a solid `Color` or a `gradient(…)` — the one attribute, subsuming a
+What paints the box: a solid `Color` or a `Gradient.linear(…)` — the one attribute, subsuming a
 plain background color. `null` (the default) paints **nothing** — an unfilled box is
 invisible but still lays out and still catches clicks. In a `[ ]` literal a color is
 `#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).
 
 ```declare
 App [
-    View [ x = 20, y = 20, width = 260, height = 80, cornerRadius = 8, fill = { gradient("90deg", 0x1E2A36, 0x0B141B) } ]
+    View [ x = 20, y = 20, width = 260, height = 80, cornerRadius = 8, fill = { Gradient.linear("90deg", 0x1E2A36, 0x0B141B) } ]
     ]
 ```
 
@@ -119,14 +119,16 @@ clicks. To clip children to the rounded shape, set `clip = true` as well. A `Spr
 this attribute animates the number form.
 
 ## stroke
-A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the
+A border drawn **inside** the box (`Stroke(width, color)`), so it never enlarges the
 layout rectangle — the box stays the one geometry fact. `null` by default. Unlike
-CSS's `border`, a bordered view and an unbordered one occupy the same space.
+CSS's `border`, a bordered view and an unbordered one occupy the same space. It is the
+view's own paint, so its children paint over it: a child that covers the edge covers the
+stroke, and a frame meant to sit over content is a child declared after it.
 
-One `stroke(…)` borders all four sides; **four border them one at a time** — `[top,
+One `Stroke(…)` borders all four sides; **four border them one at a time** — `[top,
 right, bottom, left]`, clockwise from the top, the same one-or-four shape as
 `cornerRadius`, with `null` in a side's place leaving that side bare. A single rule
-under a row is `[ null, null, stroke(1, #DBE1E9), null ]`; a pair of rails is the top
+under a row is `[ null, null, Stroke(1, #DBE1E9), null ]`; a pair of rails is the top
 and bottom entries filled and the sides `null`. Widths may differ per side. Where the
 box is rounded a side's band **follows the corner arc and tapers into it** rather than
 mitring against its neighbour, so adjacent sides overlap along the curve instead of
@@ -135,23 +137,23 @@ than for a decorative frame.
 ```declare
 App [ fill = white,
     row: View [ x = 0, y = 20, width = 200, height = 44, fill = whitesmoke,
-        stroke = [ stroke(1, #DBE1E9), null, stroke(1, #DBE1E9), null ] ]
+        stroke = [ Stroke(1, #DBE1E9), null, Stroke(1, #DBE1E9), null ] ]
     ]
 ```
 
 ## shadow
-A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape
+A drop shadow on the box (`Shadow(dx, dy, blur, color)`), the CSS box-shadow shape
 minus spread. `null` by default. The same value shadows glyphs as `Text.textShadow`,
-and the painted **alpha** of any subtree inside a `visualFilter` list — one `shadow(…)`, three
+and the painted **alpha** of any subtree inside a `visualFilter` list — one `Shadow(…)`, three
 sites, one look (its `blur` is the box-shadow radius everywhere).
 
 ## visualFilter
 The view's own painted subtree, filtered as a **group** — children included — before
 `opacity` and `blendMode` land. One function or a bare list:
-`visualFilter = blur(3)`, `visualFilter = [blur(2), brightness(0.8)]`, `visualFilter = { [blur(k), saturate(1.4)] }`.
-The functions are `blur(radius)`, `brightness(k)`, `contrast(k)`, `saturate(k)`,
-`grayscale(k)`, `invert(k)`, `sepia(k)`, `hueRotate(deg)`, `colorize(color)` — the group's
-alpha in one colour, what `Image.tint` is sugar for — and `shadow(dx, dy, blur, color)`, which
+`visualFilter = VisualFilter.blur(3)`, `visualFilter = [VisualFilter.blur(2), VisualFilter.brightness(0.8)]`, `visualFilter = { [VisualFilter.blur(k), VisualFilter.saturate(1.4)] }`.
+The functions are `VisualFilter.blur(radius)`, `VisualFilter.brightness(k)`, `VisualFilter.contrast(k)`, `VisualFilter.saturate(k)`,
+`VisualFilter.grayscale(k)`, `VisualFilter.invert(k)`, `VisualFilter.sepia(k)`, `VisualFilter.hueRotate(deg)`, `VisualFilter.colorize(color)` — the group's
+alpha in one colour, what `Image.tint` is sugar for — and `Shadow(dx, dy, blur, color)`, which
 here shadows the painted **alpha** (a badge with a transparent background casts its own
 outline) where the box `shadow` attribute casts the rectangle. Lengths are **view units** and
 scale with the view's transform; the output may bleed past the box (a blur's 3σ, a shadow's
@@ -186,8 +188,8 @@ layers — a desktop's windows and dock, a palette above documents.
 
 ## mask
 A soft alpha mask over the view's painted (clipped) subtree, applied before `opacity`:
-a gradient's **alpha** over the box — `mask = gradient("180deg",
-#00000000, #000000FF)` fades the top out; `radialGradient(…)` vignettes — or a **stencil**,
+a gradient's **alpha** over the box — `mask = Gradient.linear("180deg",
+#00000000, #000000FF)` fades the top out; `Gradient.radial(…)` vignettes — or a **stencil**,
 another view whose painted alpha, placed by its own `x`/`y` inside this box, is the mask:
 `mask = { stencil }` with `stencil: Image [ visible = false, … ]` as a child is the idiom.
 A masked view isolates. Paint only. `null` (the default) is none. On the DOM renderer a
@@ -1152,6 +1154,17 @@ lets layout disagree with what you see. The view's **own** `width`/`height` stay
 smaller"); the parent packs the transformed **footprint** (`bounds()`). Pair with
 `pivotX`/`pivotY` to choose the center; `1` is unscaled; spring it for zoom effects.
 
+## minScale
+The smallest `scale` this view takes: a scale written or computed below it is held here, as
+`minWidth` holds a width. How the scale changes — a pinch, buttons — is the program's; this
+says only how far it may go. `null`, the default, is no bound. See `maxScale`.
+
+## maxScale
+The largest `scale` this view takes: a scale written or computed above it is held here. It
+also tells the checking tools how large what is inside can become — a control is judged a
+finger's target if it reaches 44 points at `maxScale` ([Touch](declare-docs:guide:touch)).
+`null`, the default, is no bound.
+
 ## scaleX
 Per-axis scale, multiplied with the uniform `scale` — `scaleY = 0.2` squashes a card to a
 sliver without changing its width (the frame of a flip). Same pivot, same one-geometry
@@ -1223,7 +1236,7 @@ in one documented order — scale, then rotate, about the shared pivot. `0` (the
 is unrotated; spring it for turn effects.
 
 ## backdrop
-The **frost** — `frost(radius)` or `frost(radius, saturation)`; `null` (the default) =
+The **frost** — `VisualFilter.frost(radius)` or `VisualFilter.frost(radius, saturation)`; `null` (the default) =
 none. What has already painted beneath this view is sampled within the view's **own
 painted shape** (its box, rounded by `cornerRadius`, or its `clip` shape), blurred by
 `radius`, saturation-scaled, and the view's own `fill` then paints **over** the frosted
@@ -1234,8 +1247,8 @@ changes. `saturation` defaults to `1`; frosted materials read best around `1.4`�
 
 ```declare
 App [ fill = #F6F8FA,
-    art: View [ x = 10, y = 10, width = 220, height = 120, cornerRadius = 8, fill = { gradient("90deg", 0xC93B47, 0x2E6FE0) } ],
-    panel: View [ x = 70, y = 40, width = 240, height = 70, backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12,
+    art: View [ x = 10, y = 10, width = 220, height = 120, cornerRadius = 8, fill = { Gradient.linear("90deg", 0xC93B47, 0x2E6FE0) } ],
+    panel: View [ x = 70, y = 40, width = 240, height = 70, backdrop = VisualFilter.frost(20), fill = #F9F9FBDB, cornerRadius = 12,
         Text [ x = 14, y = 24, text = "frosted over the art behind it" ]
         ]
     ]
@@ -1320,10 +1333,16 @@ hovered || app.lastPointerType == "touch" }` shows it to the finger that cannot 
 ## focused
 True while this view holds keyboard focus — read-only, kept by the focus service, so a
 constraint reading it re-derives when focus arrives or leaves:
-`stroke = { focused ? stroke(2, provided("theme").accent) : null }`. It is the same on a
+`stroke = { focused ? Stroke(2, provided("theme").accent) : null }`. It is the same on a
 control, a text field and any `focusable` view. Move focus with `Focus.focus(v)`; ask which
 view has it with `Focus.getFocus()`, also a tracked read. For the keyboard ring you need
 neither — the app's `FocusRing` shows focus for you.
+
+## containsFocus
+**Read-only.** True while focus is on this view or on anything inside it, a hosted program's
+included — a panel that lights while you work in it, a grid that shows its active cell while
+the keyboard is anywhere in it: `stroke = { containsFocus ? Stroke(1, provided("theme").accent) : null }`.
+Re-derives when focus arrives inside or leaves.
 
 ## pressed
 True while the pointer is down *and* this view was on the chain captured at pointer-down —

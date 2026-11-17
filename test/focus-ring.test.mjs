@@ -290,4 +290,22 @@ await test("in a stop the arrows move among the members by default; a member's o
   assert.ok(Focus.getFocus() === app.field.t, "a text field's arrows stay its own, even as a stop's member");
 });
 
+await test("app.focusGeometry changes only when the outline does: a settle that moves nothing is no change", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
+    seen: number = 0,
+    w: Node [ g: object = { app.focusGeometry }, trackChanges = ["g"], onChange() { app.seen = app.seen + 1 } ],
+    a: Button [ x = 20, y = 20, label = "A" ],
+    b: Button [ x = 20, y = 80, label = "B" ] ]`);
+  stopAt(app.a);
+  const at = app.seen;
+  // the follower reports the outline again on every frame anything moves (a
+  // popover gliding in): the same outline, reported again, is no change
+  const { noteFocusGeometry } = await import("../runtime/dist/view.js");
+  const g = app.focusGeometry;
+  for (let i = 0; i < 5; i++) { noteFocusGeometry({ ...g }); settle(); }
+  assert.equal(app.seen, at, "the same outline reported again delivers no change");
+  stopAt(app.b);
+  assert.ok(app.seen > at, "focus moving changes the outline");
+});
+
 summarize("focus-ring");

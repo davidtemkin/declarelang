@@ -327,7 +327,7 @@ class TextInput extends ValueControl [
         },
 
     fill = { provided("theme")?.surface ?? 0xFFFFFF },
-    stroke = { stroke(1, error != "" ? (provided("theme")?.error ?? 0xC93429) : focused ? (provided("theme")?.accent ?? 0x2E6FE0) : (provided("theme")?.line ?? 0xDBE1E9)) },
+    stroke = { Stroke(1, error != "" ? (provided("theme")?.error ?? 0xC93429) : focused ? (provided("theme")?.accent ?? 0x2E6FE0) : (provided("theme")?.line ?? 0xDBE1E9)) },
     cornerRadius = { provided("theme")?.fieldCornerRadius ?? provided("theme")?.controlCornerRadius ?? 7 },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 

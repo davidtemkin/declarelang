@@ -353,7 +353,7 @@ export async function bootHost(cfg) {
     if (stopped) return;
     titled = reflectAppName(app, servedTitle, titled);   // the entry's label, before the push snapshots it
     if (app.location !== mirrored || app.waypoint !== mirroredW) {
-      // The app moved — one entry per changed settle, for the PAIR: address,
+      // The app moved — one entry per settle that changed it (every round of it), for the PAIR: address,
       // step, or both together (a submit that navigates AND records its step
       // is one entry, restored atomically by Back). The history VERB
       // (location.md §0.5.6): "push" (the default) makes an entry; a follow
@@ -381,7 +381,7 @@ export async function bootHost(cfg) {
       mirroredW = app.waypoint;
     }
   };
-  undo.push(observe(() => [app.location, app.waypoint], mirrorPair, "host:history"));
+  undo.push(observe(() => [app.location, app.waypoint], mirrorPair, "host:history", true));   // once the whole settle has ended: one entry per settle
   }  // wirePageLocation
 
   // The Inspector (browser/inspector-boot.js) — ⌥⌘D, or `?inspector` on the URL.

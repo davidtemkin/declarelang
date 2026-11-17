@@ -18,48 +18,48 @@ App [ width = 900, height = 620, fill = #202124, textColor = whitesmoke,
     // blurred: alpha edge softens with the interior
 
     b: Image [ x = 220, y = 20, width = 180, height = 240, fit = contain, source = "assets/badge.png",
-        visualFilter = { [blur(3), brightness(0.74)] } ],
+        visualFilter = { [VisualFilter.blur(3), VisualFilter.brightness(0.74)] } ],
 
     // a shadow of the alpha (the box `shadow` would be a rectangle)
 
     c: Image [ x = 420, y = 20, width = 180, height = 240, fit = contain, source = "assets/badge.png",
-        visualFilter = shadow(0, 26, 52, #00000080) ],
+        visualFilter = Shadow(0, 26, 52, #00000080) ],
 
     // tinted
 
     d: Image [ x = 620, y = 20, width = 180, height = 240, fit = contain, source = "assets/badge.png",
-        visualFilter = { [colorize(0xFF5A36), blur(1)] } ],
+        visualFilter = { [VisualFilter.colorize(0xFF5A36), VisualFilter.blur(1)] } ],
 
     // a filtered GROUP with children: the whole card blurs as one
 
-    card: View [ x = 20, y = 300, width = 260, height = 140, cornerRadius = 16, fill = #FFFFFF22, stroke = { stroke(1, 0xFFFFFF55) },
-        visualFilter = { [blur(k), saturate(1.4)] },
+    card: View [ x = 20, y = 300, width = 260, height = 140, cornerRadius = 16, fill = #FFFFFF22, stroke = { Stroke(1, 0xFFFFFF55) },
+        visualFilter = { [VisualFilter.blur(k), VisualFilter.saturate(1.4)] },
         k: number = 2,
         Text [ x = 16, y = 14, fontSize = 22, fontWeight = bold, text = "A card, blurred" ],
         View [ x = 16, y = 60, width = 100, height = 40, cornerRadius = 8, fill = #FF5A36 ],
         Image [ x = 160, y = 40, width = 80, height = 90, fit = contain, source = "assets/badge.png" ]
         ],
 
-    // the same vocabulary beneath: a frost written as a list, and as frost()
+    // the same vocabulary beneath: a frost written as a list, and as VisualFilter.frost()
 
-    glassA: View [ x = 300, y = 300, width = 260, height = 140, cornerRadius = 16, fill = #FFFFFF22, stroke = { stroke(1, 0xFFFFFF55) },
-        backdrop = [blur(12), saturate(1.6), brightness(1.1)],
+    glassA: View [ x = 300, y = 300, width = 260, height = 140, cornerRadius = 16, fill = #FFFFFF22, stroke = { Stroke(1, 0xFFFFFF55) },
+        backdrop = [VisualFilter.blur(12), VisualFilter.saturate(1.6), VisualFilter.brightness(1.1)],
         Text [ x = 16, y = 14, fontSize = 18, text = "backdrop = [blur, saturate, brightness]" ]
         ],
-    glassB: View [ x = 580, y = 300, width = 260, height = 140, cornerRadius = 16, fill = #FFFFFF22, stroke = { stroke(1, 0xFFFFFF55) },
-        backdrop = frost(12, 1.6),
-        Text [ x = 16, y = 14, fontSize = 18, text = "backdrop = frost(12, 1.6)" ]
+    glassB: View [ x = 580, y = 300, width = 260, height = 140, cornerRadius = 16, fill = #FFFFFF22, stroke = { Stroke(1, 0xFFFFFF55) },
+        backdrop = VisualFilter.frost(12, 1.6),
+        Text [ x = 16, y = 14, fontSize = 18, text = "backdrop = VisualFilter.frost(12, 1.6)" ]
         ],
 
     // hue and sepia and grayscale
 
-    e: Image [ x = 20, y = 460, width = 120, height = 140, fit = contain, source = "assets/badge.png", visualFilter = hueRotate(120) ],
-    f: Image [ x = 160, y = 460, width = 120, height = 140, fit = contain, source = "assets/badge.png", visualFilter = sepia(1) ],
-    g: Image [ x = 300, y = 460, width = 120, height = 140, fit = contain, source = "assets/badge.png", visualFilter = { [grayscale(1), contrast(1.5)] } ],
-    h: Image [ x = 440, y = 460, width = 120, height = 140, fit = contain, source = "assets/badge.png", visualFilter = invert(1) ],
+    e: Image [ x = 20, y = 460, width = 120, height = 140, fit = contain, source = "assets/badge.png", visualFilter = VisualFilter.hueRotate(120) ],
+    f: Image [ x = 160, y = 460, width = 120, height = 140, fit = contain, source = "assets/badge.png", visualFilter = VisualFilter.sepia(1) ],
+    g: Image [ x = 300, y = 460, width = 120, height = 140, fit = contain, source = "assets/badge.png", visualFilter = { [VisualFilter.grayscale(1), VisualFilter.contrast(1.5)] } ],
+    h: Image [ x = 440, y = 460, width = 120, height = 140, fit = contain, source = "assets/badge.png", visualFilter = VisualFilter.invert(1) ],
 
     // rotated + scaled: radii are view units, so the blur follows the transform
 
     i: Image [ x = 600, y = 460, width = 120, height = 140, fit = contain, source = "assets/badge.png",
-        visualFilter = { [blur(2), shadow(0, 10, 20, 0x000000AA)] }, rotation = 15, scale = 1.2, pivotX = 60, pivotY = 0 ]
+        visualFilter = { [VisualFilter.blur(2), Shadow(0, 10, 20, 0x000000AA)] }, rotation = 15, scale = 1.2, pivotX = 60, pivotY = 0 ]
     ]

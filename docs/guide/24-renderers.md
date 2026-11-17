@@ -36,7 +36,7 @@ it over a thin bridge of drawing and input operations; everything above that
 seam — the reactive graph, layout, hit-testing, every constraint you wrote — is
 the identical code the browser runs. A trackpad pinch arrives on the same wheel
 stream with the same `pinch` flag; a scroll consults the same `onWheel` claims;
-[`rotation`](declare-docs:View.rotation) and `backdrop = frost(…)` land on the layer tree like they land on
+[`rotation`](declare-docs:View.rotation) and `backdrop = VisualFilter.frost(…)` land on the layer tree like they land on
 CSS. The host is solid at what it does: the entire app corpus runs on it, held to the
 same pictures and the same behavior as the browser renderers (below). What it does
 not attempt is
@@ -98,7 +98,7 @@ Text selection *outside* editables (a Markdown page) is native in DOM only.
 
 **Overlay effects are at parity.** Frosted surfaces — a menu's panel, a
 dock shelf, translucent chrome — are the [`backdrop`](declare-docs:View.backdrop) attribute
-(`backdrop = frost(radius, saturation)`), and every renderer realizes it
+(`backdrop = VisualFilter.frost(radius, saturation)`), and every renderer realizes it
 natively: the DOM as compositor `backdrop-filter`, the canvas compositor by
 sampling what has already painted beneath the view at composite time (the
 painter's model makes that natural), the Mac host by sampling its layer

@@ -50,9 +50,8 @@ function baseOfChain(n: ts.Node): ts.Node {
   return c;
 }
 const GLOBALS = new Set(["Inspect","Math","Object","JSON","Array","Number","String","Boolean","Date","console","parseInt","parseFloat","isNaN","isFinite","Infinity","NaN","undefined","null","RegExp","Symbol","Map","Set","Promise","Intl","Error"]);
-// …plus colorWithAlpha, the lowered-alpha helper compile.ts now resolves in
-// callee position (its arguments carry any deps; the call itself is pure).
-const CONSTRUCTORS = new Set(["gradient","stroke","shadow","colorStop","colorWithAlpha"]);
+// The builders and the Color operations: pure, their arguments carry any deps.
+const CONSTRUCTORS = new Set(["Stroke","Shadow","Gradient","VisualFilter","Easing","Color"]);
 const ITER = new Set(["map","filter","find","findIndex","some","every","reduce","reduceRight","forEach","sort","flatMap","slice","concat","indexOf","includes","join","keys","values","entries","flat","at","reverse","fill","findLast"]);
 const PURE_METHODS = new Set(["toFixed","toString","toPrecision","valueOf","toExponential","toUpperCase","toLowerCase","trim","trimStart","trimEnd","padStart","padEnd","charAt","charCodeAt","codePointAt","substring","substr","repeat","startsWith","endsWith","split","replace","replaceAll","match","matchAll","search","normalize","localeCompare","slice","at","indexOf","lastIndexOf","includes","getFullYear","getMonth","getDate","getDay","getHours","getMinutes","getSeconds","getTime","getMilliseconds","getTimezoneOffset","toISOString","toLocaleDateString","toLocaleTimeString","toLocaleString","toDateString","getUTCFullYear","getUTCMonth","getUTCDate"]);
 const NODE_COLLECTIONS = new Set(["children","childViews","subviews","views","members","instances"]);
@@ -715,16 +714,15 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             const a0 = s.arguments[0];
             if (a0 !== undefined && ts.isStringLiteral(a0)) reads.add(`this.$provided(${JSON.stringify(a0.text)})`);
             else errors.push(new DepError(`provided(<expr>) — the provided value's name must be a literal string so its dependency can be wired; write provided("name")`, s.getStart()));
-          } else if (m === "$hostProvided" && recv.kind === ts.SyntaxKind.ThisKeyword) {
-            // `hostProvided("name", …)` compiled to `this.$hostProvided("name", …)`:
-            // a read of a value the program's HOST provides (islands.md). The
-            // value lives on the running App, so the edge is the call itself —
-            // the probe re-executes it under tracking and wires the host
-            // value's cell. The name must be a literal: it is what the host
-            // must list, and what this program's reads are known by.
+          } else if (m === "hostProvided") {
+            // `app.hostProvided("name", …)`: a read of a value the program's HOST
+            // provides (islands.md). Recorded as the call on its receiver; the
+            // probe re-executes it under tracking and wires the host value's
+            // cell. The name must be a literal: it is what the host must list,
+            // and what this program's reads are known by.
             const a0 = s.arguments[0];
-            if (a0 !== undefined && ts.isStringLiteral(a0)) reads.add(`this.$hostProvided(${JSON.stringify(a0.text)})`);
-            else errors.push(new DepError(`hostProvided(<expr>) — the name must be a literal string (it is what the host lists in its island's provides); write hostProvided("name", default)`, s.getStart()));
+            if (a0 !== undefined && ts.isStringLiteral(a0)) reads.add(`${pathTextOf(recv)}.hostProvided(${JSON.stringify(a0.text)})`);
+            else errors.push(new DepError(`hostProvided(<expr>) — the name must be a literal string (it is what the host lists in its island's provides); write app.hostProvided("name", default)`, s.getStart()));
           } else if (m === "exposed") {
             // `island.exposed("name", …)` (islands.md): the host's read of a
             // value the hosted side exposes. Recorded as the call on its
@@ -732,13 +730,17 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             const a0 = s.arguments[0];
             if (a0 !== undefined && ts.isStringLiteral(a0)) reads.add(`${pathTextOf(recv)}.exposed(${JSON.stringify(a0.text)})`);
             else errors.push(new DepError(`exposed(<expr>) — the name must be a literal string (it is what the hosted side exposes); write exposed("name", default)`, s.getStart()));
-          } else if (m === "$providedTextStyle" && recv.kind === ts.SyntaxKind.ThisKeyword) {
-            // `providedTextStyle(…)` compiled to `this.$providedTextStyle(…)`:
+          } else if (m === "providedTextStyle" && recv.kind === ts.SyntaxKind.ThisKeyword) {
+            // `providedTextStyle(…)`, the node's own (a bare call is `this.`'s):
             // it reads the FIVE provided face names, so it wires to exactly the
             // five edges the hand-written form would have. No new edge kind —
             // each is the same dynamic provided read as above, so a face change
             // anywhere up the chain re-derives a measurement taken with it.
             for (const name of PROVIDED_FACE_NAMES) reads.add(`this.$provided(${JSON.stringify(name)})`);
+          } else if (ts.isIdentifier(recv) && CONSTRUCTORS.has(recv.text)) {
+            // a builder on its type (`Gradient.linear(…)`, `VisualFilter.blur(3)`):
+            // pure, its arguments carry any deps
+            intoTree(s.arguments);
           } else if (ITER.has(m) || PURE_METHODS.has(m)) {
             if (ts.isIdentifier(recv) && GLOBALS.has(recv.text)) intoTree(s.arguments);
             // A collection NAME is not a collection: `members` may be a data

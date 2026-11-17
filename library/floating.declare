@@ -344,7 +344,7 @@ class Floating [
         const own = provided("overlays", null) as View | null
         _hostedLayer = false
         if (own != null) return own
-        const hosts = hostProvided("overlays", null) as View | null   // the nearest layer up the chain, in a host
+        const hosts = app.hostProvided("overlays", null) as View | null   // the nearest layer up the chain, in a host
         if (hosts == null) return s.overlays
         _hostedLayer = true
         return hosts

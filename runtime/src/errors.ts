@@ -322,5 +322,5 @@ export function insetOrRadiusShape(attr: string): string {
  *  typecheck.ts, which would otherwise report the scaffold's `BoxStroke` type
  *  name and nothing an author can act on). */
 export function strokeShapeMessage(): string {
-  return diag`a Stroke on all four sides (stroke(width, color), drawn inside the box), four of them — [top, right, bottom, left] clockwise from the top, null for a bare side — or null for no border at all`;
+  return diag`a Stroke on all four sides (Stroke(width, color), drawn inside the box), four of them — [top, right, bottom, left] clockwise from the top, null for a bare side — or null for no border at all`;
 }

@@ -19,7 +19,7 @@ identical on the dev server and a static host — and renders the child.
 
 What crosses an island says its direction (the guide's Embedding chapter). DOWN: list names in
 `provides = ["dark", "base"]`, and the tenant reads each with
-`hostProvided("dark", false)` — a value resolves at the island as `provided()`
+`app.hostProvided("dark", false)` — a value resolves at the island as `provided()`
 does, the island's own attribute first, then its ancestors' provisions. UP: the
 tenant lists names in its App's `exposes = ["docH"]`, and the host reads them
 with `island.exposed("docH", 0)`. Both are reactive, per settle, with no

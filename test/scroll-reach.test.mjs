@@ -77,7 +77,7 @@ await test("a finger's drag is the user's scroll while it lasts, and over once i
   await drive.moveBy(0, -200);
   if (await state() !== true) await expect.fail("scrolling should be true mid-drag");
   await drive.release();
-  await drive.wait(400);
+  await drive.settleMotion();
   await expect.attr("app", "userScrolling", false);`);
   assert.ok(r.ok, r.out);
 });

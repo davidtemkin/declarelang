@@ -99,7 +99,7 @@ class Radio extends ChoiceItem [ height = { Math.max(this._dot.width + 4, app.to
 
     _dot: View [ width = { provided("theme").radioSize }, height = { this.width }, cornerRadius = { this.width / 2 }, y = { (parent.height - this.width) / 2 },
         fill   = { provided("theme").surface },
-        stroke = { stroke(on ? 5 : 1, on ? provided("theme").accent : hovered || pressed ? provided("theme").textMuted : provided("theme").line) } ],
+        stroke = { Stroke(on ? 5 : 1, on ? provided("theme").accent : hovered || pressed ? provided("theme").textMuted : provided("theme").line) } ],
     _cap: TextLabel [ x = 26, wrap = false, textColor = { provided("theme").text },
         visible = { label != "" }, text = { label } ]
     ]

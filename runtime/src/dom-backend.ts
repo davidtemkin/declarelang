@@ -1507,12 +1507,15 @@ export class DomSurface implements Surface {
    *  counts as a pointer target). */
   private updateCarved(): void {
     const el = this.element;
-    if (this.clipData !== null && SINKS.has(el)) CARVED.set(el, this);
-    else CARVED.delete(el);
     // `"none"` here or above switches it off; otherwise (`"auto"` switches a
     // part of an off subtree back on, as normal) it takes the pointer when it
     // has something to do with it
     const off = this.pointerOff();
+    // a carved sink switched off is no target for the router's own probe either: it
+    // took the press from the Control beneath it (Presentify run 14: a deck card's
+    // click, over a picture's clipped shapes that declared handlers, never fired)
+    if (this.clipData !== null && SINKS.has(el) && !off) CARVED.set(el, this);
+    else CARVED.delete(el);
     el.style.pointerEvents =
       off ? "none"
         : CARVED.has(el) ? "none"
@@ -2096,7 +2099,13 @@ export class DomSurface implements Surface {
           if (dx === 0) return;
           const before = el.scrollLeft;
           el.scrollLeft = before + dx;
-          if (el.scrollLeft !== before) e.preventDefault();
+          if (el.scrollLeft === before) return;
+          // the native scroll is cancelled below, and with it a wheel's DOWN part: a
+          // diagonal turn over a pane that scrolls both ways moves both (7GUIs run 4:
+          // only the x of a wheel(900, 700) landed)
+          const dy = e.deltaX !== 0 && !e.shiftKey ? e.deltaY : 0;
+          if (dy !== 0) el.scrollTop = el.scrollTop + dy;
+          e.preventDefault();
         };
         el.addEventListener("wheel", this.wheelXListener, { passive: false });
       }

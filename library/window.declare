@@ -56,7 +56,7 @@ these.
 ```declare
 App [ width = 560, height = 260, fill = #E6E9EE,
     Window [ x = 40, y = 40, width = 240, height = 160, rotation = -4, frame = false, title = "Tilted",
-        cornerRadius = 10, fill = white, shadow = { shadow(0, 6, 20, 0x00000033) },
+        cornerRadius = 10, fill = white, shadow = { Shadow(0, 6, 20, 0x00000033) },
         Text [ x = 16, y = 16, text = "A window of its own design" ],
         TextInput [ x = 16, y = 52, width = 200, accessibilityLabel = "Note" ]
         ]
@@ -219,7 +219,7 @@ class Window [ width = 360, height = 240,
     titleBarHeight: number = { frame ? 36 : 0 },
 
     fill = { frame ? provided("theme").surface : null },
-    stroke = { frame ? stroke(1, provided("theme").line) : null },
+    stroke = { frame ? Stroke(1, provided("theme").line) : null },
     cornerRadius = { frame ? (provided("theme").dialogCornerRadius ?? provided("theme").menuCornerRadius + 2) : 0 },
     shadow = { frame ? (provided("theme").dialogShadow ?? provided("theme").menuShadow) : null },
 
@@ -377,7 +377,9 @@ class Window [ width = 360, height = 240,
 
     // focus arriving by F6 or a press on a control brings a framed window forward
 
-    _focusWatch: Focus [
-        onFocusChange(v: View) { if (v != null && classroot.frame && Focus.holds(classroot)) classroot._bringForward() }
+    _focusWatch: Node [
+        within: boolean = { classroot.containsFocus },
+        trackChanges = ["within"],
+        onChange() { if (within && classroot.frame) classroot._bringForward() }
         ]
     ]

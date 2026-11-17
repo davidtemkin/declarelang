@@ -23,7 +23,7 @@ import { defineAttributes, isSet, ownerOf, provideWrite, providedDefault, provid
 import { DeclareError } from "./errors.js";
 import { coerce, isAlign, isAuthoredUnion, type AttrType } from "./value.js";
 import { fontMetrics, fontString, type FontWeight, type TextTransform } from "./measure.js";
-import { featureFamily, featureTags, type Numerals, type NumeralWidth } from "./font-features.js";
+import { featureFamily, featureTags, type NumeralStyle, type NumeralWidth } from "./font-features.js";
 import { faceGeneration, familiesGeneration, collectFamilies } from "./face-table.js";
 import { familyCss, heldFamily, isFontValue, type FamilyValue } from "./font-value.js";
 import type { Block, Inline, ReadOptions } from "./md.js";
@@ -87,7 +87,7 @@ export interface RunStyle {
   textStroke?: Stroke | null;
   textTransform?: TextTransform;
   smallCaps?: boolean;
-  numerals?: Numerals;
+  numeralStyle?: NumeralStyle;
   numeralWidth?: NumeralWidth;
   slashedZero?: boolean;
   underline?: boolean;
@@ -127,7 +127,7 @@ function assignRunField(rs: RunStyle, name: string, val: unknown): void {
     case "fontWeight": if (typeof val === "string" || typeof val === "number") rs.fontWeight = val as FontWeight; break;
     case "italic": rs.italic = val === true; break;
     case "smallCaps": rs.smallCaps = val === true; break;
-    case "numerals": if (typeof val === "string") rs.numerals = val as Numerals; break;
+    case "numeralStyle": if (typeof val === "string") rs.numeralStyle = val as NumeralStyle; break;
     case "numeralWidth": if (typeof val === "string") rs.numeralWidth = val as NumeralWidth; break;
     case "slashedZero": rs.slashedZero = val === true; break;
     case "underline": rs.underline = val === true; break;
@@ -141,7 +141,7 @@ function assignRunField(rs: RunStyle, name: string, val: unknown): void {
 }
 
 const TEXT_ATTR = new Set(["fontSize", "fontFamily", "fontWeight", "italic", "textColor", "textFill", "letterSpacing",
-  "textShadow", "textStroke", "textTransform", "smallCaps", "numerals", "numeralWidth", "slashedZero",
+  "textShadow", "textStroke", "textTransform", "smallCaps", "numeralStyle", "numeralWidth", "slashedZero",
   "underline", "strike"]);
 /** A `style` bundle's text attributes read into a RunStyle — from the bundle's
  *  record (style-bundles.ts), the same values a drawing or a body reads by name. */
@@ -574,7 +574,7 @@ let SLOTS: SlotHost | null = null;
 
 // ── inline tier ────────────────────────────────────────────────────────────
 // A run's resolved style, flattened from the inline tree for the seam.
-export interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill; family?: string; shadow?: Shadow | null; outline?: Stroke | null; transform?: TextTransform; smallCaps?: boolean; numerals?: Numerals; numeralWidth?: NumeralWidth; slashedZero?: boolean; underline?: boolean }
+export interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill; family?: string; shadow?: Shadow | null; outline?: Stroke | null; transform?: TextTransform; smallCaps?: boolean; numeralStyle?: NumeralStyle; numeralWidth?: NumeralWidth; slashedZero?: boolean; underline?: boolean }
 export function base(size: number, weight: FontWeight, color: number, tracking = 0): Style {
   return { size: sz(size), weight, italic: false, mono: false, strike: false, color, tracking };
 }
@@ -599,7 +599,7 @@ function applyStyle(style: Style, rs: RunStyle): Style {
   if (rs.textStroke !== undefined) s.outline = rs.textStroke;
   if (rs.textTransform !== undefined) s.transform = rs.textTransform;
   if (rs.smallCaps !== undefined) s.smallCaps = rs.smallCaps;
-  if (rs.numerals !== undefined) s.numerals = rs.numerals;
+  if (rs.numeralStyle !== undefined) s.numeralStyle = rs.numeralStyle;
   if (rs.numeralWidth !== undefined) s.numeralWidth = rs.numeralWidth;
   if (rs.slashedZero !== undefined) s.slashedZero = rs.slashedZero;
   if (rs.underline !== undefined) s.underline = rs.underline;

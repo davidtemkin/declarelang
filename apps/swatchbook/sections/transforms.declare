@@ -10,7 +10,7 @@ marks the untransformed box.
 class XFSubject [ width = 100, height = 64,
     content: string = "box",
     asBox: State [ applied = { classroot.content == "box" },
-        box: View [ width = 100, height = 64, cornerRadius = 8, fill = gradient(90, #2E6FE0, #E4572E), stroke = stroke(2, #111111) ]
+        box: View [ width = 100, height = 64, cornerRadius = 8, fill = Gradient.linear(90, #2E6FE0, #E4572E), stroke = Stroke(2, #111111) ]
         ],
     asText: State [ applied = { classroot.content == "text" },
         word: Text [ y = 14, width = 100, textAlign = center, fontSize = 28, fontWeight = bold, wrap = false,
@@ -23,7 +23,7 @@ class XFSubject [ width = 100, height = 64,
 
 
 class XFSwatch extends Swatch [ name = :name,
-    ghost: View [ x = 56, y = 28, width = 100, height = 64, stroke = stroke(1, #2E6FE044) ],
+    ghost: View [ x = 56, y = 28, width = 100, height = 64, stroke = Stroke(1, #2E6FE044) ],
     s: XFSubject [ x = 56, y = 28, content = { :content },
         scale = { :scale }, scaleX = { :sx }, scaleY = { :sy }, rotation = { :rot }, skewX = { :kx }, skewY = { :ky },
         pivotX = { :px * 100 }, pivotY = { :py * 64 } ]

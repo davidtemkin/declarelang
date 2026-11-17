@@ -26,7 +26,7 @@ export function styledRun(d: DrawContext, style: DrawTextStyle, paint: "fill" | 
     fontWeight: style.fontWeight ?? "normal",
     italic: style.italic === true,
     smallCaps: style.smallCaps === true,
-    numerals: style.numerals,
+    numeralStyle: style.numeralStyle,
     numeralWidth: style.numeralWidth,
     slashedZero: style.slashedZero === true,
   });

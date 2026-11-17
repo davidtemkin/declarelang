@@ -475,7 +475,7 @@ class MonthCalendarDay extends Control [
     accentFill: Color = { pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent },
     plainFill: Color? = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
     fill = { :selected == true ? this.accentFill : this.plainFill },
-    stroke = { :today == true && :selected != true ? stroke(1.5, provided("theme").accent) : null },
+    stroke = { :today == true && :selected != true ? Stroke(1.5, provided("theme").accent) : null },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 
     ink: Color = { :selected == true ? provided("theme").accentTextColor
@@ -535,7 +535,7 @@ class DatePicker extends ValueControl [
     height = { provided("theme").comboboxHeight },
     fill = { provided("theme").surface },
     _edge: Color = { this.error != "" ? provided("theme").error : this._pop.shown ? provided("theme").accent : provided("theme").line },
-    stroke = { stroke(1, this._edge) },
+    stroke = { Stroke(1, this._edge) },
     cornerRadius = { provided("theme").fieldCornerRadius ?? provided("theme").controlCornerRadius },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 

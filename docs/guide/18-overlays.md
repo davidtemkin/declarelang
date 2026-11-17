@@ -317,7 +317,7 @@ record back.
 
 Two arrive on their own, and knowing they exist is the whole lesson:
 
-- **[`Tooltip`](declare-docs:Tooltip)** — set `tooltipLabel = "…"` on *any* view; the [`Tooltips`](declare-docs:Tooltips) service decides when a tip shows. Delay, placement, edge-flipping and
+- **[`Tooltip`](declare-docs:Tooltip)** — set `tooltipLabel = "…"` on *any* view; the platform decides when a tip shows ([`app.tooltipRequest`](declare-docs:App.tooltipRequest)). Delay, placement, edge-flipping and
   theming are nobody's problem at the use site.
 - **[`FocusRing`](declare-docs:FocusRing)** — the traveling focus indicator, spliced into any app that uses a
   library control.
@@ -329,7 +329,10 @@ name replaces it** — the customization path, not an escape hatch.
 
 Every library overlay is a `Floating`, and so is yours: extend the kind you mean, and its
 behavior comes with it — the layer it paints in, the policy for presses and scrolls past it,
-Esc, focus, and its motion in and out. A photo viewer is a full-screen dialog of your own:
+Esc, focus, and its motion in and out. A panel that is not one — a hover menu drawn in
+place under a bar — takes Escape as any key is taken: a `keyBindings` record on a view the
+focus is in, or on the App with a `when` that says it is open. A photo viewer is a
+full-screen dialog of your own:
 
 ```declare-fragment
 class Viewer extends Dialog [ presentation = "full", fill = black,

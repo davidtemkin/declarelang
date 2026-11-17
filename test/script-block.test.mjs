@@ -150,21 +150,21 @@ App [ width = 200, height = 100, out: string = { "v=" + twice(A) } ]`, { originD
 });
 
 await test("a script block shares the bodies' runtime scope — what type-checks there runs (Presentify run 7)", async () => {
-  // colorWithAlpha and measureText checked inside a script block (the shared
+  // Color.withAlpha and TextStyle.measure checked inside a script block (the shared
   // prelude), then were undefined when it ran: the block was evaluated with
   // none of the scope a { } body gets.
   const { buildProgram, settle } = await import("../runtime/dist/index.js");
   const r = await compile(`
 script {
-    function half(c: number): number { return colorWithAlpha(c, 128) }
+    function half(c: number): Color { return Color.withAlpha(c, 0.5) }
     function wide(s: string): boolean { return measureText(s, { fontSize: 14 }).width > 0 }
     }
 App [ width = 200, height = 100, fill = { half(0xFF0000) }, t: Text [ text = { "" + wide("hello") } ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), []);
   const app = buildProgram(r.program);
   settle();
-  assert.equal(app.t.text, "true", "measureText ran in the script");
-  assert.notEqual(app.fill, null, "colorWithAlpha ran in the script");
+  assert.equal(app.t.text, "true", "TextStyle.measure ran in the script");
+  assert.notEqual(app.fill, null, "Color.withAlpha ran in the script");
 });
 
 await test("a script block refuses the calls that answer for a view — it belongs to none", async () => {

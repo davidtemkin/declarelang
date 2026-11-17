@@ -36,7 +36,7 @@ import { LANGUAGE_API } from "../../../compiler/dist/scaffold.js";
 import { SCHEMAS, RichTextSchema, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES } from "../../../runtime/dist/schema.js";
 import { DECLARED_TYPE_NAMES, declaredType } from "../../../runtime/dist/value.js";
 import { CSS_COLORS } from "../../../runtime/dist/css-colors.js";
-import { RESERVED, programSchemas } from "../../../runtime/dist/program-schema.js";
+import { programSchemas } from "../../../runtime/dist/program-schema.js";
 import { parseLibrary } from "../../../runtime/dist/parser.js";
 import { CODE_PREFIX } from "../../../runtime/dist/diagnostics.js";
 import { catalogFor, HOST_SOURCES } from "../error-codes.mjs";
@@ -136,11 +136,10 @@ function eventSpine() {
 }
 
 /** The TYPE vocabulary a written signature or declaration may name: the
- *  built-in declarable types, plus the reserved value-constructor names a
- *  generated attribute or class name must avoid. (A class in the
- *  program is also legal — that part is per-program, not projectable.) */
+ *  built-in declarable types. (A class in the program is also legal — that
+ *  part is per-program, not projectable.) */
 function typeSpine() {
-  return { declarable: [...DECLARED_TYPE_NAMES].sort(), reserved: [...RESERVED].sort(), shared: sharedTypes() };
+  return { declarable: [...DECLARED_TYPE_NAMES].sort(), shared: sharedTypes() };
 }
 
 /** The SHARED VOCABULARY a `{ }` body may name — every type and global function
@@ -232,16 +231,28 @@ function sharedTypes() {
     if (!head) continue;
     const [, name, base, rest] = head;
     let members = [];
+    // each member's own doc comment, by name: what `declare-help PointerEvent.deltaX` says
+    const memberDocs = {};
     if (rest.includes("}")) members = splitMembers(rest.slice(0, rest.lastIndexOf("}")));
     else {
       members = splitMembers(rest);
+      let pending = null, open = false;
       for (i++; i < lines.length && !/^\}/.test(lines[i]); i++) {
         const l = lines[i].trim();
+        if (l.startsWith("/**")) { pending = ""; open = true; }
+        if (open) {
+          pending += " " + l.replace(/^\/\*\*|\*\/$/g, "").replace(/^\*\s?/, "").trim();
+          if (l.endsWith("*/")) open = false;
+          continue;
+        }
         if (!l || l.startsWith("//") || l.startsWith("*") || l.startsWith("/*")) continue;
-        members.push(...splitMembers(l));
+        const got = splitMembers(l);
+        if (pending !== null) for (const m of got) { const n = (m.match(/^([A-Za-z_$][\w$]*)/) ?? [])[1]; if (n) memberDocs[n] = pending.replace(/\\`/g, "`").trim(); }
+        pending = null;
+        members.push(...got);
       }
     }
-    out.interfaces.push({ name, extends: base ?? null, members, doc: docs[name] ?? null });
+    out.interfaces.push({ name, extends: base ?? null, members, doc: docs[name] ?? null, ...(Object.keys(memberDocs).length > 0 ? { memberDocs } : {}) });
   }
   // `declare const NAME: { … }` — the namespaced objects (`Themes.sanFrancisco(dark)`,
   // `Inspect.…`). A fourth declaration form the first pass skipped silently, which is
@@ -252,16 +263,28 @@ function sharedTypes() {
     if (!head) continue;
     const [, name, rest] = head;
     let members = [];
+    // each member's own doc comment, by name: what `declare-help Color.mix` says
+    const memberDocs = {};
     if (rest.includes("}")) members = splitMembers(rest.slice(0, rest.lastIndexOf("}")));
     else {
       members = splitMembers(rest);
+      let pending = null, open = false;
       for (i++; i < lines.length && !/^\}/.test(lines[i]); i++) {
         const l = lines[i].trim();
-        if (!l || l.startsWith("//") || l.startsWith("*") || l.startsWith("/*")) continue;
-        members.push(...splitMembers(l.replace(/^\{|\}$/g, "")));
+        if (l.startsWith("/**")) { pending = ""; open = true; }
+        if (open) {
+          pending += " " + l.replace(/^\/\*\*|\*\/$/g, "").replace(/^\*\s?/, "").trim();
+          if (l.endsWith("*/")) open = false;
+          continue;
+        }
+        if (!l || l.startsWith("//")) continue;
+        const got = splitMembers(l.replace(/^\{|\}$/g, ""));
+        if (pending !== null) for (const m of got) { const n = (m.match(/^([A-Za-z_$][\w$]*)/) ?? [])[1]; if (n) memberDocs[n] = pending.replace(/\\`/g, "`").trim(); }
+        pending = null;
+        members.push(...got);
       }
     }
-    out.namespaces.push({ name, members: members.filter(Boolean), doc: docs[name] ?? null });
+    out.namespaces.push({ name, members: members.filter(Boolean), doc: docs[name] ?? null, ...(Object.keys(memberDocs).length > 0 ? { memberDocs } : {}) });
   }
   for (const m of prelude.matchAll(/^type\s+([A-Za-z]\w*)\s*=\s*([^\n]+?);?$/gm)) {
     out.aliases.push({ name: m[1], type: m[2].trim().replace(/;$/, ""), doc: docs[m[1]] ?? null });
@@ -334,7 +357,7 @@ function enumVocabularies() {
     }
   }
   vocab.Easing = [...MOTION_TOKENS];
-  // the declarable enum types the library's own attributes use (Axis, Justify,
+  // the declarable enum types the library's own attributes use (LayoutAxis, Justify,
   // CrossAlign, …) — registered in value.ts, not on a runtime schema
   for (const n of DECLARED_TYPE_NAMES) {
     const t = declaredType(n);
@@ -601,8 +624,7 @@ const VOCAB_NOTE = {
   DrawGradient: "a gradient built inside a drawing, via `d.createLinearGradient(…)`",
   DrawImageSource: "what `d.drawImage(…)` paints from — any `Image` view (its `loaded`, `naturalWidth`, `naturalHeight`)",
   Color: "a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black. **Alpha, by context**: a constant carries it in the literal — `0xRRGGBBAA` (or `#RRGGBBAA`), in bare slots and `{ }` bodies alike; a computed alpha calls `colorWithAlpha(rgb, a)` in a body; inside `draw()` the canvas takes its own CSS string (`\"rgba(51,102,153,0.5)\"`). `rgba(…)` is never a slot spelling",
-  Length: "a number of pixels, or a `Percent` from a bare `50%` literal",
-  Percent: "what a bare `50%` literal becomes; you never write the type",
+  Length: "a number of pixels, or a percent of the parent from a bare `50%` literal",
   ClipPath: "a clip shape",
   Gradient: "colour stops along a line (`gradient(…)`), out from a centre (`radialGradient(…)`) or around one (`conicGradient(…)`)",
   Fill: "what paints a box: a `Color` or a `Gradient`",
@@ -612,7 +634,6 @@ const VOCAB_NOTE = {
   tint: "`tint(color, dark)` — an active tone derived from an accent (22% over the surface), for a theme that overrides the accent.",
   Inspect: "The running program's introspection surface, behind the same door as `__declare.explain` — dev tooling, stubbed in a production build unless you pass `declarec --debug`.",
   DataCursor: "a datapath's resolved position — `.data` and `.path`",
-  EasingCurve: "an easing curve for an `Animator`",
   PointerEvent: "a pointer went down, moved, or a view was clicked",
   PointerUpEvent: "a pointer release — carries **`canceled`**, true when the browser reclaimed the gesture",
   DragEndEvent: "a drag's end — a release, or taken back (**`canceled`**) by a system interruption, Escape, or the window losing focus",
@@ -621,7 +642,7 @@ const VOCAB_NOTE = {
   WheelEvent: "a wheel or trackpad gesture — carries **`pinch`**, true for a trackpad pinch",
   KeyEvent: "a key went down or up — `key`, `code`, and modifier flags; never a numeric code",
   FocusGeometry: "the focused control's live silhouette, for a focus indicator",
-  TooltipEvent: "a tooltip request from the `Tooltips` service",
+  TooltipEvent: "a tooltip a view asks for: what `app.tooltipRequest` holds",
   ChangeEvent: "values this node tracks (`trackChanges`) changed in this settle — `changed`, one `ValueChange` each",
   ValueChange: "one changed value — its `name`, its `previousValue`, and its `currentValue`",
   StreamMessage: "one arrival from an `EventStream` or `Socket`",
@@ -630,8 +651,7 @@ const VOCAB_NOTE = {
   shadow: "build a `Shadow` — the box's own, glyphs' (`textShadow`), or in a `visualFilter` list the painted alpha's",
   colorStop: "one colour stop, for `gradient(…)`",
   frost: "the material pair `[blur(radius), saturate(saturation)]` — what lies beneath the view, blurred under its own fill",
-  FilterList: "a list of filters, applied in order — to the view's own paint (`visualFilter`) or to what lies beneath it (`backdrop`); `frost(…)` builds the common backdrop pair",
-  ImageFilter: "one function of the filter vocabulary, for `visualFilter` (the view's own paint) and `backdrop` (what lies beneath)",
+  VisualFilter: "one function of the filter vocabulary, for `visualFilter` (the view's own paint) and `backdrop` (what lies beneath); a list applies them in order",
   blur: "a Gaussian blur, radius in view units",
   brightness: "multiply the light: `brightness(0.8)` darkens, `1` is unchanged",
   contrast: "scale about mid-grey: `contrast(1.5)` deepens, `1` is unchanged",
@@ -778,11 +798,11 @@ const sharedTypesDoc = (spine) => {
 // type exactly once, so a new enum or a new PRELUDE declaration fails the
 // assembly until it is placed.
 const TYPE_GROUPS = [
-  ["Enums", ["AccessibilityCurrent", "AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "Axis", "Backface", "BlendMode", "ClaimAxis", "RequestCredentials", "RequestFailure", "CrossAlign", "TextDirection", "SafeAreaMode",
-             "FitAlign", "Focusable", "FocusScope", "FontLate", "FontWeight", "Justify", "Easing", "Numerals", "NumeralWidth",
+  ["Enums", ["AccessibilityCurrent", "AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "LayoutAxis", "Backface", "BlendMode", "ClaimAxis", "RequestCredentials", "RequestFailure", "CrossAlign", "TextDirection", "SafeAreaMode",
+             "FitAlign", "Focusable", "FocusScope", "FontLate", "FontWeight", "Justify", "Easing", "NumeralStyle", "NumeralWidth",
              "OutsidePress", "AnimatorOrder", "InputPurpose", "ImageRendering", "ScrollAnchor", "ScrollBelow", "Scrolls", "StreamStatus", "ImageFit", "TextAlign", "TextTransform", "UnsupportedTags", "ClockTick"]],
-  ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "ClipPath", "Stroke", "BoxStroke",
-              "Shadow", "ImageFilter", "FilterList", "Theme", "EasingCurve", "DataCursor", "TextMetrics", "IslandMessage", "IslandNavigation", "DelayHandle", "AccessibilitySettings"]],
+  ["Values", ["Color", "ColorName", "Fill", "Gradient", "Length", "Radius", "Inset", "ClipPath", "Stroke", "BoxStroke",
+              "Shadow", "VisualFilter", "Theme", "DataCursor", "TextMetrics", "IslandMessage", "IslandNavigation", "DelayHandle", "AccessibilitySettings"]],
   ["Text", ["TextStyle", "TextStyles", "TagStyles", "TagViews", "BlockGeometry", "RichTextLayout"]],
   ["Event payloads", ["PointerEvent", "PointerUpEvent", "DragEndEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
                       "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "ChangeEvent", "ValueChange",
