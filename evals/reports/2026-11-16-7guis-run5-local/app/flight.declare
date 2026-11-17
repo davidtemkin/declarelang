@@ -1,0 +1,92 @@
+/*
+# 3. Flight Booker
+
+One-way or return, a start date and a return date, and Book. Dates are
+written DD.MM.YYYY. Each field's text is the task's own; whether it is a
+date, and whether the booking can be made, are derived from those texts.
+*/
+
+script {
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    // A date as DD.MM.YYYY.
+    function formatDate(d: Date): string {
+        return pad2(d.getDate()) + "." + pad2(d.getMonth() + 1) + "." + d.getFullYear()
+    }
+
+    // The day a DD.MM.YYYY text names, as a sortable number (YYYYMMDD), or
+    // null when it names no real day (31.02.2026 among them).
+    function parseDate(t: string): number | null {
+        const m = /^\s*([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{4})\s*$/.exec(t)
+        if (m == null) return null
+        const day = Number(m[1]), month = Number(m[2]), year = Number(m[3])
+        const d = new Date(year, month - 1, day)
+        if (d.getFullYear() != year || d.getMonth() != month - 1 || d.getDate() != day) return null
+        return year * 10000 + month * 100 + day
+    }
+    }
+
+
+// A date field: red while its text is not a date.
+
+class DateField extends TextInput [ width = 140, placeholder = "DD.MM.YYYY",
+    invalid: boolean = false,
+    State [ applied = { classroot.invalid && !classroot.disabled },
+        fill = { provided("theme").invalidFill }, stroke = { Stroke(1.5, provided("theme").invalidLine) } ]
+    ]
+
+
+class FlightTask [
+    kind: "oneway" | "return" = "oneway",
+    startText: string = "",
+    returnText: string = "",
+
+    start: number? = { parseDate(classroot.startText) },
+    back: number? = { parseDate(classroot.returnText) },
+    isReturn: boolean = { classroot.kind == "return" },
+    returnBad: boolean = { classroot.isReturn && classroot.back == null },
+    inOrder: boolean = { !classroot.isReturn || (classroot.start != null && classroot.back != null && classroot.back >= classroot.start) },
+    bookable: boolean = { classroot.start != null && !classroot.returnBad && classroot.inOrder },
+
+    // Both fields start on today.
+
+    onInit() {
+        const today = formatDate(new Date())
+        startText = today
+        returnText = today
+        },
+
+    book() {
+        const what = isReturn
+            ? "You have booked a return flight leaving on " + startText.trim() + " and returning on " + returnText.trim() + "."
+            : "You have booked a one-way flight on " + startText.trim() + "."
+        confirm.notice("Booked", what)
+        },
+
+    confirm: Dialog [ ],
+
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    RadioGroup [ accessibilityLabel = "Flight", value = { classroot.kind },
+        commit(v: object) { classroot.kind = v as "oneway" | "return" },
+        Radio [ choice = "oneway", label = "one-way flight" ],
+        Radio [ choice = "return", label = "return flight" ]
+        ],
+    Field [ label = "Start date (DD.MM.YYYY)", stacked = true,
+        DateField [ invalid = { classroot.start == null },
+            value = { classroot.startText },
+            commit(t: string) { classroot.startText = t }
+            ]
+        ],
+    Field [ label = "Return date (DD.MM.YYYY)", stacked = true,
+        DateField [ invalid = { classroot.back == null }, disabled = { !classroot.isReturn },
+            value = { classroot.returnText },
+            commit(t: string) { classroot.returnText = t }
+            ]
+        ],
+    Button [ label = "Book", primary = true, disabled = { !classroot.bookable },
+        onClick() { classroot.book() }
+        ],
+    Text [ visible = { classroot.isReturn && classroot.start != null && classroot.back != null && !classroot.inOrder },
+        fontSize = 12, textColor = { provided("theme").invalidLine },
+        text = "The return date is before the start date." ]
+    ]

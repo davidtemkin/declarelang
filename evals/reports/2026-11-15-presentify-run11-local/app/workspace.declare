@@ -1,0 +1,499 @@
+/*
+# Presentify: the editor's views
+
+An open presentation: the bar along the top, the slides down the left, the
+slide being edited in the middle with its selection drawn over it, and the
+inspector on the right. Every view here reads `app.editor` and `app.deck`
+and calls their verbs; none of them holds the presentation.
+*/
+
+// ── The bar ─────────────────────────────────────────────────────────────────
+
+class TopBar [ height = 58, padding = [0, 14, 0, 10],
+    fill = { provided("theme").surface },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    accessibilityRole = banner,
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+
+    IconButton [ shape = "back", accessibilityLabel = "All presentations",
+        press() { app.closeDeck() }
+        ],
+    BrandMark [ width = 26, height = 26 ],
+
+    // the title, edited where it stands; the status says what reached the service
+
+    titleBox: View [ width = 260, padding = [0, 0, 0, 6],
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        title: TextInput [ width = 100%, height = 26, fontSize = 15, fontWeight = semibold, padding = [0, 6, 0, 6],
+            accessibilityLabel = "Presentation title", placeholder = "Untitled presentation",
+            fill = { this.focused ? provided("theme").quiet : null }, stroke = null, cornerRadius = 6,
+            value = { app.sync.title },
+            commit(v: string) { app.sync.title = v },
+            onEnter() { Focus.focus(app.stageView) }
+            ],
+        status: SaveStatus [ ]
+        ],
+
+    Spacer [ ],
+
+    IconButton [ shape = "undo", accessibilityLabel = "Undo", keyHint = "⌘Z", disabled = { !app.deck.canUndo },
+        press() { app.undo() }
+        ],
+    IconButton [ shape = "redo", accessibilityLabel = "Redo", keyHint = "⇧⌘Z", disabled = { !app.deck.canRedo },
+        press() { app.redo() }
+        ],
+    BarRule [ ],
+
+    // the tools
+
+    tools: Toolbar [ accessibilityLabel = "Tools",
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        ToolChoice [ tool = "select", shape = "select", accessibilityLabel = "Select", keyHint = "V" ],
+        ToolChoice [ tool = "rect", shape = "rect", accessibilityLabel = "Rectangle", keyHint = "R" ],
+        ToolChoice [ tool = "ellipse", shape = "ellipse", accessibilityLabel = "Ellipse", keyHint = "O" ],
+        ToolChoice [ tool = "line", shape = "line", accessibilityLabel = "Line", keyHint = "L" ],
+        ToolChoice [ tool = "text", shape = "text", accessibilityLabel = "Text", keyHint = "T" ]
+        ],
+    BarRule [ ],
+
+    IconButton [ shape = "group", accessibilityLabel = "Group", keyHint = "⌘G", disabled = { !app.editor.canGroup },
+        press() { app.editor.group() }
+        ],
+    IconButton [ shape = "ungroup", accessibilityLabel = "Ungroup", keyHint = "⇧⌘G", disabled = { !app.editor.canUngroup },
+        press() { app.editor.ungroup() }
+        ],
+    IconButton [ shape = "arrange", accessibilityLabel = "Arrange", menu = { app.arrangeMenu } ],
+    IconButton [ shape = "more", accessibilityLabel = "Edit", menu = { app.editMenu } ],
+
+    Spacer [ ],
+
+    IconButton [ shape = "panel", accessibilityLabel = { app.inspectorOpen ? "Hide inspector" : "Show inspector" },
+        on = { app.inspectorOpen },
+        press() { app.inspectorOpen = !app.inspectorOpen }
+        ],
+    PillButton [ label = "Present", shape = "play", spot = true,
+        press() { app.present() }
+        ]
+    ]
+
+
+class BarRule [ width = 1, height = 22, fill = { provided("theme").line } ]
+
+class ToolChoice extends IconButton [
+    tool: "select" | "rect" | "ellipse" | "line" | "text" = "select",
+    on = { app.editor.tool == classroot.tool },
+    accessibilityRole = toggle,
+    accessibilityPressed = { classroot.on },
+    press() { app.editor.choose(classroot.tool) }
+    ]
+
+
+// Saved, saving, or not reaching the service: always one of the three, in
+// those words.
+
+class SaveStatus [ height = 18, padding = [0, 0, 0, 6],
+    status: string = { app.sync.status },
+    accessibilityRole = status,
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Glyph [ iconSize = 11, weight = 1.8,
+        shape = { classroot.status == "saved" ? "check" : classroot.status == "saving" ? "saving" : "warn" },
+        ink = { classroot.status == "offline" ? provided("theme").danger : classroot.status == "saved" ? provided("theme").ok : provided("theme").textFaint } ],
+    words: Text [ fontSize = 12, wrap = false,
+        textColor = { classroot.status == "offline" ? provided("theme").danger : provided("theme").textMuted },
+        text = { saveWords(classroot.status) } ]
+    ]
+
+
+// ── The slide list ──────────────────────────────────────────────────────────
+//
+// The slides in order, each a live picture. The list glides when the order
+// changes (`Glide`); a dragged slide shows where it will land with a bar
+// and leaves the others where they are until it is dropped.
+
+class Glide extends TweenLayout [ duration = 260,
+    rowH: number = 104,
+    place() {
+        const w = this.contentExtent("width")
+        return this.laid().map((c, i) => ({ x: 0, y: i * this.rowH, w: w, h: this.rowH, vis: true }))
+        }
+    ]
+
+
+class SlideList [ width = 216,
+
+    // the reorder under way: which slide, and the gap it will go into
+
+    dragKey: string = "",
+    dropAt: number = -1,
+    dragY: number = 0,                    // the pointer, in the list's own coordinates
+
+    fill = { provided("theme").surface },
+    stroke = { [null, Stroke(1, provided("theme").line), null, null] },
+    accessibilityRole = navigation, accessibilityLabel = "Slides",
+    layout: SimpleLayout [ axis = y ],
+
+    head: View [ width = 100%, height = 44, padding = [0, 8, 0, 16],
+        layout: SimpleLayout [ axis = x, align = center ],
+        Text [ flexes = true, fontSize = 12, fontWeight = semibold, letterSpacing = 0.6, textTransform = uppercase,
+            textColor = { provided("theme").textFaint }, text = { "Slides · " + app.deck.count } ],
+        IconButton [ shape = "plus", accessibilityLabel = "New slide",
+            press() { app.addSlide() }
+            ]
+        ],
+
+    // the list itself: a focus stop whose arrows move between slides
+
+    pane: View [ width = 100%, flexes = true, scrolls = y, focusable = true,
+        accessibilityLabel = "Slide list",
+        keyBindings = { [
+            ({ key: "ArrowUp", command: "step", args: [-1] }),
+            ({ key: "ArrowDown", command: "step", args: [1] }),
+            ({ key: "ArrowLeft", command: "step", args: [-1] }),
+            ({ key: "ArrowRight", command: "step", args: [1] }),
+            ({ key: "Home", command: "first" }),
+            ({ key: "End", command: "last" }),
+            ({ key: "Delete", command: "drop" }),
+            ({ key: "Backspace", command: "drop" }),
+            ({ key: "Ctrl+D", command: "dup" }),
+            ({ key: "Enter", command: "edit" })
+            ] },
+        step(d: number) { app.goBy(d) },
+        first() { app.goTo(app.deck.slides()[0]?.id ?? "") },
+        last() { app.goTo(app.deck.slides()[app.deck.count - 1]?.id ?? "") },
+        drop() { app.deleteSlide(app.cur) },
+        dup() { app.duplicateSlide(app.cur) },
+        edit() { Focus.focus(app.stageView) },
+
+        rows: View [ width = 100%, padding = [4, 0, 16, 0], datapath = { app.deck.value },
+            layout: Glide [ ],
+            SlideThumb [ datapath = :slides[] ]
+            ],
+
+        // where a dragged slide will land
+
+        insertBar: View [ ignoreLayout = true, visible = { classroot.dropAt >= 0 },
+            x = 14, width = { parent.width - 28 }, height = 3, cornerRadius = 2,
+            y = { 4 + classroot.dropAt * 104 - 2 }, fill = { provided("theme").accent } ],
+
+        // the slide being dragged, under the pointer
+
+        ghost: View [ ignoreLayout = true, visible = { classroot.dragKey != "" }, pointerEvents = "none",
+            x = 40, y = { classroot.dragY - 44 }, width = 156, height = 88, cornerRadius = 7, clip = true,
+            stroke = { Stroke(2.5, provided("theme").accent) }, shadow = Shadow(0, 12, 28, #1C183040),
+            datapath = { app.deck.slide(classroot.dragKey) },
+            SlidePicture [ pictureWidth = 156 ]
+            ],
+
+        // pressing past the last slide keeps the list focused for its keys
+
+        onClick() { Focus.focus(this) }
+        ],
+
+    foot: View [ width = 100%, height = 52, padding = [0, 12, 0, 12],
+        stroke = { [Stroke(1, provided("theme").line), null, null, null] },
+        layout: SimpleLayout [ axis = x, align = center ],
+        PillButton [ label = "New slide", shape = "plus", flexes = true,
+            press() { app.addSlide() }
+            ]
+        ]
+    ]
+
+
+// One slide in the list: its number, its picture, ringed in violet when it is
+// the one being edited. A press makes it current; a drag moves it.
+
+class SlideThumb extends Control [ height = 104, padding = [8, 12, 8, 10],
+    key: string = { :id ?? "" },
+    number: number = { rowIndex + 1 },
+    here: boolean = { app.cur == classroot.key },
+    lifted: boolean = { app.slideList.dragKey == classroot.key },
+    accessibilityLabel = { "Slide " + classroot.number },
+    accessibilityPressed = { classroot.here },
+    trackChanges = ["here"],
+    onChange() { if (classroot.here) this.scrollIntoView("nearest", true, 8) },
+    focusable = false,
+    press() { app.goTo(classroot.key); Focus.focus(app.slidePane) },
+    opacity = { classroot.lifted ? 0.45 : 1 },
+    layout: SimpleLayout [ axis = x, spacing = 8 ],
+
+    Text [ width = 20, padding = [4, 0, 0, 0], textAlign = right, fontSize = 12, fontWeight = semibold,
+        numeralWidth = tabular,
+        textColor = { classroot.here ? provided("theme").accent : provided("theme").textFaint },
+        text = { "" + classroot.number } ],
+    frame: View [ width = 156, height = 88, cornerRadius = 7, clip = true,
+        shadow = { classroot.here ? Shadow(0, 2, 10, 0x5A3FF233) : null },
+        SlidePicture [ pictureWidth = 156 ],
+
+        // the ring, over the picture
+
+        ring: View [ width = 100%, height = 100%, cornerRadius = 7,
+            stroke = { classroot.here ? Stroke(2.5, provided("theme").accent)
+                : Stroke(1, classroot.hovered ? provided("theme").lineStrong : provided("theme").line) } ]
+        ],
+
+    // the reorder: the list keeps still; a bar shows the gap
+
+    onDrag(e: PointerEvent) {
+        const list = app.slideList
+        const pane = app.slidePane
+        list.dragKey = classroot.key
+        const y = e.rootY - pane.rootOrigin().y + pane.scrollY
+        list.dragY = y
+        list.dropAt = Math.max(0, Math.min(app.deck.count, Math.round((y - 4) / 104)))
+        },
+    onDragEnd(e: DragEndEvent) {
+        const list = app.slideList
+        const to = list.dropAt
+        list.dragKey = ""
+        list.dropAt = -1
+        if (!e.canceled && to >= 0) app.moveSlide(classroot.key, to)
+        },
+    onContextMenu(e: PointerEvent) {
+        app.goTo(classroot.key)
+        app.slideMenu.showAt(this, e)
+        }
+    ]
+
+
+// ── The stage ───────────────────────────────────────────────────────────────
+//
+// The slide being edited, as large as the room allows at 16 : 9, on a quiet
+// ground. A press on the ground or on the slide's empty places selects with a
+// box, or draws with a tool; a press on a thing is the thing's.
+
+class Stage [ clip = true, focusable = quiet, accessibilityRole = region,
+    fill = { provided("theme").stage },
+    accessibilityLabel = "Slide editor",
+    cursor = { app.editor.tool == "select" ? "" : app.editor.tool == "text" ? "text" : "crosshair" },
+    pad: number = 44,
+    fit: number = { Math.max(0.05, Math.min((this.width - 2 * this.pad) / 1280, (this.height - 2 * this.pad - classroot.bannerRoom) / 720)) },
+    left: number = { (this.width - 1280 * this.fit) / 2 },
+    top: number = { classroot.bannerRoom + (this.height - classroot.bannerRoom - 720 * this.fit) / 2 },
+
+    onPointerDown(e: PointerEvent) { app.editor.pressSurface(e.rootX, e.rootY, e.shift) },
+    onDrag(e: PointerEvent) { app.editor.dragTo(e.rootX, e.rootY, e.shift) },
+    onPointerUp(e: PointerUpEvent) { app.editor.endDrag(e.canceled) },
+
+    // the conflict banner takes room at the top while it is shown
+
+    conflict: ServerSlide? = { app.sync.conflictFor(app.cur) },
+    bannerT: number = 0,
+    Spring [ attribute = bannerT, to = { classroot.conflict != null ? 1 : 0 }, stiffness = 260, damping = 28 ],
+    bannerRoom: number = { classroot.bannerT * (this.banner.height + 20) },
+
+    canvas: SlideCanvas [ live = true, accessibilityLabel = "Slide", accessibilityRole = image,
+        x = { classroot.left }, y = { classroot.top }, scale = { classroot.fit },
+        datapath = { app.deck.value?.slides[app.curIndex] },
+        shadow = Shadow(0, 6, 30, #1C183026),
+        elementPresses = { app.editor.tool == "select" ? "" : "none" },
+
+        // words being typed, in place, at the text box's place and in its style
+
+        field: TextField [ exists = { app.editor.editingId != "" } ]
+        ],
+
+    // nothing on the slide yet: a word on where to start
+
+    hint: View [ x = { classroot.left }, y = { classroot.top }, width = { 1280 * classroot.fit }, height = { 720 * classroot.fit },
+        visible = { app.editor.elements.length == 0 && app.editor.mode == "" && app.deck.count > 0 },
+        pointerEvents = "none",
+        col: View [ x = center, y = center,
+            layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+            Glyph [ iconSize = 26, weight = 1.4, shape = "slide", ink = { provided("theme").lineStrong } ],
+            Text [ fontSize = 14, fontWeight = medium, textColor = { provided("theme").textFaint }, text = "An empty slide" ],
+            Text [ fontSize = 12, textColor = { provided("theme").textFaint },
+                text = "Pick a shape or Text above, then drag here — or just click to place one." ]
+            ]
+        ],
+
+    handles: Handles [ x = { classroot.left }, y = { classroot.top }, k = { classroot.fit } ],
+
+    banner: ConflictBanner [ y = { (classroot.bannerT - 1) * (this.height + 20) + 12 }, x = center, visible = { classroot.bannerT > 0.01 },
+        opacity = { classroot.bannerT }, theirs = { classroot.conflict } ]
+    ]
+
+
+// The words of the text box being typed in: a field laid exactly over the
+// box, in the box's own style, inside the canvas so it scales with it.
+
+class TextField extends TextInput [
+    elem: Elem? = { findElem(app.editor.elements, app.editor.editingId) },
+    spec: TextSpec? = { classroot.elem?.text ?? null },
+    x = { classroot.elem?.x ?? 0 }, y = { classroot.elem?.y ?? 0 },
+    width = { Math.max(40, classroot.elem?.width ?? 40) },
+    height = { Math.max(contentHeight, (classroot.spec?.size ?? 24) * 1.25) },
+    multiline = true, wrap = true, padding = 0, fill = null, stroke = null, cornerRadius = 0,
+    accessibilityLabel = "Text",
+    fontFamily = { classroot.spec?.font ?? "Helvetica Neue" },
+    fontSize = { classroot.spec?.size ?? 24 },
+    fontWeight = { classroot.spec?.weight ?? 400 },
+    italic = { classroot.spec?.italic ?? false },
+    textColor = { classroot.spec?.color ?? "#1F2328" },
+    textAlign = { classroot.spec?.align ?? "left" },
+    value = { classroot.spec?.content ?? "" },
+    commit(v: string) { app.editor.typed(v) }
+    ]
+
+
+// ── The selection, drawn over the slide ─────────────────────────────────────
+//
+// In screen points over the canvas (`k` is the canvas's scale), so handles
+// keep their size however large the slide is shown. Only the handles take
+// presses; everything else here lets them through to the slide.
+
+class Handles [ pointerEvents = "none",
+    k: number = 1,
+    width = { 1280 * classroot.k }, height = { 720 * classroot.k },
+    box: Box? = { app.editor.selBox },
+    shown: boolean = { classroot.box != null && app.editor.mode != "marquee" },
+    bx: number = { (classroot.box?.x ?? 0) * classroot.k },
+    by: number = { (classroot.box?.y ?? 0) * classroot.k },
+    bw: number = { (classroot.box?.w ?? 0) * classroot.k },
+    bh: number = { (classroot.box?.h ?? 0) * classroot.k },
+    sizable: boolean = { classroot.shown && !app.editor.singleLine && app.editor.editingId == "" },
+
+    // each selected thing outlined; the whole selection framed when it is more than one
+
+    outlines: Dataset [ contents = { { boxes: app.editor.selElems.map((e) => ({ id: e.id, b: boundsOf(e), line: e.kind == "line" })) } } ],
+    each: View [ width = 100%, height = 100%, datapath = { classroot.outlines.value },
+        SelOutline [ datapath = :boxes[], k = { classroot.k } ]
+        ],
+    frame: View [ visible = { classroot.shown && app.editor.count > 1 },
+        x = { classroot.bx - 1 }, y = { classroot.by - 1 }, width = { classroot.bw + 2 }, height = { classroot.bh + 2 },
+        stroke = { Stroke(1, provided("theme").accent) } ],
+
+    // what the pointer is over
+
+    hover: View [ visible = { app.editor.hoverBox != null },
+        x = { (app.editor.hoverBox?.x ?? 0) * classroot.k - 1 }, y = { (app.editor.hoverBox?.y ?? 0) * classroot.k - 1 },
+        width = { (app.editor.hoverBox?.w ?? 0) * classroot.k + 2 }, height = { (app.editor.hoverBox?.h ?? 0) * classroot.k + 2 },
+        stroke = { Stroke(1, provided("theme").accentSoft) },
+        View [ x = -1, y = -1, width = { parent.width + 2 }, height = { parent.height + 2 }, stroke = { Stroke(1, 0xFFFFFF99) } ]
+        ],
+
+    // guides that a drag snapped to
+
+    gdata: Dataset [ contents = { { xs: app.editor.guidesX, ys: app.editor.guidesY } } ],
+    guides: View [ width = 100%, height = 100%, datapath = { classroot.gdata.value },
+        View [ datapath = :xs[], x = { (:@ as number) * classroot.k - 0.5 }, y = -4000, width = 1, height = 8000,
+            fill = { provided("theme").guide } ],
+        View [ datapath = :ys[], y = { (:@ as number) * classroot.k - 0.5 }, x = -4000, height = 1, width = 8000,
+            fill = { provided("theme").guide } ]
+        ],
+
+    // the box a drag on empty slide draws to select
+
+    marq: View [ visible = { app.editor.marquee != null },
+        x = { (app.editor.marquee?.x ?? 0) * classroot.k }, y = { (app.editor.marquee?.y ?? 0) * classroot.k },
+        width = { (app.editor.marquee?.w ?? 0) * classroot.k }, height = { (app.editor.marquee?.h ?? 0) * classroot.k },
+        fill = #5A3FF214, stroke = { Stroke(1, provided("theme").accent) } ],
+
+    // the eight handles
+
+    Handle [ kind = "lt", cursor = "nwse-resize", cx = { classroot.bx }, cy = { classroot.by }, visible = { classroot.sizable } ],
+    Handle [ kind = "t", cursor = "ns-resize", cx = { classroot.bx + classroot.bw / 2 }, cy = { classroot.by },
+        visible = { classroot.sizable && classroot.bw > 36 } ],
+    Handle [ kind = "rt", cursor = "nesw-resize", cx = { classroot.bx + classroot.bw }, cy = { classroot.by }, visible = { classroot.sizable } ],
+    Handle [ kind = "r", cursor = "ew-resize", cx = { classroot.bx + classroot.bw }, cy = { classroot.by + classroot.bh / 2 },
+        visible = { classroot.sizable && classroot.bh > 36 } ],
+    Handle [ kind = "rb", cursor = "nwse-resize", cx = { classroot.bx + classroot.bw }, cy = { classroot.by + classroot.bh }, visible = { classroot.sizable } ],
+    Handle [ kind = "b", cursor = "ns-resize", cx = { classroot.bx + classroot.bw / 2 }, cy = { classroot.by + classroot.bh },
+        visible = { classroot.sizable && classroot.bw > 36 } ],
+    Handle [ kind = "lb", cursor = "nesw-resize", cx = { classroot.bx }, cy = { classroot.by + classroot.bh }, visible = { classroot.sizable } ],
+    Handle [ kind = "l", cursor = "ew-resize", cx = { classroot.bx }, cy = { classroot.by + classroot.bh / 2 },
+        visible = { classroot.sizable && classroot.bh > 36 } ],
+
+    // a line's two ends
+
+    Handle [ kind = "end1", cursor = "crosshair", round = true,
+        visible = { classroot.shown && app.editor.singleLine },
+        cx = { (app.editor.single?.x1 ?? 0) * classroot.k }, cy = { (app.editor.single?.y1 ?? 0) * classroot.k } ],
+    Handle [ kind = "end2", cursor = "crosshair", round = true,
+        visible = { classroot.shown && app.editor.singleLine },
+        cx = { (app.editor.single?.x2 ?? 0) * classroot.k }, cy = { (app.editor.single?.y2 ?? 0) * classroot.k } ],
+
+    // a rectangle's corner radius: drag it along the top edge
+
+    radius: Handle [ kind = "radius", cursor = "ew-resize", round = true, accent = true,
+        tooltipLabel = "Drag to round the corners",
+        r: number = { Math.min(app.editor.single?.cornerRadius ?? 0, Math.min(app.editor.single?.width ?? 0, app.editor.single?.height ?? 0) / 2) },
+        visible = { classroot.sizable && app.editor.singleRect && classroot.bw > 48 && classroot.bh > 48 },
+        cx = { classroot.bx + Math.max(14, this.r * classroot.k) }, cy = { classroot.by + 14 }
+        ]
+    ]
+
+
+class SelOutline [ pointerEvents = "none",
+    k: number = 1,
+    b: Box = { :b },
+    x = { classroot.b.x * classroot.k - 1 }, y = { classroot.b.y * classroot.k - 1 },
+    width = { classroot.b.w * classroot.k + 2 }, height = { classroot.b.h * classroot.k + 2 },
+    visible = { !(:line ?? false) || app.editor.count > 1 },
+
+    // violet on a white keyline: unmistakable on any slide colour
+
+    stroke = { Stroke(1.5, provided("theme").accent) },
+    View [ x = -1, y = -1, width = { parent.width + 2 }, height = { parent.height + 2 }, stroke = { Stroke(1, 0xFFFFFFCC) } ]
+    ]
+
+
+// A handle: easy to hit (22 points), small to see (10). Its cursor says what
+// it does before it is pressed.
+
+class Handle [ width = 22, height = 22, pointerEvents = "auto",
+    kind: string = "",
+    cx: number = 0,
+    cy: number = 0,
+    round: boolean = false,
+    accent: boolean = false,
+    x = { classroot.cx - 11 }, y = { classroot.cy - 11 },
+    onPointerDown(e: PointerEvent) { app.editor.pressHandle(classroot.kind, e.rootX, e.rootY) },
+    onDrag(e: PointerEvent) { app.editor.dragTo(e.rootX, e.rootY, e.shift) },
+    onPointerUp(e: PointerUpEvent) { app.editor.endDrag(e.canceled) },
+    dot: View [ x = center, y = center,
+        width = { classroot.hovered ? 12 : 10 }, height = { this.width },
+        cornerRadius = { classroot.round ? this.width / 2 : 2.5 },
+        fill = { classroot.accent ? provided("theme").spot : provided("theme").handle },
+        stroke = { Stroke(1.5, classroot.accent ? 0xFFFFFF : provided("theme").handleRim) },
+        shadow = Shadow(0, 1, 3, #1C183055) ]
+    ]
+
+
+// "Slide 2 was changed in another window": the other version, small, and the
+// two answers.
+
+class ConflictBanner [ width = 600, cornerRadius = 14, padding = [12, 16, 12, 12],
+    theirs: ServerSlide? = null,
+    fill = { provided("theme").surface },
+    stroke = { Stroke(1, provided("theme").lineStrong) },
+    shadow = Shadow(0, 8, 28, #1C183030),
+    accessibilityRole = status, accessibilityLive = assertive,
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+    pic: View [ width = 128, height = 72, cornerRadius = 6, clip = true, datapath = { classroot.theirs },
+        stroke = { Stroke(1, provided("theme").line) },
+        SlidePicture [ pictureWidth = 128 ]
+        ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ width = 100%, fontSize = 14, fontWeight = semibold, textColor = { provided("theme").text },
+            text = { "Slide " + (app.curIndex + 1) + " was changed in another window" } ],
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = "Their version is on the left. Use it, or keep yours and save it over theirs." ],
+        row: View [ padding = [6, 0, 0, 0],
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            Button [ label = "Use their version", primary = true, height = 30,
+                onClick() { app.useTheirs() }
+                ],
+            Button [ label = "Keep mine", height = 30,
+                onClick() { app.keepMine() }
+                ]
+            ]
+        ]
+    ]
+
+
+script {
+    function saveWords(s: string): string {
+        return s == "saved" ? "All changes saved" : s == "saving" ? "Saving…" : "Not saved: can't reach the service"
+    }
+    }

@@ -1,0 +1,357 @@
+/*
+# Presentify: the shapes, as data
+
+What a slide holds is the service's format (task/api/API.md): a slide is a
+background and a list of elements, back to front, and an element is a
+rectangle, an ellipse, a line, a text box or a group of them. This file is
+that format as schemas, and the pure functions over it — a box around an
+element, an element moved or resized, a list of them regrouped or reordered.
+
+Every function here takes elements and returns new ones; none of them reads
+or writes the program's state. The verbs that change a presentation are
+methods on `Deck` and `Editor` (model.declare, editor.declare), which call
+these to work out the new elements and then write them.
+*/
+
+// ── The format ──────────────────────────────────────────────────────────────
+
+schema Outline [ color: string, width: number ]
+
+schema TextRun [ content: string, font: string, size: number, weight: number, italic: boolean,
+    color: string, align: "left" | "center" | "right" ]
+
+// One element of any kind. Each kind uses some of the fields (API.md § Elements);
+// `wire` below keeps exactly those when a slide is sent.
+
+schema El [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    fill?: string, stroke?: Outline, cornerRadius?: number, keepProportions?: boolean,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    text?: TextRun,
+    children[]?: El ]
+
+schema Slide [ id: string, deckId?: string, version?: number, background: string, elements[]: El ]
+
+schema DeckInfo [ id: string, title: string, version: number, updatedAt: string,
+    slideOrder[]: string, thumbnailSlideId?: string ]
+
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number,
+    thumbnailSlideId?: string ]
+
+// A box in slide points, and a guide drawn while something is dragged.
+
+schema Box [ x: number, y: number, w: number, h: number ]
+schema Guide [ id: string, axis: "x" | "y", at: number ]
+
+
+script {
+    function r2(n: number): number { return Math.round(n * 100) / 100 }
+    function uid(prefix: string): string { return prefix + Math.random().toString(36).slice(2, 10) }
+    function copyOf<T>(v: T): T { return JSON.parse(JSON.stringify(v)) as T }
+
+    // ── Sending: exactly the fields the format defines for each kind ──────────
+
+    function wire(e: El): El {
+        const box = { x: r2(e.x ?? 0), y: r2(e.y ?? 0),
+            width: r2(Math.max(0, e.width ?? 0)), height: r2(Math.max(0, e.height ?? 0)) }
+        const stroke = e.stroke ? { color: e.stroke.color, width: r2(e.stroke.width) } : null
+        switch (e.kind) {
+            case "rect":
+                return { id: e.id, kind: "rect", ...box, fill: e.fill ?? null, stroke: stroke,
+                    cornerRadius: r2(Math.max(0, e.cornerRadius ?? 0)), keepProportions: e.keepProportions ?? false } as El
+            case "ellipse":
+                return { id: e.id, kind: "ellipse", ...box, fill: e.fill ?? null, stroke: stroke,
+                    keepProportions: e.keepProportions ?? false } as El
+            case "line":
+                return { id: e.id, kind: "line", x1: r2(e.x1 ?? 0), y1: r2(e.y1 ?? 0), x2: r2(e.x2 ?? 0), y2: r2(e.y2 ?? 0),
+                    stroke: stroke ?? { color: "#1E1A2E", width: 2 } } as El
+            case "text":
+                return { id: e.id, kind: "text", ...box, keepProportions: e.keepProportions ?? false,
+                    text: { ...(e.text as TextRun) } } as El
+            default:
+                return { id: e.id, kind: "group", children: (e.children ?? []).map(wire) } as El
+        }
+    }
+
+    // A slide's content as the service would store it, as one string: two
+    // slides are the same exactly when their strings are.
+    function contentOf(background: string, elements: El[]): string {
+        return JSON.stringify({ background: background, elements: elements.map(wire) })
+    }
+
+    // ── Boxes ─────────────────────────────────────────────────────────────────
+
+    function boxOf(e: El): Box {
+        if (e.kind == "line") {
+            const x1 = e.x1 ?? 0, y1 = e.y1 ?? 0, x2 = e.x2 ?? 0, y2 = e.y2 ?? 0
+            return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) }
+        }
+        if (e.kind == "group") return unionOf((e.children ?? []).map(boxOf))
+        return { x: e.x ?? 0, y: e.y ?? 0, w: e.width ?? 0, h: e.height ?? 0 }
+    }
+
+    function unionOf(bs: Box[]): Box {
+        if (bs.length == 0) return { x: 0, y: 0, w: 0, h: 0 }
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+        for (const b of bs) {
+            x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y)
+            x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h)
+        }
+        return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+    }
+
+    function touches(a: Box, b: Box): boolean {
+        return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h
+    }
+
+    // ── Finding things in the tree ────────────────────────────────────────────
+
+    function findEl(els: El[], id: string): El | null {
+        for (const e of els) {
+            if (e.id == id) return e
+            if (e.kind == "group") { const f = findEl(e.children ?? [], id); if (f) return f }
+        }
+        return null
+    }
+
+    // The ids from the top of the slide down to `id`: its groups, then itself.
+    function chainTo(els: El[], id: string): string[] {
+        for (const e of els) {
+            if (e.id == id) return [e.id]
+            if (e.kind == "group") { const c = chainTo(e.children ?? [], id); if (c.length > 0) return [e.id, ...c] }
+        }
+        return []
+    }
+
+    // The list `id` sits in: the slide's own, or its group's children.
+    function siblingsOf(els: El[], id: string): El[] {
+        if (els.some((e) => e.id == id)) return els
+        for (const e of els) {
+            if (e.kind == "group") { const s = siblingsOf(e.children ?? [], id); if (s.length > 0) return s }
+        }
+        return []
+    }
+
+    function leavesOf(els: El[]): El[] {
+        const out: El[] = []
+        for (const e of els) {
+            if (e.kind == "group") out.push(...leavesOf(e.children ?? []))
+            else out.push(e)
+        }
+        return out
+    }
+
+    function idsOf(els: El[]): string[] {
+        const out: string[] = []
+        for (const e of els) { out.push(e.id); if (e.kind == "group") out.push(...idsOf(e.children ?? [])) }
+        return out
+    }
+
+    // ── Changing the tree (each returns a new list) ───────────────────────────
+
+    // Every element whose id is in `ids`, at any depth, replaced by fn(it).
+    function mapIds(els: El[], ids: string[], fn: (e: El) => El): El[] {
+        return els.map((e) => {
+            if (ids.includes(e.id)) return fn(e)
+            if (e.kind == "group") return { ...e, children: mapIds(e.children ?? [], ids, fn) }
+            return e
+        })
+    }
+
+    // Every leaf inside the elements named by `ids` (a group's, all of them).
+    function mapLeaves(els: El[], ids: string[], fn: (e: El) => El): El[] {
+        const deep = (e: El): El => e.kind == "group" ? { ...e, children: (e.children ?? []).map(deep) } : fn(e)
+        return mapIds(els, ids, deep)
+    }
+
+    // Removes the named elements. A group left with one element gives way to
+    // it; a group left empty goes too.
+    function removeIds(els: El[], ids: string[]): El[] {
+        const out: El[] = []
+        for (const e of els) {
+            if (ids.includes(e.id)) continue
+            if (e.kind == "group") {
+                const kids = removeIds(e.children ?? [], ids)
+                if (kids.length == 1) out.push(kids[0])
+                else if (kids.length > 1) out.push({ ...e, children: kids })
+            } else out.push(e)
+        }
+        return out
+    }
+
+    function translateEl(e: El, dx: number, dy: number): El {
+        if (e.kind == "line") return { ...e, x1: (e.x1 ?? 0) + dx, y1: (e.y1 ?? 0) + dy, x2: (e.x2 ?? 0) + dx, y2: (e.y2 ?? 0) + dy }
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => translateEl(c, dx, dy)) }
+        return { ...e, x: (e.x ?? 0) + dx, y: (e.y ?? 0) + dy }
+    }
+
+    // Maps an element from box `a` into box `b`. Lengths that are not
+    // positions stay as they are: a rectangle's corner radius, an outline's
+    // width, a text's size. A text box takes the new width and lays out its
+    // own height.
+    function reframeEl(e: El, a: Box, b: Box): El {
+        const sx = a.w == 0 ? 1 : b.w / a.w
+        const sy = a.h == 0 ? 1 : b.h / a.h
+        const X = (x: number) => b.x + (x - a.x) * sx
+        const Y = (y: number) => b.y + (y - a.y) * sy
+        if (e.kind == "line") return { ...e, x1: X(e.x1 ?? 0), y1: Y(e.y1 ?? 0), x2: X(e.x2 ?? 0), y2: Y(e.y2 ?? 0) }
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => reframeEl(c, a, b)) }
+        const x = X(e.x ?? 0), y = Y(e.y ?? 0)
+        const w = Math.max(1, X((e.x ?? 0) + (e.width ?? 0)) - x)
+        const h = Math.max(1, Y((e.y ?? 0) + (e.height ?? 0)) - y)
+        return { ...e, x: x, y: y, width: w, height: h }
+    }
+
+    // A copy with fresh ids throughout, for a duplicate or a paste.
+    function renewEl(e: El): El {
+        if (e.kind == "group") return { ...e, id: uid("g"), children: (e.children ?? []).map(renewEl) }
+        return { ...e, id: uid("e") }
+    }
+
+    // Stacking order, within the list the elements share.
+    function restack(els: El[], ids: string[], how: string): El[] {
+        if (ids.length == 0) return els
+        const sib = siblingsOf(els, ids[0])
+        const moved = reorderList(sib, ids, how)
+        if (sib === els) return moved
+        const owner = els.length == 0 ? "" : ownerOf(els, ids[0])
+        return mapIds(els, [owner], (g) => ({ ...g, children: moved }))
+    }
+
+    function ownerOf(els: El[], id: string): string {
+        const chain = chainTo(els, id)
+        return chain.length > 1 ? chain[chain.length - 2] : ""
+    }
+
+    function reorderList(list: El[], ids: string[], how: string): El[] {
+        const picked = list.filter((e) => ids.includes(e.id))
+        const rest = list.filter((e) => !ids.includes(e.id))
+        if (how == "front") return [...rest, ...picked]
+        if (how == "back") return [...picked, ...rest]
+        const out = [...list]
+        if (how == "forward") {
+            for (let i = out.length - 2; i >= 0; i--) {
+                if (ids.includes(out[i].id) && !ids.includes(out[i + 1].id)) { const t = out[i]; out[i] = out[i + 1]; out[i + 1] = t }
+            }
+        } else {
+            for (let i = 1; i < out.length; i++) {
+                if (ids.includes(out[i].id) && !ids.includes(out[i - 1].id)) { const t = out[i]; out[i] = out[i - 1]; out[i - 1] = t }
+            }
+        }
+        return out
+    }
+
+    // Groups the named elements, which share one list, where the frontmost was.
+    function groupIn(els: El[], ids: string[], gid: string): El[] {
+        const sib = siblingsOf(els, ids[0])
+        const picked = sib.filter((e) => ids.includes(e.id))
+        if (picked.length < 2) return els
+        let last = -1
+        sib.forEach((e, i) => { if (ids.includes(e.id)) last = i })
+        const out: El[] = []
+        sib.forEach((e, i) => {
+            if (i == last) out.push({ id: gid, kind: "group", children: picked } as El)
+            else if (!ids.includes(e.id)) out.push(e)
+        })
+        if (sib === els) return out
+        return mapIds(els, [ownerOf(els, ids[0])], (g) => ({ ...g, children: out }))
+    }
+
+    // Each named group gives way to its elements, in its place, each where it was.
+    function ungroupIn(els: El[], ids: string[]): El[] {
+        const out: El[] = []
+        for (const e of els) {
+            if (e.kind == "group" && ids.includes(e.id)) out.push(...(e.children ?? []))
+            else if (e.kind == "group") out.push({ ...e, children: ungroupIn(e.children ?? [], ids) })
+            else out.push(e)
+        }
+        return out
+    }
+
+    // Lines the named elements up by one edge or centre of the box around them all.
+    function alignIn(els: El[], ids: string[], how: string): El[] {
+        const boxes = ids.map((id) => { const e = findEl(els, id); return e ? boxOf(e) : null })
+        const all = unionOf(boxes.filter((b) => b != null) as Box[])
+        return mapIds(els, ids, (e) => {
+            const b = boxOf(e)
+            let dx = 0, dy = 0
+            if (how == "left") dx = all.x - b.x
+            if (how == "center") dx = all.x + all.w / 2 - (b.x + b.w / 2)
+            if (how == "right") dx = all.x + all.w - (b.x + b.w)
+            if (how == "top") dy = all.y - b.y
+            if (how == "middle") dy = all.y + all.h / 2 - (b.y + b.h / 2)
+            if (how == "bottom") dy = all.y + all.h - (b.y + b.h)
+            return translateEl(e, dx, dy)
+        })
+    }
+
+    // Spaces the named elements evenly between the first and the last,
+    // across ("x") or down ("y"): equal gaps between them.
+    function distributeIn(els: El[], ids: string[], axis: string): El[] {
+        const items = ids.map((id) => findEl(els, id)).filter((e) => e != null) as El[]
+        if (items.length < 3) return els
+        const pos = (b: Box) => axis == "x" ? b.x : b.y
+        const len = (b: Box) => axis == "x" ? b.w : b.h
+        const sorted = items.map((e) => ({ e: e, b: boxOf(e) })).sort((p, q) => pos(p.b) - pos(q.b))
+        const first = sorted[0].b, last = sorted[sorted.length - 1].b
+        const span = pos(last) + len(last) - pos(first)
+        const total = sorted.reduce((n, p) => n + len(p.b), 0)
+        const gap = (span - total) / (sorted.length - 1)
+        const moves: Record<string, number> = {}
+        let at = pos(first)
+        for (const p of sorted) { moves[p.e.id] = at - pos(p.b); at = at + len(p.b) + gap }
+        return mapIds(els, ids, (e) => axis == "x" ? translateEl(e, moves[e.id], 0) : translateEl(e, 0, moves[e.id]))
+    }
+
+    // ── Snapping ──────────────────────────────────────────────────────────────
+
+    // The nearest of `targets` to any of `edges`, within `tol`: how far to
+    // move, and where the guide goes. { d: 0, at: NaN } when none is near.
+    function snapAxis(edges: number[], targets: number[], tol: number): { d: number, at: number } {
+        let best = { d: 0, at: NaN }
+        let bestGap = tol
+        for (const t of targets) {
+            for (const e of edges) {
+                const gap = Math.abs(t - e)
+                if (gap <= bestGap) { bestGap = gap; best = { d: t - e, at: t } }
+            }
+        }
+        return best
+    }
+
+    // The lines a moving box can snap to: the slide's edges and middle, and
+    // the edges and middles of everything else on it.
+    function snapTargets(others: Box[], axis: string, extent: number): number[] {
+        const out = [0, extent / 2, extent]
+        for (const b of others) {
+            if (axis == "x") out.push(b.x, b.x + b.w / 2, b.x + b.w)
+            else out.push(b.y, b.y + b.h / 2, b.y + b.h)
+        }
+        return out
+    }
+
+    // What several things share: their one value, "mixed" when they differ,
+    // "" when there are none.
+    function common(vals: string[]): string {
+        const u = Array.from(new Set(vals))
+        return u.length == 0 ? "" : u.length == 1 ? u[0] : "mixed"
+    }
+
+    // ── Words ─────────────────────────────────────────────────────────────────
+
+    function editedLabel(iso: string): string {
+        const d = new Date(iso)
+        if (isNaN(d.getTime())) return ""
+        const now = new Date()
+        const mins = Math.round((now.getTime() - d.getTime()) / 60000)
+        if (mins < 1) return "Edited just now"
+        if (mins < 60) return "Edited " + mins + " min ago"
+        const sameDay = d.toDateString() == now.toDateString()
+        const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+        if (sameDay) return "Edited today, " + time
+        const sameYear = d.getFullYear() == now.getFullYear()
+        return "Edited " + d.toLocaleDateString("en-US", sameYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" })
+    }
+
+    function plural(n: number, one: string, many: string): string { return n + " " + (n == 1 ? one : many) }
+    }

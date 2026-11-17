@@ -1,0 +1,733 @@
+/*
+# Presentify: editing
+
+The verbs of the editor, with no view of their own.
+
+- **`Editor`** (`app.ed`) — where the person is in the open presentation (the
+  slide, the tool, the selection, the group they have stepped into, the text
+  box being typed in) and everything they can do to it. Every change goes
+  through `change()`, which takes the state before and after and hands both
+  to the history as one step.
+- **`Drag`** (`app.drag`) — one gesture on the slide, from press to release:
+  drawing, moving, resizing, a line's end, a corner's radius, or a box drawn
+  to select. A drag is one step, however many times the pointer moves.
+*/
+
+schema Style [ fill: string, stroke: string, strokeW: number, radius: number, keep: string,
+    font: string, size: number, weight: number, italic: string, color: string, align: string ]
+
+class Editor extends Node [
+    tool: "select" | "rect" | "ellipse" | "line" | "text" = "select",
+    cur: string = "",               // the key of the slide being edited
+    sel: string[] = [],             // the selected elements
+    scope: string = "",             // the group stepped into by a double-click, or ""
+    editingId: string = "",         // the text box being typed in
+    editBefore: Snap? = null,
+    autoW: string = "",             // a text box made by a click: as wide as its words
+    clip: El[] = [],                // the last copy, for Paste from a menu
+    pastes: number = 0,
+
+    // ── what is true of the slide and the selection
+
+    slide: SlideRec? = { app.doc.slide(this.cur) },
+    els: El[] = { this.slide?.elements ?? [] },
+    index: number = { app.doc.at(this.cur) },
+    count: number = { app.doc.slides().length },
+    selEls: El[] = { this.sel.map((id) => findIn(this.els, id)).filter((e) => e != null) as El[] },
+    selBox: Box = { boxesOf(this.selEls) },
+    leaves: El[] = { this.selEls.flatMap((e) => leavesOf(e)) },
+    single: El? = { this.selEls.length == 1 ? this.selEls[0] : null },
+    isLine: boolean = { this.single?.kind == "line" },
+    textOnly: boolean = { this.leaves.length > 0 && this.leaves.every((e) => e.kind == "text") },
+    hasGroup: boolean = { this.selEls.some((e) => e.kind == "group") },
+    keeps: boolean = { this.leaves.length > 0 && this.leaves.every((e) => e.keepProportions ?? false) },
+    leafCursor: string = { this.tool == "select" ? "move" : this.tool == "text" ? "text" : "crosshair" },
+    background: string = { this.slide?.background ?? "#FFFFFF" },
+
+    // ── the inspector's view of the selection: one value, or "mixed"
+
+    shapes: El[] = { this.leaves.filter((e) => e.kind == "rect" || e.kind == "ellipse") },
+    stroked: El[] = { this.leaves.filter((e) => e.kind != "text") },
+    texts: El[] = { this.leaves.filter((e) => e.kind == "text") },
+    rects: El[] = { this.leaves.filter((e) => e.kind == "rect") },
+    one(vals: string[]) -> string { const u = [...new Set(vals)]; return u.length == 1 ? u[0] : u.length == 0 ? "" : "mixed" },
+    style: Style = { ({
+        fill: this.one(this.shapes.map((e) => e.fill ?? "none")),
+        stroke: this.one(this.stroked.map((e) => e.stroke?.color ?? "none")),
+        strokeW: this.one(this.stroked.map((e) => "" + (e.stroke?.width ?? 0))) == "mixed" ? -1 : (this.stroked[0]?.stroke?.width ?? 0),
+        radius: this.one(this.rects.map((e) => "" + (e.cornerRadius ?? 0))) == "mixed" ? -1 : (this.rects[0]?.cornerRadius ?? 0),
+        keep: this.one(this.leaves.filter((e) => e.kind != "line").map((e) => (e.keepProportions ?? false) ? "yes" : "no")),
+        font: this.one(this.texts.map((e) => e.text?.font ?? "")),
+        size: this.one(this.texts.map((e) => "" + (e.text?.size ?? 0))) == "mixed" ? -1 : (this.texts[0]?.text?.size ?? 0),
+        weight: this.one(this.texts.map((e) => "" + (e.text?.weight ?? 400))) == "mixed" ? -1 : (this.texts[0]?.text?.weight ?? 400),
+        italic: this.one(this.texts.map((e) => (e.text?.italic ?? false) ? "yes" : "no")),
+        color: this.one(this.texts.map((e) => e.text?.color ?? "")),
+        align: this.one(this.texts.map((e) => e.text?.align ?? "left"))
+        }) },
+
+    // ── a step
+
+    snap() -> Snap { return ({ doc: structuredClone(app.doc.value), cur: this.cur, sel: [...this.sel], scope: this.scope }) },
+    change(label: string, merge: string, fn: () => void) {
+        const before = this.snap()
+        fn()
+        this.commitStep(label, merge, before)
+        },
+    commitStep(label: string, merge: string, before: Snap) {
+        const after = this.snap()
+        if (JSON.stringify(before.doc) != JSON.stringify(after.doc)) app.history.record(label, merge, before, after)
+        },
+    put(s: Snap) {
+        this.editingId = ""
+        app.doc.restore(s.doc)
+        this.cur = app.doc.at(s.cur) >= 0 ? s.cur : (app.doc.keys()[0] ?? "")
+        this.sel = s.sel
+        this.scope = s.scope
+        },
+    undo() {
+        if (this.editingId != "") this.endTextEdit()
+        const s = app.history.takeUndo()
+        if (s != null) this.put(s.before)
+        },
+    redo() {
+        if (this.editingId != "") this.endTextEdit()
+        const s = app.history.takeRedo()
+        if (s != null) this.put(s.after)
+        },
+
+    // A new presentation, or one just opened, starts at its first slide.
+
+    begin() {
+        this.cur = app.doc.keys()[0] ?? ""
+        this.sel = []
+        this.scope = ""
+        this.editingId = ""
+        this.tool = "select"
+        app.history.clear()
+        },
+
+    // ── the elements a change works on: the selection's siblings
+
+    siblings() -> El[] { return this.scope == "" ? this.els : (findIn(this.els, this.scope)?.children ?? []) },
+    setSiblings(sibs: El[]) {
+        if (this.scope == "") { app.doc.setEls(this.cur, sibs); return }
+        app.doc.setEls(this.cur, replaced(this.els, this.scope, (g) => ({ ...g, children: sibs })))
+        },
+    setEach(fn: (e: El) => El) {
+        let els = this.els
+        for (const id of this.sel) els = replaced(els, id, fn)
+        app.doc.setEls(this.cur, els)
+        },
+
+    // Style reaches through groups, to each thing that has it.
+
+    styleLeaves(label: string, merge: string, fn: (e: El) => El) {
+        this.change(label, merge, () => {
+            const deep = (e: El): El => e.kind == "group" ? ({ ...e, children: (e.children ?? []).map(deep) }) : fn(e)
+            this.setEach(deep)
+            })
+        },
+
+    // ── selecting
+
+    // What a press on `id` selects: inside the group stepped into, its
+    // child holding `id`; elsewhere, the top-level element holding it.
+
+    target(id: string) -> string {
+        if (this.scope != "") {
+            const g = findIn(this.els, this.scope)
+            const kid = (g?.children ?? []).find((c) => c.id == id || findIn(c.children ?? [], id) != null)
+            if (kid != null) return kid.id
+        }
+        return topOf(this.els, id)
+        },
+    pressEl(id: string, e: PointerEvent) {
+        if (this.editingId != "" && this.editingId != id) this.endTextEdit()
+        if (this.tool != "select") { app.drag.prepare("draw", e, topOf(this.els, id)); return }
+        const t = this.target(id)
+        if (this.scope != "" && findIn(findIn(this.els, this.scope)?.children ?? [], t) == null) this.scope = ""
+        if (e.shift || e.meta) {
+            this.sel = this.sel.includes(t) ? this.sel.filter((s) => s != t) : [...this.sel, t]
+            app.drag.prepare(this.sel.includes(t) ? "move" : "none", e, t)
+        } else {
+            if (!this.sel.includes(t)) this.sel = [t]
+            app.drag.prepare("move", e, t)
+        }
+        },
+    pressEmpty(e: PointerEvent) {
+        if (this.editingId != "") this.endTextEdit()
+        if (this.tool != "select") { app.drag.prepare("draw", e, ""); return }
+        if (!e.shift && !e.meta) { this.sel = []; this.scope = "" }
+        app.drag.prepare("marquee", e, "")
+        },
+    doubleEl(id: string) {
+        if (this.tool != "select") return
+        const t = this.target(id)
+        const el = findIn(this.els, t)
+        if (el == null) return
+        if (el.kind == "group") {
+            this.scope = t
+            this.sel = [this.target(id)]
+            return
+        }
+        if (el.kind == "text") this.beginTextEdit(t)
+        },
+    selectAll() { this.sel = this.siblings().map((e) => e.id) },
+    clearSelection() {
+        if (this.editingId != "") { this.endTextEdit(); return }
+        if (this.scope != "" && this.sel.length > 0) { this.sel = [this.scope]; this.scope = ""; return }
+        this.sel = []
+        this.scope = ""
+        },
+
+    // ── going between slides
+
+    goTo(key: string) {
+        if (key == this.cur || app.doc.at(key) < 0) return
+        if (this.editingId != "") this.endTextEdit()
+        this.cur = key
+        this.sel = []
+        this.scope = ""
+        app.saver.peek(key)
+        },
+    step(by: number) {
+        const keys = app.doc.keys()
+        const i = Math.max(0, Math.min(keys.length - 1, this.index + by))
+        this.goTo(keys[i])
+        },
+
+    // ── typing in a text box
+
+    beginTextEdit(id: string) {
+        if (this.editingId == id) return
+        if (this.editingId != "") this.endTextEdit()
+        this.editBefore = this.snap()
+        this.sel = [id]
+        this.editingId = id
+        },
+    typeText(id: string, v: string) {
+        app.doc.setEls(this.cur, replaced(this.els, id, (e) => {
+            const t = ({ ...e.text!, content: v })
+            if (id != this.autoW) return ({ ...e, text: t })
+            // A box made by a click grows with its longest line, up to the slide's edge.
+            const style = ({ fontSize: t.size, fontWeight: t.weight, italic: t.italic, fontFamily: [t.font, "Helvetica Neue", "sans-serif"] })
+            const w = Math.max(...v.split("\n").map((l) => measureText(l, style).width)) + t.size * 0.3
+            return ({ ...e, text: t, width: Math.max(40, Math.min(w, 1280 - (e.x ?? 0) - 20)) })
+            }))
+        },
+    endTextEdit() {
+        const id = this.editingId
+        if (id == "") return
+        this.editingId = ""
+        this.autoW = ""
+        const el = findIn(this.els, id)
+        // A text box left empty is gone.
+        if (el != null && (el.text?.content ?? "").trim() == "") {
+            app.doc.setEls(this.cur, replaced(this.els, id, (e) => null))
+            this.sel = []
+        }
+        const before = this.editBefore
+        this.editBefore = null
+        if (before != null) this.commitStep(el != null && before.sel.includes(id) ? "Typing" : "Add text", "", before)
+        },
+
+    // ── making things
+
+    defaultsFor(kind: string, b: Box) -> El {
+        const dark = lightness(this.background) < 0.45
+        const id = freshId(new Set(idsIn(this.els)))
+        if (kind == "ellipse") return ({ id: id, kind: "ellipse", x: b.x, y: b.y, width: b.w, height: b.h,
+            fill: "#FF7A59", stroke: null, keepProportions: false })
+        if (kind == "line") return ({ id: id, kind: "line", x1: b.x, y1: b.y, x2: b.x + b.w, y2: b.y + b.h,
+            stroke: ({ color: dark ? "#FFFFFF" : "#1F2328", width: 4 }) })
+        if (kind == "text") return ({ id: id, kind: "text", x: b.x, y: b.y, width: Math.max(b.w, 40), height: 48,
+            keepProportions: false,
+            text: ({ content: "", font: "Helvetica Neue", size: 32, weight: 400, italic: false,
+                color: dark ? "#FFFFFF" : "#1F2328", align: "left" }) })
+        return ({ id: id, kind: "rect", x: b.x, y: b.y, width: b.w, height: b.h,
+            fill: "#6B4EFF", stroke: null, cornerRadius: 0, keepProportions: false })
+        },
+    add(el: El) {
+        app.doc.setEls(this.cur, [...this.els, el])
+        this.sel = [el.id]
+        this.scope = ""
+        },
+
+    // A click with a drawing tool: a shape of a sensible size where it landed.
+
+    placeAt(p: Pt, on: string) {
+        const kind = this.tool
+        if (kind == "text") {
+            const before = this.snap()
+            const shape = findIn(this.els, on)
+            let el = this.defaultsFor("text", ({ x: p.x, y: p.y - 22, w: 40, h: 44 }))
+            if (shape != null && (shape.kind == "rect" || shape.kind == "ellipse")) {
+                // On a shape: a box across it, centred, in a colour that reads on it.
+                const b = boxOf(shape)
+                const ink = lightness(shape.fill ?? this.background) < 0.45 ? "#FFFFFF" : "#1F2328"
+                el = ({ ...el, x: b.x + 24, y: b.y + b.h / 2 - 22, width: Math.max(40, b.w - 48),
+                    text: ({ ...el.text!, color: ink, align: "center" as "left" | "center" | "right" }) })
+            } else {
+                this.autoW = el.id
+            }
+            this.add(el)
+            this.tool = "select"
+            this.editBefore = before
+            this.editingId = el.id
+            return
+        }
+        const size = kind == "line" ? ({ w: 240, h: 0 }) : kind == "ellipse" ? ({ w: 200, h: 200 }) : ({ w: 280, h: 180 })
+        this.change(this.toolName(kind), "", () => {
+            const el = this.defaultsFor(kind, ({ x: p.x - size.w / 2, y: p.y - size.h / 2, w: size.w, h: size.h }))
+            this.add(kind == "ellipse" ? ({ ...el, keepProportions: true }) : el)
+            })
+        this.tool = "select"
+        },
+    toolName(kind: string) -> string {
+        return ({ rect: "Draw rectangle", ellipse: "Draw ellipse", line: "Draw line", text: "Add text", select: "" } as { [k: string]: string })[kind] ?? ""
+        },
+
+    // An empty slide's quick start.
+
+    addTitle() {
+        const before = this.snap()
+        const dark = lightness(this.background) < 0.45
+        const el = ({ ...this.defaultsFor("text", ({ x: 120, y: 280, w: 1040, h: 90 })),
+            text: ({ content: "", font: "Helvetica Neue", size: 64, weight: 700, italic: false,
+                color: dark ? "#FFFFFF" : "#1F2328", align: "center" as "left" | "center" | "right" }) })
+        this.add(el)
+        this.editBefore = before
+        this.editingId = el.id
+        },
+
+    // ── changing the selection
+
+    remove() {
+        if (this.sel.length == 0) return
+        this.change("Delete", "", () => {
+            let els = this.els
+            for (const id of this.sel) els = replaced(els, id, (e) => null)
+            app.doc.setEls(this.cur, els)
+            this.sel = []
+            })
+        },
+    nudge(dx: number, dy: number) {
+        if (this.sel.length == 0) return
+        this.change("Move", "", () => this.setEach((e) => moved(e, dx, dy)))
+        },
+
+    // Copies of `src`, each with new ids, laid on this slide `off` points along.
+
+    placeCopies(src: El[], off: number) {
+        const taken = new Set(idsIn(this.els))
+        const copies = src.map((e) => moved(withFreshIds(e, taken), off, off))
+        const sibs = this.siblings()
+        this.setSiblings([...sibs, ...copies])
+        this.sel = copies.map((e) => e.id)
+        },
+    ordered() -> El[] { return this.siblings().filter((e) => this.sel.includes(e.id)) },
+    duplicate() {
+        if (this.sel.length == 0) return
+        this.change("Duplicate", "", () => this.placeCopies(this.ordered(), 20))
+        },
+    copy() -> string {
+        this.clip = structuredClone(this.ordered())
+        this.pastes = 0
+        return JSON.stringify(this.clip)
+        },
+    cut() -> string {
+        const s = this.copy()
+        this.change("Cut", "", () => {
+            let els = this.els
+            for (const id of this.sel) els = replaced(els, id, (e) => null)
+            app.doc.setEls(this.cur, els)
+            this.sel = []
+            })
+        return s
+        },
+    paste(els: El[]) {
+        if (els.length == 0) return
+        this.pastes = this.pastes + 1
+        this.change("Paste", "", () => this.placeCopies(structuredClone(els), 20 * this.pastes))
+        },
+    pasteText(t: string) {
+        const before = this.snap()
+        const el = ({ ...this.defaultsFor("text", ({ x: 160, y: 300, w: 960, h: 48 })) })
+        this.add(({ ...el, text: ({ ...el.text!, content: t }) }))
+        this.commitStep("Paste", "", before)
+        },
+
+    canGroup: boolean = { this.sel.length >= 2 },
+    group() {
+        if (!this.canGroup) return
+        this.change("Group", "", () => {
+            const sibs = this.siblings()
+            const kids = sibs.filter((e) => this.sel.includes(e.id))
+            const at = sibs.findIndex((e) => e.id == kids[kids.length - 1].id)
+            const g = ({ id: freshId(new Set(idsIn(this.els))), kind: "group" as "group", children: kids })
+            const out = sibs.flatMap((e, i) => i == at ? [g] : this.sel.includes(e.id) ? [] : [e])
+            this.setSiblings(out)
+            this.sel = [g.id]
+            })
+        },
+    ungroup() {
+        if (!this.hasGroup) return
+        this.change("Ungroup", "", () => {
+            const sibs = this.siblings()
+            const freed: string[] = []
+            const out = sibs.flatMap((e) => {
+                if (e.kind == "group" && this.sel.includes(e.id)) { freed.push(...(e.children ?? []).map((c) => c.id)); return e.children ?? [] }
+                return [e]
+                })
+            this.setSiblings(out)
+            this.sel = [...this.sel.filter((id) => !sibs.some((e) => e.id == id && e.kind == "group")), ...freed]
+            })
+        },
+
+    // Aligning: every selected thing to the edge or middle of all of them.
+
+    align(how: string) {
+        if (this.sel.length < 2) return
+        const all = this.selBox
+        this.change("Align", "", () => this.setEach((e) => {
+            const b = boxOf(e)
+            const dx = how == "left" ? all.x - b.x : how == "center" ? all.x + all.w / 2 - (b.x + b.w / 2) : how == "right" ? all.x + all.w - (b.x + b.w) : 0
+            const dy = how == "top" ? all.y - b.y : how == "middle" ? all.y + all.h / 2 - (b.y + b.h / 2) : how == "bottom" ? all.y + all.h - (b.y + b.h) : 0
+            return moved(e, dx, dy)
+            }))
+        },
+
+    // Distributing: equal gaps between three or more, the outer two staying put.
+
+    distribute(axis: string) {
+        if (this.sel.length < 3) return
+        const across = axis == "x"
+        const items = this.selEls.map((e) => ({ id: e.id, b: boxOf(e) }))
+        items.sort((p, q) => across ? p.b.x - q.b.x : p.b.y - q.b.y)
+        const all = this.selBox
+        const total = items.reduce((n, it) => n + (across ? it.b.w : it.b.h), 0)
+        const gap = ((across ? all.w : all.h) - total) / (items.length - 1)
+        const to = new Map<string, number>()
+        let at = across ? all.x : all.y
+        for (const it of items) { to.set(it.id, at); at = at + (across ? it.b.w : it.b.h) + gap }
+        this.change("Distribute", "", () => this.setEach((e) => {
+            const b = boxOf(e)
+            const p = to.get(e.id) ?? (across ? b.x : b.y)
+            return across ? moved(e, p - b.x, 0) : moved(e, 0, p - b.y)
+            }))
+        },
+
+    // Stacking order, among the selection's siblings.
+
+    restack(how: string) {
+        if (this.sel.length == 0) return
+        const names = ({ front: "Bring to front", back: "Send to back", forward: "Bring forward", backward: "Send backward" } as { [k: string]: string })
+        this.change(names[how] ?? "Order", "", () => {
+            const sibs = this.siblings()
+            const picked = sibs.filter((e) => this.sel.includes(e.id))
+            const rest = sibs.filter((e) => !this.sel.includes(e.id))
+            let out: El[] = sibs
+            if (how == "front") out = [...rest, ...picked]
+            else if (how == "back") out = [...picked, ...rest]
+            else if (how == "forward") {
+                out = [...sibs]
+                for (let i = out.length - 2; i >= 0; i--) {
+                    if (this.sel.includes(out[i].id) && !this.sel.includes(out[i + 1].id)) { const t = out[i]; out[i] = out[i + 1]; out[i + 1] = t }
+                }
+            } else if (how == "backward") {
+                out = [...sibs]
+                for (let i = 1; i < out.length; i++) {
+                    if (this.sel.includes(out[i].id) && !this.sel.includes(out[i - 1].id)) { const t = out[i]; out[i] = out[i - 1]; out[i - 1] = t }
+                }
+            }
+            this.setSiblings(out)
+            })
+        },
+    canForward: boolean = { this.sel.length > 0 && this.siblings().length > 0 && !this.sel.includes(this.siblings()[this.siblings().length - 1]?.id ?? "") },
+    canBackward: boolean = { this.sel.length > 0 && this.siblings().length > 0 && !this.sel.includes(this.siblings()[0]?.id ?? "") },
+
+    // ── styling: one inspector change, one step
+
+    setFill(c: string?) { this.styleLeaves("Fill", "fill", (e) => e.kind == "rect" || e.kind == "ellipse" ? ({ ...e, fill: c }) : e) },
+    setStroke(c: string?) {
+        this.styleLeaves("Outline", "stroke", (e) => {
+            if (e.kind == "text") return e
+            if (c == null) return e.kind == "line" ? e : ({ ...e, stroke: null })
+            return ({ ...e, stroke: ({ color: c, width: Math.max(1, e.stroke?.width ?? 2) }) })
+            })
+        },
+    setStrokeW(w: number) {
+        this.styleLeaves("Outline width", "strokeW", (e) => e.kind == "text" ? e
+            : ({ ...e, stroke: ({ color: e.stroke?.color ?? "#1F2328", width: Math.max(e.kind == "line" ? 1 : 0, w) }) }))
+        },
+    setRadius(r: number) { this.styleLeaves("Corner radius", "radius", (e) => e.kind == "rect" ? ({ ...e, cornerRadius: Math.max(0, r) }) : e) },
+    setKeep(k: boolean) { this.styleLeaves("Keep proportions", "", (e) => e.kind == "line" ? e : ({ ...e, keepProportions: k })) },
+    setText(label: string, merge: string, fn: (t: TextRun) => TextRun) {
+        this.styleLeaves(label, merge, (e) => e.kind == "text" ? ({ ...e, text: fn(e.text!) }) : e)
+        },
+    setBackground(c: string) { this.change("Background", "bg", () => app.doc.setBackground(this.cur, c)) },
+    setTitle(t: string) { this.change("Rename", "title", () => app.doc.setTitle(t)) },
+
+    // ── slides
+
+    newSlide() {
+        this.change("New slide", "", () => {
+            const key = localKey()
+            app.doc.insertAfter(this.cur, ({ key: key, background: this.background == "" ? "#FFFFFF" : this.background, elements: [] }))
+            this.cur = key
+            this.sel = []
+            this.scope = ""
+            })
+        },
+    duplicateSlide(key: string) {
+        const s = app.doc.slide(key)
+        if (s == null) return
+        this.change("Duplicate slide", "", () => {
+            const k = localKey()
+            app.doc.insertAfter(key, ({ key: k, background: s.background, elements: structuredClone(s.elements) }))
+            this.cur = k
+            this.sel = []
+            this.scope = ""
+            })
+        },
+    deleteSlide(key: string) {
+        if (this.count <= 1) return
+        const keys = app.doc.keys()
+        const i = keys.indexOf(key)
+        if (i < 0) return
+        this.change("Delete slide", "", () => {
+            if (this.cur == key) { this.cur = keys[i + 1] ?? keys[i - 1]; this.sel = []; this.scope = "" }
+            app.doc.remove(key)
+            })
+        },
+    moveSlide(key: string, to: number) {
+        if (app.doc.at(key) == to) return
+        this.change("Reorder slides", "", () => app.doc.moveTo(key, to))
+        },
+
+    // ── the context menu, at the pointer
+
+    menuAt(v: View, e: PointerEvent, id: string) {
+        if (id != "") { const t = this.target(id); if (!this.sel.includes(t)) { this.sel = [t] } }
+        app.stageMenu.showAt(v, e)
+        }
+    ]
+
+
+// ── One gesture on the slide ────────────────────────────────────────────────
+
+class Drag extends Node [
+    mode: string = "",              // "", none, draw, move, marquee, resize, end1, end2, radius
+    active: boolean = false,
+    handle: string = "",            // which handle, for a resize
+    p0: Pt = { ({ x: 0, y: 0 }) },  // where it began, in slide points
+    newId: string = "",
+    pressed: string = "",           // what the press selected
+    before: Snap? = null,
+    orig: El[] = [],                // the selection as it was
+    origBox: Box = { ({ x: 0, y: 0, w: 0, h: 0 }) },
+    base: string[] = [],            // what was selected before a box was drawn
+    marquee: Box? = null,
+    guidesX: number[] = [],
+    guidesY: number[] = [],
+    cands: array = { [[], []] },
+
+    zoom: number = { app.zoom },
+
+    // The pointer, in slide points.
+
+    at(e: PointerEvent) -> Pt {
+        const o = app.paper.rootOrigin()
+        return ({ x: (e.rootX - o.x) / this.zoom, y: (e.rootY - o.y) / this.zoom })
+        },
+
+    prepare(mode: string, e: PointerEvent, id: string) {
+        this.mode = mode
+        this.pressed = id
+        this.active = false
+        this.p0 = this.at(e)
+        },
+
+    // A press on a handle: the resize starts with the press.
+
+    grabHandle(h: string, e: PointerEvent) {
+        if (app.ed.editingId != "") app.ed.endTextEdit()
+        this.mode = h == "end1" || h == "end2" || h == "radius" ? h : "resize"
+        this.handle = h
+        this.active = false
+        this.p0 = this.at(e)
+        },
+
+    start(e: PointerEvent) {
+        if (this.mode == "" || this.mode == "none") return
+        const ed = app.ed
+        this.active = true
+        this.before = ed.snap()
+        this.orig = structuredClone(ed.selEls)
+        this.origBox = boxesOf(this.orig)
+        this.guidesX = []
+        this.guidesY = []
+        if (this.mode == "marquee") { this.base = [...ed.sel]; this.marquee = ({ x: this.p0.x, y: this.p0.y, w: 0, h: 0 }) }
+        if (this.mode == "draw") {
+            const el = ed.defaultsFor(ed.tool, ({ x: this.p0.x, y: this.p0.y, w: 1, h: 1 }))
+            this.newId = el.id
+            ed.add(el)
+        }
+        // What a moving edge may snap to: the slide's edges and middle, and every other thing on it.
+        const others = ed.siblings().filter((x) => !ed.sel.includes(x.id) && x.id != this.newId).map((x) => boxOf(x))
+        this.cands = [[0, 640, 1280, ...others.flatMap((b) => [b.x, b.x + b.w / 2, b.x + b.w])],
+                      [0, 360, 720, ...others.flatMap((b) => [b.y, b.y + b.h / 2, b.y + b.h])]]
+        },
+
+    move(e: PointerEvent) {
+        if (!this.active) return
+        const p = this.at(e)
+        const dx = p.x - this.p0.x, dy = p.y - this.p0.y
+        const tol = 6 / this.zoom
+        const ed = app.ed
+        if (this.mode == "move") {
+            let mx = dx, my = dy
+            if (e.shift) { if (Math.abs(dx) > Math.abs(dy)) my = 0; else mx = 0 }
+            const b = this.origBox
+            const sx = snapTo([b.x + mx, b.x + mx + b.w / 2, b.x + mx + b.w], this.cands[0], tol)
+            const sy = snapTo([b.y + my, b.y + my + b.h / 2, b.y + my + b.h], this.cands[1], tol)
+            if (sx != null) mx = mx + sx.d
+            if (sy != null) my = my + sy.d
+            this.guidesX = sx != null ? [sx.at] : []
+            this.guidesY = sy != null ? [sy.at] : []
+            this.place((o) => moved(o, mx, my))
+        } else if (this.mode == "resize") {
+            this.resizeTo(dx, dy, e.shift, tol)
+        } else if (this.mode == "end1" || this.mode == "end2") {
+            const o = this.orig[0]
+            const first = this.mode == "end1"
+            const fx = first ? (o.x2 ?? 0) : (o.x1 ?? 0), fy = first ? (o.y2 ?? 0) : (o.y1 ?? 0)
+            let px = (first ? (o.x1 ?? 0) : (o.x2 ?? 0)) + dx, py = (first ? (o.y1 ?? 0) : (o.y2 ?? 0)) + dy
+            if (e.shift) {
+                const a = Math.round(Math.atan2(py - fy, px - fx) / (Math.PI / 4)) * (Math.PI / 4)
+                const len = Math.hypot(px - fx, py - fy)
+                px = fx + Math.cos(a) * len
+                py = fy + Math.sin(a) * len
+            } else {
+                const sx = snapTo([px], this.cands[0], tol), sy = snapTo([py], this.cands[1], tol)
+                if (sx != null) px = px + sx.d
+                if (sy != null) py = py + sy.d
+                this.guidesX = sx != null ? [sx.at] : []
+                this.guidesY = sy != null ? [sy.at] : []
+            }
+            this.place((l) => first ? ({ ...l, x1: px, y1: py }) : ({ ...l, x2: px, y2: py }))
+        } else if (this.mode == "radius") {
+            const o = this.orig[0]
+            const r0 = Math.min(o.cornerRadius ?? 0, (o.width ?? 0) / 2, (o.height ?? 0) / 2)
+            const r = Math.max(0, Math.min((dx + dy) / 2 + r0, Math.min(o.width ?? 0, o.height ?? 0) / 2))
+            this.place((x) => ({ ...x, cornerRadius: Math.round(r) }))
+        } else if (this.mode == "marquee") {
+            const m = ({ x: Math.min(this.p0.x, p.x), y: Math.min(this.p0.y, p.y), w: Math.abs(dx), h: Math.abs(dy) })
+            this.marquee = m
+            const hit = ed.siblings().filter((x) => boxesTouch(m, boxOf(x))).map((x) => x.id)
+            ed.sel = [...this.base.filter((id) => !hit.includes(id)), ...hit]
+        } else if (this.mode == "draw") {
+            this.drawTo(p, e.shift)
+        }
+        },
+
+    // Each selected thing, made again from how it was.
+
+    place(fn: (e: El) => El) {
+        let els = app.ed.els
+        for (const o of this.orig) els = replaced(els, o.id, (x) => fn(o))
+        app.doc.setEls(app.ed.cur, els)
+        },
+
+    resizeTo(dx: number, dy: number, shift: boolean, tol: number) {
+        const ed = app.ed
+        const b = this.origBox
+        const h = this.handle
+        const textOnly = this.orig.every((o) => leavesOf(o).every((l) => l.kind == "text"))
+        let x0 = b.x, y0 = b.y, x1 = b.x + b.w, y1 = b.y + b.h
+        if (h.includes("w")) x0 = x0 + dx
+        if (h.includes("e")) x1 = x1 + dx
+        if (!textOnly && h.includes("n")) y0 = y0 + dy
+        if (!textOnly && h.includes("s")) y1 = y1 + dy
+        const keepsNow = this.orig.every((o) => leavesOf(o).every((l) => l.keepProportions ?? false))
+        const keep = !textOnly && (keepsNow != shift) && b.w > 0 && b.h > 0
+        this.guidesX = []
+        this.guidesY = []
+        if (keep) {
+            const corner = h.length == 2
+            let s = 1
+            if (corner) s = Math.max(Math.abs(x1 - x0) / b.w, Math.abs(y1 - y0) / b.h)
+            else if (h == "e" || h == "w") s = Math.abs(x1 - x0) / b.w
+            else s = Math.abs(y1 - y0) / b.h
+            const w = b.w * s, ht = b.h * s
+            if (h.includes("w")) x0 = b.x + b.w - w; else if (h.includes("e")) x1 = b.x + w
+            else { x0 = b.x + (b.w - w) / 2; x1 = x0 + w }
+            if (h.includes("n")) y0 = b.y + b.h - ht; else if (h.includes("s")) y1 = b.y + ht
+            else { y0 = b.y + (b.h - ht) / 2; y1 = y0 + ht }
+        } else {
+            if (h.includes("w")) { const s = snapTo([x0], this.cands[0], tol); if (s != null) { x0 = x0 + s.d; this.guidesX = [s.at] } }
+            if (h.includes("e")) { const s = snapTo([x1], this.cands[0], tol); if (s != null) { x1 = x1 + s.d; this.guidesX = [s.at] } }
+            if (!textOnly && h.includes("n")) { const s = snapTo([y0], this.cands[1], tol); if (s != null) { y0 = y0 + s.d; this.guidesY = [s.at] } }
+            if (!textOnly && h.includes("s")) { const s = snapTo([y1], this.cands[1], tol); if (s != null) { y1 = y1 + s.d; this.guidesY = [s.at] } }
+        }
+        // Never inside out: a box keeps at least a little size, on the side it was.
+        const min = 4
+        if (h.includes("w")) x0 = Math.min(x0, x1 - min); if (h.includes("e")) x1 = Math.max(x1, x0 + min)
+        if (h.includes("n")) y0 = Math.min(y0, y1 - min); if (h.includes("s")) y1 = Math.max(y1, y0 + min)
+        const to = ({ x: x0, y: y0, w: x1 - x0, h: textOnly ? b.h : y1 - y0 })
+        this.place((o) => mapped(o, b, to))
+        },
+
+    drawTo(p: Pt, shift: boolean) {
+        const ed = app.ed
+        const kind = ed.tool
+        let dx = p.x - this.p0.x, dy = p.y - this.p0.y
+        if (kind == "line") {
+            if (shift) {
+                const a = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4)
+                const len = Math.hypot(dx, dy)
+                dx = Math.cos(a) * len
+                dy = Math.sin(a) * len
+            }
+            app.doc.setEls(ed.cur, replaced(ed.els, this.newId, (l) => ({ ...l, x1: this.p0.x, y1: this.p0.y, x2: this.p0.x + dx, y2: this.p0.y + dy })))
+            return
+        }
+        if (shift) { const s = Math.max(Math.abs(dx), Math.abs(dy)); dx = Math.sign(dx || 1) * s; dy = Math.sign(dy || 1) * s }
+        const b = ({ x: Math.min(this.p0.x, this.p0.x + dx), y: Math.min(this.p0.y, this.p0.y + dy), w: Math.max(1, Math.abs(dx)), h: Math.max(1, Math.abs(dy)) })
+        app.doc.setEls(ed.cur, replaced(ed.els, this.newId, (x) => ({ ...x, x: b.x, y: b.y, width: b.w, height: kind == "text" ? (x.height ?? 48) : b.h,
+            keepProportions: shift })))
+        },
+
+    end(canceled: boolean) {
+        const ed = app.ed
+        const mode = this.mode
+        const before = this.before
+        this.mode = ""
+        this.marquee = null
+        this.guidesX = []
+        this.guidesY = []
+        if (!this.active || before == null) { this.active = false; return }
+        this.active = false
+        this.before = null
+        if (canceled) { if (mode != "marquee") ed.put(before); return }
+        if (mode == "draw") {
+            const kind = ed.tool
+            ed.tool = "select"
+            if (kind == "text") { ed.editBefore = before; ed.editingId = this.newId; return }
+            ed.commitStep(ed.toolName(kind), "", before)
+            return
+        }
+        const labels = ({ move: "Move", resize: "Resize", end1: "Resize", end2: "Resize", radius: "Corner radius" } as { [k: string]: string })
+        if (labels[mode] != null) ed.commitStep(labels[mode], "", before)
+        },
+
+    // A press that never became a drag.
+
+    clicked(e: PointerEvent) {
+        const ed = app.ed
+        if (this.mode == "draw") { ed.placeAt(this.at(e), this.pressed) }
+        // a click on one of several selected: just that one
+        else if (this.mode == "move" && !e.shift && !e.meta && ed.sel.length > 1) ed.sel = [this.pressed]
+        this.mode = ""
+        }
+    ]

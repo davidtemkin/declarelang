@@ -1,0 +1,14 @@
+# eval-murmur-react-2
+total 9.0 min · 29 turns · output 58751 tokens (thinking 17315)
+tool time 0.3 min · model time 8.6 min
+tokens: input 58 · cache write 70244 · cache read 1267265 · output 58751 · thinking 17315
+rate: 6819 output tokens per model-minute
+tools:
+  bash      27×   0.35 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     26×   8.32 min  (median 12.8 s)
+  after write     1×   0.05 min  (median 2.9 s)
+app: 0 .declare files, 0 non-blank lines · 0 snapshots changed them: 0 lines added, 0 removed
+verify results mentioning accessibility: 0
+source reads: library 1 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library

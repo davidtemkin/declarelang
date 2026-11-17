@@ -22,12 +22,12 @@ App [ theme = SanFrancisco, width = 480, height = 300, fill = { provided("theme"
     mode: number = 0,
 
     card: View [ x = 40, y = 46, width = 400, height = 208, cornerRadius = 14,
-        fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+        fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
 
         seg: View [ x = 20, y = 22, width = 360, height = 40, cornerRadius = 10, fill = { provided("theme").control },
 
             pill: View [ y = 4, height = 32, width = 116, cornerRadius = 8,
-                fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+                fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
                 slide: Spring [ attribute = x, to = { 4 + app.mode * 118 }, stiffness = 220, damping = 24 ]
                 ],
 

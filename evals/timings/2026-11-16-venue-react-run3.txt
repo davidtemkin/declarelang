@@ -1,0 +1,12 @@
+# eval-venue-react-3
+total 14.2 min · 33 turns · output 96684 tokens (thinking 33037)
+tool time 0.2 min · model time 14.0 min
+tokens: input 66 · cache write 107419 · cache read 2330729 · output 96684 · thinking 33037
+rate: 6893 output tokens per model-minute
+tools:
+  bash      32×   0.20 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     31×  13.79 min  (median 19.4 s)
+app: 0 .declare files, 0 non-blank lines · 0 snapshots changed them: 0 lines added, 0 removed
+verify results mentioning accessibility: 0
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs

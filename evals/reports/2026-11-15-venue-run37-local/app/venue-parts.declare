@@ -1,0 +1,165 @@
+/*
+# The Venue: the parts
+
+What every screen shares: the shape of the service's data, the palette, the
+formatting of money, dates and times, and the small drawn marks. `venue.declare`
+includes this file.
+*/
+
+// ── The shape of the data ───────────────────────────────────────────────────
+//
+// One schema per record the service sends. The compiler checks every read
+// against them and the runtime checks what arrives.
+
+schema Performance [ id: string, startsAt: string, doorsAt: string,
+    priceFromCents: number, seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema Seat [ id: string, number: number, status: string ]
+schema SeatRow [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: SeatRow ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+
+// One seat, described: what the summary, checkout and a screen reader say.
+
+schema SeatInfo [ id: string, section: string, row: string, number: number,
+    priceCents: number, feeCents: number ]
+
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing?: Billing, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+// Every refusal the service sends has this shape; some fields belong to one kind.
+
+schema Refusal [ error: string, message: string, field?: string, conflicts[]?: string ]
+
+
+// ── Formatting, card arithmetic ─────────────────────────────────────────────
+//
+// Functions of their arguments: the constraints that call them re-run when the
+// arguments change.
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+
+    // $240.00
+    function money(cents: number): string { return USD.format(cents / 100) }
+
+    // "2026-11-13T19:30" is the hall's local time, read as written.
+    function stamp(s: string): number[] {
+        const [d, t] = s.split("T")
+        const [y, m, dd] = d.split("-").map(Number)
+        const [h, mi] = (t ?? "0:0").split(":").map(Number)
+        return [y, m, dd, h, mi]
+    }
+    // Fri 13 Nov
+    function dayLabel(s: string): string {
+        const [y, m, d] = stamp(s)
+        return DAYS[new Date(y, m - 1, d).getDay()] + " " + d + " " + MONTHS[m - 1]
+    }
+    function weekday(s: string): string { const [y, m, d] = stamp(s); return DAYS[new Date(y, m - 1, d).getDay()] }
+    function dayOfMonth(s: string): string { return "" + stamp(s)[2] }
+    function monthName(s: string): string { return MONTHS[stamp(s)[1] - 1] }
+    // 7:30pm
+    function timeLabel(s: string): string {
+        const [, , , h, mi] = stamp(s)
+        const h12 = h % 12 == 0 ? 12 : h % 12
+        return h12 + ":" + (mi < 10 ? "0" : "") + mi + (h < 12 ? "am" : "pm")
+    }
+
+    function seatWord(n: number): string { return n == 1 ? "1 seat" : n + " seats" }
+
+    // ── cards
+    function digitsOf(s: string): string { return s.replace(/\D/g, "") }
+    function brandOf(digits: string): string {
+        if (/^3[47]/.test(digits)) return "amex"
+        if (/^4/.test(digits)) return "visa"
+        if (/^(5[1-5]|2[2-7])/.test(digits)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(digits)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        return ({ visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover" } as Record<string, string>)[b] ?? ""
+    }
+    function maxDigits(b: string): number { return b == "amex" ? 15 : b == "visa" || b == "discover" ? 19 : 16 }
+    function codeLength(b: string): number { return b == "amex" ? 4 : 3 }
+    // As printed on the card: 4-6-5 for American Express, fours for the rest.
+    function groupCard(digits: string): string {
+        if (brandOf(digits) == "amex") {
+            return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter((g) => g != "").join(" ")
+        }
+        return (digits.match(/.{1,4}/g) ?? []).join(" ")
+    }
+    function luhn(digits: string): boolean {
+        let sum = 0
+        for (let i = 0; i < digits.length; i++) {
+            let d = Number(digits[digits.length - 1 - i])
+            if (i % 2 == 1) { d = d * 2; if (d > 9) d = d - 9 }
+            sum = sum + d
+        }
+        return sum % 10 == 0
+    }
+    function cardProblem(digits: string): string {
+        const b = brandOf(digits)
+        const lengths: Record<string, number[]> = { amex: [15], visa: [13, 16, 19], mastercard: [16], discover: [16, 19] }
+        const ok = (lengths[b] ?? [12, 13, 14, 15, 16, 17, 18, 19]).includes(digits.length)
+        if (!ok || !luhn(digits)) return "That isn't a valid card number. Check the digits on the card."
+        return ""
+    }
+    // "1228" → "12 / 28" as typed; a first digit above 1 is a month on its own.
+    function groupExpiry(s: string): string {
+        let d = digitsOf(s).slice(0, 4)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        return d.length > 2 ? d.slice(0, 2) + " / " + d.slice(2) : d
+    }
+    function expiryMonth(s: string): number { return Number(digitsOf(s).slice(0, 2)) }
+    function expiryYear(s: string): number { return 2000 + Number(digitsOf(s).slice(2, 4)) }
+    function expiryProblem(s: string, nowYear: number, nowMonth: number): string {
+        const d = digitsOf(s)
+        const m = expiryMonth(s), y = expiryYear(s)
+        if (d.length >= 2 && (m < 1 || m > 12)) return "The month must be between 01 and 12."
+        if (d.length < 4) return "Enter the expiry as MM / YY."
+        if (y < nowYear || (y == nowYear && m < nowMonth)) return "This card has expired."
+        return ""
+    }
+    function expiryLabel(m: number, y: number): string { return (m < 10 ? "0" : "") + m + "/" + ("" + y).slice(2) }
+
+    // ── addresses
+    function postalProblem(code: string, country: string): string {
+        const c = code.trim().toUpperCase()
+        if (country == "US") return /^\d{5}(-\d{4})?$/.test(c) ? "" : "Enter a 5-digit ZIP code, like 94103."
+        if (country == "CA") return /^[A-Z]\d[A-Z] ?\d[A-Z]\d$/.test(c) ? "" : "Enter a postal code like K1A 0B1."
+        if (country == "GB") return /^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/.test(c) ? "" : "Enter a postcode like SW1A 2AA."
+        return ""
+    }
+    }
+
+
+// ── The palette ─────────────────────────────────────────────────────────────
+//
+// Warm paper and ink, and one accent — the house's crimson — which means
+// "yours": the seats you have chosen and the one thing that pays for them.
+// The seats' rings are a ramp of the ink, darkest at the front: the dearer the
+// section, the darker its seats.
+
+theme Venue [
+    background = #FAF7F2, surface = #FFFFFF, well = #F3EEE6,
+    line = #E6DFD4, lineStrong = #CDC4B6,
+    text = #1F1B17, textMuted = #6A6157, textFaint = #8C8377,
+    accent = #A3182B, accentHovered = #8C1424, accentPressed = #76101E, accentTextColor = #FFFFFF,
+    accentTint = #F6E4E3,
+    linkColor = #A3182B,
+    control = #EFE9E0, controlHovered = #E7E0D5, controlPressed = #DDD5C8, controlSelected = #E9DFD2,
+    error = #B42318, errorTint = #FBEAE7,
+    sold = #CFC6B9, stage = #2A2520,
+    tiers = [#231F1B, #4E463E, #776D61, #9C9284],
+    floors = [#F1EBE2, #F4EFE7, #F6F2EB, #F8F5EF],
+    tooltipFill = #231F1B, tooltipTextColor = #FAF7F2,
+    controlCornerRadius = 10, buttonHeight = 44, comboboxHeight = 48
+    ]

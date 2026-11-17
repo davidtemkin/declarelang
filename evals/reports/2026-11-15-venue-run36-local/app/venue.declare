@@ -1,0 +1,507 @@
+/*
+# The Venue — The Marriage of Figaro, Grand Hall
+
+Pick a performance, choose seats in the hall, pay, and come away with tickets
+to show at the door. One program for a phone and a desk.
+
+How it is put together:
+
+- **The records live behind the service** (`http://127.0.0.1:8350`). Each feed is a
+  `DataSource` here: the production, the seat map of the open performance (a
+  class, `SeatMap`, which knows where a seat is and what it costs), the account,
+  and the three writes — signing in, signing out, and the order. Other people's
+  purchases arrive on an `EventStream` and are written into the seat map, so the
+  room never shows a seat as free that isn't.
+- **Where the person is** is a handful of attributes on the App: the performance
+  (`location`, so a hall can be linked), whether they are paying (`waypoint`, so
+  Back returns to the hall), the seats they have chosen, and what they have typed
+  at checkout. The checkout's values start from the account when there is one
+  (computed defaults) and become the person's as soon as they type.
+- **The screen derives from those.** `screen` is one constraint; each screen is a
+  view that shows while it is the one.
+
+The hall is in `venue-hall.declare`, the checkout and sign-in in
+`venue-checkout.declare`, the look (theme, cards, the ticket) in
+`venue-parts.declare`.
+*/
+
+include [ "venue-parts.declare" ]
+
+include [ "venue-hall.declare" ]
+
+include [ "venue-checkout.declare" ]
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Plain functions of their arguments: how dates, times and money are written,
+// and what can be known about a card number, an expiry and a postal code
+// without asking anyone.
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    // "2026-11-13T19:30" is the hall's own clock, read as written.
+    function stamp(iso: string): number[] {
+        const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso)
+        return m == null ? [2000, 1, 1, 0, 0] : m.slice(1).map(Number)
+    }
+    function weekdayOf(iso: string): string {
+        const p = stamp(iso)
+        return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()]
+    }
+    function dateOf(iso: string): string { const p = stamp(iso); return p[2] + " " + MONTHS[p[1] - 1] }
+    function dayLabel(iso: string): string { return iso == "" ? "" : weekdayOf(iso) + " " + dateOf(iso) }      // Fri 13 Nov
+    function timeLabel(iso: string): string {                                                                   // 7:30pm
+        if (iso == "") return ""
+        const p = stamp(iso)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + (p[4] < 10 ? "0" : "") + p[4] + (p[3] < 12 ? "am" : "pm")
+    }
+    function money(cents: number): string {
+        return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    }
+    function seatCount(n: number): string { return n + (n == 1 ? " seat" : " seats") }
+
+    // ── cards
+
+    function digitsOf(t: string): string { return t.replace(/\D/g, "") }
+    function brandOf(d: string): string {
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^4/.test(d)) return "visa"
+        if (/^(5[1-5]|222[1-9]|22[3-9]\d|2[3-6]\d\d|27[01]\d|2720)/.test(d)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        return ({ visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover" } as Record<string, string>)[b] ?? "Card"
+    }
+    function codeLength(brand: string): number { return brand == "amex" ? 4 : 3 }
+
+    // Grouped as printed: 4 4 4 4 for most cards, 4 6 5 for American Express.
+    function groupCard(d: string): string {
+        const sizes = brandOf(d) == "amex" ? [4, 6, 5] : [4, 4, 4, 4, 3]
+        const out: string[] = []
+        let i = 0
+        for (const s of sizes) {
+            if (i >= d.length) break
+            out.push(d.slice(i, i + s))
+            i += s
+        }
+        return out.join(" ")
+    }
+    function luhnOk(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum += n
+        }
+        return d.length > 0 && sum % 10 == 0
+    }
+    function cardNumberProblem(text: string): string {
+        const d = digitsOf(text)
+        if (d.length == 0) return ""
+        const b = brandOf(d)
+        const lengthOk = b == "amex" ? d.length == 15
+            : b == "visa" ? [13, 16, 19].includes(d.length)
+            : b == "mastercard" ? d.length == 16
+            : d.length >= 12 && d.length <= 19
+        if (!lengthOk) return "That card number is too " + (d.length < 15 ? "short" : "long") + ". Check it against your card."
+        if (!luhnOk(d)) return "That isn't a valid card number. Check it against your card."
+        return ""
+    }
+
+    // An expiry is typed MM / YY; autofill may bring MM/YYYY.
+    function formatExpiry(d: string): string {
+        if (d.length == 1 && Number(d) > 1) return "0" + d
+        return d.length > 2 ? d.slice(0, 2) + " / " + d.slice(2) : d
+    }
+    function expiryParts(text: string): number[] {
+        const d = digitsOf(text)
+        if (d.length == 4) return [Number(d.slice(0, 2)), 2000 + Number(d.slice(2))]
+        if (d.length == 6) return [Number(d.slice(0, 2)), Number(d.slice(2))]
+        return []
+    }
+    function expiryProblem(text: string, year: number, month: number): string {
+        if (text.trim() == "") return ""
+        const p = expiryParts(text)
+        if (p.length == 0) return "Enter the expiry as month and year, like 04 / 28."
+        if (p[0] < 1 || p[0] > 12) return "There's no month " + (p[0] < 10 ? "0" : "") + p[0] + ". Use 01 to 12."
+        if (p[1] < year || (p[1] == year && p[0] < month)) return "That date has passed. Check the expiry on your card."
+        if (p[1] > year + 25) return "Check the year on your card."
+        return ""
+    }
+
+    // ── postal codes, by country
+
+    function postalProblem(code: string, country: string): string {
+        const c = code.trim()
+        if (c == "") return ""
+        if (country == "US") return /^\d{5}(-\d{4})?$/.test(c) ? "" : "A US ZIP code is 5 digits, like 94103."
+        if (country == "CA") return /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z] ?\d[ABCEGHJ-NPRSTV-Z]\d$/i.test(c) ? "" : "A Canadian postal code looks like K1A 0B1."
+        if (country == "GB") return /^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/i.test(c) ? "" : "A UK postcode looks like SW1A 2AA."
+        return ""
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number, seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema Seat [ id: string, number: number, status: "available" | "sold" ]
+schema SeatRow [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: SeatRow ]
+schema SeatMapData [ performanceId: string, sections[]: Section ]
+
+// One seat with everything a line about it needs.
+
+schema SeatInfo [ id: string, label: string, section: string, row: string, number: number,
+    priceCents: number, feeCents: number, sold: boolean ]
+schema Lines [ lines[]: SeatInfo ]
+
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing: Billing, cards[]: SavedCard ]
+schema SignedIn [ name: string, email: string ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+// Every refusal the service sends: a code and a sentence for the person, and
+// for some, the field it is about or the seats that were taken.
+
+schema Refusal [ error: string, message: string, field?: string, conflicts[]?: string ]
+
+schema Country [ id: string, label: string ]
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+
+// The seat map of the open performance, and what is true of a seat whoever is
+// looking: where it is in the data, what it is called, what it costs.
+
+class SeatMap extends DataSource [ schema = SeatMapData, errorSchema = Refusal, credentials = include,
+
+    sections() -> Section[] { return this.value?.sections ?? [] },
+
+    // Where a seat is, as indexes into the data: `ORCH-C-14` is section ORCH,
+    // row C, the seat whose id it is.
+
+    find(id: string) -> number[] {
+        const parts = id.split("-")
+        const ss = this.sections()
+        const si = ss.findIndex((s) => s.key == parts[0])
+        if (si < 0) return []
+        const ri = ss[si].rows.findIndex((r) => r.name == parts[1])
+        if (ri < 0) return []
+        const k = ss[si].rows[ri].seats.findIndex((s) => s.id == id)
+        return k < 0 ? [] : [si, ri, k]
+        },
+    info(id: string) -> SeatInfo? {
+        const at = this.find(id)
+        if (at.length < 3) return null
+        const s = this.sections()[at[0]]
+        const r = s.rows[at[1]]
+        const seat = r.seats[at[2]]
+        return ({ id: id, label: s.name + ", row " + r.name + ", seat " + seat.number, section: s.name,
+            row: r.name, number: seat.number, priceCents: s.priceCents, feeCents: s.feeCents,
+            sold: seat.status == "sold" })
+        },
+    isFree(id: string) -> boolean {
+        const at = this.find(id)
+        return at.length == 3 && this.sections()[at[0]].rows[at[1]].seats[at[2]].status == "available"
+        },
+
+    // Someone else has it. Written where the seat is, so the seat's view follows.
+
+    markSold(id: string) {
+        const at = this.find(id)
+        if (at.length == 3 && this.sections()[at[0]].rows[at[1]].seats[at[2]].status != "sold")
+            this.set(["sections", at[0], "rows", at[1], "seats", at[2], "status"], "sold")
+        },
+
+    seatTotal: number = { this.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.length, 0), 0) },
+    freeTotal: number = { this.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.filter((x) => x.status == "available").length, 0), 0) },
+
+    // How many rows come before a section: the hall counts rows front to back.
+
+    rowsBefore(si: number) -> number {
+        return this.sections().slice(0, si).reduce((n, s) => n + s.rows.length, 0)
+        },
+
+    // The room the hall takes, in seat-widths (see venue-hall.declare).
+
+    bounds() -> Box { return hallBounds(this.sections().map((s) => s.rows.map((r) => r.seats.length))) }
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "Grand Hall — The Marriage of Figaro", minWidth = 320,
+    theme = { { ...SanFrancisco, ...Venue } },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    // ── type: a serif for what is displayed, the system face for the rest
+
+    fraunces: Font [ FontFace [ weight = semibold,
+            src = "https://fonts.gstatic.com/s/fraunces/v38/6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nhr1K03gg7S2nfgRYIcaRyTCf7Tp05GNyXk.woff2" ]
+        ],
+    display: array = { [app.fraunces, "Iowan Old Style", "Palatino", "Georgia", "serif"] },
+    fontFamily = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+
+    // ── sizes
+
+    wide: boolean = { app.width >= 900 },
+    tap: number = { app.touchFirst ? 44 : 36 },
+
+    // ── today, for an expiry in the past
+
+    clock: Time [ tick = day ],
+
+    // ── the service
+
+    api: string = "http://127.0.0.1:8350",
+
+    production: DataSource [ url = { app.api + "/api/production" }, credentials = include, autoFetch = true,
+        schema = Production ],
+    performances: Performance[] = { app.production.value?.performances ?? [] },
+    perf: Performance? = { app.performances.find((p) => p.id == app.location) ?? null },
+    perfId: string = { app.perf?.id ?? "" },
+
+    seats: SeatMap [ autoFetch = true,
+        url = { app.perfId == "" ? "" : app.api + "/api/performances/" + app.perfId + "/seats" } ],
+
+    // Other people buying. A seat named here is gone for everyone.
+
+    live: EventStream [ listenTo = ["seatchanged"], retry = 2,
+        url = { app.perfId == "" ? "" : app.api + "/api/events?performance=" + app.perfId },
+        active = { app.perfId != "" && app.screen != "tickets" },
+        onMessage(e: StreamMessage) {
+            const m = JSON.parse(e.data)
+            if (m.status == "sold") app.seatTaken(m.seatId)
+            }
+        ],
+
+    // ── the account. The session is a cookie the service keeps; reloading asks again.
+
+    me: DataSource [ url = { app.api + "/api/me" }, credentials = include, autoFetch = true,
+        schema = Account, errorSchema = Refusal,
+        onLoad() { if (app.justSignedIn) { app.justSignedIn = false; afterSettle(app.focusAfterSignIn) } },
+        onError() { if (this.statusCode == 401) this.clear() }
+        ],
+    account: Account? = { app.me.loaded ? app.me.value : null },
+
+    signingIn: boolean = false,
+    justSignedIn: boolean = false,
+
+    // The control that opened sign-in is gone once they are signed in (or
+    // out); the focus goes to what took its place.
+
+    focusAfterSignIn() {
+        const f = Focus.getFocus()
+        if (f != null && f != app.bar.signIn && f != app.checkout.main.guest.signIn) return
+        if (app.screen == "checkout") Focus.focus(app.checkout.main.member.who)
+        else Focus.focus(app.bar.signOut)
+        },
+    focusAfterSignOut() {
+        const f = Focus.getFocus()
+        if (f != null && f != app.bar.signOut) return
+        if (app.screen == "checkout") Focus.focus(app.checkout.main.guest.signIn)
+        else Focus.focus(app.bar.signIn)
+        },
+    signInEmail: string = "",
+    signInPassword: string = "",
+    session: DataSource [ url = { app.api + "/api/session" }, method = "POST", credentials = include,
+        schema = SignedIn, errorSchema = Refusal,
+        body = { { email: app.signInEmail.trim(), password: app.signInPassword } },
+        onLoad() {
+            app.signInPassword = ""
+            app.signingIn = false
+            app.justSignedIn = true
+            app.me.fetch()
+            Accessibility.announce("Signed in as " + (this.value?.name ?? app.signInEmail))
+            }
+        ],
+    endSession: DataSource [ url = { app.api + "/api/session" }, method = "DELETE", credentials = include,
+        format = "text",
+        onLoad() { app.me.clear(); Accessibility.announce("Signed out"); afterSettle(app.focusAfterSignOut) }
+        ],
+    signOut() { app.endSession.fetch() },
+
+    // ── where the person is
+
+    location = "",
+    waypoint = "",
+    chosen: string[] = [],
+    notice: string = "",          // a seat they had was taken: which, in a sentence
+
+    booked: boolean = { app.orderReq.loaded },
+    paying: boolean = { app.waypoint == "checkout" && app.chosen.length > 0 },
+    inHall: "hall" | "checkout" = { app.paying ? "checkout" : "hall" },
+    screen: "list" | "hall" | "checkout" | "tickets" = { app.booked ? "tickets" : app.perfId == "" ? "list" : app.inHall },
+
+    openPerformance(id: string) { location = id },
+    toList() { location = ""; waypoint = "" },
+    toCheckout() { if (chosen.length > 0) { notice = ""; waypoint = "checkout" } },
+    toHall() { waypoint = "" },
+
+    // A new performance starts with nothing chosen.
+
+    trackChanges = ["perfId", "screen"],
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) {
+            if (c.name == "perfId") { app.chosen = []; app.notice = "" }
+            if (c.name == "screen") {
+                if (app.screen == "list") app.production.fetch()
+                app.scrollTo(0)
+                afterSettle(app.focusHeading)
+                }
+            }
+        },
+
+    // After a change of screen, the focus goes to its heading, so a screen
+    // reader says where the person is and Tab goes on from there.
+
+    focusHeading() {
+        const h = app.screen == "list" ? app.listScreen.heading
+            : app.screen == "hall" ? app.hallScreen.heading
+            : app.screen == "checkout" ? app.checkout.main.top.heading
+            : app.ticketsScreen?.heading ?? null
+        if (h != null) Focus.focus(h)
+        },
+
+    // ── the seats chosen
+
+    toggleSeat(id: string) {
+        if (chosen.includes(id)) { chosen = chosen.filter((c) => c != id); return }
+        if (!seats.isFree(id)) return
+        chosen = [...chosen, id]
+        },
+
+    seatTaken(id: string) {
+        seats.markSold(id)
+
+        // While their own payment is out, the seats it buys are reported sold too.
+        if (!chosen.includes(id) || app.orderReq.loading) return
+        const label = seats.info(id)?.label ?? id
+        chosen = chosen.filter((c) => c != id)
+        notice = label + " was just taken by someone else, so it has left your choice."
+        Accessibility.announce(notice, "assertive")
+        },
+
+    // The service refused the order because seats went first.
+
+    seatsLost(ids: string[], message: string) {
+        ids.forEach((id) => seats.markSold(id))
+        chosen = chosen.filter((c) => !ids.includes(c))
+        notice = message
+        waypoint = ""
+        Accessibility.announce(message, "assertive")
+        seats.fetch()
+        },
+
+    chosenInfo: SeatInfo[] = { app.chosen.map((id) => app.seats.info(id)).filter((s) => s != null) as SeatInfo[] },
+    chosenPrice: number = { app.chosenInfo.reduce((n, s) => n + s.priceCents, 0) },
+    chosenFees: number = { app.chosenInfo.reduce((n, s) => n + s.feeCents, 0) },
+    orderTotal: number = { app.chosenPrice + app.chosenFees },
+    summary: string = { seatCount(app.chosen.length) + " · " + money(app.chosenPrice) },
+    lines: Dataset [ schema = Lines, contents = { { lines: app.chosenInfo } } ],
+
+    // ── checkout: what the person types. Each starts from the account when
+    //    there is one, and is theirs once they type.
+
+    countries: Country[] = { [ ({ id: "US", label: "United States" }), ({ id: "CA", label: "Canada" }),
+        ({ id: "GB", label: "United Kingdom" }) ] },
+    countryOf(code: string) -> Country? { return app.countries.find((c) => c.id == code) ?? null },
+
+    email: string = { app.account?.email ?? "" },
+    cardName: string = { app.account?.name ?? "" },
+    cardNumber: string = "",
+    expiry: string = "",
+    cvc: string = "",
+    line1: string = { app.account?.billing.line1 ?? "" },
+    line2: string = { app.account?.billing.line2 ?? "" },
+    city: string = { app.account?.billing.city ?? "" },
+    postalCode: string = { app.account?.billing.postalCode ?? "" },
+    country: Country? = { app.countryOf(app.account?.billing.country ?? "") },
+
+    // Which card: a saved one by id, or "new".
+
+    expired(c: SavedCard) -> boolean {
+        return c.expYear < app.clock.year || (c.expYear == app.clock.year && c.expMonth < app.clock.month)
+        },
+    savedCards: SavedCard[] = { app.account?.cards ?? [] },
+    firstUsable: string = { app.savedCards.find((c) => !app.expired(c))?.id ?? "new" },
+    payWith: string = { app.firstUsable },
+    savedCvc: string = "",
+    savedCard: SavedCard? = { app.account == null ? null : app.savedCards.find((c) => c.id == app.payWith) ?? null },
+    usingSaved: boolean = { app.savedCard != null },
+
+    numberDigits: string = { digitsOf(app.cardNumber) },
+    brand: string = { brandOf(app.numberDigits) },
+
+    orderBody() -> object {
+        const base = ({ performanceId: perfId, seatIds: [...chosen] })
+        if (savedCard != null)
+            return ({ ...base, email: account?.email ?? email.trim(), payment: ({ savedCardId: savedCard.id, cvc: savedCvc }) })
+        const exp = expiryParts(expiry)
+        return ({ ...base, email: email.trim(),
+            payment: ({
+                card: ({ number: numberDigits, expMonth: exp[0], expYear: exp[1], cvc: cvc, name: cardName.trim() }),
+                billing: ({ line1: line1.trim(), line2: line2.trim() == "" ? null : line2.trim(), city: city.trim(),
+                    postalCode: postalCode.trim().toUpperCase(), country: country?.id ?? "" }) }) })
+        },
+
+    orderReq: DataSource [ url = { app.api + "/api/orders" }, method = "POST", credentials = include,
+        schema = Order, errorSchema = Refusal, timeout = 30,
+        body = { app.orderBody() },
+        onLoad() {
+            const sold = this.value?.tickets.map((t) => t.seatId) ?? []
+            sold.forEach((id) => app.seats.markSold(id))
+            app.chosen = []
+            app.cvc = ""
+            app.savedCvc = ""
+            app.cardNumber = ""
+            app.expiry = ""
+            app.waypoint = ""
+            }
+        ],
+    order: Order? = { app.orderReq.loaded ? app.orderReq.value : null },
+    ticketPerf: Performance? = { app.performances.find((p) => p.id == (app.order?.performanceId ?? "")) ?? null },
+    ticketPage: number = 0,
+
+    startAgain() {
+        orderReq.clear()
+        ticketPage = 0
+        toList()
+        },
+
+    // Views used from far away get one name each.
+
+    checkout: PayForm = { app.checkoutScreen.page.form },
+
+    // ── the screen
+
+    layout: SimpleLayout [ axis = y ],
+
+    bar: TopBar [ ],
+
+    listScreen: ListScreen [ visible = { app.screen == "list" } ],
+    hallScreen: HallScreen [ visible = { app.screen == "hall" },
+        height = { Math.max(app.wide ? 560 : 480, app.height - app.bar.height) } ],
+    checkoutScreen: CheckoutScreen [ visible = { app.screen == "checkout" } ],
+    ticketsScreen: TicketsScreen [ exists = { app.screen == "tickets" } ],
+
+    // ── layers
+
+    signInSheet: Sheet [ shown = { app.signingIn },
+        commit(open: boolean) { app.signingIn = open },
+        accessibilityLabel = "Sign in",
+        SignInForm [ exists = { app.signInSheet.present } ]
+        ]
+    ]

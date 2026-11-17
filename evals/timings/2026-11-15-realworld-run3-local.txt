@@ -1,0 +1,47 @@
+# eval-realworld-3
+total 15.9 min · 90 turns · output 84205 tokens (thinking 29569)
+phases: reading 5.1 · writing 3.1 · checking 7.7 min
+tool time 3.3 min · model time 12.6 min
+tokens: input 138 · cache write 323008 · cache read 15703668 · output 84205 · thinking 29569
+rate: 6698 output tokens per model-minute
+tools:
+  verify    18×   2.32 min  (median 3.0 s)
+  look       8×   0.71 min  (median 3.8 s)
+  help      10×   0.27 min  (median 1.0 s)
+  bash      25×   0.03 min  (median 0.0 s)
+model turns, by what came before:
+  after write     2×   3.13 min  (median 94.0 s)
+  after bash     25×   3.03 min  (median 2.3 s)
+  after help     10×   2.30 min  (median 3.7 s)
+  after verify   18×   1.90 min  (median 5.5 s)
+  after image    12×   0.96 min  (median 0.4 s)
+  after read     13×   0.55 min  (median 2.4 s)
+  after look      7×   0.35 min  (median 1.7 s)
+  after edit      1×   0.02 min  (median 1.0 s)
+app: 2 .declare files, 1049 non-blank lines · 17 snapshots changed them: 1286 lines added, 89 removed
+verify results mentioning accessibility: 4
+source reads: library 2 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/textinput.declare
+            library  library/form.declare
+diagnostic codes, by tool results reporting them: DECLARE4025 2, DECLARE4022 2, DECLARE1002 2, DECLARE2000 1, DECLARE4005 1, DECLARE4026 1, DECLARE3006 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   2.25 min    26×  R5 behavior, in all
+   1.81 min    26×  script: the assert script, in all
+   0.69 min   193×  locator.click
+   0.47 min    39×  page: load, compile in the page and boot
+   0.47 min   139×  drive.settleData
+   0.38 min   229×  check: scrolling come to rest
+   0.37 min    26×  open: the app loaded and arrived, in all
+   0.22 min    89×  locator.fill
+   0.18 min    11×  R4 boot, in all
+   0.16 min    14×  compile (R1–R3)
+   0.16 min    68×  drive.settleMotion
+   0.11 min   244×  expect(locator), in all
+   0.08 min   144×  locator: wait a tick for it
+   0.05 min    39×  page: a new page
+   0.05 min    17×  locator.press
+   0.04 min   687×  locator: query the page
+   0.04 min    22×  end: layout questions at the end of the script
+   0.02 min    37×  chrome: a browser (shared between calls)
+   0.02 min   229×  check: the layout questions
+   0.01 min    22×  end: the network quiet after the script

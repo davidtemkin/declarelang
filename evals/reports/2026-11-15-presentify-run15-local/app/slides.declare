@@ -1,0 +1,163 @@
+/*
+# Presentify: a slide, drawn
+
+One class draws a slide wherever it appears: the large one being edited, the
+pictures in the slide list and the presentation list, and the presentation
+itself. So the presentation looks exactly as it does in the editor, and every
+picture updates as the slide is edited: they all read the same record.
+
+A slide is 1280 × 720 points; where it is shown smaller it is scaled, never
+re-laid-out. Each element is a view of its own, of the class its `kind` names
+(`classFor`), so a press finds the element under it by the same walk every
+press takes. An ellipse takes presses only inside its outline (`clip`), and
+a line is a thin view turned along it.
+
+Only the editor's slide is `live`: there, a press on an element tells the
+editor (`app.ed`). Elsewhere the pictures take no pointer at all.
+*/
+
+class SlideView [ width = 1280, height = 720, clip = true,
+    live: boolean = false,
+    fill = { :background ?? "#FFFFFF" },
+    ElementView [ datapath = :elements[],
+        classFor = { :kind == "group" ? GroupEl : :kind == "text" ? TextEl : :kind == "line" ? LineEl : :kind == "ellipse" ? EllipseEl : RectEl } ]
+    ]
+
+
+// The base every element's class extends, so one replicated node can hold
+// them all.
+
+class ElementView [ ]
+
+// A group draws its children where they are: it has no box of its own. It
+// names itself to the views inside it, so a press on any of them selects the
+// group (the outermost one, when groups nest).
+
+class GroupEl extends ElementView [ width = 1280, height = 720,
+    groupTop: string = { provided("groupTop", "") == "" ? (:id ?? "") : provided("groupTop", "") },
+    ElementView [ datapath = :children[],
+        classFor = { :kind == "group" ? GroupEl : :kind == "text" ? TextEl : :kind == "line" ? LineEl : :kind == "ellipse" ? EllipseEl : RectEl } ]
+    ]
+
+
+// Everything one element does under the pointer, in the editor.
+
+class Shape extends ElementView [
+    elId: string = { :id ?? "" },
+    kind: string = { :kind ?? "rect" },
+    live: boolean = { provided("live", false) },
+    owner: string = { provided("groupTop", "") },
+
+    // What a press selects: the element itself, or the group it is in —
+    // unless it was already picked out of that group with a double-click.
+
+    target: string = { classroot.owner == "" || app.selection.includes(classroot.elId) ? classroot.elId : classroot.owner },
+    picked: boolean = { app.selection.includes(classroot.target) },
+    cursor = { classroot.live && classroot.picked ? "move" : "" },
+
+    onPointerDown(e: PointerEvent) { if (classroot.live) app.ed.press(classroot.target, e.shift || e.meta || e.ctrl) },
+    onClick(e: PointerEvent) { if (classroot.live) app.ed.clickOn(classroot.target, e.shift || e.meta || e.ctrl) },
+    onDoubleClick(e: PointerEvent) { if (classroot.live) app.ed.doubleOn(classroot.elId, classroot.owner, classroot.kind) },
+    onDragStart(e: PointerEvent) { if (classroot.live) app.ed.moveStart() },
+    onDrag(e: PointerEvent) { if (classroot.live) app.ed.moveBy(e.deltaX, e.deltaY) },
+    onDragEnd(e: DragEndEvent) { if (classroot.live) app.ed.moveEnd(e.canceled) }
+    ]
+
+
+class RectEl extends Shape [
+    x = { :x ?? 0 }, y = { :y ?? 0 },
+    width = { Math.max(1, :width ?? 1) }, height = { Math.max(1, :height ?? 1) },
+    fill = { :fill ?? null },
+    stroke = { (:stroke.width ?? 0) > 0 ? Stroke(:stroke.width ?? 1, :stroke.color ?? "#000000") : null },
+    cornerRadius = { Math.min(:cornerRadius ?? 0, this.width / 2, this.height / 2) }
+    ]
+
+
+class EllipseEl extends Shape [
+    x = { :x ?? 0 }, y = { :y ?? 0 },
+    width = { Math.max(1, :width ?? 1) }, height = { Math.max(1, :height ?? 1) },
+    paint: Color = { :fill ?? null },
+    lineColor: Color = { :stroke.color ?? null },
+    lineWidth: number = { :stroke.width ?? 0 },
+    clip = { ellipsePath(this.width, this.height) },
+    draw(d: DrawContext) {
+        const w = d.w, h = d.h
+        if (paint != null) {
+            d.fillStyle = paint
+            d.beginPath()
+            d.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2)
+            d.fill()
+            }
+        if (lineColor != null && lineWidth > 0) {
+            const inset = lineWidth / 2
+            d.strokeStyle = lineColor
+            d.lineWidth = lineWidth
+            d.beginPath()
+            d.ellipse(w / 2, h / 2, Math.max(0.5, w / 2 - inset), Math.max(0.5, h / 2 - inset), 0, 0, Math.PI * 2)
+            d.stroke()
+            }
+        }
+    ]
+
+
+// A line: a view as long as the line, turned about its start, as thick as
+// a pointer needs; the stroke is a bar along its middle.
+
+class LineEl extends Shape [
+    ax: number = { :x1 ?? 0 },
+    ay: number = { :y1 ?? 0 },
+    bx: number = { :x2 ?? 0 },
+    by: number = { :y2 ?? 0 },
+    weight: number = { :stroke.width ?? 2 },
+    color: Color = { :stroke.color ?? "#1B1530" },
+    reach: number = { Math.max(classroot.weight, 16) },
+    x = { classroot.ax },
+    y = { classroot.ay - classroot.reach / 2 },
+    width = { Math.max(1, Math.hypot(classroot.bx - classroot.ax, classroot.by - classroot.ay)) },
+    height = { classroot.reach },
+    rotation = { Math.atan2(classroot.by - classroot.ay, classroot.bx - classroot.ax) * 180 / Math.PI },
+    pivotX = 0,
+    pivotY = { classroot.reach / 2 },
+    bar: View [ y = center, width = 100%, height = { classroot.weight }, fill = { classroot.color } ]
+    ]
+
+
+// A text box: one block, one style, wrapped to its width and as tall as its
+// lines. Being edited, a field in the same style takes its place, so the
+// words stay exactly where they were.
+
+class TextEl extends Shape [
+    x = { :x ?? 0 }, y = { :y ?? 0 },
+    width = { Math.max(8, :width ?? 8) },
+    content: string = { :text.content ?? "" },
+    face: string[] = { faceFor(:text.font ?? "Helvetica Neue") },
+    size: number = { :text.size ?? 32 },
+    weight: number = { :text.weight ?? 400 },
+    slanted: boolean = { :text.italic ?? false },
+    ink: Color = { :text.color ?? "#1B1530" },
+    align: "left" | "center" | "right" = { :text.align ?? "left" },
+    editing: boolean = { classroot.live && app.editingId == classroot.elId },
+
+    body: Text [ width = 100%, wrap = true, visible = { !classroot.editing },
+        text = { classroot.content == "" ? " " : classroot.content },
+        fontFamily = { classroot.face }, fontSize = { classroot.size }, fontWeight = { classroot.weight },
+        italic = { classroot.slanted }, textColor = { classroot.ink }, textAlign = { classroot.align } ],
+
+    field: TextInput [ exists = { classroot.editing }, width = 100%, multiline = true, wrap = true,
+        fill = null, stroke = null, padding = 0, accessibilityLabel = "Text",
+        fontFamily = { classroot.face }, fontSize = { classroot.size }, fontWeight = { classroot.weight },
+        italic = { classroot.slanted }, textColor = { classroot.ink }, textAlign = { classroot.align },
+        value = { classroot.content },
+        commit(v: string) { app.ed.typeText(classroot.elId, v) },
+        onBlur() { app.ed.endEdit() },
+        onInit() { afterSettle(() => Focus.focus(this)) }
+        ],
+
+    // The box grows as it fills. While the person works on it, the height
+    // it lays out at is written back, so the selection and the saved box
+    // match what shows.
+
+    laidHeight: number = { this.height },
+    trackChanges = ["laidHeight"],
+    onChange() { if (classroot.live) app.ed.noteTextHeight(classroot.elId, classroot.laidHeight) }
+    ]

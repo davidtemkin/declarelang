@@ -1,0 +1,200 @@
+/*
+# Presentify: a slide, drawn
+
+The service's format (task/api/API.md) as schemas, and the one view that
+draws a slide from it: `SlideCanvas`. The same class draws the slide being
+edited, every thumbnail in the slide list, the picture of a presentation in
+the list of presentations, and the slide being presented, so all of them look
+exactly alike.
+
+A slide is 1280 × 720 points. A canvas is always that size inside, and is
+shown smaller or larger with `scale`, about its top-left corner.
+
+Each element is a view of its own, picked by its `kind` (`classFor`), so a
+press finds the element under it by the same walk every press takes: an
+ellipse answers only inside its outline (its `clip`), a line along a thin
+band rotated to lie on it.
+*/
+
+use [ RectEl, EllipseEl, LineEl, TextEl, GroupEl ]
+
+// ── The format ──────────────────────────────────────────────────────────────
+
+schema Outline [ color: string, width: number ]
+
+schema TextSpec [ content: string, font: string, size: number, weight: number, italic: boolean, color: string,
+    align: "left" | "center" | "right" ]
+
+// One element of any kind: the fields a kind doesn't use are absent.
+
+schema Elem [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    fill?: string, stroke?: Outline, cornerRadius?: number, keepProportions?: boolean,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    text?: TextSpec, children[]?: Elem ]
+
+// A slide as the editor holds it. `id` is the slide's identity here — the
+// service's id once the service has it (Sync keeps the two apart until then).
+
+// A box in slide points: what selecting, snapping and aligning work in.
+
+schema Box [ x: number, y: number, w: number, h: number ]
+
+schema Slide [ id: string, background: string, elements[]: Elem ]
+schema Slides [ slides[]: Slide ]
+
+// A slide as the service sends it, and a presentation.
+
+schema ServerSlide [ id: string, deckId: string, version: number, background: string, elements[]: Elem ]
+schema DeckInfo [ id: string, title: string, version: number, updatedAt: string, slideOrder[]: string,
+    thumbnailSlideId: string ]
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number, thumbnailSlideId: string ]
+
+
+// ── Elements ────────────────────────────────────────────────────────────────
+//
+// `ElemView` is what every element shares: its id, whether it is on the slide
+// being edited (`live`, provided by its canvas), and the presses an editor
+// answers. On a thumbnail the canvas takes no presses at all
+// (`pointerEvents = "none"`), so the handlers are the editor's alone.
+
+class ElemView [
+    elemId: string = { :id ?? "" },
+    live: boolean = { provided("live", false) },
+    cursor = { this.live && app.editor.tool == "select" ? "move" : "" },
+    trackChanges = ["hovered"],
+    onChange() { if (live) app.editor.hoverOn(elemId, hovered) },
+    onPointerDown(e: PointerEvent) { if (live) app.editor.pressElem(elemId, e.rootX, e.rootY, e.shift) },
+    onDrag(e: PointerEvent) { if (live) app.editor.dragTo(e.rootX, e.rootY, e.shift) },
+    onPointerUp(e: PointerUpEvent) { if (live) app.editor.endDrag(e.canceled) },
+    onDoubleClick(e: PointerEvent) { if (live) app.editor.doubleElem(elemId) },
+    onContextMenu(e: PointerEvent) { if (live) app.editor.contextElem(elemId, this, e) }
+    ]
+
+
+class RectEl extends ElemView [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    fill = { paint(:fill) },
+    cornerRadius = { Math.max(0, Math.min(:cornerRadius ?? 0, (:width ?? 0) / 2, (:height ?? 0) / 2)) },
+    stroke = { :stroke == null ? null : Stroke(:stroke.width, paint(:stroke.color)) }
+    ]
+
+
+// An ellipse draws itself, its outline inside its box as a rectangle's is,
+// and answers presses only inside its outline.
+
+class EllipseEl extends ElemView [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    clip = { ellipsePath(this.width, this.height) },
+    draw(d: DrawContext) {
+        const sw = :stroke?.width ?? 0
+        d.beginPath()
+        d.ellipse(d.w / 2, d.h / 2, Math.max(0, d.w / 2 - sw / 2), Math.max(0, d.h / 2 - sw / 2), 0, 0, Math.PI * 2)
+        if (paint(:fill) != null) {
+            d.fillStyle = paint(:fill)
+            d.fill()
+            }
+        if (:stroke != null && sw > 0) {
+            d.strokeStyle = paint(:stroke.color)
+            d.lineWidth = sw
+            d.stroke()
+            }
+        }
+    ]
+
+
+// A line is a band as long as the line, turned to lie along it: wide enough
+// to press, with the stroke drawn down its middle.
+
+class LineEl extends ElemView [
+    x1: number = { :x1 ?? 0 },
+    y1: number = { :y1 ?? 0 },
+    x2: number = { :x2 ?? 0 },
+    y2: number = { :y2 ?? 0 },
+    len: number = { Math.hypot(classroot.x2 - classroot.x1, classroot.y2 - classroot.y1) },
+    band: number = { Math.max(16, (:stroke?.width ?? 2) + 10) },
+    x = { (classroot.x1 + classroot.x2) / 2 - classroot.len / 2 },
+    y = { (classroot.y1 + classroot.y2) / 2 - classroot.band / 2 },
+    width = { classroot.len },
+    height = { classroot.band },
+    pivotX = { classroot.len / 2 },
+    pivotY = { classroot.band / 2 },
+    rotation = { Math.atan2(classroot.y2 - classroot.y1, classroot.x2 - classroot.x1) * 180 / Math.PI },
+    ink: View [ y = center, width = 100%, height = { :stroke?.width ?? 2 }, fill = { paint(:stroke?.color) ?? "#1F2328" } ]
+    ]
+
+
+// A text box wraps within its width and is as tall as its lines. While the
+// editor types into it, a field takes the words' place (`TextField`, in the
+// editor), so the words underneath go transparent.
+
+class TextEl extends ElemView [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { Math.max(1, :width ?? 0) },
+    size: number = { :text?.size ?? 24 },
+    height = { Math.max(this.words.height, classroot.size * 1.2) },
+    editing: boolean = { classroot.live && app.editor.editingId == classroot.elemId },
+    cursor = { classroot.editing ? "text" : this.live && app.editor.tool == "select" ? "move" : "" },
+    words: Text [ width = 100%, opacity = { classroot.editing ? 0 : 1 },
+        text = { :text?.content ?? "" },
+        fontFamily = { :text?.font ?? "Helvetica Neue" },
+        fontSize = { classroot.size },
+        fontWeight = { :text?.weight ?? 400 },
+        italic = { :text?.italic ?? false },
+        textColor = { paint(:text?.color) ?? "#1F2328" },
+        textAlign = { :text?.align ?? "left" } ],
+
+    // On the slide being edited, a text box the person has changed keeps its
+    // stored height equal to the height of its lines, as the format asks.
+
+    trackChanges = ["height"],
+    onChange() { if (live) app.editor.noteTextHeight(elemId, this.height) }
+    ]
+
+
+// A group has no box of its own: its children keep their slide positions, so
+// it spans the whole slide and takes no presses itself.
+
+class GroupEl extends ElemView [ width = 1280, height = 720, cursor = "",
+    ElemView [ datapath = :children[], classFor = { elemClass(:kind) } ]
+    ]
+
+
+// ── The slide ───────────────────────────────────────────────────────────────
+
+class SlideCanvas [ width = 1280, height = 720, pivotX = 0, pivotY = 0, clip = true,
+    fill = { paint(:background) ?? "#FFFFFF" },
+    live: boolean = false,
+    elementPresses: string = "",          // "none" while a drawing tool is in the hand
+    elements: View [ width = 1280, height = 720, pointerEvents = { classroot.elementPresses },
+        ElemView [ datapath = :elements[], classFor = { elemClass(:kind) } ]
+        ]
+    ]
+
+
+// A slide shown small: a canvas scaled to a width, holding no presses, so
+// whatever it sits in takes them.
+
+class SlidePicture [
+    pictureWidth: number = 160,
+    width = { classroot.pictureWidth },
+    height = { classroot.pictureWidth * 9 / 16 },
+    clip = true,
+    pointerEvents = "none",
+    SlideCanvas [ scale = { classroot.pictureWidth / 1280 } ]
+    ]
+
+
+script {
+    // The view class for each kind of element.
+    function elemClass(kind: string): string {
+        return ({ rect: "RectEl", ellipse: "EllipseEl", line: "LineEl", text: "TextEl", group: "GroupEl" } as Record<string, string>)[kind] ?? "ElemView"
+    }
+
+    // A colour from the format, or null when it isn't one ("#RRGGBB", "#RRGGBBAA").
+    function paint(c: string | null | undefined): Color {
+        return c != null && /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/.test(c) ? c as Color : null
+    }
+
+    // An ellipse's outline as a clip path, for presses.
+    function ellipsePath(w: number, h: number): string {
+        const rx = w / 2, ry = h / 2
+        return "M 0 " + ry + " A " + rx + " " + ry + " 0 1 0 " + w + " " + ry + " A " + rx + " " + ry + " 0 1 0 0 " + ry + " Z"
+    }
+    }

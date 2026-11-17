@@ -1,0 +1,16 @@
+# eval-front-page-react-2
+total 28.7 min · 149 turns · output 127820 tokens (thinking 31616)
+tool time 8.6 min · model time 20.1 min
+tokens: input 320 · cache write 310461 · cache read 16697650 · output 127820 · thinking 31616
+rate: 6363 output tokens per model-minute
+tools:
+  bash      46×   8.53 min  (median 0.5 s)
+  image     57×   0.06 min  (median 0.0 s)
+model turns, by what came before:
+  after write    44×   8.80 min  (median 8.2 s)
+  after bash     45×   6.57 min  (median 5.4 s)
+  after image    57×   4.59 min  (median 0.7 s)
+  after edit      1×   0.10 min  (median 6.3 s)
+app: 0 .declare files, 0 non-blank lines · 0 snapshots changed them: 0 lines added, 0 removed
+verify results mentioning accessibility: 0
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs

@@ -1,0 +1,13 @@
+STARTED=2026-11-16T20:41:01Z
+APP=realworld
+MODEL=claude-opus-5-5
+SUBJECT=local tree at 0b31b0c9 derived artifacts + 444 changed, 47 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=minimal
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-realworld-4/work (logs outside it)
+PORT=8380 (the brief names 8380)
+DEV_PORT=8600 (the agent's dev server: PORT in its environment)
+SERVICE=node task/api/server.mjs --port=8380
+AGENT_PID=80476

@@ -14,7 +14,8 @@
 // distance "12.4 km". Everything else is found by a loose match on its name.
 //
 // The figures are computed from the service, never written in: "this week" is Monday
-// to today; the streak is the run of days with a session ending yesterday or today
+// to today, or the seven days ending today (the brief does not say which, so either
+// reading passes); the streak is the run of days with a session ending yesterday or today
 // (an app may count the session in progress today, so one more day is accepted).
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -41,11 +42,14 @@ const dur = (m) => m >= 60 ? (m % 60 === 0 ? [`${m / 60}h`, `${m / 60}h 0m`] : [
 async function expected() {
   const s = (await api("/api/sessions")).sessions;
   const dow = (new Date(TODAY + "T00:00:00Z").getUTCDay() + 6) % 7;   // Monday 0
-  const monday = day(TODAY, -dow);
-  const week = s.filter((x) => x.date >= monday && x.date <= TODAY);
-  const mins = week.reduce((a, x) => a + x.minutes, 0);
-  const n = week.length;
-  const weekLines = dur(mins).map((d) => `${n} session${n === 1 ? "" : "s"} · ${d}`);
+  // either reading of "this week": Monday to today, or the seven days ending today
+  const lines = (from) => {
+    const week = s.filter((x) => x.date >= from && x.date <= TODAY);
+    const mins = week.reduce((a, x) => a + x.minutes, 0);
+    const n = week.length;
+    return dur(mins).map((d) => `${n} session${n === 1 ? "" : "s"} · ${d}`);
+  };
+  const weekLines = [...new Set([...lines(day(TODAY, -dow)), ...lines(day(TODAY, -6))])];
   const days = new Set(s.map((x) => x.date));
   const run = (end) => { let k = 0; for (let d = end; days.has(d); d = day(d, -1)) k++; return k; };
   const base = days.has(TODAY) ? run(TODAY) : run(day(TODAY, -1));

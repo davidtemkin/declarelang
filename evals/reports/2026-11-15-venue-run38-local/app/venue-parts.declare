@@ -1,0 +1,508 @@
+/*
+# The Venue: the parts
+
+The look of the box office: its palette, the hall drawn as a room, a seat, a
+performance in the list, a saved card, and a ticket. `venue.declare` includes
+this file; the App and its screens are there.
+
+The design in a sentence: a printed programme. Warm paper, black ink, a serif
+for the things you would read on a poster and a sans for everything you
+operate, and one colour, garnet, which means *yours* — the seats you chose,
+what you will pay, the button that commits you.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+
+theme Programme [
+    background = #F7F3EC, surface = #FFFDF8, card = #FFFDF8,
+    text = #1B1714, textMuted = #6B625A, textFaint = #8C837A,
+    line = #E4DDD2, lineStrong = #CFC6B8, quiet = #EFE9DF,
+    accent = #8E1C2E, accentHovered = #7A1727, accentPressed = #651220, accentTextColor = #FFFFFF,
+    linkColor = #8E1C2E,
+    control = #EFE9DF, controlHovered = #E7E0D4, controlPressed = #DDD5C7, controlSelected = #E7E0D4,
+    error = #B3261E,
+
+    // the room: ink for a free seat, a faint mark for a sold one, the stage
+
+    seatInk = #2A2420, seatSold = #C9C0B3, seatHover = #EADFD0, stage = #2A2420, stageText = #F7F3EC,
+    meterFill = #2A2420, meterTrack = #E4DDD2,
+    ticketInk = #1B1714, ticketPaper = #FFFDF8
+    ]
+
+
+// ── A seat ──────────────────────────────────────────────────────────────────
+//
+// A seat is a control: a finger, a click or the keyboard picks it, and a
+// screen reader hears "Orchestra, row C, seat 14", whether it is checked, and
+// (as its hint) what it costs and whether it is free.
+//
+// Its three states differ in shape, not only colour: free is an open ring,
+// yours a filled disc with a check, gone a small faint dot. A ring's weight
+// says how good the section is, so the dearer seats read darker from afar.
+
+class Seat extends Control [
+    pitch: number = 20,
+    weight: number = 1,
+    sectionName: string = "",
+    rowName: string = "",
+    priceText: string = "",
+
+    seatId: string = { :id ?? "" },
+    num: number = { :number ?? 0 },
+    sold: boolean = { :status == "sold" },
+    mine: boolean = { app.basket.has(classroot.seatId) },
+
+    width = { classroot.pitch }, height = { classroot.pitch },
+    disabled = { classroot.sold },
+    accessibilityRole = checkbox,
+    accessibilityLabel = { classroot.sectionName + ", row " + classroot.rowName + ", seat " + classroot.num },
+    accessibilityChecked = { classroot.mine },
+    accessibilityHint = { classroot.sold ? "Sold" : classroot.priceText + (classroot.mine ? ", chosen" : ", free") },
+    press() { app.basket.toggle(classroot.seatId) },
+
+    // The moment of commitment: the disc fills and pops past its size.
+
+    fillT: number = 0,
+    Spring [ attribute = fillT, to = { classroot.mine ? 1 : 0 }, stiffness = 520, damping = 18 ],
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const cx = width / 2
+        const cy = height / 2
+        const r = pitch * 0.34
+        d.beginPath()
+        if (sold) {
+            d.fillStyle = t.seatSold
+            d.arc(cx, cy, Math.max(1.5, pitch * 0.12), 0, Math.PI * 2)
+            d.fill()
+            return
+            }
+        if (hovered && !mine) {
+            d.fillStyle = t.seatHover
+            d.arc(cx, cy, r, 0, Math.PI * 2)
+            d.fill()
+            d.beginPath()
+            }
+        d.strokeStyle = t.seatInk
+        d.lineWidth = 0.9 + weight * 1.1
+        d.arc(cx, cy, r, 0, Math.PI * 2)
+        d.stroke()
+        if (fillT > 0.01) {
+            const grow = fillT + 0.9 * fillT * Math.max(0, 1 - fillT) + Math.max(0, fillT - 1) * 0.6
+            d.beginPath()
+            d.fillStyle = t.accent
+            d.arc(cx, cy, (r + 1) * Math.min(1.25, grow), 0, Math.PI * 2)
+            d.fill()
+            d.beginPath()
+            d.strokeStyle = "#FFFFFF"
+            d.lineWidth = Math.max(1.4, pitch * 0.07)
+            d.lineCap = "round"
+            d.lineJoin = "round"
+            d.moveTo(cx - r * 0.45, cy + r * 0.02)
+            d.lineTo(cx - r * 0.1, cy + r * 0.38)
+            d.lineTo(cx + r * 0.5, cy - r * 0.35)
+            d.stroke()
+            }
+        }
+    ]
+
+
+// ── A section of the hall ───────────────────────────────────────────────────
+//
+// Its name and price over its rows. Each row is centred and bends away from
+// the stage, as rows in a horse-shoe house do, so the hall reads as a room.
+// A section is one Tab stop; the arrows move between its seats.
+
+class SectionBlock [ width = 100%,
+    pitch: number = 20,
+    name: string = { :name ?? "" },
+    key: string = { :key ?? "" },
+    price: number = { :priceCents ?? 0 },
+    weight: number = { classroot.price / app.house.best },
+    priceText: string = { money(classroot.price) },
+    left: number = { app.house.freeIn(classroot.key) },
+    widest: number = { Math.max(0, ...(:rows ?? []).map((r) => r.seats.length)) },
+    focusScope = stop,
+    accessibilityRole = group,
+    accessibilityLabel = { classroot.name + ", " + classroot.priceText + " a seat, " + classroot.left + " free" },
+    layout: SimpleLayout [ axis = y, spacing = 0, align = center ],
+
+    caption: View [ padding = [0, 0, 6, 0], accessibilityHidden = true,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 1.6, textColor = { provided("theme").textMuted },
+            text = { classroot.name.toUpperCase() } ],
+        Text [ fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").textFaint }, text = { classroot.priceText } ]
+        ],
+
+    View [ datapath = :rows[], width = 100%, height = { classroot.pitch + this.bend },
+        rowName: string = { :name ?? "" },
+        count: number = { (:seats ?? []).length },
+        bend: number = { classroot.pitch * 0.5 },
+        span: number = { this.count * classroot.pitch },
+        left0: number = { (this.width - this.span) / 2 },
+
+        // the row's letter, at both ends, for the person counting rows
+
+        Text [ x = { parent.left0 - classroot.pitch * 0.9 - this.width / 2 }, y = { classroot.pitch * 0.5 - 7 },
+            accessibilityHidden = true, fontSize = 10, fontWeight = medium, textColor = { provided("theme").textFaint },
+            text = { parent.rowName } ],
+        Text [ x = { parent.left0 + parent.span + classroot.pitch * 0.9 - this.width / 2 }, y = { classroot.pitch * 0.5 - 7 },
+            accessibilityHidden = true, fontSize = 10, fontWeight = medium, textColor = { provided("theme").textFaint },
+            text = { parent.rowName } ],
+
+        Seat [ datapath = :seats[],
+            pitch = { classroot.pitch },
+            weight = { classroot.weight },
+            sectionName = { classroot.name },
+            rowName = { parent.rowName },
+            priceText = { classroot.priceText },
+            u: number = { parent.count <= 1 ? 0 : (rowIndex - (parent.count - 1) / 2) / ((parent.count - 1) / 2) },
+            x = { parent.left0 + rowIndex * classroot.pitch },
+            y = { parent.bend * (1 - this.u * this.u) }
+            ]
+        ]
+    ]
+
+
+// ── The stage ───────────────────────────────────────────────────────────────
+
+class Stage [ height = 44,
+    accessibilityRole = image, accessibilityLabel = "Stage",
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const w = width
+        d.beginPath()
+        d.fillStyle = t.stage
+        d.moveTo(w * 0.18, 0)
+        d.lineTo(w * 0.82, 0)
+        d.quadraticCurveTo(w * 0.8, height, w * 0.5, height)
+        d.quadraticCurveTo(w * 0.2, height, w * 0.18, 0)
+        d.fill()
+        },
+    TextLabel [ x = center, y = 12, fontSize = 10, fontWeight = semibold, letterSpacing = 3,
+        textColor = { provided("theme").stageText }, text = "STAGE" ]
+    ]
+
+
+// ── The house at a glance ───────────────────────────────────────────────────
+//
+// On a phone the whole house is too small to touch, so it is drawn whole as a
+// map to read — how full it is, where the chosen seats are — with the section
+// being picked from outlined. The seats themselves are chosen below it, at a
+// size a thumb can hit.
+
+class HouseMap [ width = 100%,
+    focus: string = "",
+    accessibilityRole = image,
+    accessibilityLabel = { "The house: " + app.house.free + " of " + app.house.total + " seats free" },
+    pitch: number = { this.width / 34 },
+    rowH: number = { this.pitch * 1.05 },
+    gap: number = 14,
+    rowsTotal: number = { app.house.sections().reduce((n, s) => n + s.rows.length, 0) },
+    height = { 30 + this.rowsTotal * this.rowH + app.house.sections().length * this.gap + 6 },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const w = width
+        // the stage
+        d.beginPath()
+        d.fillStyle = t.stage
+        d.moveTo(w * 0.22, 0)
+        d.lineTo(w * 0.78, 0)
+        d.quadraticCurveTo(w * 0.76, 18, w * 0.5, 18)
+        d.quadraticCurveTo(w * 0.24, 18, w * 0.22, 0)
+        d.fill()
+        let y = 30
+        const ids = app.basket.ids
+        for (const s of app.house.sections()) {
+            const top = y
+            for (const r of s.rows) {
+                const n = r.seats.length
+                const left = (w - n * pitch) / 2
+                r.seats.forEach((seat, i) => {
+                    const u = n <= 1 ? 0 : (i - (n - 1) / 2) / ((n - 1) / 2)
+                    const cx = left + (i + 0.5) * pitch
+                    const cy = y + rowH * 0.5 + rowH * 0.35 * (1 - u * u)
+                    d.beginPath()
+                    if (ids.includes(seat.id)) {
+                        d.fillStyle = t.accent
+                        d.arc(cx, cy, pitch * 0.42, 0, Math.PI * 2)
+                        d.fill()
+                    } else if (seat.status == "sold") {
+                        d.fillStyle = t.seatSold
+                        d.arc(cx, cy, pitch * 0.16, 0, Math.PI * 2)
+                        d.fill()
+                    } else {
+                        d.strokeStyle = t.seatInk
+                        d.lineWidth = 1
+                        d.arc(cx, cy, pitch * 0.3, 0, Math.PI * 2)
+                        d.stroke()
+                    }
+                    })
+                y = y + rowH
+                }
+            if (s.key == focus) {
+                d.beginPath()
+                d.strokeStyle = t.accent
+                d.lineWidth = 1.5
+                d.roundRect(2, top - 4, w - 4, y - top + rowH * 0.4 + 6, 8)
+                d.stroke()
+                }
+            y = y + gap
+            }
+        }
+    ]
+
+
+// One section to choose on a phone: its name, price and how many are free.
+
+class SectionTile extends ChoiceItem [ height = 64, cornerRadius = 12, padding = [10, 12, 10, 12],
+    name: string = "",
+    price: number = 0,
+    left: number = 0,
+    accessibilityLabel = { classroot.name + ", " + money(classroot.price) + ", " + classroot.left + " free" },
+    fill = { provided("theme").surface },
+    stroke = { Stroke(1, provided("theme").line) },
+    State [ applied = { classroot.on }, stroke = { Stroke(2, provided("theme").text) } ],
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 15, fontWeight = semibold, wrap = false, text = { classroot.name } ],
+    Text [ fontSize = 13, numeralWidth = tabular, wrap = false, textColor = { provided("theme").textMuted },
+        text = { money(classroot.price) + " · " + (classroot.left == 0 ? "sold out" : classroot.left + " free") } ]
+    ]
+
+
+// ── The legend ──────────────────────────────────────────────────────────────
+
+class LegendMark [ width = 16, height = 16,
+    kind: string = "free",
+    accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        d.beginPath()
+        if (kind == "sold") {
+            d.fillStyle = t.seatSold
+            d.arc(8, 8, 2.6, 0, Math.PI * 2)
+            d.fill()
+        } else if (kind == "mine") {
+            d.fillStyle = t.accent
+            d.arc(8, 8, 6.5, 0, Math.PI * 2)
+            d.fill()
+            d.beginPath()
+            d.strokeStyle = "#FFFFFF"
+            d.lineWidth = 1.6
+            d.lineCap = "round"
+            d.moveTo(5.2, 8.1); d.lineTo(7.2, 10.1); d.lineTo(10.9, 6)
+            d.stroke()
+        } else {
+            d.strokeStyle = t.seatInk
+            d.lineWidth = 1.6
+            d.arc(8, 8, 5.6, 0, Math.PI * 2)
+            d.stroke()
+        }
+        }
+    ]
+
+
+class Legend [
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        LegendMark [ kind = "free" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Free" ]
+        ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        LegendMark [ kind = "mine" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Yours" ]
+        ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        LegendMark [ kind = "sold" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Taken" ]
+        ]
+    ]
+
+
+// ── A performance in the list ───────────────────────────────────────────────
+//
+// The date as a poster prints it, the time, the lowest price, and a meter of
+// how full the house is. A nearly-full house says so in words too.
+
+class PerfRow extends Control [ width = 100%, height = { app.wide ? 84 : 92 }, padding = [0, 16, 0, 16],
+    perfId: string = { :id ?? "" },
+    starts: string = { :startsAt ?? "" },
+    left: number = { :seatsLeft ?? 0 },
+    seats: number = { :seats ?? 1 },
+    full: number = { 1 - classroot.left / Math.max(1, classroot.seats) },
+    nearlyFull: boolean = { classroot.left > 0 && classroot.left / Math.max(1, classroot.seats) <= 0.15 },
+    soldOut: boolean = { classroot.left == 0 },
+    availability: string = { classroot.soldOut ? "Sold out" : classroot.nearlyFull ? "Nearly sold out · " + classroot.left + " left" : classroot.left + " of " + classroot.seats + " left" },
+    accessibilityLabel = { dayLabel(classroot.starts) + ", " + timeLabel(classroot.starts) + ", from " + money(:priceFromCents ?? 0) + ", " + classroot.availability },
+    disabled = { classroot.soldOut },
+    press() { app.choose(classroot.perfId) },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").quiet : null },
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+
+    date: View [ width = 52, accessibilityHidden = true,
+        layout: SimpleLayout [ axis = y, spacing = 0, align = center ],
+        Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 1.4, textColor = { provided("theme").textMuted },
+            text = { weekday(classroot.starts).toUpperCase() } ],
+        Text [ fontFamily = { app.display }, fontSize = 30, numeralWidth = tabular, text = { dayOfMonth(classroot.starts) } ],
+        Text [ fontSize = 11, letterSpacing = 1, textColor = { provided("theme").textMuted },
+            text = { monthLabel(classroot.starts).toUpperCase() } ]
+        ],
+    mid: View [ flexes = true, accessibilityHidden = true,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ fontSize = 17, fontWeight = semibold, text = { timeLabel(classroot.starts) + (timeLabel(classroot.starts).startsWith("2") ? " · matinée" : "") } ],
+        meter: View [ width = { Math.min(220, parent.width) }, height = 4, cornerRadius = 2, fill = { provided("theme").meterTrack },
+            View [ height = 4, cornerRadius = 2, width = { parent.width * classroot.full }, fill = { provided("theme").meterFill } ]
+            ],
+        Text [ fontSize = 13, numeralWidth = tabular,
+            fontWeight = { classroot.nearlyFull ? "semibold" : "regular" },
+            textColor = { classroot.nearlyFull ? provided("theme").text : provided("theme").textMuted },
+            text = { classroot.availability } ]
+        ],
+    price: View [ accessibilityHidden = true,
+        layout: SimpleLayout [ axis = y, spacing = 0, align = end ],
+        Text [ fontSize = 11, textColor = { provided("theme").textMuted }, text = "from" ],
+        Text [ fontSize = 17, fontWeight = semibold, numeralWidth = tabular, text = { money(:priceFromCents ?? 0) } ]
+        ],
+    Chevron [ ]
+    ]
+
+
+class Chevron [ width = 10, height = 16, accessibilityHidden = true,
+    draw(d: DrawContext) {
+        d.beginPath()
+        d.strokeStyle = provided("theme").textFaint
+        d.lineWidth = 1.6
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.moveTo(2.5, 2.5); d.lineTo(7.5, 8); d.lineTo(2.5, 13.5)
+        d.stroke()
+        }
+    ]
+
+
+// ── A saved card ────────────────────────────────────────────────────────────
+//
+// Shown as a person recognises a card: its kind, its last four, its expiry.
+// One that has expired says so and cannot be chosen.
+
+class CardChoice extends ChoiceItem [ width = 100%, height = 56, cornerRadius = 10, padding = [0, 14, 0, 14],
+    title: string = "",
+    detail: string = "",
+    expired: boolean = false,
+    disabled = { classroot.expired },
+    accessibilityLabel = { classroot.title + ", " + classroot.detail },
+    fill = { provided("theme").surface },
+    stroke = { Stroke(1, provided("theme").line) },
+    State [ applied = { classroot.on }, stroke = { Stroke(2, provided("theme").text) } ],
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    dot: View [ width = 18, height = 18, cornerRadius = 9, accessibilityHidden = true,
+        stroke = { Stroke(classroot.on ? 5.5 : 1.5, classroot.expired ? provided("theme").lineStrong : provided("theme").text) } ],
+    Text [ flexes = true, fontSize = 15, fontWeight = medium, numeralWidth = tabular, wrap = false,
+        textColor = { classroot.expired ? provided("theme").textFaint : provided("theme").text }, text = { classroot.title } ],
+    Text [ fontSize = 13, numeralWidth = tabular, wrap = false,
+        fontWeight = { classroot.expired ? "semibold" : "regular" },
+        textColor = { classroot.expired ? provided("theme").error : provided("theme").textMuted }, text = { classroot.detail } ]
+    ]
+
+
+// ── A ticket ────────────────────────────────────────────────────────────────
+//
+// The thing held up at the door: the seat in large type, the performance and
+// when to arrive, and a code to scan. Drawn as a ticket — a stub, a
+// perforation — not as a message.
+
+class Barcode [ height = 64,
+    code: string = "",
+    accessibilityRole = image,
+    accessibilityLabel = { "Barcode " + classroot.code },
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        // a deterministic pattern from the code's characters, with guard bars at each end
+        const bars: number[] = [2, 1, 1, 1]
+        for (let i = 0; i < code.length; i++) {
+            const c = code.charCodeAt(i)
+            bars.push(1 + (c % 3), 1 + ((c >> 2) % 2), 1 + ((c >> 3) % 3), 1 + ((c >> 1) % 2))
+            }
+        bars.push(1, 1, 2)
+        const units = bars.reduce((n, b) => n + b, 0)
+        const u = width / units
+        let x = 0
+        d.fillStyle = t.ticketInk
+        bars.forEach((b, i) => {
+            if (i % 2 == 0) d.fillRect(x, 0, b * u, height)
+            x = x + b * u
+            })
+        }
+    ]
+
+
+class TicketCard [ width = 100%, cornerRadius = 18,
+    ticket: Ticket? = null,
+    index: number = 0,
+    of: number = 0,
+    perf: Performance? = null,
+    title: string = "",
+    hall: string = "",
+    fill = { provided("theme").ticketPaper },
+    shadow = { Shadow(0, 14, 40, 0x2A20182E) },
+    accessibilityRole = group,
+    accessibilityLabel = { "Ticket " + classroot.index + " of " + classroot.of },
+    layout: SimpleLayout [ axis = y ],
+
+    head: View [ width = 100%, padding = [22, 24, 18, 24], cornerRadius = [18, 18, 0, 0],
+        fill = { provided("theme").ticketInk }, textColor = { provided("theme").stageText },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 2, opacity = 0.75,
+            text = { classroot.hall.toUpperCase() + " · TICKET " + classroot.index + " OF " + classroot.of } ],
+        Text [ width = 100%, fontFamily = { app.display }, fontSize = 26, wrap = true, text = { classroot.title } ],
+        Text [ fontSize = 16, numeralWidth = tabular,
+            text = { dayLabel(classroot.perf?.startsAt ?? "") + " · " + timeLabel(classroot.perf?.startsAt ?? "") } ]
+        ],
+
+    seat: View [ width = 100%, padding = [22, 24, 6, 24],
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.6, textColor = { provided("theme").textMuted },
+            text = { (classroot.ticket?.section ?? "").toUpperCase() } ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 28, align = end ],
+            View [ layout: SimpleLayout [ axis = y ],
+                Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "Row" ],
+                Text [ fontFamily = { app.display }, fontSize = 56, text = { classroot.ticket?.row ?? "" } ]
+                ],
+            View [ layout: SimpleLayout [ axis = y ],
+                Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "Seat" ],
+                Text [ fontFamily = { app.display }, fontSize = 56, numeralWidth = tabular, text = { "" + (classroot.ticket?.number ?? "") } ]
+                ]
+            ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+            Text [ fontSize = 14, textColor = { provided("theme").textMuted }, text = "Doors open" ],
+            Text [ fontSize = 16, fontWeight = semibold, text = { timeLabel(classroot.perf?.doorsAt ?? "") } ],
+            Text [ fontSize = 14, textColor = { provided("theme").textMuted }, text = "— please arrive by then" ]
+            ]
+        ],
+
+    // the perforation: a dashed rule between notches
+
+    tear: View [ width = 100%, height = 28, accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const t = provided("theme")
+            d.fillStyle = t.background
+            d.beginPath(); d.arc(0, 14, 11, 0, Math.PI * 2); d.fill()
+            d.beginPath(); d.arc(width, 14, 11, 0, Math.PI * 2); d.fill()
+            d.strokeStyle = t.lineStrong
+            d.lineWidth = 1.5
+            d.setLineDash([5, 6])
+            d.beginPath(); d.moveTo(20, 14); d.lineTo(width - 20, 14); d.stroke()
+            }
+        ],
+
+    stub: View [ width = 100%, padding = [4, 24, 22, 24],
+        layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+        Barcode [ width = 100%, code = { classroot.ticket?.barcode ?? "" } ],
+        Text [ fontSize = 15, fontWeight = semibold, letterSpacing = 2, numeralWidth = tabular,
+            text = { classroot.ticket?.barcode ?? "" } ]
+        ]
+    ]

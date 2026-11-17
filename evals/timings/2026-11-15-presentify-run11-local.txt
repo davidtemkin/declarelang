@@ -1,0 +1,48 @@
+# eval-presentify-11
+total 34.3 min · 129 turns · output 174364 tokens (thinking 58599)
+phases: reading 5.3 · writing 0.0 · checking 28.9 min
+tool time 7.9 min · model time 26.4 min
+tokens: input 244 · cache write 434296 · cache read 37327056 · output 174364 · thinking 58599
+rate: 6604 output tokens per model-minute
+tools:
+  verify    40×   6.53 min  (median 3.2 s)
+  bash      22×   0.53 min  (median 0.0 s)
+  look       8×   0.43 min  (median 3.6 s)
+  help      17×   0.35 min  (median 0.8 s)
+  read      12×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     22×   6.08 min  (median 6.0 s)
+  after write    10×   5.11 min  (median 21.1 s)
+  after help     17×   4.80 min  (median 3.7 s)
+  after image    17×   4.52 min  (median 9.4 s)
+  after verify   40×   3.79 min  (median 4.0 s)
+  after edit      1×   1.18 min  (median 70.9 s)
+  after read     12×   0.42 min  (median 1.9 s)
+  after look      8×   0.22 min  (median 1.3 s)
+app: 8 .declare files, 2744 non-blank lines · 38 snapshots changed them: 3494 lines added, 284 removed
+verify results mentioning accessibility: 4
+source reads: library 2 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/segmented.declare
+            library  library/dialog.declare
+diagnostic codes, by tool results reporting them: DECLARE6001 3, DECLARE4025 2, DECLARE4035 2, DECLARE2000 1, DECLARE5000 1, DECLARE1002 1, DECLARE4020 1, DECLARE4038 1
+inside the agent's verify and look calls:
+   5.88 min    31×  R5 behavior, in all
+   5.36 min    31×  script: the assert script, in all
+   1.88 min   295×  drive.moveBy
+   0.81 min   208×  drive.click
+   0.54 min   148×  drive.press
+   0.42 min    36×  page: load, compile in the page and boot
+   0.42 min    31×  open: the app loaded and arrived, in all
+   0.41 min    25×  compile (R1–R3)
+   0.29 min   175×  check: scrolling come to rest
+   0.28 min    92×  drive.settleData
+   0.21 min     4×  drive.profile
+   0.21 min     7×  drive.waitReal
+   0.20 min    72×  drive.wait
+   0.20 min    63×  drive.settleMotion
+   0.17 min   191×  drive.key
+   0.15 min    43×  drive.clickAt
+   0.13 min   148×  drive.release
+   0.05 min     5×  R4 boot, in all
+   0.05 min    47×  drive.type
+   0.05 min    10×  drive.dblclick

@@ -1,0 +1,46 @@
+# eval-presentify-14
+total 38.1 min · 146 turns · output 193649 tokens (thinking 69822)
+phases: reading 4.4 · writing 0.0 · checking 33.7 min
+tool time 8.6 min · model time 29.5 min
+tokens: input 254 · cache write 459155 · cache read 40756939 · output 193649 · thinking 69822
+rate: 6567 output tokens per model-minute
+tools:
+  verify    44×   6.86 min  (median 2.8 s)
+  look      18×   1.22 min  (median 3.9 s)
+  help       8×   0.34 min  (median 2.7 s)
+  bash      29×   0.16 min  (median 0.0 s)
+  read       8×   0.02 min  (median 0.1 s)
+model turns, by what came before:
+  after bash     29×   7.77 min  (median 3.3 s)
+  after verify   43×   6.45 min  (median 4.4 s)
+  after write     9×   4.70 min  (median 9.1 s)
+  after help      8×   3.52 min  (median 3.1 s)
+  after look     18×   3.48 min  (median 5.4 s)
+  after image    28×   1.81 min  (median 2.0 s)
+  after edit      1×   1.30 min  (median 77.8 s)
+  after read      8×   0.27 min  (median 2.0 s)
+app: 8 .declare files, 2897 non-blank lines · 44 snapshots changed them: 3635 lines added, 330 removed
+verify results mentioning accessibility: 5
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+diagnostic codes, by tool results reporting them: DECLARE4025 4, DECLARE4022 3, DECLARE6001 3, DECLARE1000 2, DECLARE1002 2, DECLARE4035 2, DECLARE4000 1, DECLARE4015 1, DECLARE2000 1, DECLARE4032 1, DECLARE4020 1, DECLARE4023 1, DECLARE4004 1
+inside the agent's verify and look calls:
+   6.48 min    41×  R5 behavior, in all
+   5.79 min    41×  script: the assert script, in all
+   0.72 min   254×  drive.settleMotion
+   0.72 min   126×  locator.click
+   0.66 min   103×  drive.moveBy
+   0.65 min   390×  check: scrolling come to rest
+   0.63 min    59×  page: load, compile in the page and boot
+   0.55 min    41×  open: the app loaded and arrived, in all
+   0.53 min    34×  drive.waitReal
+   0.53 min    52×  compile (R1–R3)
+   0.40 min   109×  drive.click
+   0.33 min   107×  drive.settleData
+   0.25 min   183×  drive.key
+   0.25 min    70×  drive.press
+   0.20 min    57×  drive.clickAt
+   0.19 min    18×  R4 boot, in all
+   0.14 min   271×  locator: wait a tick for it
+   0.11 min    43×  drive.wait
+   0.08 min    59×  page: a new page
+   0.07 min   390×  check: the layout questions

@@ -13,26 +13,26 @@ App [ theme = SanFrancisco, fill = { provided("theme").background },
     cardW:  number  = { (app.width - 80) / 3 },       // three cards, two 16px gaps, 24px margins
 
     header: View [ x = 0, y = 0, width = { app.width }, height = 56, fill = { provided("theme").surface },
-        stroke = { stroke(1, provided("theme").line) },
+        stroke = { Stroke(1, provided("theme").line) },
         Text [ x = 24, y = 17, fontSize = 18, fontWeight = semibold, textColor = { provided("theme").text },
             text = { app.title } ]
         ],
 
-    c0: View [ height = 120, cornerRadius = 10, fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+    c0: View [ height = 120, cornerRadius = 10, fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
         x = 24,
         y = { app.narrow ? 80 : 80 },
         width = { app.narrow ? app.width - 48 : app.cardW },
         Text [ x = 16, y = 14, fontWeight = semibold, textColor = { provided("theme").text }, text = "Visitors" ]
         ],
 
-    c1: View [ height = 120, cornerRadius = 10, fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+    c1: View [ height = 120, cornerRadius = 10, fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
         x = { app.narrow ? 24 : 24 + app.cardW + 16 },
         y = { app.narrow ? 216 : 80 },
         width = { app.narrow ? app.width - 48 : app.cardW },
         Text [ x = 16, y = 14, fontWeight = semibold, textColor = { provided("theme").text }, text = "Revenue" ]
         ],
 
-    c2: View [ height = 120, cornerRadius = 10, fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+    c2: View [ height = 120, cornerRadius = 10, fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
         x = { app.narrow ? 24 : 24 + 2 * (app.cardW + 16) },
         y = { app.narrow ? 352 : 80 },
         width = { app.narrow ? app.width - 48 : app.cardW },
@@ -41,5 +41,5 @@ App [ theme = SanFrancisco, fill = { provided("theme").background },
 
     footer: View [ x = 0, width = { app.width }, height = 40, fill = { provided("theme").surface },
         y = { app.height - 40 },
-        stroke = { stroke(1, provided("theme").line) } ]
+        stroke = { Stroke(1, provided("theme").line) } ]
     ]

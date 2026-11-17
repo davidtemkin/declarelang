@@ -1,0 +1,400 @@
+--- runtime/src/backend.ts	2026-09-01 11:03:26
++++ runtime/src/backend.ts	2026-11-17 00:54:31
+@@ -139,6 +139,17 @@
+    *  room off the box edge. 0 = flush (the default). */
+   padding: number;
+   placeholder: string;
++  /** The native input type — "text" (default), "password", "email", "tel",
++   *  "url", "search", "number". Ignored for a multiline field. */
++  inputType?: string;
++  /** The HTML autofill token ("email", "cc-number", "current-password", …)
++   *  — what lets the browser's password manager and card/address autofill
++   *  recognise the field. "" = none. */
++  autocomplete?: string;
++  /** The virtual-keyboard hint ("numeric", "email", "tel", …). "" = none. */
++  inputMode?: string;
++  /** The field's form name — a second signal autofill heuristics read. */
++  fieldName?: string;
+   style: TextStyle;
+   /** The user typed — carry the native element's value to the model. */
+   onInput: (value: string) => void;
+@@ -340,6 +351,18 @@
+    *  they lose only the browser-native affordances. */
+   setLink?(href: string, label?: string): void;
+ 
++  /** OPTIONAL — the semantics seam: present this view to assistive technology
++   *  with an ARIA `role` ("" = none) and `aria` states/properties (keys without
++   *  the `aria-` prefix; booleans as "true"/"false", null removes). An editable
++   *  surface applies them to its native element. `onFocusIn` reports platform
++   *  focus arriving on the element from outside the focus service. */
++  setSemantics?(role: string, aria: Record<string, unknown> | null, onFocusIn: () => void): void;
++
++  /** OPTIONAL — give (true) or take (false) real platform focus for a
++   *  non-editable view the focus service has focused, so assistive technology
++   *  follows Declare focus. */
++  setDomFocus?(focused: boolean): void;
++
+   /** OPTIONAL — true when this backend measures rich text ASYNCHRONOUSLY (the
+    *  DOM's ResizeObserver reports the flowed height after layout, a frame
+    *  behind the render — §12.1's measured mechanism). The reveal machinery
+--- runtime/src/dom-backend.ts	2026-09-01 11:03:26
++++ runtime/src/dom-backend.ts	2026-11-17 00:54:57
+@@ -815,6 +815,13 @@
+   /** Set once the drawing raster has ever existed (arms the dpr watch once). */
+   private watching = false;
+   private gone = false;
++  /** The semantics seam's retained state — re-applied when an editable
++   *  element is (re)created, since an editable's semantics live on it. */
++  private semRole = "";
++  private semAria: Record<string, unknown> | null = null;
++  private semApplied = new Set<string>();
++  private semFocusIn: (() => void) | null = null;
++  private semListening = false;
+ 
+   constructor() {
+     const el = document.createElement("div");
+@@ -1373,8 +1380,70 @@
+       ? (this.linkBase ?? loc.pathname + loc.search) + href
+       : href;
+     if (label !== "") this.linkEl.setAttribute("aria-label", label);
++  }
++
++  setSemantics(role: string, aria: Record<string, unknown> | null, onFocusIn: () => void): void {
++    this.semRole = role;
++    this.semAria = aria;
++    this.semFocusIn = onFocusIn;
++    this.applySemantics();
+   }
+ 
++  /** Write role + aria-* onto the semantic element (the native editable when
++   *  there is one, else the box), removing what the previous record set. */
++  private applySemantics(): void {
++    const el: HTMLElement = this.editEl ?? this.element;
++    if (this.editEl !== null && this.element.hasAttribute("data-declare-focus")) {
++      // semantics arrived before the editable did — move them off the box
++      const box = this.element;
++      box.removeAttribute("role");
++      box.removeAttribute("tabindex");
++      delete box.dataset.declareFocus;
++      for (const name of this.semApplied) box.removeAttribute(name);
++      this.semApplied = new Set();
++    }
++    if (this.semRole !== "") el.setAttribute("role", this.semRole);
++    else el.removeAttribute("role");
++    const next = new Set<string>();
++    const rec = this.semAria;
++    if (rec !== null && typeof rec === "object") {
++      for (const k of Object.keys(rec)) {
++        const v = rec[k];
++        if (v === null || v === undefined || v === "") continue;
++        const name = "aria-" + k.toLowerCase();
++        el.setAttribute(name, typeof v === "boolean" ? (v ? "true" : "false") : String(v));
++        next.add(name);
++      }
++    }
++    for (const name of this.semApplied) if (!next.has(name)) el.removeAttribute(name);
++    this.semApplied = next;
++    // A non-editable semantic element must be able to hold platform focus
++    // (programmatic only — Tab order stays the focus service's).
++    if (this.editEl === null && (this.semRole !== "" || rec !== null)) this.ensureFocusable();
++  }
++
++  private ensureFocusable(): void {
++    const el = this.element;
++    if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
++    el.dataset.declareFocus = "";
++    el.style.outline = "none";
++    if (!this.semListening) {
++      this.semListening = true;
++      el.addEventListener("focus", (e) => { if (e.target === el) this.semFocusIn?.(); });
++    }
++  }
++
++  setDomFocus(focused: boolean): void {
++    if (this.editEl !== null) return;   // an editable's caret is activateEditable's
++    const el = this.element;
++    if (focused) {
++      this.ensureFocusable();
++      if (el.ownerDocument.activeElement !== el) el.focus({ preventScroll: true });
++    } else if (el.ownerDocument.activeElement === el) {
++      el.blur();
++    }
++  }
++
+   revealRichAnchor(slug: string, _within: number, inset = 0): boolean {
+     // The heading is a real element in the flow (setRichContent tagged it with
+     // `data-anchor`); scroll IT — `within` is the canvas path's concern. Missing
+@@ -1997,6 +2066,18 @@
+       el.style.overflow = "auto";
+     }
+     if (prev === null || prev.placeholder !== spec.placeholder) (el as HTMLInputElement).placeholder = spec.placeholder;
++    if (el instanceof HTMLInputElement) {
++      const t = spec.inputType ?? "text";
++      if (el.type !== t) el.type = t;
++    }
++    const setOpt = (name: string, v: string | undefined): void => {
++      if (v === undefined || v === "") el.removeAttribute(name);
++      else if (el.getAttribute(name) !== v) el.setAttribute(name, v);
++    };
++    setOpt("autocomplete", spec.autocomplete);
++    setOpt("inputmode", spec.inputMode);
++    setOpt("name", spec.fieldName);
++    if (prev === null && (this.semRole !== "" || this.semAria !== null)) this.applySemantics();
+     if (prev === null || !editStyleEq(prev.style, spec.style)) applyEditStyle(el, spec.style);
+     applyEditScheme(el, this.fillV);
+   }
+--- runtime/src/focus.ts	2026-09-01 11:03:26
++++ runtime/src/focus.ts	2026-11-17 00:54:31
+@@ -12,7 +12,7 @@
+ // §mutation. Keyboard delivery to the focused view (Keys → onKeyDown/onKeyUp)
+ // is wired by the runtime entry, not here, keeping this layer independent.
+ 
+-import { View, fireEvent, setFocusDiscardHook } from "./view.js";
++import { View, fireEvent, setFocusDiscardHook, setDomFocusHook } from "./view.js";
+ import type { KeysService } from "./keys.js";
+ import { Cell, Constraint } from "./reactive.js";
+ import { rootFrameBox, type InteractionView } from "./interaction.js";
+@@ -371,3 +371,7 @@
+ // that is being torn down. One-directional — focus.ts imports view.ts, not the
+ // reverse — so no import cycle.
+ setFocusDiscardHook((view) => Focus.noteDiscarded(view));
++// Platform focus landing on a view's element (assistive technology moving its
++// cursor, a script calling element.focus()) claims Declare focus — unless it is
++// the echo of focus the service itself just gave.
++setDomFocusHook((view) => { if (Focus.getFocus() !== view) Focus.focus(view); });
+--- runtime/src/keys.ts	2026-09-01 11:03:26
++++ runtime/src/keys.ts	2026-11-17 00:54:31
+@@ -200,7 +200,10 @@
+       // browser's defaults (page scroll) must stand down. A native editable
+       // (its own element focused) keeps every default: typing a space in a
+       // field is a space.
+-      if (document.activeElement === document.body || document.activeElement === null) {
++      // A non-editable view holding platform focus (the semantics seam's
++      // stand-in element) counts as the body here: its keys are Declare's.
++      const ae = document.activeElement as HTMLElement | null;
++      if (ae === document.body || ae === null || ae.dataset?.declareFocus !== undefined) {
+         const nav = ev.key === " " || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "ArrowLeft" || ev.key === "ArrowRight";
+         const jump = ev.key === "Home" || ev.key === "End" || ev.key === "PageUp" || ev.key === "PageDown";
+         if ((nav && (focusHolds() || this.navClaimed())) || (jump && this.navClaimed())) ev.preventDefault();
+--- runtime/src/schema.ts	2026-09-01 11:03:26
++++ runtime/src/schema.ts	2026-11-17 00:54:31
+@@ -298,6 +298,11 @@
+     // customized by overriding the `tabOrder()` method.
+     focusable: { kind: "boolean" },
+     focusTrap: { kind: "boolean" },
++    // Accessibility semantics: the ARIA `role` this view presents ("" = none)
++    // and an `aria` record of states/properties keyed without the prefix
++    // (`{ label: "…", pressed: true, live: "polite" }`). DOM-realized.
++    role: { kind: "string" },
++    aria: { kind: "object" },
+     // Anchor name (location.md §6): give a view a name and a fragment `@name`
+     // brings it into view. This is the "named view" half of the reveal namespace
+     // (heading slugs are the other); resolution is views-before-slugs, preorder,
+@@ -739,6 +744,12 @@
+     spellcheck: { kind: "boolean" },
+     wrap: { kind: "boolean" },
+     padding: { kind: "number" },
++    // Native field semantics: the input type ("password" hides what is typed),
++    // the autofill token, the virtual-keyboard hint, and the form name.
++    inputType: { kind: "string" },
++    autocomplete: { kind: "string" },
++    inputMode: { kind: "string" },
++    fieldName: { kind: "string" },
+     // The UNCONTROLLED seed (cf. React's defaultValue vs value): `text` follows
+     // `initial` until the user edits, then holds the edit — for a field started
+     // from a value (a pristine source) that must stay writable. Being one-shot
+--- runtime/src/text-input.ts	2026-09-01 11:03:26
++++ runtime/src/text-input.ts	2026-11-17 00:54:31
+@@ -32,6 +32,10 @@
+   declare padding: number;
+   declare initial: string;
+   declare focused: boolean;
++  declare inputType: string;
++  declare autocomplete: string;
++  declare inputMode: string;
++  declare fieldName: string;
+   // The editor session (commitOn / error / valid / dirty + commit()/revert())
+   // is inherited from Editor; `text` is this editor's draft slot.
+   protected override draftSlot(): string { return "text"; }
+@@ -114,6 +118,10 @@
+       wrap: this.wrap,
+       padding: this.padding,
+       placeholder: this.placeholder,
++      inputType: this.inputType,
++      autocomplete: this.autocomplete,
++      inputMode: this.inputMode,
++      fieldName: this.fieldName,
+       style: this.editStyle(),
+       onInput: (v) => this.onNativeInput(v),
+       // The native element ECHOES focus the runtime just gave it (Tab →
+@@ -222,5 +230,9 @@
+   padding: { def: 0, push: (t) => t.syncEditable() },
+   initial: { def: "" },
+   focused: { def: false },
++  inputType: { def: "text", push: (t) => t.syncEditable() },
++  autocomplete: { def: "", push: (t) => t.syncEditable() },
++  inputMode: { def: "", push: (t) => t.syncEditable() },
++  fieldName: { def: "", push: (t) => t.syncEditable() },
+   // commitOn / error / valid / dirty are declared on the Editor base.
+ });
+--- runtime/src/view.ts	2026-09-01 11:03:26
++++ runtime/src/view.ts	2026-11-17 00:54:31
+@@ -249,6 +249,14 @@
+   declare link: string;
+   declare replace: boolean;
+   declare shows: string;
++  /** Accessibility semantics (the semantics seam): `role` is the ARIA role this
++   *  view presents to assistive technology ("" = none, a plain container);
++   *  `aria` is a record of ARIA states and properties, keyed without the
++   *  `aria-` prefix (`{ label: "Orchestra, row C, seat 14", pressed: true }`).
++   *  Realized by backends that have an accessibility tree (DOM); a no-op
++   *  elsewhere. On a TextInput both land on the native editable element. */
++  declare role: string;
++  declare aria: Record<string, unknown> | null;
+   /** Clip the subtree (paint AND hit-test). Two forms on one slot: a Shape
+    *  string clips to that SVG path (view-local coordinates); the boolean
+    *  box-clip `true` clips to the view's own box (0,0,width,height), tracking
+@@ -663,8 +671,19 @@
+    *  `onFocus`/`onBlur` handlers, so a built-in component (TextInput) can drive
+    *  its native element without occupying the author's event slot. No-op on a
+    *  plain view. */
+-  focusChanged(_focused: boolean): void {}
++  focusChanged(focused: boolean): void {
++    // Real platform focus follows Declare focus, so assistive technology and
++    // `document.activeElement` agree with the focus service.
++    this.surface?.setDomFocus?.(focused);
++  }
+ 
++  /** Push `role`/`aria` across the seam; the callback reports platform focus
++   *  arriving on this view's element (a screen reader's virtual cursor, a
++   *  test's element.focus()) so Declare focus can follow it. */
++  pushSemantics(): void {
++    this.surface?.setSemantics?.(this.role, this.aria, () => domFocusHook?.(this));
++  }
++
+   /** The OPTICAL band the `center` position literal centers — { lead, size }
+    *  along the given axis, in this view's own coordinates. The base answer is
+    *  the whole box (lead 0); Text overrides the y axis with its ink band (cap
+@@ -780,6 +799,7 @@
+     // its REAL anchor where the backend can (location.md §0.4)
+     if (this.cursor === "" && this.link !== "") s.setCursor("pointer");
+     if (this.link !== "") s.setLink?.(this.link, (this as unknown as { label?: string }).label ?? "");
++    if (this.role !== "" || this.aria !== null) this.pushSemantics();
+     if (this.draw) this.bindDraw();
+   }
+ 
+@@ -1308,6 +1328,8 @@
+   blend: { def: "normal", push: (v, b: string) => v.surface?.setBlend?.(b) },
+   backdrop: { def: null, push: (v, b) => v.surface?.setBackdrop?.(b), equal: backdropEqual },
+   focusable: { def: false },
++  role: { def: "", push: (v) => v.pushSemantics() },
++  aria: { def: null, push: (v) => v.pushSemantics() },
+   focusTrap: { def: false },
+   // `anchor` — the view's name in the reveal namespace (location.md §6). A stored
+   // slot the reveal walk reads after settle; "" = not an anchor. No push: it has
+@@ -1441,6 +1463,13 @@
+   focusDiscardHook = fn;
+ }
+ 
++/** Platform focus arrived on a view's element from outside the focus service
++ *  (registered by focus.ts — the same one-directional seam as above). */
++let domFocusHook: ((view: View) => void) | null = null;
++export function setDomFocusHook(fn: (view: View) => void): void {
++  domFocusHook = fn;
++}
++
+ /** A node's address for an error message: its authored-name path up the tree
+  *  (`app.pulse.card`), or its class when anonymous. Cheap, and built only once
+  *  a handler has already thrown. */
+--- library/button.declare	2026-09-01 11:03:26
++++ library/button.declare	2026-11-17 01:28:33
+@@ -70,6 +70,12 @@
+     onClick() { },
+     press()   { flashPress(); if (menu != null) openMenu(); onClick() },
+ 
++    // what assistive technology meets: a button, named by its label (its
++    // text content), saying when it is inert or drops a menu
++
++    role = "button",
++    aria = { { disabled: disabled ? true : null, haspopup: menu != null ? "menu" : null } },
++
+     // one ink decision, so a primary button's icon and its label agree
+ 
+     inkColor: Color = { primary ? theme.accentText : theme.text },
+--- library/segmented.declare	2026-09-01 11:03:26
++++ library/segmented.declare	2026-11-17 01:28:33
+@@ -202,6 +202,7 @@
+     height = 30,
+     cornerRadius = 8,
+     fill = { theme.control },
++    role = "radiogroup",
+ 
+     segMin: number = 96,            // per-segment width when the author sets none
+     count:  number = { Math.max(1, ((this.choices ?? []) as any).length) },
+@@ -280,6 +281,11 @@
+     x      = { 2 + :i * (parent as Segmented).segW },
+ 
+     on: boolean = { (parent as Segmented).value === :id },
++
++    // a radio in its group, to assistive technology — named by its label
++
++    role = "radio",
++    aria = { { checked: this.on, label: :icon != null ? "" + :id : null } },
+ 
+     // Rest, hover and press only — the CHOSEN state is the sliding pill behind
+     // these, not a fill of their own. That is what lets it travel between them.
+--- tools/internal/doc/prose/TextInput.md	2026-09-01 11:03:26
++++ tools/internal/doc/prose/TextInput.md	2026-11-17 01:28:29
+@@ -58,6 +58,25 @@
+ ## padding
+ Inner padding around the text, in px.
+ 
++## inputType
++The native input type: `"text"` (default), `"password"`, `"email"`, `"tel"`, `"url"`,
++`"search"`, `"number"`. `"password"` is what hides what is typed **and** what a browser's
++password manager keys on; swap it to `"text"` reactively for a show-password control. Ignored
++on a `multiline` field.
++
++## autocomplete
++The HTML autofill token — `"email"`, `"username"`, `"current-password"`, `"cc-number"`,
++`"cc-exp"`, `"cc-csc"`, `"cc-name"`, `"address-line1"`, `"postal-code"`, …. Without it a
++browser's card, address and password autofill cannot tell the fields apart.
++
++## inputMode
++The on-screen keyboard to bring up: `"numeric"` for a card number or code, `"email"`,
++`"tel"`, `"decimal"`. A hint only — it constrains nothing; validate as usual.
++
++## fieldName
++The field's form name (HTML `name`) — a second signal autofill heuristics read beside
++`autocomplete`.
++
+ ## initial
+ An **uncontrolled seed** — React's `defaultValue` to `text`'s `value`: `text` starts at
+ `initial`, then holds the user's edits. For a field pre-filled from a value that must stay
+--- tools/internal/doc/prose/View.md	2026-09-01 11:03:26
++++ tools/internal/doc/prose/View.md	2026-11-17 01:28:29
+@@ -576,7 +576,24 @@
+ lineage, reborn reactive: the anchor namespace is named views (this attribute) plus
+ heading slugs inside rendered rich text — a heading needs nothing from you. Resolution
+ prefers views over slugs, preorder-first.
++
++## role
++The ARIA role this view presents to assistive technology (`"button"`, `"radio"`,
++`"dialog"`, `"status"`, …); `""` (the default) is a plain container. Views are painted, so
++nothing is implied: a view with `onClick` is **not** a button to a screen reader until it says
++so. A role makes the view able to hold real platform focus (programmatically — Tab order stays
++the focus service's), so focus a role-carrying view with `Focus.focus` and assistive technology
++follows. On a `TextInput` it lands on the native element. DOM-realized; a no-op on canvas.
+ 
++## aria
++ARIA states and properties as a record, keyed **without** the `aria-` prefix:
++`aria = { { label: "Orchestra, row C, seat 14", pressed: chosen, disabled: gone ? true : null } }`.
++Booleans render as `"true"`/`"false"` (so `pressed: false` is meaningful); `null`, `undefined`
++and `""` remove the attribute, and a key absent from the next record is removed. A constraint
++like any other — the announcement stays true as the data changes. `label` names a view whose
++text content would not (a drawn mark, a composed row); `live: "polite"` makes a status region;
++`hidden: true` takes a subtree out of the accessibility tree (the page behind a modal sheet).
++
+ ## selectable
+ Opt this run back into native text selection / copy (default `false`). Off by default
+ so an app doesn't feel like a document; turn it on for content a user should be able to

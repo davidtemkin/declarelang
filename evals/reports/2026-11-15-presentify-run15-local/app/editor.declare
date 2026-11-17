@@ -1,0 +1,586 @@
+/*
+# Presentify: the editor
+
+`Editor` is the machinery of working on one slide: what is selected and its
+box, the drags (move, resize, round a corner, move a line's end, draw, the
+marquee), the snapping and its guides, typing in place, and every verb the
+toolbar, the menus, the keys and the inspector run. It has no view; the
+views below and in the App read it and call it.
+
+Every verb that changes the slide calls `app.history.checkpoint()` first, so
+one thing the person does is one step of undo: a whole drag is one, a run of
+typing is one, a change in the inspector is one.
+
+Its writes go to the document, `app.doc`, as whole lists of elements made
+by the pure functions in geometry.ts. The service hears about them from Sync.
+
+Below it are the views drawn over the slide while editing: the selection's
+frame and handles, a line's two ends, the corner-radius handle, the guides,
+the marquee, and the layer that takes presses while a drawing tool is on.
+They live in slide points, on a layer scaled exactly as the slide is, so a
+handle sits where its corner is; their sizes divide by the scale, so a handle
+is the same size on screen whatever the window.
+*/
+
+schema Draft [ elements[]: Element ]
+
+class Editor extends Node [
+    k: number = { app.stageScale },                     // screen pixels per slide point
+    els: Element[] = { app.doc.elementsOf(app.currentId) },
+    sel: Element[] = { pick(classroot.els, app.selection) },
+    box: Box? = { boundsOf(classroot.els, app.selection) },
+    single: Element? = { classroot.sel.length == 1 ? classroot.sel[0] : null },
+    lineOnly: boolean = { classroot.single?.kind == "line" },
+    leaves: Element[] = { leavesOf(classroot.sel) },
+    tops: string[] = { [...new Set(app.selection.map((id) => topOf(classroot.els, id)))] },
+
+    // ── what the inspector shows: one value, "mixed", or "" for none apply
+
+    shapes: Element[] = { classroot.leaves.filter((e) => e.kind == "rect" || e.kind == "ellipse") },
+    outlined: Element[] = { classroot.leaves.filter((e) => e.kind != "text") },
+    texts: Element[] = { classroot.leaves.filter((e) => e.kind == "text") },
+    rects: Element[] = { classroot.leaves.filter((e) => e.kind == "rect") },
+    sized: Element[] = { classroot.leaves.filter((e) => e.kind != "line") },
+    fillNow: string = { common(classroot.shapes.map((e) => Color.hex(e.fill ?? null) ?? "none")) },
+    lineNow: string = { common(classroot.outlined.map((e) => e.stroke == null ? "none" : Color.hex(e.stroke.color) ?? "none")) },
+    lineWidthNow: string = { common(classroot.outlined.filter((e) => e.stroke != null).map((e) => "" + (e.stroke?.width ?? 0))) },
+    radiusNow: string = { common(classroot.rects.map((e) => "" + Math.round(e.cornerRadius ?? 0))) },
+    keepNow: string = { common(classroot.sized.map((e) => "" + (e.keepProportions ?? false))) },
+    fontNow: string = { common(classroot.texts.map((e) => e.text?.font ?? "")) },
+    sizeNow: string = { common(classroot.texts.map((e) => "" + (e.text?.size ?? 32))) },
+    weightNow: string = { common(classroot.texts.map((e) => "" + (e.text?.weight ?? 400))) },
+    italicNow: string = { common(classroot.texts.map((e) => "" + (e.text?.italic ?? false))) },
+    inkNow: string = { common(classroot.texts.map((e) => Color.hex(e.text?.color ?? null) ?? "")) },
+    alignNow: string = { common(classroot.texts.map((e) => e.text?.align ?? "left")) },
+    maxRadius: number = { Math.max(0, ...classroot.rects.map((e) => Math.min(e.width ?? 0, e.height ?? 0) / 2)) },
+
+    // ── the drag under way, and what it shows
+
+    dragging: "" | "move" | "resize" | "radius" | "end1" | "end2" | "marquee" | "draw" = "",
+    mode: string = "",
+    startEls: Element[] = [],
+    startBox: Box? = null,
+    startR: number = 0,
+    ox: number = 0,
+    oy: number = 0,
+    base: string[] = [],
+    guideX: number = -1,
+    guideY: number = -1,
+    marquee: Box? = null,
+    draft: Element? = null,
+    draftSet: Dataset [ schema = Draft, contents = { { elements: classroot.draft == null ? [] : [classroot.draft] } } ],
+    pasted: number = 0,
+    lastPaste: string = "",
+
+    setEls(els: Element[]) { app.doc.setElements(app.currentId, els) },
+    focusStage() { Focus.focus(app.stageHost) },
+
+    // ── selecting
+
+    press(id: string, add: boolean) {
+        if (app.editingId != "" && app.editingId == id) return     // a press inside the words being typed
+        this.focusStage()
+        if (app.editingId != "" && app.editingId != id) this.endEdit()
+        if (add) {
+            app.selection = app.selection.includes(id) ? app.selection.filter((s) => s != id) : [...app.selection, id]
+            }
+        else if (!app.selection.includes(id)) app.selection = [id]
+        },
+    clickOn(id: string, add: boolean) {
+        if (!add && app.selection.length > 1 && app.selection.includes(id)) app.selection = [id]
+        },
+    doubleOn(id: string, owner: string, kind: string) {
+        if (owner != "" && !app.selection.includes(id)) { app.selection = [id]; return }
+        if (kind == "text") this.beginEdit(id, true)
+        },
+    clickEmpty() {
+        this.focusStage()
+        this.endEdit()
+        app.selection = []
+        },
+    selectAll() { app.selection = els.map((e) => e.id) },
+    clear() {
+        if (app.editingId != "") { this.endEdit(); this.focusStage(); return }
+        app.selection = []
+        },
+
+    // ── moving: the selection follows the pointer, pulled onto the nearest
+    //    edge or centre within six screen pixels
+
+    moveStart() {
+        if (app.selection.length == 0 || app.editingId != "") return
+        app.history.checkpoint()
+        startEls = els
+        startBox = box
+        dragging = "move"
+        },
+    moveBy(dx: number, dy: number) {
+        if (dragging != "move" || startBox == null) return
+        const others = startEls.filter((e) => !tops.includes(e.id)).map((e) => boxOf(e))
+        const s = snapped(startBox, others, dx / k, dy / k, 6 / k)
+        this.setEls(mapEls(startEls, app.selection, (e) => moved(e, Math.round(s.dx), Math.round(s.dy))))
+        guideX = s.guides.find((g) => g.axis == "x")?.at ?? -1
+        guideY = s.guides.find((g) => g.axis == "y")?.at ?? -1
+        },
+    moveEnd(canceled: boolean) {
+        if (canceled && dragging == "move") this.setEls(startEls)
+        this.endDrag()
+        },
+    endDrag() { dragging = ""; guideX = -1; guideY = -1; marquee = null },
+
+    nudge(dx: number, dy: number) {
+        if (app.selection.length == 0) return
+        app.history.checkpoint()
+        this.setEls(mapEls(els, app.selection, (e) => moved(e, dx, dy)))
+        },
+
+    // ── resizing. Proportions are kept when everything chosen keeps them,
+    //    and shift turns that around for this one drag.
+
+    resizeStart(m: string) {
+        if (box == null) return
+        app.history.checkpoint()
+        startEls = els
+        startBox = box
+        mode = m
+        dragging = "resize"
+        },
+    resizeBy(dx: number, dy: number, shift: boolean) {
+        if (dragging != "resize" || startBox == null) return
+        const from = startBox
+        const keepsAll = sel.length > 0 && sel.every((e) => e.keepProportions == true)
+        const to = resizedBox(from, mode, dx / k, dy / k, shift ? !keepsAll : keepsAll)
+        const r = ({ x: Math.round(to.x), y: Math.round(to.y), w: Math.round(to.w), h: Math.round(to.h) })
+        this.setEls(mapEls(startEls, app.selection, (e) => refit(e, from, r)))
+        },
+    resizeEnd(canceled: boolean) {
+        if (canceled && dragging == "resize") this.setEls(startEls)
+        this.endDrag()
+        },
+
+    // ── a rectangle's corners, by their handle
+
+    radiusStart() {
+        if (single == null) return
+        app.history.checkpoint()
+        startEls = els
+        startR = Math.min(single.cornerRadius ?? 0, maxRadius)
+        dragging = "radius"
+        },
+    radiusBy(dx: number, dy: number) {
+        if (dragging != "radius" || single == null) return
+        const id = single.id
+        const r = Math.round(Math.max(0, Math.min(maxRadius, startR + (dx + dy) / 2 / k)))
+        this.setEls(mapEls(startEls, [id], (e) => ({ ...e, cornerRadius: r })))
+        },
+
+    // ── a line's ends
+
+    endStart(which: number) {
+        if (single == null) return
+        app.history.checkpoint()
+        startEls = els
+        dragging = which == 1 ? "end1" : "end2"
+        },
+    endBy(dx: number, dy: number, shift: boolean) {
+        if ((dragging != "end1" && dragging != "end2") || single == null) return
+        const id = single.id
+        const l = findEl(startEls, id)
+        if (l == null) return
+        const end = dragging == "end1" ? 1 : 2
+        const x = (end == 1 ? l.x1 : l.x2) + dx / k
+        const y = (end == 1 ? l.y1 : l.y2) + dy / k
+        this.setEls(mapEls(startEls, [id], (e) => lineEnd(e, end, Math.round(x), Math.round(y), shift)))
+        },
+    endEnd(canceled: boolean) {
+        if (canceled) this.setEls(startEls)
+        this.endDrag()
+        },
+
+    // ── the marquee: everything it touches
+
+    marqueeStart(x: number, y: number, add: boolean) {
+        this.focusStage()
+        this.endEdit()
+        ox = x
+        oy = y
+        base = add ? app.selection : []
+        dragging = "marquee"
+        },
+    marqueeTo(x: number, y: number) {
+        if (dragging != "marquee") return
+        const m = ({ x: Math.min(ox, x), y: Math.min(oy, y), w: Math.abs(x - ox), h: Math.abs(y - oy) })
+        marquee = m
+        app.selection = [...new Set([...base, ...inMarquee(els, m)])]
+        },
+
+    // ── drawing. The tool's shape follows the drag as a draft; letting go
+    //    puts it on the slide, selected, and the tool returns to Select.
+
+    drawStart(x: number, y: number) {
+        this.focusStage()
+        this.endEdit()
+        ox = x
+        oy = y
+        dragging = "draw"
+        draft = null
+        },
+    drawTo(x: number, y: number, shift: boolean) {
+        if (dragging != "draw") return
+        if (app.tool == "line") {
+            const l = ({ id: "draft", kind: "line" as const, x1: ox, y1: oy, x2: ox, y2: oy, stroke: ({ color: this.inkFor(), width: 4 }) })
+            draft = lineEnd(l, 2, Math.round(x), Math.round(y), shift)
+            return
+            }
+        let w = x - ox
+        let h = y - oy
+        if (shift) {
+            const s = Math.max(Math.abs(w), Math.abs(h))
+            w = w < 0 ? -s : s
+            h = h < 0 ? -s : s
+            }
+        const b = ({ x: Math.round(Math.min(ox, ox + w)), y: Math.round(Math.min(oy, oy + h)),
+            w: Math.max(1, Math.round(Math.abs(w))), h: Math.max(1, Math.round(Math.abs(h))) })
+        draft = this.make(app.tool, b, shift)
+        },
+    drawEnd(canceled: boolean) {
+        const d = draft
+        draft = null
+        this.endDrag()
+        if (canceled || d == null) return
+        const b = boxOf(d)
+        if (d.kind != "line" && b.w < 3 && b.h < 3) return
+        if (d.kind == "line" && b.w < 3 && b.h < 3) return
+        this.place(d)
+        },
+
+    // A click with a tool: a text box ready to type into, or a shape of a
+    // standard size centred where the click was.
+
+    drawClick(x: number, y: number) {
+        const t = app.tool
+        if (t == "text") { this.place(this.make("text", ({ x: Math.round(x), y: Math.round(y - 22), w: 480, h: 46 }), false)); return }
+        if (t == "line") {
+            this.place(({ id: "draft", kind: "line", x1: Math.round(x - 120), y1: Math.round(y), x2: Math.round(x + 120), y2: Math.round(y),
+                stroke: ({ color: this.inkFor(), width: 4 }) }))
+            return
+            }
+        this.place(this.make(t, ({ x: Math.round(x - 120), y: Math.round(y - 80), w: 240, h: 160 }), false))
+        },
+    place(d: Element) {
+        app.history.checkpoint()
+        const id = freshId(idsIn(els))
+        const el = ({ ...d, id: id })
+        this.setEls([...els, el])
+        app.selection = [id]
+        app.tool = "select"
+        if (el.kind == "text") this.beginEdit(id, false)
+        },
+
+    // New things take the brand's violet, and text and lines a colour that
+    // reads on this slide's background.
+
+    inkFor() -> Hex { return lightness(Color.hex(app.doc.slide(app.currentId)?.background ?? null) ?? "#FFFFFF") < 0.5 ? "#FFFFFF" : "#1B1530" },
+    make(tool: string, b: Box, keep: boolean) -> Element {
+        if (tool == "text") {
+            return ({ id: "draft", kind: "text", x: b.x, y: b.y, width: Math.max(40, b.w), height: 46, keepProportions: keep,
+                text: ({ content: "", font: "Helvetica Neue", size: 36, weight: 400, italic: false, color: this.inkFor(), align: "left" }) })
+            }
+        if (tool == "ellipse") {
+            return ({ id: "draft", kind: "ellipse", x: b.x, y: b.y, width: b.w, height: b.h,
+                fill: "#5B3DF5", stroke: null, keepProportions: keep })
+            }
+        return ({ id: "draft", kind: "rect", x: b.x, y: b.y, width: b.w, height: b.h,
+            fill: "#5B3DF5", stroke: null, cornerRadius: 0, keepProportions: keep })
+        },
+
+    // ── typing in place
+
+    beginEdit(id: string, step: boolean) {
+        if (step) app.history.checkpoint()
+        app.selection = [id]
+        app.editingId = id
+        },
+    typeText(id: string, v: string) {
+        this.setEls(mapEls(els, [id], (e) => ({ ...e, text: ({ ...e.text, content: v }) })))
+        },
+
+    // Editing ends with a click elsewhere or Escape; a box left empty goes.
+
+    endEdit() {
+        const id = app.editingId
+        if (id == "") return
+        app.editingId = ""
+        const el = findEl(els, id)
+        if (el != null && el.kind == "text" && (el.text?.content ?? "").trim() == "") {
+            this.setEls(removeEls(els, [id]))
+            app.selection = app.selection.filter((s) => s != id)
+            }
+        },
+    noteTextHeight(id: string, h: number) {
+        if (!(app.selection.includes(id) || app.editingId == id)) return
+        const el = findEl(els, id)
+        if (el == null || Math.abs((el.height ?? 0) - h) < 0.5) return
+        this.setEls(mapEls(els, [id], (e) => ({ ...e, height: Math.round(h * 100) / 100 })))
+        },
+
+    // ── the selection's verbs
+
+    deleteSelection() {
+        if (app.selection.length == 0) return
+        app.history.checkpoint()
+        this.setEls(removeEls(els, app.selection))
+        app.selection = []
+        },
+    duplicate() {
+        if (sel.length == 0) return
+        app.history.checkpoint()
+        const used = idsIn(els)
+        const copies = sel.map((e) => copied(e, used, 20, 20))
+        this.setEls([...els, ...copies])
+        app.selection = copies.map((e) => e.id)
+        },
+    copyText() -> string { return sel.length == 0 ? "" : JSON.stringify(sel) },
+    paste(json: string) {
+        let items: Element[] = []
+        try { items = JSON.parse(json) } catch (e) { return }
+        if (!Array.isArray(items) || items.length == 0) return
+        pasted = json == lastPaste ? pasted + 1 : 1
+        lastPaste = json
+        app.history.checkpoint()
+        const used = idsIn(els)
+        const copies = items.map((e) => copied(e, used, 20 * pasted, 20 * pasted))
+        this.setEls([...els, ...copies])
+        app.selection = copies.map((e) => e.id)
+        },
+    pasteText(t: string) {
+        if (t.trim() == "") return
+        const d = this.make("text", ({ x: 160, y: 300, w: 960, h: 46 }), false)
+        app.history.checkpoint()
+        const id = freshId(idsIn(els))
+        this.setEls([...els, ({ ...d, id: id, text: ({ ...d.text!, content: t.trim() }) })])
+        app.selection = [id]
+        },
+    group() {
+        if (tops.length < 2) return
+        app.history.checkpoint()
+        const id = freshId(idsIn(els))
+        this.setEls(grouped(els, tops, id))
+        app.selection = [id]
+        },
+    ungroup() {
+        const gs = sel.filter((e) => e.kind == "group")
+        if (gs.length == 0) return
+        app.history.checkpoint()
+        const ids = gs.map((g) => g.id)
+        this.setEls(ungrouped(els, ids))
+        app.selection = [...app.selection.filter((s) => !ids.includes(s)), ...gs.flatMap((g) => (g.children ?? []).map((c) => c.id))]
+        },
+    align(how: string) {
+        if (sel.length < 2) return
+        app.history.checkpoint()
+        this.setEls(aligned(els, app.selection, how))
+        },
+    distribute(axis: "x" | "y") {
+        if (sel.length < 3) return
+        app.history.checkpoint()
+        this.setEls(distributed(els, app.selection, axis))
+        },
+    restack(how: string) {
+        if (sel.length == 0) return
+        app.history.checkpoint()
+        this.setEls(restacked(els, app.selection, how))
+        },
+
+    // ── styling, from the inspector: one change, one step
+
+    restyle(fn: (e: Element) => Element) {
+        if (sel.length == 0) return
+        app.history.checkpoint()
+        this.setEls(mapEls(els, app.selection, (e) => mapLeaves(e, fn)))
+        },
+    setFill(c: string) {
+        const v = asColor(c)
+        this.restyle((l) => l.kind == "rect" || l.kind == "ellipse" ? ({ ...l, fill: v }) : l)
+        },
+    setLine(c: string) {
+        this.restyle((l) => {
+            if (l.kind == "text" || l.kind == "group") return l
+            if (c == "none") return l.kind == "line" ? l : ({ ...l, stroke: null })
+            return ({ ...l, stroke: ({ color: asColor(c) ?? "#1B1530", width: l.stroke?.width ?? 2 }) })
+            })
+        },
+    setLineWidth(w: number) {
+        this.restyle((l) => {
+            if (l.kind == "text" || l.kind == "group") return l
+            if (w <= 0) return l.kind == "line" ? ({ ...l, stroke: ({ color: l.stroke?.color ?? "#1B1530", width: 1 }) }) : ({ ...l, stroke: null })
+            return ({ ...l, stroke: ({ color: l.stroke?.color ?? "#1B1530", width: w }) })
+            })
+        },
+
+    // A slider's drag is one step: the checkpoint is taken as it starts.
+
+    setRadius(r: number, step: boolean) {
+        if (step) app.history.checkpoint()
+        this.setEls(mapEls(els, app.selection, (e) => mapLeaves(e, (l) => l.kind == "rect"
+            ? ({ ...l, cornerRadius: Math.round(Math.max(0, r)) }) : l)))
+        },
+    setKeep(b: boolean) { this.restyle((l) => l.kind == "line" ? l : ({ ...l, keepProportions: b })) },
+    setText(field: "font" | "size" | "weight" | "italic" | "color" | "align", v: string | number | boolean) {
+        this.restyle((l) => l.kind == "text" ? ({ ...l, text: ({ ...l.text!, [field]: v }) }) : l)
+        },
+    setBackground(c: Color) {
+        app.history.checkpoint()
+        app.doc.setBackground(app.currentId, c)
+        }
+    ]
+
+
+// ── Over the slide ──────────────────────────────────────────────────────────
+
+// A handle at a corner or a side of the selection. Easy to hit: its target is
+// twice the size of its dot. The pointer says which way it resizes.
+
+class Handle [
+    mode: string = "rb",
+    k: number = { app.ed.k },
+    width = { 22 / classroot.k }, height = { 22 / classroot.k },
+    x = { (classroot.mode.includes("l") ? 0 : classroot.mode.includes("r") ? parent.width : parent.width / 2) - this.width / 2 },
+    y = { (classroot.mode.includes("t") ? 0 : classroot.mode.includes("b") ? parent.height : parent.height / 2) - this.height / 2 },
+    visible = { classroot.mode.length == 2
+        || ((classroot.mode == "t" || classroot.mode == "b") ? parent.width * classroot.k > 56 : parent.height * classroot.k > 56) },
+    cursor = { ({ lt: "nwse-resize", rb: "nwse-resize", rt: "nesw-resize", lb: "nesw-resize",
+        l: "ew-resize", r: "ew-resize", t: "ns-resize", b: "ns-resize" } as Record<string, string>)[classroot.mode] ?? "" },
+    onDragStart(e: PointerEvent) { app.ed.focusStage(); app.ed.resizeStart(classroot.mode) },
+    onDrag(e: PointerEvent) { app.ed.resizeBy(e.deltaX, e.deltaY, e.shift) },
+    onDragEnd(e: DragEndEvent) { app.ed.resizeEnd(e.canceled) },
+    dot: View [ x = center, y = center, width = { 11 / classroot.k }, height = { 11 / classroot.k }, cornerRadius = { 3 / classroot.k },
+        fill = { provided("theme").handleRing }, stroke = { Stroke(1.6 / classroot.k, provided("theme").handle) },
+        shadow = { Shadow(0, 1 / classroot.k, 3 / classroot.k, 0x1B153059) },
+        scale = { parent.hovered ? 1.25 : 1 }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 } ]
+    ]
+
+
+// The selection: a violet line with a white one outside it, so it shows on
+// any colour, and eight handles.
+
+class SelectionFrame [
+    b: Box? = { app.ed.box },
+    k: number = { app.ed.k },
+    visible = { classroot.b != null && !app.ed.lineOnly && app.ed.dragging != "draw" && app.ed.dragging != "marquee" },
+    x = { classroot.b?.x ?? 0 }, y = { classroot.b?.y ?? 0 },
+    width = { Math.max(0, classroot.b?.w ?? 0) }, height = { Math.max(0, classroot.b?.h ?? 0) },
+    halo: View [ x = { -2.5 / classroot.k }, y = { -2.5 / classroot.k },
+        width = { parent.width + 5 / classroot.k }, height = { parent.height + 5 / classroot.k },
+        stroke = { Stroke(2.5 / classroot.k, 0xFFFFFFE6) } ],
+    ring: View [ width = 100%, height = 100%, stroke = { Stroke(1.6 / classroot.k, provided("theme").handle) } ],
+    Handle [ mode = "lt" ],
+    Handle [ mode = "t" ],
+    Handle [ mode = "rt" ],
+    Handle [ mode = "r" ],
+    Handle [ mode = "rb" ],
+    Handle [ mode = "b" ],
+    Handle [ mode = "lb" ],
+    Handle [ mode = "l" ]
+    ]
+
+
+// A line's end, to drag. Shift keeps the line to 45° steps.
+
+class EndHandle [
+    which: number = 1,
+    line: Element? = { app.ed.lineOnly ? app.ed.single : null },
+    k: number = { app.ed.k },
+    visible = { classroot.line != null && app.ed.dragging != "draw" },
+    width = { 22 / classroot.k }, height = { 22 / classroot.k },
+    x = { (classroot.which == 1 ? classroot.line?.x1 ?? 0 : classroot.line?.x2 ?? 0) - this.width / 2 },
+    y = { (classroot.which == 1 ? classroot.line?.y1 ?? 0 : classroot.line?.y2 ?? 0) - this.height / 2 },
+    cursor = "crosshair",
+    onDragStart(e: PointerEvent) { app.ed.focusStage(); app.ed.endStart(classroot.which) },
+    onDrag(e: PointerEvent) { app.ed.endBy(e.deltaX, e.deltaY, e.shift) },
+    onDragEnd(e: DragEndEvent) { app.ed.endEnd(e.canceled) },
+    dot: View [ x = center, y = center, width = { 12 / classroot.k }, height = { 12 / classroot.k }, cornerRadius = { 6 / classroot.k },
+        fill = { provided("theme").handleRing }, stroke = { Stroke(1.8 / classroot.k, provided("theme").handle) },
+        shadow = { Shadow(0, 1 / classroot.k, 3 / classroot.k, 0x1B153059) },
+        scale = { parent.hovered ? 1.25 : 1 }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 } ]
+    ]
+
+
+// A rounded rectangle's radius: a small sun-coloured dot inside its top-left
+// corner, dragged in to round, out to square.
+
+class RadiusHandle [
+    rect: Element? = { app.ed.single?.kind == "rect" ? app.ed.single : null },
+    k: number = { app.ed.k },
+    r: number = { Math.min(classroot.rect?.cornerRadius ?? 0, app.ed.maxRadius) },
+    inset: number = { Math.max(classroot.r * 0.3, 16 / classroot.k) },
+    roomy: boolean = { Math.min(classroot.rect?.width ?? 0, classroot.rect?.height ?? 0) * classroot.k > 64 },
+    calm: boolean = { app.ed.dragging != "draw" && app.ed.dragging != "resize" },
+    visible = { classroot.rect != null && classroot.roomy && classroot.calm },
+    width = { 20 / classroot.k }, height = { 20 / classroot.k },
+    x = { (classroot.rect?.x ?? 0) + classroot.inset - this.width / 2 },
+    y = { (classroot.rect?.y ?? 0) + classroot.inset - this.height / 2 },
+    cursor = "pointer",
+    tooltipLabel = { "Corner radius " + Math.round(classroot.r) },
+    onDragStart(e: PointerEvent) { app.ed.focusStage(); app.ed.radiusStart() },
+    onDrag(e: PointerEvent) { app.ed.radiusBy(e.deltaX, e.deltaY) },
+    onDragEnd(e: DragEndEvent) { app.ed.endDrag() },
+    dot: View [ x = center, y = center, width = { 10 / classroot.k }, height = { 10 / classroot.k }, cornerRadius = { 5 / classroot.k },
+        fill = { provided("theme").sun }, stroke = { Stroke(1.6 / classroot.k, 0xFFFFFF) },
+        shadow = { Shadow(0, 1 / classroot.k, 3 / classroot.k, 0x1B153059) },
+        scale = { parent.hovered ? 1.3 : 1 }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 } ]
+    ]
+
+
+// Everything drawn over the slide while editing, in slide points.
+
+class StageOverlay [ width = 1280, height = 720,
+    k: number = { app.ed.k },
+
+    // An empty slide says how to begin. It is the editor's, not the slide's:
+    // it is never saved, shown in a thumbnail, or presented.
+
+    hint: View [ x = center, y = center, pointerEvents = "none",
+        visible = { app.ed.els.length == 0 && app.ed.draft == null && app.editingId == "" },
+        layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+        Text [ fontFamily = { app.brandFace }, fontSize = 34, fontWeight = bold, letterSpacing = -0.5,
+            textColor = { app.ed.inkFor() }, opacity = 0.35, text = "An empty slide" ],
+        Text [ fontSize = 20, textColor = { app.ed.inkFor() }, opacity = 0.35,
+            text = "Pick Rectangle, Ellipse, Line or Text above, then drag here." ]
+        ],
+
+    // The shape being drawn, drawn as it will be.
+
+    draftView: View [ width = 1280, height = 720, pointerEvents = "none", datapath = { app.ed.draftSet.value },
+        ElementView [ datapath = :elements[],
+            classFor = { :kind == "text" ? TextEl : :kind == "line" ? LineEl : :kind == "ellipse" ? EllipseEl : RectEl } ]
+        ],
+
+    guideV: View [ visible = { app.ed.guideX >= 0 }, pointerEvents = "none",
+        x = { app.ed.guideX - 0.75 / classroot.k }, y = -2000, width = { 1.5 / classroot.k }, height = 4720,
+        fill = { provided("theme").guide } ],
+    guideH: View [ visible = { app.ed.guideY >= 0 }, pointerEvents = "none",
+        y = { app.ed.guideY - 0.75 / classroot.k }, x = -2000, height = { 1.5 / classroot.k }, width = 5280,
+        fill = { provided("theme").guide } ],
+
+    marqueeBox: View [ visible = { app.ed.marquee != null }, pointerEvents = "none",
+        x = { app.ed.marquee?.x ?? 0 }, y = { app.ed.marquee?.y ?? 0 },
+        width = { app.ed.marquee?.w ?? 0 }, height = { app.ed.marquee?.h ?? 0 },
+        fill = 0x5B3DF51F, stroke = { Stroke(1.2 / classroot.k, provided("theme").marquee) } ],
+
+    frame: SelectionFrame [ ],
+    EndHandle [ which = 1 ],
+    EndHandle [ which = 2 ],
+    RadiusHandle [ ],
+
+    // While a drawing tool is on, this layer takes the presses: a drag draws,
+    // a click places. Shift draws a square, a circle, or a 45° line.
+
+    drawLayer: View [ exists = { app.tool != "select" }, width = 1280, height = 720, cursor = "crosshair",
+        onPointerDown(e: PointerEvent) { app.ed.focusStage() },
+        onClick(e: PointerEvent) { app.ed.drawClick(e.x, e.y) },
+        onDragStart(e: PointerEvent) { app.ed.drawStart(e.x, e.y) },
+        onDrag(e: PointerEvent) { app.ed.drawTo(e.x, e.y, e.shift) },
+        onDragEnd(e: DragEndEvent) { app.ed.drawEnd(e.canceled) }
+        ]
+    ]

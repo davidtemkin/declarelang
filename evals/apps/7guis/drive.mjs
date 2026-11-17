@@ -179,7 +179,7 @@ const num = (s) => { const m = /[−-]?\d+(?:\.\d+)?/.exec(String(s ?? "").repla
 let DECODER = null;
 async function grab(page, box) {
   const clip = { x: Math.max(0, Math.floor(box.x)), y: Math.max(0, Math.floor(box.y)), width: Math.ceil(box.width), height: Math.ceil(box.height) };
-  const b64 = await page.screenshot({ clip, encoding: "base64" });
+  const b64 = await page.screenshot({ clip, encoding: "base64", captureBeyondViewport: false });   // a wider capture resizes the page and drops the hover
   const raw = await DECODER.evaluate(async (b64) => {
     const img = new Image(); img.src = "data:image/png;base64," + b64; await img.decode();
     const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
@@ -245,7 +245,11 @@ async function circleKit(page, ctx) {
   const undo = () => controlAny(page, /^undo\b/i), redo = () => controlAny(page, /^redo\b/i);
   const u0 = await undo(), r0 = await redo();
   // the canvas: named for itself, else the area right below Undo
-  let canvas = await maybe(find(page, (n) => ["img", "image", "graphics-document", "application", "group", "figure", "canvas", "Canvas", "region"].includes(n.role) && named(n, /canvas|drawing|circles?/i), { timeout: 2500 }));
+  // a drawing's own roles first; a group or region named for circles only after them — the
+  // task's section, labelled by its heading "Circle Drawer", is such a region
+  const NAMED = /canvas|drawing|circles?/i;
+  let canvas = await maybe(find(page, (n) => ["img", "image", "graphics-document", "application", "figure", "canvas", "Canvas"].includes(n.role) && named(n, NAMED), { timeout: 2500 }))
+    ?? await maybe(find(page, (n) => ["group", "region"].includes(n.role) && named(n, NAMED) && !/^circle drawer$/i.test((n.name ?? "").trim()), { timeout: 800 }));
   if (!canvas) {
     const ub = await u0.handle.boundingBox();
     const h = await page.evaluateHandle((y) => {
@@ -270,13 +274,17 @@ async function circleKit(page, ctx) {
   // the given directions (away from other circles), the median of them
   const radius = async (c, dirs = [[-1, 0], [0, -1], [0, 1]], img = null) => {
     img ??= await shot();
+    // the background as this picture shows it, at the empty spot: a modal window's backdrop
+    // dims the whole canvas, and the dimmed canvas is still the background
+    const here = img.px(E.x, E.y) ?? bg;
+    const off = (p) => p && dist(p, here) > 45;
     const rs = [];
     for (const [dx, dy] of dirs) {
       let seen = false;
       for (let t = 1; t < 260; t++) {
         const p = img.px(c.x + dx * t, c.y + dy * t);
         if (!p) break;
-        if (nonbg(p)) seen = true; else if (seen) { rs.push(t - 0.5); break; }
+        if (off(p)) seen = true; else if (seen) { rs.push(t - 0.5); break; }
       }
     }
     rs.sort((a, b) => a - b);
@@ -404,6 +412,19 @@ const SCENARIOS = {
       const pop = await find(page, (n) => ["combobox", "button", "PopUpButton"].includes(n.role) && KIND.test(textOf(n)) && !n.disabled, { what: 'a control showing "one-way flight" or "return flight"' });
       ctx.observed.kindControl = `${pop.node.role} "${pop.node.name}" showing "${textOf(pop.node)}"`;
       if (!KIND.test(pop.node.name ?? "")) NOTES.add(`flight: the kind-of-flight control is named "${pop.node.name}"; the choice it shows is in its text, not its name`);
+      // a native <select>: its list is the system's, drawn outside the page, so the choice is
+      // made as that list makes it — the option selected, then input and change
+      const picked = await pop.handle.evaluate((el, src) => {
+        if (el.tagName !== "SELECT") return null;
+        const re = new RegExp(src, "i");
+        const o = [...el.options].find((x) => re.test(x.textContent.trim()));
+        if (!o) return false;
+        el.focus(); el.value = o.value;
+        el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true }));
+        return true;
+      }, wantRe.source);
+      if (picked === true) { await sleep(250); return; }
+      if (picked === false) fail(`the kind-of-flight list has no "${want} flight"`);
       await press(page, pop);
       const opt = await maybe(find(page, (n) => ["option", "menuitem", "menuitemradio", "menuitemcheckbox", "radio", "listitem"].includes(n.role) && named(n, new RegExp(wantRe.source.replace(/[$^]/g, ""), "i")) && !n.disabled, { timeout: 2500 }));
       if (opt) { await press(page, opt); await sleep(250); return; }
@@ -559,7 +580,12 @@ const SCENARIOS = {
     const slider = await maybe(find(page, (n) => n.role === "slider" && named(n, /duration|^d$/i), { timeout: 2000 })) ?? await find(page, (n) => n.role === "slider", { what: "a duration slider" });
     if (!/duration/i.test(slider.node.name ?? "")) NOTES.add(`timer: the slider is named "${slider.node.name}", not for the duration`);
     const g = async () => { const n = (await nodes(page)).find(gaugeT); const max = Number(n.valuemax ?? 1), min = Number(n.valuemin ?? 0); return (Number(n.value) - min) / (max - min || 1); };
-    const sv = async () => Number((await nodes(page)).find((n) => n === slider.node || (n.role === "slider" && n.name === slider.node.name))?.value);
+    // d in seconds. The brief fixes no unit for the slider: one spoken as milliseconds, or
+    // whose top is past 300 (no 7GUIs duration runs to minutes), is read in milliseconds.
+    const vt = String(slider.node.valuetext ?? "");
+    const K = /\bms\b|millisec/i.test(vt) || (!/\d\s*s(ec|econds?)?\b/i.test(vt) && Number(slider.node.valuemax) > 300) ? 0.001 : 1;
+    if (K !== 1) NOTES.add(`timer: the duration slider counts milliseconds (top ${slider.node.valuemax}); read as seconds`);
+    const sv = async () => K * Number((await nodes(page)).find((n) => n === slider.node || (n.role === "slider" && n.name === slider.node.name))?.value);
     // the label: the "N.N" text that moves with time
     await press(page, reset);
     await sleep(100);
@@ -662,7 +688,10 @@ const SCENARIOS = {
     await open(page, ctx, "crud");
     const ITEM_ROLES = ["option", "row", "listitem", "gridcell", "cell", "treeitem", "StaticText"];
     const people = async () => {
-      const ns = (await nodes(page)).filter((n) => ITEM_ROLES.includes(n.role) && /^[^,|]{1,40}, [^,|]{1,40}$/.test(n.name ?? ""));
+      // a bare text counts only inside a list: "Seven tasks, one program" in a sidebar is no person
+      const LISTS = ["list", "listbox", "grid", "table", "treegrid", "tree"];
+      const ns = (await nodes(page)).filter((n) => ITEM_ROLES.includes(n.role) && /^[^,|]{1,40}, [^,|]{1,40}$/.test(n.name ?? "")
+        && (n.role !== "StaticText" || inside(n, LISTS)));
       // a list item and the text inside it are one person
       const sel = ns.filter((n) => n.role !== "StaticText" || !inside(n, ITEM_ROLES.filter((r) => r !== "StaticText")));
       return [...new Set(sel.map((n) => n.name.trim()))];
@@ -730,9 +759,12 @@ const SCENARIOS = {
     await typeIn(page, filter, "Mu");
     await shown(["Musterfrau, Maxine"], 'typing "Mu" after the changes');
     // the layout: the filter above the list, the fields and buttons below or beside it
-    const list = await maybe(find(page, (n) => ["listbox", "list", "grid", "table", "tree"].includes(n.role), { timeout: 1000 }));
-    if (!list) fail("accessibility: the people aren't in a list (no listbox, list, grid or table)");
-    const fb = await filter.handle.boundingBox(), lb = await list.handle.boundingBox(), cb = await (await control(page, /^create\b/i)).handle.boundingBox();
+    // the people's list: the one holding a person, not the first list on the page (a sidebar of tasks is one)
+    const holdsPerson = (n) => { const walk = (m) => (m.name ?? "") === "Musterfrau, Maxine" || (m.children ?? []).some(walk); return walk(n); };
+    const list = await maybe(find(page, (n) => ["listbox", "list", "grid", "table", "tree"].includes(n.role) && holdsPerson(n), { timeout: 1000 }));
+    if (!list) fail("accessibility: the people aren't in a list (no listbox, list, grid or table holds them)");
+    // Create's place, enabled or not: with the fields empty it may well be disabled
+    const fb = await filter.handle.boundingBox(), lb = await list.handle.boundingBox(), cb = await (await controlAny(page, /^create\b/i)).handle.boundingBox();
     ctx.observed.layout = { filter: [fb.x, fb.y, fb.height].map(Math.round), list: [lb.x, lb.y, lb.width, lb.height].map(Math.round), create: [cb.x, cb.y].map(Math.round) };
     if (!(fb.y + fb.height <= lb.y + 2)) fail(`the filter isn't above the list (filter bottom ${Math.round(fb.y + fb.height)}, list top ${Math.round(lb.y)})`);
     if (!(cb.y >= lb.y + lb.height - 2 || cb.x >= lb.x + lb.width - 2)) fail("the buttons are neither below nor beside the list");

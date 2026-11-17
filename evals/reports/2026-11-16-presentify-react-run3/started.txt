@@ -1,0 +1,13 @@
+STARTED=2026-11-16T19:42:45Z
+APP=presentify
+MODEL=claude-opus-5-5
+SUBJECT=none — React, from the brief alone
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=React
+LEVEL=minimal
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-presentify-react-3/work (logs outside it)
+PORT=8360 (the brief names 8360)
+DEV_PORT=8600 (the agent's dev server: PORT in its environment)
+SERVICE=node ~/Code/Declare/evals/apps/presentify/api/server.mjs --port=8360 --seed=1
+AGENT_PID=26423

@@ -1,0 +1,384 @@
+/*
+# Presentify: the panels around the slide
+
+The slide list down the left, the inspector on the right, and the toolbar
+across the top. Each reads where the person is (on the App) and what the
+editor knows (`app.ed`), and runs the editor's and the App's verbs.
+*/
+
+// ── The slide list ──────────────────────────────────────────────────────────
+//
+// One row per slide, each a live picture of it: it reads the same record the
+// editor writes, so it changes as the slide does. Rows are placed by
+// `SlideStack`, which glides them when the order changes. A drag moves a
+// slide: while it is under way nothing reflows, a bar shows where it will
+// land, and on release the slides glide into their new order.
+
+class SlideStack extends TweenLayout [ duration = 320,
+    rowH: number = 112,
+    place() {
+        const w = this.contentExtent("width")
+        return this.laid().map((c, i) => ({ x: 0, y: i * this.rowH, w: w, h: this.rowH, vis: true }))
+        }
+    ]
+
+
+class SlideRow extends Control [ height = 112,
+    slideId: string = { :id ?? "" },
+    n: number = { rowIndex + 1 },
+    current: boolean = { app.currentId == classroot.slideId },
+    lifted: boolean = { app.dragSlide == classroot.slideId },
+    accessibilityLabel = { "Slide " + classroot.n },
+    accessibilityRole = option,
+    accessibilitySelected = { classroot.current },
+    padding = [8, 12, 8, 6],
+    cursor = "pointer",
+    opacity = { classroot.lifted ? 0.45 : 1 },
+    press() { app.goSlide(classroot.slideId) },
+    onContextMenu(e: PointerEvent) { app.goSlide(classroot.slideId); app.slideMenu.showAt(this, e) },
+
+    // Dragging to reorder: where it would land follows the pointer.
+
+    onDragStart(e: PointerEvent) { app.dragSlide = classroot.slideId; app.dropAt = rowIndex },
+    onDrag(e: PointerEvent) {
+        const n = app.doc.slides().length
+        app.dropAt = Math.max(0, Math.min(n - 1, rowIndex + Math.round(e.deltaY / 112)))
+        },
+    onDragEnd(e: DragEndEvent) {
+        const id = app.dragSlide
+        const to = app.dropAt
+        app.dragSlide = ""
+        if (!e.canceled && to != rowIndex) app.moveSlide(id, to)
+        },
+
+    layout: SimpleLayout [ axis = x, spacing = 6, align = start ],
+    TextLabel [ width = 22, textAlign = end, fontSize = 12, fontWeight = semibold,
+        textColor = { classroot.current ? provided("theme").accent : provided("theme").textFaint },
+        text = { "" + classroot.n } ],
+    thumb: View [ width = 160, height = 90, cornerRadius = 6, clip = true,
+        shadow = { classroot.current ? Shadow(0, 2, 8, 0x5B3DF533) : Shadow(0, 1, 2, 0x1B15301A) },
+        SlideView [ scale = 0.125, pointerEvents = "none" ],
+        ring: View [ width = 100%, height = 100%, cornerRadius = 6,
+            stroke = { classroot.current ? Stroke(2.5, provided("theme").accent)
+                : classroot.hovered ? Stroke(1.5, provided("theme").lineStrong) : Stroke(1, provided("theme").line) } ]
+        ]
+    ]
+
+
+class SlideList [ width = 212,
+    fill = { provided("theme").surface },
+    stroke = { [null, Stroke(1, provided("theme").line), null, null] },
+    layout: SimpleLayout [ axis = y ],
+    head: View [ width = 100%, height = 48, padding = [0, 10, 0, 16],
+        layout: SimpleLayout [ axis = x, align = center ],
+        TextLabel [ fontSize = 12, fontWeight = bold, letterSpacing = 0.8, textColor = { provided("theme").textFaint },
+            text = { "SLIDES · " + app.doc.slides().length } ],
+        Spacer [ ],
+        IconButton [ shape = "plus", tip = "New slide",
+            press() { app.addSlide() }
+            ]
+        ],
+    pane: View [ width = 100%, flexes = true, scrolls = y, accessibilityLabel = "Slides",
+        rows: View [ width = 100%, padding = [0, 0, 24, 0], datapath = { app.doc.value }, focusable = quiet,
+            accessibilityRole = listbox, accessibilityLabel = "Slides",
+            keyBindings = { [ ({ key: "ArrowUp", command: "step", args: [-1], label: "Previous slide" }),
+                ({ key: "ArrowDown", command: "step", args: [1], label: "Next slide" }),
+                ({ key: "Home", command: "edge", args: [0] }),
+                ({ key: "End", command: "edge", args: [1] }),
+                ({ key: "Delete", command: "drop" }),
+                ({ key: "Backspace", command: "drop" }) ] },
+            step(d: number) { app.stepSlide(d) },
+            edge(end: number) { app.stepSlide(end == 0 ? -100000 : 100000) },
+            drop() { app.deleteSlide(app.currentId) },
+            layout: SlideStack [ ],
+            SlideRow [ datapath = :slides[] ],
+
+            // where a dragged slide will land
+
+            dropBar: View [ ignoreLayout = true, visible = { app.dragSlide != "" }, x = 30, width = 164, height = 3, cornerRadius = 2,
+                fill = { provided("theme").accent },
+                from: number = { app.doc.indexOf(app.dragSlide) },
+                y = { (app.dropAt > this.from ? (app.dropAt + 1) * 112 : app.dropAt * 112) - 2 }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── The inspector ───────────────────────────────────────────────────────────
+//
+// Always the same width and place, whatever is chosen; its sections come and
+// go inside it. Where the chosen things differ, it says Mixed, and a change
+// applies to all of them.
+
+class ColorPalette [ width = 100%,
+    value: string = "",                      // a colour, "none", "mixed" or ""
+    allowNone: boolean = true,
+    chose(c: string) { },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    grid: View [ width = 100%, datapath = { app.palette.value },
+        layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
+        Swatch [ datapath = :colors[], color = :@, current = { classroot.value.toUpperCase() == (:@ ?? "") },
+            press() { classroot.chose(this.color) }
+            ]
+        ],
+    foot: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        ColorChip [ value = { classroot.value } ],
+        hex: TextInput [ width = 96, height = 28, fontSize = 13, placeholder = "#RRGGBB", accessibilityLabel = "Hex colour",
+            value = { classroot.value.startsWith("#") ? classroot.value : "" },
+            commitOn = "end",
+            commit(v: string) { const h = hexOk(v); if (h != null) classroot.chose(h) }
+            ],
+        TextLabel [ visible = { classroot.value == "mixed" }, fontSize = 12, textColor = { provided("theme").textMuted }, text = "Mixed" ],
+        Spacer [ ],
+        Control [ visible = { classroot.allowNone }, height = 28, padding = [0, 10, 0, 10], cornerRadius = 7, cursor = "pointer",
+            accessibilityLabel = "No colour",
+            fill = { classroot.value == "none" ? provided("theme").accentSoft : hovered ? provided("theme").controlHovered : provided("theme").control },
+            press() { classroot.chose("none") },
+            TextLabel [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").text }, text = "None" ]
+            ]
+        ]
+    ]
+
+
+class Inspector [ width = 288,
+    fill = { provided("theme").surface },
+    stroke = { [null, null, null, Stroke(1, provided("theme").line)] },
+    accessibilityRole = complementary, accessibilityLabel = "Inspector",
+    scrolls = y,
+    col: View [ width = 100%,
+        layout: SimpleLayout [ axis = y ],
+
+        // What is chosen, in a word.
+
+        heading: View [ width = 100%, height = 52, padding = [0, 16, 0, 16],
+            stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+            layout: SimpleLayout [ axis = x, align = center ],
+            TextLabel [ fontFamily = { app.brandFace }, fontSize = 16, fontWeight = bold, textColor = { provided("theme").text },
+                text = { app.selectionName } ]
+            ],
+
+        // Nothing chosen: the slide itself.
+
+        Section [ title = "Background", visible = { app.selection.length == 0 },
+            ColorPalette [ allowNone = false, value = { Color.hex(app.doc.slide(app.currentId)?.background ?? null) ?? "" },
+                chose(c: string) { app.ed.setBackground(asColor(c) ?? "#FFFFFF") }
+                ]
+            ],
+        Section [ title = "Slide", visible = { app.selection.length == 0 },
+            TextLabel [ fontSize = 13, textColor = { provided("theme").textMuted },
+                text = { "Slide " + (app.currentIndex + 1) + " of " + app.doc.slides().length + " · 1280 × 720" } ],
+            row: View [ layout: SimpleLayout [ axis = x, spacing = 8 ],
+                PillButton [ label = "Duplicate", shape = "copy",
+                    press() { app.duplicateSlide(app.currentId) }
+                    ],
+                PillButton [ label = "Delete", shape = "trash", disabled = { app.doc.slides().length <= 1 },
+                    press() { app.deleteSlide(app.currentId) }
+                    ]
+                ]
+            ],
+
+        Section [ title = "Fill", visible = { app.ed.fillNow != "" },
+            ColorPalette [ value = { app.ed.fillNow },
+                chose(c: string) { app.ed.setFill(c) }
+                ]
+            ],
+        Section [ title = "Outline", visible = { app.ed.lineNow != "" },
+            ColorPalette [ value = { app.ed.lineNow }, allowNone = { !app.ed.lineOnly },
+                chose(c: string) { app.ed.setLine(c) }
+                ],
+            Row [ label = "Width", visible = { app.ed.lineWidthNow != "" },
+                Stepper [ width = 120, min = 0, max = 60, step = 1, accessibilityLabel = "Outline width",
+                    value = { app.ed.lineWidthNow == "mixed" ? 2 : Number(app.ed.lineWidthNow) },
+                    format(v: number) -> string { return app.ed.lineWidthNow == "mixed" ? "Mixed" : v + " pt" },
+                    commit(v: number) { app.ed.setLineWidth(v) }
+                    ]
+                ]
+            ],
+        Section [ title = "Corners", visible = { app.ed.radiusNow != "" },
+            Row [ label = "Radius",
+                radius: Slider [ width = 120, min = 0, max = { Math.max(1, app.ed.maxRadius) },
+                    value = { app.ed.radiusNow == "mixed" ? 0 : Number(app.ed.radiusNow) },
+                    accessibilityLabel = "Corner radius",
+                    trackChanges = ["editing"],
+                    onChange() { if (this.editing) app.history.checkpoint() },
+                    commit(v: number) { app.ed.setRadius(v, !this.editing) }
+                    ],
+                TextLabel [ fontSize = 13, textColor = { provided("theme").textMuted },
+                    text = { app.ed.radiusNow == "mixed" ? "Mixed" : app.ed.radiusNow + " pt" } ]
+                ]
+            ],
+        Section [ title = "Text", visible = { app.ed.texts.length > 0 },
+            Row [ label = "Font",
+                Button [ width = 170, height = 30, menu = { app.fontMenu },
+                    label = { app.ed.fontNow == "mixed" ? "Mixed" : app.ed.fontNow } ]
+                ],
+            Row [ label = "Size",
+                Stepper [ width = 120, min = 6, max = 400, step = 2, accessibilityLabel = "Text size",
+                    value = { app.ed.sizeNow == "mixed" ? 32 : Number(app.ed.sizeNow) },
+                    format(v: number) -> string { return app.ed.sizeNow == "mixed" ? "Mixed" : v + " pt" },
+                    commit(v: number) { app.ed.setText("size", v) }
+                    ]
+                ],
+            Row [ label = "Weight",
+                Button [ width = 170, height = 30, menu = { app.weightMenu },
+                    label = { app.weightName(app.ed.weightNow) } ]
+                ],
+            Row [ label = "Style",
+                ToggleIcon [ shape = "italic", tip = "Italic", in = { app.ed.italicNow == "true" },
+                    press() { app.ed.setText("italic", app.ed.italicNow != "true") }
+                    ],
+                View [ width = 8 ],
+                ChoiceControl [ accessibilityLabel = "Alignment", value = { app.ed.alignNow },
+                    commit(v: string) { app.ed.setText("align", v) },
+                    layout: SimpleLayout [ axis = x, spacing = 2 ],
+                    ChoiceIcon [ choice = "left", shape = "text-left", tip = "Align left" ],
+                    ChoiceIcon [ choice = "center", shape = "text-center", tip = "Align centre" ],
+                    ChoiceIcon [ choice = "right", shape = "text-right", tip = "Align right" ]
+                    ]
+                ],
+            ColorPalette [ allowNone = false, value = { app.ed.inkNow },
+                chose(c: string) { app.ed.setText("color", asColor(c) ?? "#1B1530") }
+                ]
+            ],
+        Section [ title = "Size", visible = { app.ed.keepNow != "" },
+            Checkbox [ checked = { app.ed.keepNow == "true" },
+                label = { app.ed.keepNow == "mixed" ? "Keep proportions (mixed)" : "Keep proportions" },
+                commit(v: boolean) { app.ed.setKeep(v) }
+                ]
+            ],
+        Section [ title = "Arrange", visible = { app.selection.length > 0 },
+            View [ layout: SimpleLayout [ axis = x, spacing = 2 ],
+                IconButton [ shape = "front", tip = "Bring to front",
+                    press() { app.ed.restack("front") }
+                    ],
+                IconButton [ shape = "forward", tip = "Bring forward",
+                    press() { app.ed.restack("forward") }
+                    ],
+                IconButton [ shape = "backward", tip = "Send backward",
+                    press() { app.ed.restack("backward") }
+                    ],
+                IconButton [ shape = "back-most", tip = "Send to back",
+                    press() { app.ed.restack("back") }
+                    ],
+                View [ width = 10 ],
+                IconButton [ shape = "group", tip = "Group", disabled = { app.ed.tops.length < 2 },
+                    press() { app.ed.group() }
+                    ],
+                IconButton [ shape = "ungroup", tip = "Ungroup", disabled = { !app.ed.sel.some((e) => e.kind == "group") },
+                    press() { app.ed.ungroup() }
+                    ]
+                ],
+            View [ layout: SimpleLayout [ axis = x, spacing = 2 ],
+                IconButton [ shape = "align-left", tip = "Align left edges", disabled = { app.ed.sel.length < 2 },
+                    press() { app.ed.align("left") }
+                    ],
+                IconButton [ shape = "align-center", tip = "Align centres", disabled = { app.ed.sel.length < 2 },
+                    press() { app.ed.align("center") }
+                    ],
+                IconButton [ shape = "align-right", tip = "Align right edges", disabled = { app.ed.sel.length < 2 },
+                    press() { app.ed.align("right") }
+                    ],
+                IconButton [ shape = "align-top", tip = "Align tops", disabled = { app.ed.sel.length < 2 },
+                    press() { app.ed.align("top") }
+                    ],
+                IconButton [ shape = "align-middle", tip = "Align middles", disabled = { app.ed.sel.length < 2 },
+                    press() { app.ed.align("middle") }
+                    ],
+                IconButton [ shape = "align-bottom", tip = "Align bottoms", disabled = { app.ed.sel.length < 2 },
+                    press() { app.ed.align("bottom") }
+                    ]
+                ],
+            View [ layout: SimpleLayout [ axis = x, spacing = 2 ],
+                IconButton [ shape = "dist-x", tip = "Distribute across", disabled = { app.ed.sel.length < 3 },
+                    press() { app.ed.distribute("x") }
+                    ],
+                IconButton [ shape = "dist-y", tip = "Distribute down", disabled = { app.ed.sel.length < 3 },
+                    press() { app.ed.distribute("y") }
+                    ],
+                View [ width = 10 ],
+                IconButton [ shape = "copy", tip = "Duplicate",
+                    press() { app.ed.duplicate() }
+                    ],
+                IconButton [ shape = "trash", tip = "Delete",
+                    press() { app.ed.deleteSelection() }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── The toolbar ─────────────────────────────────────────────────────────────
+
+// The save status, in exactly the words the person needs.
+
+class SaveStatus [ height = 28, padding = [0, 11, 0, 9], cornerRadius = 14,
+    state: string = { app.sync.state },
+    accessibilityRole = status, accessibilityLabel = { app.sync.status },
+    fill = { classroot.state == "offline" ? provided("theme").dangerSoft : null },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Glyph [ iconSize = 15, weight = 1.6, shape = { classroot.state == "offline" ? "cloud-off" : "cloud" },
+        ink = { classroot.state == "offline" ? provided("theme").danger : provided("theme").textFaint },
+        opacity = { classroot.state == "saving" ? 0.5 : 1 } ],
+    TextLabel [ fontSize = 12, fontWeight = medium, wrap = false,
+        textColor = { classroot.state == "offline" ? provided("theme").danger : provided("theme").textMuted },
+        text = { app.sync.status } ]
+    ]
+
+
+class EditorBar [ width = 100%, height = 56, padding = [0, 14, 0, 10],
+    fill = { provided("theme").surface },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    accessibilityRole = toolbar, accessibilityLabel = "Editor",
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+
+    back: Control [ height = 34, padding = [0, 10, 0, 6], cornerRadius = 9, cursor = "pointer",
+        accessibilityLabel = "All presentations", tooltipLabel = "All presentations",
+        fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+        press() { app.backToList() },
+        layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+        Glyph [ iconSize = 15, weight = 2, shape = "back", ink = { provided("theme").textMuted } ],
+        BrandMark [ width = 24, height = 24 ]
+        ],
+
+    title: TextInput [ width = { Math.max(160, Math.min(320, parent.width - 760)) }, height = 34, fontSize = 15, fontWeight = semibold,
+        accessibilityLabel = "Presentation title", placeholder = "Untitled presentation",
+        fill = { this.focused || hovered ? provided("theme").control : null }, stroke = null, cornerRadius = 8,
+        value = { app.doc.title() },
+        commitOn = "end",
+        commit(v: string) { app.doc.setTitle(v.trim() == "" ? "Untitled presentation" : v.trim()) },
+        onEnter() { app.ed.focusStage() }
+        ],
+
+    SaveStatus [ ],
+    Spacer [ ],
+
+    tools: ChoiceControl [ height = 40, padding = 3, cornerRadius = 12, fill = { provided("theme").control },
+        accessibilityLabel = "Tools",
+        value = { app.tool },
+        commit(v: string) { app.useToolNamed(v) },
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        ChoiceIcon [ choice = "select", shape = "select", tip = "Select" ],
+        ChoiceIcon [ choice = "rect", shape = "rect", tip = "Rectangle" ],
+        ChoiceIcon [ choice = "ellipse", shape = "ellipse", tip = "Ellipse" ],
+        ChoiceIcon [ choice = "line", shape = "line", tip = "Line" ],
+        ChoiceIcon [ choice = "text", shape = "text", tip = "Text" ]
+        ],
+
+    Spacer [ ],
+    IconButton [ shape = "undo", tip = "Undo", disabled = { !app.history.canUndo },
+        press() { app.undo() }
+        ],
+    IconButton [ shape = "redo", tip = "Redo", disabled = { !app.history.canRedo },
+        press() { app.redo() }
+        ],
+    Button [ label = "Edit", height = 34, menu = { app.editMenu } ],
+    PillButton [ label = "New slide", shape = "plus",
+        press() { app.addSlide() }
+        ],
+    PillButton [ label = "Present", shape = "play", tone = "spark",
+        press() { app.startPresent() }
+        ]
+    ]

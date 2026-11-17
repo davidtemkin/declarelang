@@ -1,0 +1,223 @@
+/*
+# Presentify: the look
+
+The palette, the drawn icons and the brand mark. Presentify's identity is two
+colours on a quiet, warm-lavender ground: **Stage violet**, which marks what
+the person is working on (the selection, the current slide, focus), and
+**Spotlight coral**, kept for the few actions that make something (New) or
+show it (Present). The slide itself stays the brightest thing on the screen.
+*/
+
+theme Presentify [
+    // grounds
+
+    background = #F6F4FA, surface = #FFFFFF, card = #FFFFFF, stage = #E8E5EF, stageDeep = #DCD8E6,
+    line = #E4E0EC, lineStrong = #CDC7DA, hover = #F1EEF7, quiet = #F3F1F8,
+
+    // words
+
+    text = #1C1830, textMuted = #67627C, textFaint = #9893AA,
+
+    // Stage violet: selection, focus, the current slide
+
+    accent = #5A3FF2, accentHovered = #4B31E0, accentPressed = #3E27C7, accentTextColor = #FFFFFF,
+    accentTint = #ECE8FF, accentSoft = #CFC6FF,
+
+    // Spotlight coral: New and Present
+
+    spot = #FF5B3A, spotHovered = #F04A28, spotPressed = #D93E1E, spotTint = #FFE9E3,
+
+    // controls
+
+    control = #F1EFF6, controlHovered = #E8E5F0, controlPressed = #DDD9E9, controlSelected = #E6E0FF,
+
+    // states
+
+    danger = #D33A2C, warn = #B86A00, warnTint = #FFF4E0, ok = #22885A,
+
+    // the selection on the slide: violet on a white keyline, so it reads on any colour
+
+    handle = #FFFFFF, handleRim = #5A3FF2, keyline = #FFFFFF, guide = #FF3D7F,
+
+    tooltipFill = #1C1830, tooltipTextColor = #F6F4FA
+    ]
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// One pen draws every icon: a 1.6 stroke with round ends, on the 16-unit grid
+// an `Icon` scales to `iconSize`.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        switch (shape) {
+            case "select":
+                d.moveTo(4, 2); d.lineTo(4, 13.2); d.lineTo(6.9, 10.6); d.lineTo(8.9, 14.6); d.lineTo(10.7, 13.7)
+                d.lineTo(8.8, 9.8); d.lineTo(12.6, 9.6); d.closePath(); d.stroke(); break
+            case "rect": d.roundRect(2.2, 3.6, 11.6, 8.8, 1.6); d.stroke(); break
+            case "ellipse": d.ellipse(8, 8, 6, 4.8, 0, 0, Math.PI * 2); d.stroke(); break
+            case "line": d.moveTo(2.8, 13.2); d.lineTo(13.2, 2.8); d.stroke(); break
+            case "text":
+                d.moveTo(3.2, 4.2); d.lineTo(3.2, 3); d.lineTo(12.8, 3); d.lineTo(12.8, 4.2)
+                d.moveTo(8, 3); d.lineTo(8, 13.4); d.moveTo(6, 13.4); d.lineTo(10, 13.4); d.stroke(); break
+            case "undo":
+                d.moveTo(5.6, 3.6); d.lineTo(2.6, 6.6); d.lineTo(5.6, 9.6)
+                d.moveTo(2.8, 6.6); d.lineTo(9.8, 6.6); d.bezierCurveTo(14.2, 6.6, 14.2, 13, 9.8, 13); d.lineTo(6.4, 13); d.stroke(); break
+            case "redo":
+                d.moveTo(10.4, 3.6); d.lineTo(13.4, 6.6); d.lineTo(10.4, 9.6)
+                d.moveTo(13.2, 6.6); d.lineTo(6.2, 6.6); d.bezierCurveTo(1.8, 6.6, 1.8, 13, 6.2, 13); d.lineTo(9.6, 13); d.stroke(); break
+            case "play": d.moveTo(5, 2.8); d.lineTo(13.2, 8); d.lineTo(5, 13.2); d.closePath(); d.fill(); d.stroke(); break
+            case "plus": d.moveTo(8, 2.6); d.lineTo(8, 13.4); d.moveTo(2.6, 8); d.lineTo(13.4, 8); d.stroke(); break
+            case "back": d.moveTo(10, 2.8); d.lineTo(4.8, 8); d.lineTo(10, 13.2); d.stroke(); break
+            case "close": d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke(); break
+            case "duplicate":
+                d.roundRect(5.2, 5.2, 8.6, 8.6, 1.6); d.moveTo(10.8, 2.6); d.lineTo(3.8, 2.6)
+                d.arcTo(2.2, 2.6, 2.2, 4.2, 1.6); d.lineTo(2.2, 10.8); d.stroke(); break
+            case "trash":
+                d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+                d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke(); break
+            case "group":
+                d.setLineDash([1.6, 2.2]); d.roundRect(1.6, 1.6, 12.8, 12.8, 2); d.stroke()
+                d.setLineDash([]); d.beginPath(); d.roundRect(4.4, 4.4, 4.2, 4.2, 0.8); d.roundRect(7.4, 7.4, 4.2, 4.2, 0.8); d.stroke(); break
+            case "ungroup":
+                d.roundRect(2, 2, 6, 6, 1.2); d.roundRect(8, 8, 6, 6, 1.2); d.stroke(); break
+            case "alignLeft":
+                d.moveTo(2.4, 1.8); d.lineTo(2.4, 14.2); d.stroke(); d.beginPath()
+                d.roundRect(4.6, 3.6, 9, 3.4, 0.8); d.roundRect(4.6, 9, 5.4, 3.4, 0.8); d.fill(); break
+            case "alignCenter":
+                d.moveTo(8, 1.8); d.lineTo(8, 14.2); d.stroke(); d.beginPath()
+                d.roundRect(2.6, 3.6, 10.8, 3.4, 0.8); d.roundRect(4.6, 9, 6.8, 3.4, 0.8); d.fill(); break
+            case "alignRight":
+                d.moveTo(13.6, 1.8); d.lineTo(13.6, 14.2); d.stroke(); d.beginPath()
+                d.roundRect(2.4, 3.6, 9, 3.4, 0.8); d.roundRect(6, 9, 5.4, 3.4, 0.8); d.fill(); break
+            case "alignTop":
+                d.moveTo(1.8, 2.4); d.lineTo(14.2, 2.4); d.stroke(); d.beginPath()
+                d.roundRect(3.6, 4.6, 3.4, 9, 0.8); d.roundRect(9, 4.6, 3.4, 5.4, 0.8); d.fill(); break
+            case "alignMiddle":
+                d.moveTo(1.8, 8); d.lineTo(14.2, 8); d.stroke(); d.beginPath()
+                d.roundRect(3.6, 2.6, 3.4, 10.8, 0.8); d.roundRect(9, 4.6, 3.4, 6.8, 0.8); d.fill(); break
+            case "alignBottom":
+                d.moveTo(1.8, 13.6); d.lineTo(14.2, 13.6); d.stroke(); d.beginPath()
+                d.roundRect(3.6, 2.4, 3.4, 9, 0.8); d.roundRect(9, 6, 3.4, 5.4, 0.8); d.fill(); break
+            case "distH":
+                d.moveTo(1.8, 2); d.lineTo(1.8, 14); d.moveTo(14.2, 2); d.lineTo(14.2, 14); d.stroke(); d.beginPath()
+                d.roundRect(6.3, 4, 3.4, 8, 0.8); d.fill(); break
+            case "distV":
+                d.moveTo(2, 1.8); d.lineTo(14, 1.8); d.moveTo(2, 14.2); d.lineTo(14, 14.2); d.stroke(); d.beginPath()
+                d.roundRect(4, 6.3, 8, 3.4, 0.8); d.fill(); break
+            case "front":
+                d.roundRect(2, 2, 7.5, 7.5, 1.2); d.stroke(); d.beginPath(); d.roundRect(6.5, 6.5, 7.5, 7.5, 1.2); d.fill(); break
+            case "toBack":
+                d.roundRect(6.5, 6.5, 7.5, 7.5, 1.2); d.stroke(); d.beginPath(); d.roundRect(2, 2, 7.5, 7.5, 1.2); d.fill(); break
+            case "arrange":
+                d.roundRect(2, 2, 7.5, 7.5, 1.2); d.stroke(); d.beginPath(); d.roundRect(6.5, 6.5, 7.5, 7.5, 1.2); d.stroke(); break
+            case "panel":
+                d.roundRect(1.6, 2.6, 12.8, 10.8, 2); d.moveTo(9.8, 2.6); d.lineTo(9.8, 13.4); d.stroke(); break
+            case "more":
+                d.arc(3.4, 8, 1.3, 0, 6.3); d.fill(); d.beginPath(); d.arc(8, 8, 1.3, 0, 6.3); d.fill()
+                d.beginPath(); d.arc(12.6, 8, 1.3, 0, 6.3); d.fill(); break
+            case "check": d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke(); break
+            case "warn":
+                d.moveTo(8, 2.2); d.lineTo(14.4, 13.4); d.lineTo(1.6, 13.4); d.closePath(); d.stroke(); d.beginPath()
+                d.moveTo(8, 6.4); d.lineTo(8, 9.4); d.stroke(); d.beginPath(); d.arc(8, 11.5, 0.9, 0, 6.3); d.fill(); break
+            case "saving":
+                d.arc(8, 8, 5.6, -Math.PI * 0.4, Math.PI * 1.25); d.stroke(); break
+            case "slides":
+                d.roundRect(1.8, 3.4, 9.6, 7, 1.4); d.moveTo(4.6, 13); d.lineTo(13.2, 13); d.arcTo(14.2, 13, 14.2, 12, 1)
+                d.lineTo(14.2, 6.4); d.stroke(); break
+            case "slide":
+                d.roundRect(1.6, 3.4, 12.8, 9.2, 1.6); d.stroke(); break
+            case "rename":
+                d.moveTo(10.4, 2.6); d.lineTo(13.4, 5.6); d.lineTo(5.6, 13.4); d.lineTo(2.4, 13.6); d.lineTo(2.6, 10.4); d.closePath(); d.stroke(); break
+            case "cut":
+                d.arc(4.6, 11.6, 2.2, 0, 6.3); d.moveTo(13.6, 11.6); d.arc(11.4, 11.6, 2.2, 0, 6.3)
+                d.moveTo(6.4, 10.2); d.lineTo(12, 2.4); d.moveTo(9.6, 10.2); d.lineTo(4, 2.4); d.stroke(); break
+            case "copy": d.roundRect(5.2, 5.2, 8.6, 8.6, 1.6); d.roundRect(2.2, 2.2, 8.6, 8.6, 1.6); d.stroke(); break
+            case "paste":
+                d.roundRect(3, 3, 10, 11.2, 1.6); d.moveTo(6, 3); d.lineTo(6, 1.8); d.lineTo(10, 1.8); d.lineTo(10, 3); d.stroke(); break
+            default: d.roundRect(3, 3, 10, 10, 2); d.stroke()
+            }
+        }
+    ]
+
+
+// The brand mark: a slide in Stage violet with the Spotlight falling on it.
+
+class BrandMark extends View [ width = 28, height = 28,
+    draw(d: DrawContext) {
+        const u = d.w / 28
+        d.scale(u, u)
+        d.fillStyle = provided("theme").accent
+        d.beginPath()
+        d.roundRect(0, 0, 28, 28, 8)
+        d.fill()
+        d.fillStyle = 0xFFFFFF
+        d.beginPath()
+        d.roundRect(5.5, 8, 17, 12, 2.4)
+        d.fill()
+        d.fillStyle = provided("theme").spot
+        d.beginPath()
+        d.arc(19.5, 9, 4.6, 0, Math.PI * 2)
+        d.fill()
+        d.fillStyle = provided("theme").accent
+        d.beginPath()
+        d.roundRect(8.5, 15.4, 7, 2, 1)
+        d.fill()
+        }
+    ]
+
+
+// The wordmark: the mark and the name, set in the display face.
+
+class Wordmark [
+    markSize: number = 28,
+    layout: SimpleLayout [ axis = x, spacing = 9, align = center ],
+    BrandMark [ width = { classroot.markSize }, height = { classroot.markSize } ],
+    TextLabel [ fontFamily = { app.displayFace }, fontSize = { classroot.markSize * 0.78 }, fontWeight = semibold,
+        letterSpacing = -0.4, textColor = { provided("theme").text }, text = "Presentify" ]
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A square icon button: a toolbar's commands. `on` marks a tool in the hand.
+
+class IconButton extends Control [ width = 34, height = 34, cornerRadius = 9,
+    shape: string = "",
+    on: boolean = false,
+    tone: Color = { provided("theme").text },
+    keyHint: string = "",
+    tooltipLabel = { classroot.keyHint == "" ? this.accessibilityLabel : this.accessibilityLabel + "   " + classroot.keyHint },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").accentTint } ],
+    opacity = { disabled ? 0.35 : 1 },
+    Glyph [ x = center, y = center, iconSize = 17, weight = 1.7, shape = { classroot.shape },
+        ink = { classroot.on ? provided("theme").accent : classroot.tone } ]
+    ]
+
+
+// A pill with a word, and an icon when it has one: the toolbar's labelled
+// commands. `spot` makes it the coral one.
+
+class PillButton extends Control [ height = 34, cornerRadius = 17, padding = [0, 14, 0, 12],
+    label: string = "",
+    shape: string = "",
+    spot: boolean = false,
+    accessibilityLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.spot }, fill = { pressed ? provided("theme").spotPressed : hovered ? provided("theme").spotHovered : provided("theme").spot } ],
+    opacity = { disabled ? 0.4 : 1 },
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+    Glyph [ visible = { classroot.shape != "" }, iconSize = 14, weight = 1.9, shape = { classroot.shape },
+        ink = { classroot.spot ? 0xFFFFFF : provided("theme").text } ],
+    TextLabel [ fontSize = 13, fontWeight = semibold, wrap = false,
+        textColor = { classroot.spot ? 0xFFFFFF : provided("theme").text }, text = { classroot.label } ]
+    ]

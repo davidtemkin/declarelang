@@ -1,0 +1,34 @@
+# eval-7guis-5
+total 6.3 min · 49 turns · output 38234 tokens (thinking 13324)
+phases: reading 3.2 · writing 2.6 · checking 0.6 min
+tool time 0.4 min · model time 5.9 min
+tokens: input 80 · cache write 203040 · cache read 5611813 · output 38234 · thinking 13324
+rate: 6462 output tokens per model-minute
+tools:
+  help       9×   0.22 min  (median 0.8 s)
+  verify     4×   0.13 min  (median 2.1 s)
+  bash      15×   0.03 min  (median 0.0 s)
+model turns, by what came before:
+  after write     9×   2.06 min  (median 11.4 s)
+  after help      9×   1.79 min  (median 3.9 s)
+  after bash     14×   1.35 min  (median 2.1 s)
+  after read     10×   0.28 min  (median 1.6 s)
+  after verify    4×   0.21 min  (median 3.2 s)
+  after edit      1×   0.02 min  (median 1.1 s)
+app: 8 .declare files, 708 non-blank lines · 12 snapshots changed them: 872 lines added, 29 removed
+verify results mentioning accessibility: 0
+source reads: library 3 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library
+            library  library/valuecontrol.declare
+            library  library/textinput.declare
+diagnostic codes, by tool results reporting them: DECLARE5000 1, DECLARE2000 1, DECLARE1002 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   0.05 min     4×  compile (R1–R3)
+   0.03 min     2×  R4 boot, in all
+   0.01 min     2×  page: load, compile in the page and boot
+   0.01 min     2×  chrome: a browser (shared between calls)
+   0.00 min     2×  page: a new page
+   0.00 min     2×  program: built from the compile
+   0.00 min     2×  end: the browser context released
+   0.00 min     2×  serve: start the program's server
+   0.00 min     4×  compile (R1–R3): the last compile, if its files are unchanged

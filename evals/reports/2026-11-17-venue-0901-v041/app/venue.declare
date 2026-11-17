@@ -1,0 +1,1486 @@
+/*
+# The Venue
+
+Booking *The Marriage of Figaro* in the Grand Hall: pick one of twenty
+performances, choose seats in a plan drawn the way the house is, pay, and come
+away with tickets to hold up at the door.
+
+The data lives behind the service on port 8350 (`task/api/API.md`); nothing is
+cached here. The shape of the program:
+
+- **Truth** is a handful of sources and app attributes: the production, the
+  chosen performance's seat map, the live stream of other people's purchases
+  (`soldLive`), the seats this person has chosen (`chosen`), the session (`me`),
+  and the checkout form (`form`).
+- **Everything shown derives** from those — the hall's geometry, what each seat
+  looks like and says, the running summary, every field's error, the total and
+  the pay button's words.
+- **The four places** (`step`: list → hall → checkout → tickets) are one
+  attribute; signing in is a sheet over whichever of them is showing, so nothing
+  chosen or typed is lost by it.
+*/
+
+script [ "venue.ts" ]
+
+use [ CheckIcon ]
+
+/*
+## Palette and type
+
+One accent — ultramarine — and it means *yours*: your seats, your total, the
+button that commits. The room is drawn in warm neutrals whose depth follows the
+price; errors are the only red.
+*/
+
+script {
+    const PAPER = 0xF6F2EA
+    const CARD = 0xFFFDF8
+    const INK = 0x1F1B17
+    const MUTED = 0x6D6459
+    const FAINT = 0xA59B8E
+    const RULE = 0xE2D9CB
+    const ACCENT = 0x2A3E9C
+    const ACCENT_SOFT = 0xE4E8F6
+    const ERROR = 0xB3261E
+    const GONE = 0xD4CCBF
+    const STAGE = 0x2C2520
+    const SERIF = "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif"
+    const SANS = "system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', sans-serif"
+    }
+
+
+/*
+## Small pieces
+*/
+
+// A quiet text button — the "‹ Back" and "Sign in" kind.
+
+class Quiet extends Control [ height = 40, cornerRadius = 8,
+    label: string = "",
+    ink: Color = { ACCENT },
+    role = "button",
+    width = { this.cap.width + 20 },
+    fill = { down ? 0xE7DFD2 : hot ? 0xEEE7DC : null },
+    onClick() { if (!disabled) press() },
+    cap: Text [ x = 10, y = center, wrap = false, fontSize = 15, fontWeight = medium,
+        textColor = { classroot.ink }, text = { classroot.label } ]
+    ]
+
+
+// A labelled entry in the checkout form: label above, field, the error below
+// once it is due. The value lives in `app.form`; the field derives down and
+// delivers up.
+
+class Entry extends View [ height = { this.err.visible ? 98 : 76 },
+    field: string = "",
+    label: string = "",
+    optional: boolean = false,
+    inputType: string = "text",
+    autocomplete: string = "",
+    inputMode: string = "",
+    trailing: string = "",
+    hint: string = "",
+    error: string = { app.fieldError(this.field) },
+
+    cap: Text [ y = 0, fontSize = 14, fontWeight = medium, wrap = false, textColor = { INK },
+        text = { classroot.label + (classroot.optional ? " (optional)" : "") } ],
+    box: TextInput [ y = 24, width = { parent.width }, height = 46, fontSize = 17, padding = 12,
+        cornerRadius = 8,
+        fill = { CARD },
+        stroke = { stroke(this.focused ? 2 : 1, this.focused ? ACCENT : classroot.error != "" ? ERROR : 0xCFC5B6) },
+        spellcheck = false,
+        placeholder = { classroot.hint },
+        fieldName = { classroot.field },
+        inputType = { classroot.inputType },
+        autocomplete = { classroot.autocomplete },
+        inputMode = { classroot.inputMode },
+        text = { app.formValue(classroot.field) },
+        aria = { { label: classroot.label + (classroot.optional ? " (optional)" : ""), required: !classroot.optional, invalid: classroot.error != "",
+            description: classroot.error } },
+        onInput(v: string) { app.edit(classroot.field, v) },
+        onBlur() { app.leave(classroot.field) },
+        onEnter() { app.pay() }
+        ],
+    brand: Text [ x = { parent.width - this.width - 14 }, y = 38, fontSize = 13, fontWeight = semibold,
+        letterSpacing = 0.4, wrap = false, textColor = { MUTED }, visible = { classroot.trailing != "" },
+        text = { classroot.trailing } ],
+    err: Text [ y = 76, width = { parent.width }, wrap = true, fontSize = 14, textColor = { ERROR },
+        visible = { classroot.error != "" }, text = { classroot.error } ]
+    ]
+
+
+// One seat. Its whole look and its whole announcement derive from three facts:
+// whether it is gone, whether it is theirs, and its section.
+
+class Seat extends View [
+    sid: string = { :id },
+    gone: boolean = { :sold || app.soldLive[:id] == true },
+    mine: boolean = { app.chosen.includes(:id) },
+
+    width = { app.pitch }, height = { app.pitch },
+    x = { :x * app.pitch - app.pitch / 2 },
+    y = { :y * app.pitch - app.pitch / 2 },
+
+    focusable = { app.cursorId == :id },
+    role = "button",
+    aria = { { label: :label, pressed: this.mine, disabled: this.gone ? true : null,
+        description: this.gone ? "Taken" : money(:price) + (this.mine ? ", chosen" : ", available") } },
+
+    hasFocus: boolean = false,
+    onFocus() { this.hasFocus = true },
+    onBlur() { this.hasFocus = false },
+    onClick() { app.keyNav = false; app.toggle(:id) },
+    onKeyDown(e: KeyEvent) { app.seatKey(:id, e.key) },
+
+    // where the keyboard is, in the plan
+
+    ring: View [ visible = { classroot.hasFocus && app.keyNav },
+        width = { app.pitch + 4 }, height = { app.pitch + 4 }, x = -2, y = -2,
+        cornerRadius = { (app.pitch + 4) / 2 }, stroke = { stroke(2.5, INK) } ],
+
+    // free: an open ring in the section's tone · theirs: a large solid accent
+    // disc with a tick · gone: a small grey point. Size, fill and mark all
+    // differ, so no legend and no colour vision is needed to tell them apart.
+
+    size: number = { this.gone ? 0.3 : this.mine ? 0.9 : 0.7 },
+    shown: number = 0.7,
+    Spring [ attribute = shown, to = { classroot.size }, stiffness = 420, damping = 17 ],
+
+    dot: View [
+        width = { app.pitch * classroot.shown }, height = { app.pitch * classroot.shown },
+        x = { (app.pitch - this.width) / 2 }, y = { (app.pitch - this.height) / 2 },
+        cornerRadius = { app.pitch * classroot.shown / 2 },
+        fill = { classroot.mine ? ACCENT : classroot.gone ? GONE : app.mixPaper(toneOf(:sec)) },
+        stroke = { classroot.mine || classroot.gone ? null : stroke(Math.max(1.5, app.pitch * 0.09), toneOf(:sec)) },
+        tick: CheckIcon [ visible = { classroot.mine }, iconSize = { Math.round(app.pitch * 0.55) },
+            x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 },
+            weight = 2.2, ink = { 0xFFFFFF } ]
+        ]
+    ]
+
+
+// One performance in the list: the date as a block, the time, the price from,
+// and how full it is — as a meter and in words.
+
+class PerfCard extends Control [ height = 96, cornerRadius = 12,
+    pid: string = { :id },
+    left: number = { :seatsLeft },
+    total: number = { :seats },
+    tight: boolean = { scarce(this.left, this.total) },
+    soldOut: boolean = { this.left <= 0 },
+    width = { app.cardW },
+    role = "button",
+    aria = { { label: dateLabel(:startsAt) + ", " + timeLabel(:startsAt) + ", from " + money(:priceFromCents)
+        + ", " + availability(this.left, this.total), disabled: this.soldOut ? true : null } },
+    disabled = { this.soldOut },
+    fill = { down ? 0xF1EADF : hot ? 0xFFFFFF : CARD },
+    stroke = { stroke(1, hot ? 0xCBBFAE : RULE) },
+    onClick() { if (!disabled) press() },
+    press() { app.openPerformance(:id) },
+
+    when: View [ x = 16, y = 14, width = 52, height = 68, cornerRadius = 8,
+        fill = { classroot.tight ? INK : 0xEFE8DC },
+        Text [ y = 8, width = { parent.width }, textAlign = center, fontSize = 12, fontWeight = semibold,
+            letterSpacing = 1, textColor = { classroot.tight ? 0xF6F2EA : MUTED },
+            text = { weekday(:startsAt).toUpperCase() } ],
+        Text [ y = 22, width = { parent.width }, textAlign = center, fontSize = 26, fontFamily = { SERIF },
+            textColor = { classroot.tight ? 0xFFFFFF : INK }, text = { dayOfMonth(:startsAt) } ],
+        Text [ y = 50, width = { parent.width }, textAlign = center, fontSize = 12,
+            textColor = { classroot.tight ? 0xF6F2EA : MUTED }, text = { monthShort(:startsAt) } ]
+        ],
+    time: Text [ x = 84, y = 16, fontSize = 19, fontWeight = semibold, wrap = false, textColor = { INK },
+        text = { timeLabel(:startsAt) } ],
+    from: Text [ x = { parent.width - this.width - 18 }, y = 19, fontSize = 15, wrap = false,
+        textColor = { MUTED }, text = { "from " + money(:priceFromCents) } ],
+    meter: View [ x = 84, y = 52, width = { parent.width - 84 - 18 }, height = 6, cornerRadius = 3, fill = 0xEAE2D5,
+        sold: View [ height = 6, cornerRadius = 3, fill = { classroot.tight ? INK : 0x9C8F7E },
+            width = { parent.width * (1 - classroot.left / Math.max(1, classroot.total)) } ]
+        ],
+    avail: Text [ x = 84, y = 66, fontSize = 14, wrap = false,
+        fontWeight = { classroot.tight ? "semibold" : "normal" },
+        textColor = { classroot.tight ? INK : MUTED },
+        text = { availability(classroot.left, classroot.total) } ]
+    ]
+
+
+// One way to pay: a saved card, shown as a person knows it, or a new one.
+// An expired card is shown as expired and cannot be chosen.
+
+class CardChoice extends Control [ width = { parent.width }, height = 56, cornerRadius = 10,
+    expired: boolean = { :kind == "saved" && cardExpired(:expMonth, :expYear, app.nowYear, app.nowMonth) },
+    on: boolean = { :kind == "new" ? app.payMode == "new" : app.payMode == "saved" && app.savedCardId == :id },
+    disabled = { this.expired },
+    role = "radio",
+    aria = { { checked: this.on, disabled: this.expired ? true : null,
+        label: :kind == "new" ? "A new card"
+            : brandName(:brand) + " ending " + :last4 + (this.expired ? ", expired " : ", expires ") + expiryLabel(:expMonth, :expYear) } },
+    fill = { this.on ? ACCENT_SOFT : this.expired ? 0xF1ECE4 : CARD },
+    stroke = { stroke(this.on ? 2 : 1, this.on ? ACCENT : RULE) },
+    opacity = 1,
+    onClick() { if (!disabled) press() },
+    press() { app.chooseCard(:kind == "new" ? "" : :id) },
+    ring: View [ x = 16, y = 19, width = 18, height = 18, cornerRadius = 9,
+        stroke = { stroke(classroot.on ? 6 : 1.5, classroot.on ? ACCENT : classroot.expired ? 0xC9C0B2 : MUTED) } ],
+    brandT: Text [ x = 46, y = center, fontSize = 16, fontWeight = semibold, wrap = false,
+        textColor = { classroot.expired ? FAINT : INK },
+        text = { :kind == "new" ? "A new card" : brandName(:brand) + " •••• " + :last4 } ],
+    expT: Text [ x = { parent.width - this.width - 16 }, y = center, fontSize = 15, wrap = false,
+        fontWeight = { classroot.expired ? "semibold" : "normal" },
+        textColor = { classroot.expired ? ERROR : MUTED },
+        text = { :kind == "new" ? "" : classroot.expired ? "Expired " + expiryLabel(:expMonth, :expYear) : "Expires " + expiryLabel(:expMonth, :expYear) } ]
+    ]
+
+
+// A line of the order: what it is on the left, its amount ranged right.
+
+class Line extends View [ height = { this.big ? 34 : 24 },
+    what: string = "",
+    amount: string = "",
+    big: boolean = false,
+    quiet: boolean = false,
+    width = { parent.width },
+    l: Text [ y = center, wrap = false, fontSize = { classroot.big ? 18 : 15 },
+        fontWeight = { classroot.big ? "semibold" : "normal" },
+        textColor = { classroot.quiet ? MUTED : INK }, text = { classroot.what } ],
+    r: Text [ x = { parent.width - this.width }, y = center, wrap = false, fontSize = { classroot.big ? 20 : 15 },
+        fontWeight = { classroot.big ? "bold" : "normal" },
+        textColor = { classroot.quiet ? MUTED : INK }, text = { classroot.amount } ]
+    ]
+
+
+// The legend's three marks, drawn exactly as the seats are.
+
+class Mark extends View [ width = 18, height = 18,
+    kind: string = "free",
+    d: View [ width = { classroot.kind == "gone" ? 6 : classroot.kind == "mine" ? 16 : 13 },
+        height = { this.width }, cornerRadius = { this.width / 2 },
+        x = { (18 - this.width) / 2 }, y = { (18 - this.height) / 2 },
+        fill = { classroot.kind == "mine" ? ACCENT : classroot.kind == "gone" ? GONE : app.mixPaper(toneOf(1)) },
+        stroke = { classroot.kind == "free" ? stroke(1.5, toneOf(1)) : null },
+        CheckIcon [ visible = { classroot.kind == "mine" }, iconSize = 9, x = 3.5, y = 3.5, weight = 2.2, ink = { 0xFFFFFF } ]
+        ]
+    ]
+
+
+class Key extends View [ height = 20,
+    kind: string = "free",
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 6 ],
+    m: Mark [ y = 1, kind = { classroot.kind } ],
+    Text [ y = 1, fontSize = 13, wrap = false, textColor = { MUTED }, text = { classroot.label } ]
+    ]
+
+
+/*
+## The app
+*/
+
+App [ fill = #F6F2EA, textColor = #1F1B17, fontFamily = { SANS }, minWidth = 320,
+    appName = "The Venue — The Marriage of Figaro",
+    theme = { ({ ...Themes.sanFrancisco(false), bg: PAPER, surface: CARD, line: RULE, text: INK, textMuted: MUTED,
+        textFaint: FAINT, accent: ACCENT, accentText: 0xFFFFFF, control: 0xECE4D7, controlHover: 0xE4DBCC,
+        controlPressed: 0xD8CEBE, controlSelected: ACCENT_SOFT, errorColor: ERROR, controlRadius: 10,
+        buttonHeight: 48, buttonRadius: 10 }) },
+
+    // ── the sources ─────────────────────────────────────────────────────────
+
+    production: DataSource [ url = { API + "/api/production" } ],
+    seatMap: DataSource [ url = { app.perfId == "" ? "" : API + "/api/performances/" + app.perfId + "/seats" },
+        onLoad() { app.hallArrived() }
+        ],
+    me: DataSource [ url = { API + "/api/me" }, credentials = include,
+        onLoad() { app.signedInArrived() }
+        ],
+    session: DataSource [ url = { API + "/api/session" }, method = "POST", credentials = include,
+        body = { ({ email: app.loginEmail.trim(), password: app.loginPassword }) } ],
+    signOutCall: DataSource [ url = { API + "/api/session" }, method = "DELETE", credentials = include, format = "text" ],
+    order: DataSource [ url = { API + "/api/orders" }, method = "POST", credentials = include,
+        body = { app.orderBody() } ],
+
+    // other people buying, while this person looks at the room
+
+    live: EventStream [ url = { app.perfId == "" ? "" : API + "/api/events?performance=" + app.perfId },
+        active = { app.step == "hall" || app.step == "checkout" },
+        listenTo = ["seatchanged"],
+        onMessage(e: StreamMessage) { app.seatChanged(e.data) },
+        onOpen() { app.streamOpened() }
+        ],
+
+    onInit() {
+        this.production.fetch()
+        this.me.fetch()
+        },
+
+    // ── state ───────────────────────────────────────────────────────────────
+
+    step: string = "list",
+    perfId: string = "",
+    chosen: array = [],
+    soldLive: object = { ({}) },
+    cursorId: string = "",
+    notice: string = "",
+    streamOpens: number = 0,
+    focusOnArrival: boolean = false,
+    keyNav: boolean = false,
+    announcement: string = "",
+
+    signingIn: boolean = false,
+    loginEmail: string = "",
+    loginPassword: string = "",
+    showPassword: boolean = false,
+    loginError: string = "",
+
+    payMode: string = "new",
+    savedCardId: string = "",
+    form: object = { ({ email: "", name: "", number: "", expiry: "", cvc: "", savedCvc: "",
+        line1: "", line2: "", city: "", postal: "" }) },
+    country: string = { defaultCountry() },
+    touched: object = { ({}) },
+    submitted: boolean = false,
+    serverField: string = "",
+    serverFieldMessage: string = "",
+    payError: string = "",
+    paying: boolean = false,
+
+    ticketIndex: number = 0,
+    ticketDrag: number = 0,
+    ticketLane: number = 0,
+    Spring [ attribute = ticketLane, to = { app.ticketIndex }, stiffness = 230, damping = 28 ],
+
+    // ── derived ─────────────────────────────────────────────────────────────
+
+    compact: boolean = { app.width < 900 },
+    gutter: number = { app.compact ? 16 : 32 },
+    columnW: number = { Math.min(1120, app.width - 2 * app.gutter) },
+    cols: number = { app.columnW >= 1000 ? 3 : app.columnW >= 640 ? 2 : 1 },
+    cardW: number = { (app.columnW - (app.cols - 1) * 14) / app.cols },
+
+    performances: array = { (app.production.value as any)?.performances ?? [] },
+    perf: object = { app.performances.find((p) => p.id == app.perfId) ?? null },
+    perfWhen: string = { app.perf == null ? "" : dateLabel(app.perf.startsAt) + " · " + timeLabel(app.perf.startsAt) },
+
+    hall: Dataset [ contents = { buildHall(app.seatMap.value) } ],
+    orderRows: Dataset [ contents = { ({ rows: app.chosenSeats }) } ],
+    cardRows: Dataset [ contents = { ({ rows: [...app.cards.map((c) => ({ ...c, kind: "saved" })), ({ id: "new", kind: "new" })] }) } ],
+    ticketRows: Dataset [ contents = { ({ rows: app.ticketsScreen.tickets.map((t, i) => ({ ...t, id: t.seatId, i: i })) }) } ],
+    model: object = { app.hall.value },
+
+    // the plan's seat pitch: the whole room at a laptop's size; at a phone's,
+    // a pitch a thumb can hit, in a pane the thumb pans
+
+    paneW: number = { app.compact ? app.width : app.width - 2 * app.gutter - 300 },
+    paneH: number = { app.compact ? Math.max(260, app.hostHeight - 56 - 206 - 76 - app.safeBottom) : Math.max(420, app.hostHeight - 56 - 56 - 76 - 20) },
+    fitPitch: number = { app.model == null ? 16 : Math.min((app.paneW - 16) / app.model.width, (app.paneH - 8) / app.model.height) },
+    pitch: number = { app.compact ? 34 : Math.max(14, Math.min(24, app.fitPitch)) },
+    planW: number = { app.model == null ? 0 : app.model.width * app.pitch },
+    planH: number = { app.model == null ? 0 : app.model.height * app.pitch },
+
+    chosenSeats: array = { app.model == null ? [] : app.chosen.map((id) => app.model.seats.find((s) => s.id == id)).filter((s) => s != null) },
+    seatCents: number = { app.chosenSeats.reduce((a, s) => a + s.price, 0) },
+    feeCents: number = { app.chosenSeats.reduce((a, s) => a + s.fee, 0) },
+    totalCents: number = { app.seatCents + app.feeCents },
+    summary: string = { seatSummary(app.chosen.length, app.seatCents) },
+    rollCents: number = 0,
+    Spring [ attribute = rollCents, to = { app.seatCents }, stiffness = 260, damping = 26 ],
+
+    signedIn: boolean = { app.me.loaded && app.me.value != null },
+    account: object = { app.signedIn ? app.me.value : null },
+    cards: array = { app.account == null ? [] : app.account.cards ?? [] },
+    clock: Time [ tick = day ],
+    nowYear: number = { app.clock.year },
+    nowMonth: number = { app.clock.month },
+    usableCard: object = { app.cards.find((c) => !cardExpired(c.expMonth, c.expYear, app.nowYear, app.nowMonth)) ?? null },
+    usingSaved: boolean = { app.signedIn && app.payMode == "saved" && app.savedCardId != "" },
+    savedCard: object = { app.cards.find((c) => c.id == app.savedCardId) ?? null },
+    brand: string = { app.usingSaved && app.savedCard != null ? app.savedCard.brand : brandOf(app.form.number) },
+    payLabel: string = { "Pay " + money(app.totalCents) },
+
+    // ── the list ────────────────────────────────────────────────────────────
+
+    openPerformance(id: string) {
+        if (this.perfId != id) {
+            this.chosen = []
+            this.soldLive = {}
+            this.notice = ""
+            }
+        this.perfId = id
+        this.step = "hall"
+        this.keyNav = Focus.byKeyboard() || app.lastPointerType == ""
+        this.focusOnArrival = true
+        this.seatMap.fetch()
+        this.scrollTo(0)
+        },
+
+    // ── the hall ────────────────────────────────────────────────────────────
+
+    hallArrived() {
+        this.soldLive = {}
+        // a choice made before a reload of the map keeps only what is still free
+        const m = buildHall(this.seatMap.value)
+        const gone = this.chosen.filter((id) => { const s = m.seats.find((x) => x.id == id); return s == null || s.sold })
+        if (gone.length > 0) this.loseSeats(gone, "")
+        if (this.cursorId == "" || m.seats.find((s) => s.id == this.cursorId) == null) {
+            // the keyboard starts at the best free seat: front section, nearest the centre
+            const free = m.seats.filter((s) => !s.sold)
+            const best = free.sort((a, b) => (a.sec - b.sec) || (Math.abs(a.x - m.cx) - Math.abs(b.x - m.cx)) || (a.y - b.y))[0]
+            this.cursorId = best != null ? best.id : (m.seats[0]?.id ?? "")
+            }
+        afterSettle(app.centrePane)
+        if (this.focusOnArrival) {
+            this.focusOnArrival = false
+            afterSettle(app.focusCursor)
+            }
+        },
+
+    centrePane() {
+        const p = app.hallScreen.pane
+        if (app.compact) p.scrollToX(Math.max(0, (app.planW - p.width) / 2))
+        },
+
+    streamOpened() {
+        // a reconnect may have missed purchases: re-read the room
+        this.streamOpens = this.streamOpens + 1
+        if (this.streamOpens > 1 && this.perfId != "") this.seatMap.fetch()
+        },
+
+    seatChanged(data: string) {
+        let msg = null
+        try { msg = JSON.parse(data) } catch (e) { return }
+        if (msg == null || msg.seatId == null || msg.status == "available") return
+        this.soldLive = { ...this.soldLive, [msg.seatId]: true }
+        if (this.chosen.includes(msg.seatId)) this.loseSeats([msg.seatId], "")
+        },
+
+    // seats that someone else took leave the choice, and the person is told which
+
+    loseSeats(ids: array, said: string) {
+        this.chosen = this.chosen.filter((id) => !ids.includes(id))
+        const names = ids.map((id) => app.seatName(id))
+        const which = names.length == 1 ? names[0] + " was just taken by someone else"
+                                       : names.join(" and ") + " were just taken by someone else"
+        const gone = names.length == 1 ? "it has" : "they have"
+        this.notice = said != "" ? said + " Nothing was charged; " + (names.length == 1 ? "that seat has" : "those seats have") + " left your choice and the rest is kept."
+                                 : which + ", so " + gone + " left your choice."
+        this.say(this.notice)
+        },
+
+    seatName(id: string) -> string {
+        const m = app.model
+        const s = m == null ? null : m.seats.find((x) => x.id == id)
+        if (s != null) return s.label
+        const p = id.split("-")
+        const names = { ORCH: "Orchestra", GT: "Grand Tier", DC: "Dress Circle", BALC: "Balcony" }
+        return (names[p[0]] ?? p[0]) + ", row " + p[1] + ", seat " + p[2]
+        },
+
+    toggle(id: string) {
+        const m = this.model
+        const s = m == null ? null : m.seats.find((x) => x.id == id)
+        this.cursorId = id
+        if (s == null) return
+        if (s.sold || this.soldLive[id] == true) {
+            this.say(s.label + " is taken.")
+            return
+            }
+        if (this.chosen.includes(id)) {
+            this.chosen = this.chosen.filter((x) => x != id)
+            }
+        else if (this.chosen.length >= 10) {
+            this.say("You can choose up to 10 seats at a time.")
+            return
+            }
+        else {
+            this.chosen = [...this.chosen, id]
+            this.notice = ""
+            }
+        this.bar.sum.t.pulse.start()
+        },
+
+    seatKey(id: string, key: string) {
+        this.keyNav = true
+        if (key == " " || key == "Enter") { this.toggle(id); return }
+        const dir = key == "ArrowLeft" ? "left" : key == "ArrowRight" ? "right" : key == "ArrowUp" ? "up"
+                  : key == "ArrowDown" ? "down" : key == "Home" ? "home" : key == "End" ? "end" : ""
+        if (dir == "") return
+        this.cursorId = seatToward(this.model, id, dir)
+        afterSettle(app.focusCursor)
+        },
+
+    focusCursor() {
+        for (const c of app.hallScreen.pane.plan.seats.children) {
+            if ((c as Seat).sid == app.cursorId) {
+                Focus.focus(c)
+                ;(c as View).scrollIntoView("nearest")
+                return
+                }
+            }
+        },
+
+    toCheckout() {
+        if (this.chosen.length == 0) return
+        this.step = "checkout"
+        this.payError = ""
+        this.prefill()
+        this.scrollTo(0)
+        afterSettle(app.focusCheckout)
+        },
+
+    backToHall() {
+        this.step = "hall"
+        this.seatMap.fetch()
+        afterSettle(app.focusCursor)
+        },
+
+    backToList() {
+        this.step = "list"
+        this.production.fetch()
+        this.scrollTo(0)
+        afterSettle(app.focusPerformance)
+        },
+
+    // back on the list, focus returns to the performance they came from
+
+    focusPerformance() {
+        for (const c of app.listScreen.col.grid.children) {
+            if ((c as PerfCard).pid == app.perfId) { Focus.focus(c); (c as View).scrollIntoView("nearest"); return }
+            }
+        Focus.focus(app.top.acct)
+        },
+
+    // ── signing in ──────────────────────────────────────────────────────────
+
+    openSignIn() {
+        this.loginError = ""
+        this.loginPassword = ""
+        this.showPassword = false
+        if (this.loginEmail == "") this.loginEmail = this.form.email
+        this.signingIn = true
+        afterSettle(app.focusSignIn)
+        },
+
+    focusSignIn() { Focus.focus(app.sheet.panel.email) },
+
+    closeSignIn() {
+        this.signingIn = false
+        afterSettle(app.focusAfterSheet)
+        },
+
+    focusAfterSheet() {
+        if (app.step == "checkout") app.focusCheckout()
+        else Focus.focus(app.top.acct)
+        },
+
+    submitSignIn() {
+        if (this.session.loading) return
+        if (this.loginEmail.trim() == "" || this.loginPassword == "") {
+            this.loginError = "Enter your email address and password."
+            this.say(this.loginError)
+            return
+            }
+        this.loginError = ""
+        this.session.fetch().then(() => app.signInAnswered())
+        },
+
+    signInAnswered() {
+        if (this.session.loaded) {
+            this.loginPassword = ""
+            this.me.fetch()
+            this.signingIn = false
+            this.say("Signed in as " + (this.session.value as any).name + ".")
+            afterSettle(app.focusAfterSheet)
+            }
+        else {
+            const body = this.session.errorBody as any
+            this.loginError = body?.message ?? "Signing in didn't work. Try again."
+            this.say(this.loginError)
+            }
+        },
+
+    signedInArrived() { this.prefill() },
+
+    signOut() {
+        this.signOutCall.fetch().then(() => app.signedOut())
+        },
+
+    signedOut() {
+        this.me.fetch()
+        this.payMode = "new"
+        this.savedCardId = ""
+        this.say("Signed out.")
+        afterSettle(app.focusAfterSheet)
+        },
+
+    // their name and email fill in, their address is used, their good card is
+    // offered — without overwriting anything they have already typed
+
+    prefill() {
+        const a = this.account as any
+        if (a == null) return
+        const f = { ...this.form }
+        if (f.email == "") f.email = a.email ?? ""
+        if (f.name == "") f.name = a.name ?? ""
+        const b = a.billing
+        if (b != null && f.line1 == "" && f.city == "" && f.postal == "") {
+            f.line1 = b.line1 ?? ""
+            f.line2 = b.line2 ?? ""
+            f.city = b.city ?? ""
+            f.postal = b.postalCode ?? ""
+            this.country = b.country ?? this.country
+            }
+        this.form = f
+        if (this.savedCardId == "" && this.usableCard != null) {
+            this.savedCardId = this.usableCard.id
+            this.payMode = "saved"
+            }
+        },
+
+    // ── the form ────────────────────────────────────────────────────────────
+
+    formValue(key: string) -> string { return (app.form as any)[key] ?? "" },
+
+    edit(key: string, v: string) {
+        let val = v
+        if (key == "number") val = formatCardNumber(v)
+        else if (key == "expiry") val = formatExpiry(v, this.form.expiry)
+        else if (key == "cvc" || key == "savedCvc") val = digits(v).slice(0, 4)
+        this.form = { ...this.form, [key]: val }
+        if (key == "postal") {
+            // an autofilled address brings its country along
+            const c = postalCountry(val)
+            if (c != "" && c != this.country && !postalOk(this.country, val)) this.country = c
+            }
+        if (this.serverField == key) { this.serverField = ""; this.serverFieldMessage = "" }
+        },
+
+    leave(key: string) {
+        if (this.touched[key] == true) return
+        this.touched = { ...this.touched, [key]: true }
+        },
+
+    rawError(key: string) -> string {
+        const f = app.form as any
+        switch (key) {
+            case "email": return emailError(f.email)
+            case "name": return requiredError(f.name, "the name on the card")
+            case "number": return cardNumberError(f.number)
+            case "expiry": return expiryError(f.expiry, app.nowYear, app.nowMonth)
+            case "cvc": return cvcError(f.cvc, brandOf(f.number))
+            case "savedCvc": return cvcError(f.savedCvc, app.savedCard == null ? "" : app.savedCard.brand)
+            case "line1": return requiredError(f.line1, "the street address")
+            case "city": return requiredError(f.city, "the town or city")
+            case "postal": return postalError(app.country, f.postal)
+            default: return ""
+            }
+        },
+
+    // shown once they have left the field, or tried to pay — never while
+    // they are still typing in it for the first time
+
+    fieldError(key: string) -> string {
+        if (app.serverField == key && app.serverFieldMessage != "") return app.serverFieldMessage
+        if (!(app.touched[key] == true || app.submitted)) return ""
+        return app.rawError(key)
+        },
+
+    activeFields() -> array {
+        if (app.usingSaved) return ["savedCvc"]
+        return ["email", "name", "number", "expiry", "cvc", "line1", "city", "postal"]
+        },
+
+    orderBody() -> object {
+        const f = app.form as any
+        const base = { performanceId: app.perfId, seatIds: app.chosen }
+        if (app.usingSaved) {
+            return { ...base, email: app.account?.email ?? f.email.trim(),
+                payment: { savedCardId: app.savedCardId, cvc: f.savedCvc } }
+            }
+        const exp = expiryParts(f.expiry)
+        return { ...base, email: f.email.trim(),
+            payment: {
+                card: { number: digits(f.number), expMonth: exp.month, expYear: exp.year, cvc: f.cvc, name: f.name.trim() },
+                billing: { line1: f.line1.trim(), line2: f.line2.trim() == "" ? null : f.line2.trim(), city: f.city.trim(),
+                    postalCode: normalizePostal(app.country, f.postal), country: app.country } } }
+        },
+
+    pay() {
+        if (this.paying || this.step != "checkout" || this.chosen.length == 0) return
+        this.submitted = true
+        this.payError = ""
+        const bad = this.activeFields().filter((k) => app.rawError(k) != "")
+        if (bad.length > 0) {
+            this.say(bad.length == 1 ? "One field needs attention: " + app.rawError(bad[0])
+                                     : bad.length + " fields need attention. The first: " + app.rawError(bad[0]))
+            afterSettle(() => app.focusField(bad[0]))
+            return
+            }
+        this.paying = true
+        this.say("Paying " + money(this.totalCents) + "…")
+        this.order.fetch().then(() => app.paid())
+        },
+
+    paid() {
+        this.paying = false
+        if (this.order.loaded) {
+            this.ticketIndex = 0
+            this.ticketLane = 0
+            this.step = "tickets"
+            this.scrollTo(0)
+            const o = this.order.value as any
+            this.say("Paid. " + o.tickets.length + " " + plural(o.tickets.length, "ticket", "tickets") + " sent to " + o.email + ".")
+            afterSettle(app.focusTickets)
+            return
+            }
+        const e = (this.order.errorBody ?? {}) as any
+        const said = e.message ?? "The payment didn't go through. Nothing was charged; try again."
+        const code = this.order.statusCode
+        if (code == 409 && e.conflicts != null) {
+            const lost = {}
+            for (const id of e.conflicts) lost[id] = true
+            this.soldLive = { ...this.soldLive, ...lost }
+            this.loseSeats(e.conflicts, said)
+            this.step = "hall"
+            this.seatMap.fetch()
+            this.scrollTo(0)
+            afterSettle(app.focusCursor)
+            return
+            }
+        if (code == 422 && e.field != null) {
+            const key = e.field == "postalCode" ? "postal" : e.field == "cvc" ? (this.usingSaved ? "savedCvc" : "cvc") : e.field
+            this.serverField = key
+            this.serverFieldMessage = said
+            this.say(said)
+            afterSettle(() => app.focusField(key))
+            return
+            }
+        if (code == 401) this.me.fetch()
+        // declined, or anything else: say it; keep everything but the code
+        this.payError = said
+        this.form = { ...this.form, cvc: "", savedCvc: "" }
+        this.touched = { ...this.touched, cvc: false, savedCvc: false }
+        this.submitted = false
+        this.say(said)
+        afterSettle(() => app.focusField(app.usingSaved ? "savedCvc" : "cvc"))
+        },
+
+    focusField(key: string) {
+        const f = app.checkoutScreen.main.form
+        const entry = key == "savedCvc" ? f.savedCvcEntry
+            : key == "email" ? f.emailEntry : key == "name" ? f.nameEntry : key == "number" ? f.numberEntry
+            : key == "expiry" ? f.cardRow.expiryEntry : key == "cvc" ? f.cardRow.cvcEntry
+            : key == "line1" ? f.line1Entry : key == "line2" ? f.line2Entry : key == "city" ? f.cityEntry
+            : f.postalEntry
+        Focus.focus(entry.box)
+        entry.scrollIntoView("nearest")
+        },
+
+    focusCheckout() {
+        const f = app.checkoutScreen.main.form
+        if (app.usingSaved) Focus.focus(f.savedCvcEntry.box)
+        else Focus.focus(f.emailEntry.box)
+        },
+
+    focusTickets() { Focus.focus(app.ticketsScreen.deck) },
+
+    startAgain() {
+        this.chosen = []
+        this.soldLive = {}
+        this.notice = ""
+        this.payError = ""
+        this.submitted = false
+        this.touched = {}
+        this.serverField = ""
+        this.form = { ...this.form, number: "", expiry: "", cvc: "", savedCvc: "" }
+        this.order.clear()
+        this.perfId = ""
+        this.cursorId = ""
+        this.backToList()
+        },
+
+    // ── small helpers ───────────────────────────────────────────────────────
+
+    say(msg: string) {
+        // re-announce even an identical sentence
+        this.announcement = this.announcement == msg ? msg + " " : msg
+        },
+
+    mixPaper(c: number) -> number {
+        const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255
+        const k = 0.22
+        const mr = Math.round(0xFF * (1 - k) + r * k), mg = Math.round(0xFD * (1 - k) + g * k), mb = Math.round(0xF8 * (1 - k) + b * k)
+        return (mr << 16) | (mg << 8) | mb
+        },
+
+    // ════════════════════════════════════════════════════════════════════════
+    // The top bar: the production, and the account
+    // ════════════════════════════════════════════════════════════════════════
+
+    top: View [ width = { app.width }, height = 56, fill = { STAGE }, aria = { { hidden: app.signingIn ? true : null } },
+        mark: Text [ x = { app.gutter }, y = center, fontFamily = { SERIF }, fontSize = { app.compact ? 18 : 20 },
+            wrap = false, textColor = #F6F2EA, role = "heading", aria = { { level: 1 } },
+            text = "The Venue" ],
+        hall: Text [ x = { app.gutter + 108 }, y = center, fontSize = 13, wrap = false, textColor = #BDB2A3,
+            visible = { !app.compact }, text = "Grand Hall" ],
+        who: Text [ x = { parent.acct.x - this.width - 4 }, y = center, fontSize = 14, wrap = false,
+            textColor = #D9CFC1, visible = { app.signedIn && app.width >= 560 && app.step != "checkout" },
+            text = { app.account == null ? "" : app.account.name } ],
+        acct: Control [ x = { parent.width - this.width - app.gutter + 10 }, y = 8, height = 40, cornerRadius = 8,
+            role = "button", visible = { app.step != "checkout" },
+            width = { this.t.width + 20 },
+            fill = { down ? 0x463C35 : hot ? 0x3A312B : null },
+            onClick() { if (!disabled) press() },
+            press() { if (app.signedIn) app.signOut(); else app.openSignIn() },
+            t: Text [ x = 10, y = center, fontSize = 15, fontWeight = medium, wrap = false, textColor = #F6F2EA,
+                text = { app.signedIn ? "Sign out" : "Sign in" } ]
+            ]
+        ],
+
+    // ════════════════════════════════════════════════════════════════════════
+    // §1 — the twenty performances
+    // ════════════════════════════════════════════════════════════════════════
+
+    listScreen: View [ y = 56, width = { app.width }, visible = { app.step == "list" }, aria = { { hidden: app.signingIn ? true : null } },
+        col: View [ x = { (app.width - app.columnW) / 2 }, width = { app.columnW },
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            View [ height = { app.compact ? 20 : 40 } ],
+            Text [ fontSize = 13, fontWeight = semibold, letterSpacing = 1.6, textColor = { MUTED },
+                text = "GRAND HALL · THIS SEASON" ],
+            View [ height = 6 ],
+            Text [ width = { parent.width }, wrap = true, fontFamily = { SERIF }, fontSize = { app.compact ? 34 : 48 },
+                lineHeight = 1.1, textColor = { INK }, role = "heading", aria = { { level: 2 } },
+                text = { (app.production.value as any)?.title ?? "The Marriage of Figaro" } ],
+            View [ height = 8 ],
+            Text [ width = { parent.width }, wrap = true, fontSize = 16, textColor = { MUTED },
+                text = { app.production.loaded ? "Mozart · " + (app.production.value as any).runningTime + " · "
+                    + app.performances.length + " performances. Choose one to see the hall." : "" } ],
+            View [ height = 24 ],
+            Text [ visible = { app.production.loading && app.performances.length == 0 }, fontSize = 16,
+                textColor = { MUTED }, text = "Loading performances…" ],
+            Text [ visible = { app.production.failed }, width = { parent.width }, wrap = true, fontSize = 16,
+                textColor = { ERROR }, role = "alert",
+                text = "The box office can't be reached just now. Reload the page to try again." ],
+            grid: View [ width = { parent.width }, datapath = { app.production.value },
+                layout: WrappingLayout [ spacing = 14, lineSpacing = 14 ],
+                PerfCard [ datapath = :performances[] ]
+                ],
+            View [ height = 48 ]
+            ]
+        ],
+
+    // ════════════════════════════════════════════════════════════════════════
+    // §2 — the hall
+    // ════════════════════════════════════════════════════════════════════════
+
+    hallScreen: View [ y = 56, width = { app.width }, visible = { app.step == "hall" }, aria = { { hidden: app.signingIn ? true : null } },
+        head: View [ x = { app.compact ? 4 : app.gutter - 10 }, width = { app.width - 2 * this.x }, height = 56,
+            back: Quiet [ y = 8, label = "‹ Performances",
+                onClick() { app.backToList() }
+                ],
+            title: Text [ x = { parent.width - this.width - 12 }, y = center, fontSize = { app.compact ? 16 : 18 },
+                fontWeight = semibold, wrap = false, role = "heading", aria = { { level: 2 } },
+                text = { app.perfWhen } ]
+            ],
+
+        // the room at a glance on a phone: the whole house in miniature, where the
+        // pane is looking, and what each section costs and has left
+
+        glance: View [ x = 16, y = 52, width = { app.width - 32 }, height = 148, visible = { app.compact },
+            mini: View [ width = { app.width < 380 ? 96 : 112 }, height = { parent.height - 4 },
+                aria = { { hidden: true } },
+                k: number = { app.model == null ? 1 : Math.min(this.width / app.model.width, this.height / app.model.height) },
+                draw(d: Draw) {
+                    const m = app.model
+                    if (m == null) return
+                    const k = this.k
+                    const ox = (this.width - m.width * k) / 2
+                    d.fillStyle = "#2C2520"
+                    d.fillRect(ox + m.width * k * 0.2, 0, m.width * k * 0.6, 3)
+                    for (const s of m.seats) {
+                        const gone = s.sold || app.soldLive[s.id] == true
+                        const mine = app.chosen.includes(s.id)
+                        d.fillStyle = mine ? "#2A3E9C" : gone ? "#DDD6CA" : "#" + toneOf(s.sec).toString(16).padStart(6, "0")
+                        const r = mine ? 1.6 : gone ? 0.6 : 1.1
+                        d.fillRect(ox + s.x * k - r, s.y * k - r, r * 2, r * 2)
+                        }
+                    // the pane's window onto the room
+                    const p = app.hallScreen.pane
+                    d.strokeStyle = "#2A3E9C"
+                    d.lineWidth = 1.5
+                    const sx = k / app.pitch
+                    d.strokeRect(ox + p.scrollX * sx, p.scrollY * sx, Math.min(m.width * k, p.width * sx), Math.min(m.height * k, p.height * sx))
+                    },
+                onClick(e: PointerEvent) { app.glanceAt(e.x, e.y) }
+                ],
+            secs: View [ x = { parent.mini.width + 14 }, y = 0, width = { parent.width - parent.mini.width - 14 }, datapath = { app.model },
+                layout: SimpleLayout [ axis = y, spacing = 4 ],
+                View [ datapath = :sections[], width = { parent.width }, height = 26,
+                    sw: View [ y = 7, width = 12, height = 12, cornerRadius = 6, fill = { toneOf(:sec) } ],
+                    nm: Text [ x = 20, y = 3, fontSize = { app.width < 380 ? 13 : 14 }, fontWeight = medium, wrap = false, text = :name ],
+                    pr: Text [ x = { parent.width - this.width }, y = 3, fontSize = { app.width < 380 ? 13 : 14 }, wrap = false, textColor = { MUTED },
+                        text = { money(:price) + " · " + app.freeIn(:sec) + " left" } ]
+                    ]
+                ]
+            ],
+
+        // the plan. Laptop: the whole room at a size a mouse picks from.
+        // Phone: a thumb-sized pitch in a pane that pans natively, so a tap is
+        // always the exact seat meant.
+
+        pane: View [ x = { app.compact ? 0 : app.gutter }, y = { app.compact ? 206 : 56 },
+            width = { app.paneW }, height = { app.compact ? app.paneH : Math.max(app.paneH, app.planH + 8) },
+            scrolls = { app.compact ? "both" : "none" },
+            role = "group",
+            aria = { { label: "Seating plan, " + app.perfWhen + ". Use the arrow keys to move between seats." } },
+            plan: View [ width = { app.planW }, height = { app.planH },
+                x = { app.compact ? 0 : Math.max(0, (parent.width - app.planW) / 2) },
+
+                // the stage everything faces
+
+                stage: View [ width = { app.planW * 0.56 }, x = { (app.planW - this.width) / 2 }, y = { app.pitch * 0.5 },
+                    height = { app.pitch * 2.2 }, cornerRadius = { app.pitch * 0.5 }, fill = { STAGE },
+                    Text [ x = center, y = center, fontSize = { Math.max(11, app.pitch * 0.5) }, letterSpacing = 3,
+                        fontWeight = semibold, textColor = #E8DFD2, text = "STAGE" ]
+                    ],
+
+                // each section's name and price, in the aisle above its first row
+                // each level's floor, the upper three behind a rail — four
+                // sections at four heights, read before a word is
+
+                floors: View [ width = { app.planW }, height = { app.planH }, aria = { { hidden: true } },
+                    draw(d: Draw) {
+                        const m = app.model
+                        if (m == null) return
+                        const k = app.pitch
+                        const cx = m.cx * k, cy = m.fy * k
+                        for (const s of m.sections) {
+                            const a0 = Math.PI / 2 - s.spread - 0.6 / s.r0, a1 = Math.PI / 2 + s.spread + 0.6 / s.r0
+                            d.beginPath()
+                            d.arc(cx, cy, (s.r1 + 0.75) * k, a0, a1)
+                            d.arc(cx, cy, (s.r0 - 0.75) * k, a1, a0, true)
+                            d.closePath()
+                            d.fillStyle = "#" + app.mixPaper(toneOf(s.sec)).toString(16).padStart(6, "0")
+                            d.globalAlpha = 0.55
+                            d.fill()
+                            d.globalAlpha = 1
+                            if (s.sec > 0) {
+                                d.beginPath()
+                                d.arc(cx, cy, (s.r0 - 0.75) * k, a0, a1)
+                                d.strokeStyle = "#" + toneOf(s.sec).toString(16).padStart(6, "0")
+                                d.lineWidth = Math.max(1.5, k * 0.12)
+                                d.stroke()
+                                }
+                            }
+                        }
+                    ],
+                labels: View [ datapath = { app.model },
+                    View [ datapath = :sections[],
+                        x = { app.model.cx * app.pitch - this.width / 2 },
+                        y = { :y * app.pitch - this.height / 2 },
+                        width = { this.t.width },
+                        t: Text [ fontSize = { Math.max(11, Math.min(14, app.pitch * 0.6)) }, fontWeight = semibold,
+                            letterSpacing = 0.6, wrap = false, textColor = { MUTED },
+                            text = { (:name as string).toUpperCase() + "  ·  " + money(:price) } ]
+                        ]
+                    ],
+                seats: View [ datapath = { app.model },
+                    Seat [ datapath = :seats[] ]
+                    ]
+                ]
+            ],
+
+        // room beneath the plan, so its last rows scroll clear of the summary bar
+
+        View [ y = { parent.pane.y + parent.pane.height }, width = 1, height = { 96 + app.safeBottom } ],
+
+        // the key and the choice, beside the plan on a laptop
+
+        side: View [ x = { app.width - app.gutter - 280 }, y = 64, width = 280, visible = { !app.compact },
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            Text [ fontSize = 13, fontWeight = semibold, letterSpacing = 1.4, textColor = { MUTED }, text = "PRICES" ],
+            View [ width = { parent.width }, datapath = { app.model },
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                View [ datapath = :sections[], width = { parent.width }, height = 24,
+                    sw: View [ y = 6, width = 12, height = 12, cornerRadius = 6, fill = { toneOf(:sec) } ],
+                    nm: Text [ x = 20, y = 2, fontSize = 15, wrap = false, text = :name ],
+                    pr: Text [ x = { parent.width - this.width }, y = 2, fontSize = 15, wrap = false,
+                        text = { money(:price) } ],
+                    lf: Text [ x = { parent.width - 74 - this.width }, y = 3, fontSize = 13, wrap = false, textColor = { MUTED },
+                        text = { app.freeIn(:sec) + " left" } ]
+                    ]
+                ],
+            View [ height = 8 ],
+            Key [ kind = "free", label = "Free" ],
+            Key [ kind = "mine", label = "Your choice" ],
+            Key [ kind = "gone", label = "Taken" ],
+            View [ height = 12 ],
+            Text [ width = { parent.width }, wrap = true, fontSize = 14, textColor = { MUTED },
+                text = "Choose a seat to add it; choose it again to let it go. Seats sell while you look — the plan keeps up." ]
+            ],
+
+        // the phone's key, under the glance
+
+        keys: View [ x = { parent.glance.x + parent.glance.secs.x }, y = 176, visible = { app.compact },
+            layout: SimpleLayout [ axis = x, spacing = 16 ],
+            Key [ kind = "free", label = "Free" ],
+            Key [ kind = "mine", label = "Yours" ],
+            Key [ kind = "gone", label = "Taken" ]
+            ],
+
+        // news from the room: a seat of theirs was taken
+
+        news: View [ ignoreScroll = true, x = { (app.width - this.width) / 2 },
+            y = { app.hostHeight - app.underlapBottom - 76 - app.safeBottom - this.height - 12 }, width = { Math.min(560, app.width - 24) },
+            height = { this.msg.height + 28 }, cornerRadius = 10, fill = { INK },
+            visible = { app.notice != "" && app.step == "hall" },
+            shadow = { shadow(0, 8, 28, 0x00000040) },
+            msg: Text [ x = 16, y = 14, width = { parent.width - 96 }, wrap = true, fontSize = 15, textColor = #F6F2EA,
+                text = { app.notice } ],
+            ok: Quiet [ x = { parent.width - this.width - 8 }, y = { (parent.height - 40) / 2 }, label = "OK",
+                onClick() { app.notice = ""; afterSettle(app.focusCursor) }
+                ]
+            ]
+        ],
+
+    // ════════════════════════════════════════════════════════════════════════
+    // §4 — paying
+    // ════════════════════════════════════════════════════════════════════════
+
+    checkoutScreen: View [ y = 56, width = { app.width }, visible = { app.step == "checkout" }, aria = { { hidden: app.signingIn ? true : null } },
+        main: View [ x = { app.compact ? 16 : app.gutter }, width = { app.compact ? app.width - 32 : Math.min(560, app.width - 2 * app.gutter - 380) },
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            View [ height = 8 ],
+            back: Quiet [ x = -10, label = "‹ Seats",
+                onClick() { app.backToHall() }
+                ],
+            View [ height = 8 ],
+            Text [ fontFamily = { SERIF }, fontSize = { app.compact ? 30 : 36 }, role = "heading", aria = { { level: 2 } },
+                text = "Payment" ],
+            View [ height = 4 ],
+            Text [ width = { parent.width }, wrap = true, fontSize = 15, textColor = { MUTED },
+                text = "Tickets are sent by email — there is nothing to post." ],
+
+            // the order, on a phone, ahead of the form
+
+            phoneOrder: View [ width = { parent.width }, visible = { app.compact },
+                layout: SimpleLayout [ axis = y, spacing = 4 ],
+                View [ height = 14 ],
+                Text [ fontSize = 13, fontWeight = semibold, letterSpacing = 1.4, textColor = { MUTED },
+                    text = { app.perfWhen.toUpperCase() } ],
+                View [ width = { parent.width }, datapath = { app.orderRows.value },
+                    layout: SimpleLayout [ axis = y, spacing = 6 ],
+                    View [ datapath = :rows[], width = { parent.width },
+                        layout: SimpleLayout [ axis = y, spacing = 0 ],
+                        Line [ what = :label, amount = { money(:price) } ],
+                        Line [ what = "Booking fee", amount = { money(:fee) }, quiet = true ]
+                        ]
+                    ],
+                View [ height = 4 ],
+                View [ width = { parent.width }, height = 1, fill = { RULE } ],
+                Line [ what = "Total", amount = { money(app.totalCents) }, big = true ]
+                ],
+
+            // the account: optional, at any time
+
+            View [ height = 20 ],
+            acctRow: View [ width = { parent.width }, height = { Math.max(52, this.t.height + 28) }, cornerRadius = 10, fill = 0xEFE8DC,
+                t: Text [ x = 16, y = 14, width = { parent.width - 32 - parent.b.width }, wrap = true, fontSize = 15,
+                    text = { app.signedIn ? "Signed in as " + app.account.name + " · " + app.account.email : "Have an account? Sign in to use a saved card." } ],
+                b: Quiet [ x = { parent.width - this.width - 6 }, y = { (parent.height - 40) / 2 },
+                    label = { app.signedIn ? "Sign out" : "Sign in" },
+                    onClick() { if (app.signedIn) app.signOut(); else app.openSignIn() }
+                    ]
+                ],
+
+            form: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 0 ],
+
+                // saved cards, each as a person recognises it
+
+                cardsTop: View [ height = 24, visible = { app.cards.length > 0 } ],
+                cardsHead: Text [ visible = { app.cards.length > 0 }, fontSize = 18, fontWeight = semibold,
+                    role = "heading", aria = { { level: 3 } }, text = "Pay with" ],
+                cardsGap: View [ height = 10, visible = { app.cards.length > 0 } ],
+                choices: View [ width = { parent.width }, visible = { app.cards.length > 0 },
+                    role = "radiogroup", aria = { { label: "Payment card" } },
+                    datapath = { app.cardRows.value },
+                    layout: SimpleLayout [ axis = y, spacing = 8 ],
+                    CardChoice [ datapath = :rows[] ]
+                    ],
+                savedGap: View [ height = 16, visible = { app.usingSaved } ],
+                savedCvcEntry: Entry [ field = "savedCvc", width = 200, visible = { app.usingSaved },
+                    label = "Security code", inputMode = "numeric", autocomplete = "cc-csc" ],
+
+                newCard: View [ width = { parent.width }, visible = { !app.usingSaved },
+                    layout: SimpleLayout [ axis = y, spacing = 0 ]
+                    ],
+                newGap: View [ height = 22, visible = { !app.usingSaved } ],
+                reqNote: Text [ visible = { !app.usingSaved }, fontSize = 14, textColor = { MUTED },
+                    text = "Every field is needed unless it says optional." ],
+                newGap2: View [ height = 14, visible = { !app.usingSaved } ],
+                emailEntry: Entry [ field = "email", width = { parent.width }, visible = { !app.usingSaved },
+                    label = "Email address", inputType = "email", inputMode = "email", autocomplete = "email" ],
+                nameEntry: Entry [ field = "name", width = { parent.width }, visible = { !app.usingSaved },
+                    label = "Name on card", autocomplete = "cc-name" ],
+                numberEntry: Entry [ field = "number", width = { parent.width }, visible = { !app.usingSaved },
+                    label = "Card number", inputMode = "numeric", autocomplete = "cc-number",
+                    trailing = { brandName(brandOf(app.form.number)).replace("American Express", "Amex").toUpperCase() } ],
+                cardRow: View [ width = { parent.width }, visible = { !app.usingSaved }, height = { Math.max(this.expiryEntry.height, this.cvcEntry.height) },
+                    expiryEntry: Entry [ field = "expiry", width = { (parent.width - 14) / 2 },
+                        label = "Expiry (MM / YY)", hint = "MM / YY", inputMode = "numeric", autocomplete = "cc-exp" ],
+                    cvcEntry: Entry [ field = "cvc", x = { (parent.width + 14) / 2 }, width = { (parent.width - 14) / 2 },
+                        label = "Security code", inputMode = "numeric", autocomplete = "cc-csc",
+                        trailing = { cvcLength(brandOf(app.form.number)) + " DIGITS" } ]
+                    ],
+                billGapTop: View [ height = 14, visible = { !app.usingSaved } ],
+                billHead: Text [ visible = { !app.usingSaved }, fontSize = 18, fontWeight = semibold, role = "heading",
+                    aria = { { level: 3 } }, text = "Billing address" ],
+                billGap: View [ height = 12, visible = { !app.usingSaved } ],
+                countryRow: View [ width = { parent.width }, height = 76, visible = { !app.usingSaved },
+                    Text [ fontSize = 14, fontWeight = medium, text = "Country" ],
+                    Segmented [ y = 24, width = { parent.width }, height = 44,
+                        aria = { { label: "Country" } },
+                        value = { app.country },
+                        choices = { COUNTRIES },
+                        input(v: object) { app.country = "" + v; if (app.serverField == "postal") { app.serverField = "" } }
+                        ]
+                    ],
+                line1Entry: Entry [ field = "line1", width = { parent.width }, visible = { !app.usingSaved },
+                    label = "Street address", autocomplete = "address-line1" ],
+                line2Entry: Entry [ field = "line2", width = { parent.width }, visible = { !app.usingSaved }, optional = true,
+                    label = "Address line 2", autocomplete = "address-line2" ],
+                cityEntry: Entry [ field = "city", width = { parent.width }, visible = { !app.usingSaved },
+                    label = "City", autocomplete = "address-level2" ],
+                postalEntry: Entry [ field = "postal", width = { Math.min(parent.width, 260) }, visible = { !app.usingSaved },
+                    label = "Postal code", hint = { postalExample(app.country) }, autocomplete = "postal-code",
+                    inputMode = { app.country == "US" ? "numeric" : "text" } ]
+                ],
+
+            // what the service said, where the person is looking
+
+            payErr: View [ width = { parent.width }, visible = { app.payError != "" },
+                height = { this.t.height + 28 }, cornerRadius = 10, fill = 0xFBEAE8,
+                stroke = { stroke(1, 0xE7B9B4) },
+                t: Text [ x = 16, y = 14, width = { parent.width - 32 }, wrap = true, fontSize = 15, textColor = { ERROR },
+                    text = { app.payError } ]
+                ],
+            View [ height = 16 ],
+            deskPay: Button [ visible = { !app.compact }, primary = true, width = { parent.width }, height = 52,
+                label = { app.payLabel }, opacity = { app.paying ? 0.6 : 1 },
+                aria = { { busy: app.paying, disabled: app.paying ? true : null } },
+                onClick() { app.pay() }
+                ],
+            payingNote: Text [ visible = { app.paying && !app.compact }, y = 0, fontSize = 14, textColor = { MUTED },
+                text = "Paying — this takes a moment. Please don't close the page." ],
+            View [ height = { app.compact ? 120 : 64 } ]
+            ],
+
+        // the order: always in sight. Laptop: a column that rides the window.
+
+        order: View [ visible = { !app.compact }, ignoreScroll = true,
+            x = { Math.min(app.width - app.gutter - 340, parent.main.x + parent.main.width + 72) }, y = 88, width = 340,
+            cornerRadius = 14, fill = { CARD }, stroke = { stroke(1, RULE) },
+            height = { this.inner.height + 40 },
+            inner: View [ x = 20, y = 20, width = { parent.width - 40 },
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                Text [ fontSize = 13, fontWeight = semibold, letterSpacing = 1.4, textColor = { MUTED }, text = "YOUR ORDER" ],
+                Text [ fontFamily = { SERIF }, fontSize = 22, text = { (app.production.value as any)?.title ?? "" } ],
+                Text [ fontSize = 15, textColor = { MUTED }, text = { app.perfWhen + " · Grand Hall" } ],
+                View [ height = 8 ],
+                list: View [ width = { parent.width }, datapath = { app.orderRows.value },
+                    layout: SimpleLayout [ axis = y, spacing = 8 ],
+                    View [ datapath = :rows[], width = { parent.width },
+                        layout: SimpleLayout [ axis = y, spacing = 0 ],
+                        Line [ what = :label, amount = { money(:price) } ],
+                        Line [ what = "Booking fee", amount = { money(:fee) }, quiet = true ]
+                        ]
+                    ],
+                View [ height = 6 ],
+                View [ width = { parent.width }, height = 1, fill = { RULE } ],
+                Line [ what = "Total", amount = { money(app.totalCents) }, big = true ]
+                ]
+            ],
+
+        // Phone: the total and the pay button stay in reach of the thumb
+
+        phonePay: View [ visible = { app.compact }, ignoreScroll = true, width = { app.width },
+            height = { 84 + app.safeBottom },
+            y = { app.hostHeight - this.height - app.underlapBottom },
+            fill = { CARD }, shadow = { shadow(0, -2, 14, 0x0000001A) },
+            tot: Text [ x = 16, y = 14, fontSize = 13, textColor = { MUTED },
+                text = { app.paying ? "Paying…" : app.chosen.length + " " + plural(app.chosen.length, "seat", "seats") + " · fees included" } ],
+            payBtn: Button [ x = 16, y = 32, width = { parent.width - 32 }, height = 46, primary = true,
+                label = { app.payLabel }, opacity = { app.paying ? 0.6 : 1 },
+                aria = { { busy: app.paying, disabled: app.paying ? true : null } },
+                onClick() { app.pay() }
+                ]
+            ]
+        ],
+
+    // ════════════════════════════════════════════════════════════════════════
+    // §5 — the tickets
+    // ════════════════════════════════════════════════════════════════════════
+
+    ticketsScreen: View [ y = 56, width = { app.width }, visible = { app.step == "tickets" }, aria = { { hidden: app.signingIn ? true : null } },
+        fill = { STAGE }, height = { Math.max(app.hostHeight - 56, this.body.height + 40) },
+        tickets: array = { app.order.loaded ? (app.order.value as any).tickets : [] },
+        ticketW: number = { Math.min(380, app.width - 40) },
+        body: View [ x = { (parent.width - this.width) / 2 }, width = { Math.min(560, app.width - 32) }, y = 20,
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Text [ width = { parent.width }, textAlign = center, fontSize = 13, fontWeight = semibold, letterSpacing = 1.6,
+                textColor = #BDB2A3, text = { app.order.loaded ? "BOOKING " + (app.order.value as any).code : "" } ],
+            Text [ width = { parent.width }, textAlign = center, fontFamily = { SERIF }, fontSize = { app.compact ? 26 : 32 },
+                textColor = #F6F2EA, role = "heading", aria = { { level: 2 } },
+                text = { "Your " + plural(app.ticketsScreen.tickets.length, "ticket", "tickets") } ],
+            Text [ width = { parent.width }, textAlign = center, fontSize = 16, textColor = #D9CFC1,
+                text = { app.order.loaded ? "Sent to " + (app.order.value as any).email : "" } ]
+            ],
+
+        // one ticket at a time, legible at arm's length
+
+        deck: View [ y = { parent.body.y + parent.body.height + 18 }, width = { parent.width }, height = 520,
+            clip = true, focusable = true, role = "group",
+            aria = { { label: "Ticket " + (app.ticketIndex + 1) + " of " + app.ticketsScreen.tickets.length + ". Left and right arrows change ticket.",
+                roledescription: "carousel" } },
+            claim = x,
+            startX: number = 0,
+            onKeyDown(e: KeyEvent) {
+                if (e.key == "ArrowRight") app.showTicket(app.ticketIndex + 1)
+                if (e.key == "ArrowLeft") app.showTicket(app.ticketIndex - 1)
+                },
+            onPointerDown(e: PointerEvent) { this.startX = app.pointerX; app.ticketDrag = 0 },
+            onPointerMove(e: PointerEvent) { app.ticketDrag = e.x - this.startX },
+            onPointerUp(e: PointerUpEvent) {
+                const dx = app.ticketDrag
+                app.ticketDrag = 0
+                if (e.canceled) return
+                if (dx < -50) app.showTicket(app.ticketIndex + 1)
+                else if (dx > 50) app.showTicket(app.ticketIndex - 1)
+                },
+            strip: View [ datapath = { app.ticketRows.value },
+                View [ datapath = :rows[], width = { app.ticketsScreen.ticketW }, height = 500,
+                    x = { (parent.parent.width - app.ticketsScreen.ticketW) / 2 + (:i - app.ticketLane) * (app.ticketsScreen.ticketW + 24) + app.ticketDrag },
+                    opacity = { 1 - Math.min(0.6, Math.abs(:i - app.ticketLane) * 0.6) },
+                    aria = { { hidden: :i != app.ticketIndex } },
+
+                    // the stub: the performance, and when to come
+
+                    paper: View [ width = { parent.width }, height = 500, cornerRadius = 18, fill = #FFFDF8,
+                        shadow = { shadow(0, 14, 40, 0x00000055) },
+                        Text [ x = 24, y = 22, fontSize = 12, fontWeight = semibold, letterSpacing = 2, textColor = { MUTED },
+                            text = { "ADMIT ONE · " + (:i + 1) + " OF " + app.ticketsScreen.tickets.length } ],
+                        Text [ x = 24, y = 44, width = { parent.width - 48 }, wrap = true, fontFamily = { SERIF }, fontSize = 26,
+                            lineHeight = 1.1, text = { (app.production.value as any)?.title ?? "" } ],
+                        Text [ x = 24, y = 106, fontSize = 20, fontWeight = semibold,
+                            text = { app.perf == null ? "" : dateLabel(app.perf.startsAt) + " · " + timeLabel(app.perf.startsAt) } ],
+                        Text [ x = 24, y = 134, width = { parent.width - 48 }, wrap = true, fontSize = 15, textColor = { MUTED },
+                            text = { app.perf == null ? "" : "Grand Hall · doors open " + timeLabel(app.perf.doorsAt) + " — please arrive by then" } ],
+
+                        // the seat, big
+
+                        View [ x = 24, y = 186, width = { parent.width - 48 }, height = 1, fill = { RULE } ],
+                        View [ x = 24, y = 200, width = { parent.width - 48 }, height = 92,
+                            layout: SimpleLayout [ axis = x, spacing = 0 ],
+                            View [ width = { parent.width * 0.5 },
+                                Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.6, textColor = { MUTED }, text = "SECTION" ],
+                                Text [ y = 20, width = { parent.width - 8 }, wrap = true, fontSize = 22, fontWeight = bold, lineHeight = 1.1,
+                                    text = :section ]
+                                ],
+                            View [ width = { parent.width * 0.25 },
+                                Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.6, textColor = { MUTED }, text = "ROW" ],
+                                Text [ y = 16, fontSize = 44, fontWeight = bold, text = :row ]
+                                ],
+                            View [ width = { parent.width * 0.25 },
+                                Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.6, textColor = { MUTED }, text = "SEAT" ],
+                                Text [ y = 16, fontSize = 44, fontWeight = bold, text = { "" + :number } ]
+                                ]
+                            ],
+
+                        // the perforation
+
+                        View [ x = -12, y = 310, width = 24, height = 24, cornerRadius = 12, fill = { STAGE } ],
+                        View [ x = { parent.width - 12 }, y = 310, width = 24, height = 24, cornerRadius = 12, fill = { STAGE } ],
+                        View [ x = 24, y = 321, width = { parent.width - 48 }, height = 2,
+                            draw(d: Draw) {
+                                d.fillStyle = "#D9CFC1"
+                                for (let x = 0; x < this.width; x += 10) d.fillRect(x, 0, 5, 2)
+                                }
+                            ],
+
+                        // the code they scan at the door
+
+                        code: View [ x = 24, y = 350, width = { parent.width - 48 }, height = 96,
+                            role = "img", aria = { { label: "Barcode " + :barcode } },
+                            bars: string = { :barcode },
+                            draw(d: Draw) {
+                                if (this.bars == null || this.bars == "") return
+                                const w = code128(this.bars)
+                                const modules = w.reduce((a, b) => a + b, 0) + 20
+                                const unit = this.width / modules
+                                d.fillStyle = "#FFFFFF"
+                                d.fillRect(0, 0, this.width, this.height)
+                                d.fillStyle = "#111111"
+                                let x = 10 * unit
+                                for (let i = 0; i < w.length; i++) {
+                                    if (i % 2 == 0) d.fillRect(x, 0, w[i] * unit, this.height)
+                                    x += w[i] * unit
+                                    }
+                                }
+                            ],
+                        Text [ x = 0, y = 456, width = { parent.width }, textAlign = center, fontSize = 17, letterSpacing = 2,
+                            fontWeight = semibold, text = :barcode ]
+                        ]
+                    ]
+                ]
+            ],
+
+        nav: View [ x = { (parent.width - this.width) / 2 }, y = { parent.deck.y + parent.deck.height + 4 },
+            layout: SimpleLayout [ axis = x, spacing = 12 ],
+            prev: Button [ label = "‹ Previous", width = 130, disabled = { app.ticketIndex <= 0 },
+                onClick() { app.showTicket(app.ticketIndex - 1) }
+                ],
+            count: Text [ y = 14, width = 64, textAlign = center, fontSize = 16, textColor = #F6F2EA,
+                text = { (app.ticketIndex + 1) + " of " + app.ticketsScreen.tickets.length } ],
+            next: Button [ label = "Next ›", width = 130, disabled = { app.ticketIndex >= app.ticketsScreen.tickets.length - 1 },
+                onClick() { app.showTicket(app.ticketIndex + 1) }
+                ]
+            ],
+        again: Quiet [ x = { (parent.width - this.width) / 2 }, y = { parent.nav.y + 64 },
+            label = "Book another performance", ink = #F6F2EA,
+            onClick() { app.startAgain() }
+            ]
+        ],
+
+    showTicket(i: number) {
+        const n = this.ticketsScreen.tickets.length
+        const j = Math.max(0, Math.min(n - 1, i))
+        if (j != this.ticketIndex) {
+            this.ticketIndex = j
+            this.say("Ticket " + (j + 1) + " of " + n)
+            }
+        },
+
+    glanceAt(x: number, y: number) {
+        const m = this.model
+        if (m == null) return
+        const mini = this.hallScreen.glance.mini
+        const k = mini.k
+        const ox = (mini.width - m.width * k) / 2
+        const ux = (x - ox) / k, uy = y / k
+        const p = this.hallScreen.pane
+        p.scrollToX(Math.max(0, ux * this.pitch - p.width / 2))
+        p.scrollTo(Math.max(0, uy * this.pitch - p.height / 2))
+        },
+
+    freeIn(sec: number) -> number {
+        const m = app.model
+        if (m == null) return 0
+        let n = 0
+        for (const s of m.seats) if (s.sec == sec && !s.sold && app.soldLive[s.id] != true) n++
+        return n
+        },
+
+    chooseCard(id: string) {
+        if (id == "") { this.payMode = "new" }
+        else { this.payMode = "saved"; this.savedCardId = id }
+        this.payError = ""
+        },
+
+    // ════════════════════════════════════════════════════════════════════════
+    // The running summary — always in sight while there is a choice
+    // ════════════════════════════════════════════════════════════════════════
+
+    bar: View [ ignoreScroll = true, width = { app.width }, height = { 76 + app.safeBottom },
+        y = { app.hostHeight - this.height - app.underlapBottom },
+        visible = { app.step == "hall" }, aria = { { hidden: app.signingIn ? true : null } },
+        fill = { CARD }, shadow = { shadow(0, -2, 16, 0x0000001F) },
+        sum: View [ x = { app.gutter }, y = 14, width = { parent.width - 2 * app.gutter - 170 }, height = 48,
+            t: Text [ y = { app.chosen.length > 0 ? 2 : 12 }, fontSize = { app.compact ? 19 : 22 }, fontWeight = bold, wrap = false,
+                role = "status", aria = { { live: "polite" } },
+                pivotY = { this.height / 2 },
+
+                // the total answers each choice: a brief swell, then still
+
+                pulse: Animator [ attribute = scale, from = 1.08, to = 1, duration = 280 ],
+                textColor = { app.chosen.length > 0 ? ACCENT : MUTED },
+                text = { app.chosen.length > 0 ? app.summary : app.compact ? "Tap a seat to choose it" : "Choose your seats in the plan" }
+                ],
+            sub: Text [ y = 30, fontSize = 13, wrap = false, textColor = { MUTED }, visible = { app.chosen.length > 0 },
+                text = { app.compact ? "+ " + money(app.feeCents) + " booking fees" : "Booking fees of " + money(app.feeCents) + " are added at payment" } ]
+            ],
+        go: Button [ x = { parent.width - this.width - app.gutter }, y = 14, width = 150, primary = true,
+            label = "Continue", disabled = { app.chosen.length == 0 },
+            onClick() { app.toCheckout() }
+            ]
+        ],
+
+    // ════════════════════════════════════════════════════════════════════════
+    // §3 — signing in, over whatever is showing
+    // ════════════════════════════════════════════════════════════════════════
+
+    sheet: View [ ignoreScroll = true, width = { app.width }, height = { app.hostHeight },
+        visible = { app.signingIn },
+        scrim: View [ width = { parent.width }, height = { parent.height }, fill = #1F1B17, opacity = 0.45,
+            onClick() { app.closeSignIn() }
+            ],
+        panel: View [ focusTrap = true, role = "dialog", aria = { { label: "Sign in", modal: true } },
+            width = { Math.min(420, app.width) },
+            x = { (parent.width - this.width) / 2 },
+            y = { app.compact ? parent.height - this.height : Math.max(40, (parent.height - this.height) / 2) },
+            height = { this.actions.y + 48 + 24 + (app.compact ? app.safeBottom : 0) },
+            cornerRadius = { app.compact ? 0 : 16 }, fill = { CARD },
+            shadow = { shadow(0, 20, 60, 0x00000059) },
+            onKeyDown(e: KeyEvent) { if (e.key == "Escape") app.closeSignIn() },
+            col: View [ x = 24, y = 24, width = { parent.width - 48 },
+                layout: SimpleLayout [ axis = y, spacing = 0 ],
+                Text [ fontFamily = { SERIF }, fontSize = 28, role = "heading", aria = { { level: 2 } }, text = "Sign in" ],
+                View [ height = 6 ],
+                Text [ width = { parent.width }, wrap = true, fontSize = 15, textColor = { MUTED },
+                    text = "Optional — your seats and anything you've typed stay as they are." ],
+                View [ height = 18 ],
+                Text [ fontSize = 14, fontWeight = medium, text = "Email address" ]
+                ],
+            email: TextInput [ x = 24, y = { parent.col.y + parent.col.height + 6 }, width = { parent.width - 48 },
+                height = 46, fontSize = 17, padding = 12, fill = { CARD }, cornerRadius = 8,
+                stroke = { stroke(this.focused ? 2 : 1, this.focused ? ACCENT : 0xCFC5B6) },
+                inputType = "email", inputMode = "email", autocomplete = "username", fieldName = "email", spellcheck = false,
+                aria = { { label: "Email address", required: true } },
+                text = { app.loginEmail },
+                onInput(v: string) { app.loginEmail = v },
+                onEnter() { app.submitSignIn() }
+                ],
+            pwCap: Text [ x = 24, y = { parent.email.y + 62 }, fontSize = 14, fontWeight = medium, text = "Password" ],
+            password: TextInput [ x = 24, y = { parent.pwCap.y + 24 }, width = { parent.width - 48 },
+                height = 46, fontSize = 17, padding = 12, fill = { CARD }, cornerRadius = 8,
+                stroke = { stroke(this.focused ? 2 : 1, this.focused ? ACCENT : app.loginError != "" ? ERROR : 0xCFC5B6) },
+                inputType = { app.showPassword ? "text" : "password" }, autocomplete = "current-password",
+                fieldName = "password", spellcheck = false,
+                aria = { { label: "Password", required: true, invalid: app.loginError != "", description: app.loginError } },
+                text = { app.loginPassword },
+                onInput(v: string) { app.loginPassword = v },
+                onEnter() { app.submitSignIn() }
+                ],
+            reveal: Quiet [ x = 14, y = { parent.password.y + 50 },
+                label = { app.showPassword ? "Hide password" : "Show password" },
+                aria = { { pressed: app.showPassword } },
+                onClick() { app.showPassword = !app.showPassword }
+                ],
+            err: Text [ x = 24, y = { parent.password.y + 98 }, width = { parent.width - 48 }, wrap = true,
+                fontSize = 15, textColor = { ERROR }, visible = { app.loginError != "" }, text = { app.loginError } ],
+            actions: View [ x = 24, y = { parent.password.y + 98 + (app.loginError != "" ? parent.err.height + 14 : 0) },
+                width = { parent.width - 48 }, height = 48,
+                go: Button [ width = { (parent.width - 12) * 0.6 }, primary = true,
+                    label = { app.session.loading ? "Signing in…" : "Sign in" },
+                    onClick() { app.submitSignIn() }
+                    ],
+                cancel: Button [ x = { parent.go.width + 12 }, width = { (parent.width - 12) * 0.4 }, label = "Cancel",
+                    onClick() { app.closeSignIn() }
+                    ]
+                ]
+            ]
+        ],
+
+    // what a screen reader hears when something happens off to the side
+
+    voice: Text [ ignoreScroll = true, x = 0, y = 0, width = 1, height = 1, opacity = 0, clip = true,
+        role = "status", aria = { { live: "assertive", atomic: true } },
+        text = { app.announcement } ]
+    ]

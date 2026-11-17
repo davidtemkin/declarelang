@@ -1,0 +1,45 @@
+# eval-venue-37
+total 25.3 min · 91 turns · output 124961 tokens (thinking 57577)
+phases: reading 7.7 · writing 5.9 · checking 11.8 min
+tool time 5.4 min · model time 19.9 min
+tokens: input 148 · cache write 328399 · cache read 16169733 · output 124961 · thinking 57577
+rate: 6268 output tokens per model-minute
+tools:
+  verify    23×   4.57 min  (median 8.9 s)
+  look       2×   0.32 min  (median 9.7 s)
+  help      16×   0.29 min  (median 0.9 s)
+  bash      15×   0.19 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     15×   5.70 min  (median 4.9 s)
+  after write     8×   4.99 min  (median 16.5 s)
+  after help     16×   3.96 min  (median 3.3 s)
+  after verify   22×   3.14 min  (median 6.6 s)
+  after image    16×   1.41 min  (median 0.4 s)
+  after read     10×   0.32 min  (median 1.8 s)
+  after look      2×   0.05 min  (median 1.4 s)
+app: 5 .declare files, 1365 non-blank lines · 19 snapshots changed them: 1686 lines added, 86 removed
+verify results mentioning accessibility: 0
+source reads: library 1 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/*.declare
+diagnostic codes, by tool results reporting them: DECLARE6001 2, DECLARE2000 1, DECLARE1002 1, DECLARE4005 1, DECLARE4025 1
+inside the agent's verify and look calls:
+   4.11 min    23×  R5 behavior, in all
+   3.72 min    21×  script: the assert script, in all
+   1.16 min   144×  locator.click
+   0.53 min   270×  expect(locator), in all
+   0.49 min   935×  locator: wait a tick for it
+   0.45 min    15×  drive.waitReal
+   0.44 min   157×  drive.settleMotion
+   0.40 min    42×  page: load, compile in the page and boot
+   0.39 min   234×  check: scrolling come to rest
+   0.31 min    23×  open: the app loaded and arrived, in all
+   0.27 min    63×  drive.settleData
+   0.24 min   138×  drive.key
+   0.20 min    81×  locator.fill
+   0.19 min    21×  compile (R1–R3)
+   0.17 min    17×  R4 boot, in all
+   0.15 min  1497×  locator: query the page
+   0.15 min   234×  check: the layout questions
+   0.12 min    45×  locator.pressSequentially
+   0.09 min     3×  locator.dblclick
+   0.07 min    80×  drive.tab

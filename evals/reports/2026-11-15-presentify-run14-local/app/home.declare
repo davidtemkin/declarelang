@@ -1,0 +1,269 @@
+/*
+# Presentify: the presentations
+
+The first screen: every presentation, most recently changed first, each with
+its title, when it was last changed, and a picture of its first slide. A
+card opens its presentation (which grows from the card into the editor); its
+menu renames or deletes one, and a delete is asked first.
+*/
+
+// As many columns as fit, every card the same width, its picture 16:9.
+
+class CardGrid extends Layout [
+    gap: number = 28,
+    place() {
+        const w = this.contentExtent("width")
+        const across = Math.max(1, Math.min(5, Math.floor((w + this.gap) / (250 + this.gap))))
+        const cw = (w - (across - 1) * this.gap) / across
+        const ch = cw * 9 / 16 + 70
+        return this.laid().map((c, i) => ({ x: (i % across) * (cw + this.gap), y: Math.floor(i / across) * (ch + this.gap), w: cw, h: ch }))
+        }
+    ]
+
+
+class Home [ scrolls = y, fill = { provided("theme").background },
+    layout: SimpleLayout [ axis = y, align = center ],
+
+    page: View [ width = { Math.min(1240, parent.width - 96) }, padding = [26, 0, 80, 0],
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+
+        bar: View [ width = 100%, height = 48,
+            layout: SimpleLayout [ axis = x, align = center ],
+            Wordmark [ size = 22, accessibilityRole = heading, accessibilityLabel = "Presentify" ],
+            Spacer [ ],
+            PillButton [ label = "New presentation", shape = "plus", tone = "accent", tooltipLabel = "Start a new presentation",
+                disabled = { app.ops.busy },
+                press() { app.ops.create() }
+                ]
+            ],
+
+        // a welcome, with the brand's own picture
+
+        hero: View [ width = 100%, height = 220,
+            Text [ y = 40, width = { Math.min(560, parent.width - 380) }, fontFamily = { app.brandFace }, fontSize = 46, fontWeight = 800,
+                letterSpacing = -1.2, lineHeight = 1.05, text = "Make the point. Then make it shine." ],
+            HeroArt [ x = end, y = 4, width = 340, height = 200 ]
+            ],
+
+        Text [ fontSize = 12, fontWeight = 700, letterSpacing = 0.6, textTransform = uppercase,
+            textColor = { provided("theme").textFaint }, padding = [6, 0, 16, 0],
+            text = { app.decks.loaded ? "Your presentations · " + app.deckCount : "Your presentations" } ],
+
+        // the cards
+
+        grid: View [ width = 100%, visible = { app.deckCount > 0 }, datapath = { app.decks.value },
+            layout: CardGrid [ ],
+            DeckCard [ datapath = :decks[] ]
+            ],
+
+        // loading: the shape of cards to come
+
+        waiting: View [ width = 100%, visible = { !app.decks.loaded && !app.decks.failed },
+            layout: CardGrid [ ],
+            Ghost [ ],
+            Ghost [ ],
+            Ghost [ ]
+            ],
+
+        // none yet
+
+        empty: View [ width = 100%, visible = { app.decks.loaded && app.deckCount == 0 }, padding = [40, 0, 40, 0],
+            layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+            EmptyArt [ width = 220, height = 140 ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 24, fontWeight = 700, text = "No presentations yet" ],
+            Text [ fontSize = 15, textColor = { provided("theme").textMuted }, text = "Start one, and it opens straight onto its first slide." ],
+            PillButton [ label = "New presentation", shape = "plus", tone = "accent",
+                press() { app.ops.create() }
+                ]
+            ],
+
+        // the service isn't answering
+
+        failed: View [ width = 100%, visible = { app.decks.failed && !app.decks.loaded }, padding = [40, 0, 40, 0],
+            layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+            View [ width = 56, height = 56, cornerRadius = 28, fill = { provided("theme").warnSoft },
+                Glyph [ x = center, y = center, iconSize = 26, shape = "cloud-off", ink = { provided("theme").warn } ]
+                ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 22, fontWeight = 700, text = "Can't reach the service" ],
+            Text [ fontSize = 15, textColor = { provided("theme").textMuted }, text = "Your presentations are kept by the Presentify service, and it isn't answering right now." ],
+            PillButton [ label = "Try again", tone = "accent",
+                press() { app.decks.fetch() }
+                ]
+            ]
+        ]
+    ]
+
+
+// A presentation: its first slide, its title, when it last changed. The card
+// is one button that opens it; the menu button beside the title is another.
+
+class DeckCard [
+    deckId: string = { :id ?? "" },
+    title: string = { :title ?? "" },
+    named: string = { classroot.title == "" ? "Untitled presentation" : classroot.title },
+    opening: boolean = { app.ops.opening == classroot.deckId },
+    showMenu(v: View, e: PointerEvent?) {
+        app.menuDeck = classroot.deckId
+        if (e != null) app.deckMenu.showAt(v, e!)
+        else app.deckMenu.showFor(v)
+        },
+
+    // a picture of the first slide, fetched on its own
+
+    thumb: DataSource [ url = { app.base + "/api/slides/" + (:thumbnailSlideId ?? "") }, autoFetch = true, schema = Slide ],
+
+    lift: number = 0,
+    Spring [ attribute = lift, to = { classroot.card.hovered || classroot.card.focused || classroot.more.hovered ? 1 : 0 }, stiffness = 380, damping = 30 ],
+
+    card: Control [ width = 100%, height = 100%,
+        accessibilityLabel = { "Open " + classroot.named },
+        tooltipLabel = { "Open “" + classroot.named + "”" },
+        press() { app.openDeck(classroot.deckId, this.pic) },
+        onContextMenu(e: PointerEvent) { classroot.showMenu(this, e) },
+        pic: View [ width = 100%, height = { this.width * 9 / 16 }, cornerRadius = 12, clip = true,
+            y = { -3 * classroot.lift },
+            fill = { provided("theme").quiet },
+            shadow = { Shadow(0, 4 + 10 * classroot.lift, 14 + 16 * classroot.lift, classroot.lift > 0.5 ? "#2A1F5A33" : "#2A1F5A1F") },
+            stroke = { Stroke(1, "#00000014") },
+            datapath = { classroot.thumb.value },
+            SlideArt [ visible = { classroot.thumb.loaded }, scale = { parent.width / 1280 } ],
+            View [ visible = { classroot.opening }, width = 100%, height = 100%, fill = #FFFFFF99,
+                Text [ x = center, y = center, fontSize = 13, fontWeight = 600, text = "Opening…" ]
+                ]
+            ],
+        words: View [ y = { this.parent.pic.height + 12 }, width = { parent.width - 44 },
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, fontSize = 15, fontWeight = 650, maxLines = 1, text = { classroot.named } ],
+            Text [ width = 100%, fontSize = 12.5, maxLines = 1, textColor = { provided("theme").textMuted },
+                text = { (:slideCount ?? 0) + ((:slideCount ?? 0) == 1 ? " slide · " : " slides · ") + whenLabel(:updatedAt ?? "", app.clock.now) } ]
+            ]
+        ],
+    more: IconButton [ x = end, y = { classroot.card.pic.height + 10 }, shape = "more",
+        accessibilityLabel = { "More for " + classroot.named }, tooltipLabel = "Rename or delete",
+        opacity = { classroot.card.hovered || this.hovered || this.focused ? 1 : 0.4 },
+        press() { classroot.showMenu(this, null) }
+        ]
+    ]
+
+
+// a card still loading
+
+class Ghost [ cornerRadius = 12,
+    View [ width = 100%, height = { this.width * 9 / 16 }, cornerRadius = 12, fill = { provided("theme").quiet } ],
+    View [ y = { parent.width * 9 / 16 + 14 }, width = { parent.width * 0.6 }, height = 12, cornerRadius = 6, fill = { provided("theme").quiet } ],
+    View [ y = { parent.width * 9 / 16 + 34 }, width = { parent.width * 0.35 }, height = 10, cornerRadius = 5, fill = { provided("theme").quiet } ]
+    ]
+
+
+// The brand's pictures: overlapping slides, a play spark, a few shapes.
+
+class HeroArt [
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const card = (x: number, y: number, w: number, h: number, a: number, fill: string) => {
+            d.save(); d.translate(x, y); d.rotate(a)
+            d.shadowColor = "rgba(42,31,90,0.18)"; d.shadowBlur = 18; d.shadowOffsetY = 8
+            d.beginPath(); d.roundRect(0, 0, w, h, 12); d.fillStyle = fill; d.fill()
+            d.restore()
+            }
+        card(150, 26, 170, 96, 0.12, "#0E3B43")
+        card(30, 50, 200, 113, -0.06, "#FFFFFF")
+        d.save(); d.translate(30, 50); d.rotate(-0.06)
+        d.beginPath(); d.roundRect(18, 18, 110, 12, 6); d.fillStyle = t.text; d.fill()
+        d.beginPath(); d.roundRect(18, 40, 70, 8, 4); d.fillStyle = "#CFC8DD"; d.fill()
+        d.beginPath(); d.arc(160, 72, 22, 0, Math.PI * 2); d.fillStyle = t.spark; d.fill()
+        d.beginPath(); d.roundRect(18, 62, 96, 32, 8); d.fillStyle = t.accent; d.fill()
+        d.restore()
+        d.beginPath(); d.arc(300, 150, 26, 0, Math.PI * 2); d.fillStyle = "#FFD166"; d.fill()
+        d.beginPath(); d.moveTo(262, 40); d.lineTo(286, 54); d.lineTo(262, 68); d.closePath(); d.fillStyle = t.spark; d.fill()
+        d.beginPath(); d.moveTo(120, 178); d.lineTo(220, 168); d.strokeStyle = t.accent; d.lineWidth = 5; d.lineCap = "round"; d.stroke()
+        }
+    ]
+
+
+class EmptyArt [
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        d.beginPath(); d.roundRect(40, 20, 150, 90, 12); d.fillStyle = "#FFFFFF"; d.fill()
+        d.strokeStyle = t.lineStrong; d.lineWidth = 1.5; d.setLineDash([6, 5]); d.stroke(); d.setLineDash([])
+        d.beginPath(); d.arc(115, 65, 18, 0, Math.PI * 2); d.fillStyle = t.accentSoft; d.fill()
+        d.beginPath(); d.moveTo(115, 56); d.lineTo(115, 74); d.moveTo(106, 65); d.lineTo(124, 65)
+        d.strokeStyle = t.accent; d.lineWidth = 2.5; d.lineCap = "round"; d.stroke()
+        d.beginPath(); d.arc(190, 118, 14, 0, Math.PI * 2); d.fillStyle = t.spark; d.fill()
+        d.beginPath(); d.roundRect(14, 96, 40, 28, 6); d.fillStyle = "#FFD166"; d.fill()
+        }
+    ]
+
+
+// Opening, creating, renaming and deleting presentations: each a request or
+// two to the service, one at a time.
+
+class DeckOps extends Node [
+    opening: string = "",
+    busy: boolean = { this.opening != "" || this.making.loading || this.renaming != "" || this.deleting.loading },
+    failed: string = "",
+
+    // open: the deck and its slides
+
+    open(id: string) {
+        opening = id
+        deck.url = app.base + "/api/decks/" + id
+        deck.fetch()
+        },
+    deck: DataSource [ schema = Deck,
+        onLoad() { classroot.slides.url = app.base + "/api/decks/" + classroot.opening + "/slides"; classroot.slides.fetch() },
+        onError() { classroot.trouble("That presentation couldn't be opened.") }
+        ],
+    slides: DataSource [ schema = SlideList,
+        onLoad() {
+            const d = classroot.deck.value as Deck
+            classroot.opening = ""
+            app.opened(d, (this.value as SlideList).slides)
+            },
+        onError() { classroot.trouble("That presentation couldn't be opened.") }
+        ],
+
+    // new: made on the service, then opened
+
+    create() { making.fetch() },
+    making: DataSource [ url = { app.base + "/api/decks" }, method = "POST", schema = Opened,
+        body = { ({ title: "Untitled presentation" }) },
+        onLoad() { const v = this.value as Opened; app.created(v.deck, v.slides) },
+        onError() { classroot.trouble("A new presentation couldn't be made.") }
+        ],
+
+    // rename: the deck's version first, then the change
+
+    renaming: string = "",
+    newTitle: string = "",
+    rename(id: string, t: string) {
+        renaming = id
+        newTitle = t
+        peek.url = app.base + "/api/decks/" + id
+        peek.fetch()
+        },
+    peek: DataSource [ schema = Deck,
+        onLoad() {
+            const d = this.value as Deck
+            classroot.patch.url = app.base + "/api/decks/" + d.id
+            classroot.patch.body = ({ version: d.version, title: classroot.newTitle })
+            classroot.patch.fetch()
+            },
+        onError() { classroot.renaming = ""; classroot.trouble("That presentation couldn't be renamed.") }
+        ],
+    patch: DataSource [ method = "PATCH",
+        onLoad() { classroot.renaming = ""; app.decks.fetch() },
+        onError() { classroot.renaming = ""; classroot.trouble("That presentation couldn't be renamed.") }
+        ],
+
+    remove(id: string) { deleting.url = app.base + "/api/decks/" + id; deleting.fetch() },
+    deleting: DataSource [ method = "DELETE",
+        onLoad() { app.decks.fetch() },
+        onError() { classroot.trouble("That presentation couldn't be deleted.") }
+        ],
+
+    trouble(what: string) {
+        opening = ""
+        app.toast.say(what + " The service isn't answering — try again in a moment.")
+        }
+    ]

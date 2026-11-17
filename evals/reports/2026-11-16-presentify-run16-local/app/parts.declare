@@ -1,0 +1,377 @@
+/*
+# Presentify: the look
+
+The palette, the drawn marks and the small controls the screens are made of.
+Presentify's identity is an iris violet with a coral spark, on warm paper
+chrome that stays quieter than any slide, so the slide is always the
+brightest thing on the screen. Words in the brand face (Bricolage Grotesque)
+are the wordmark and the headings; everything a person reads while working
+is in the system face.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's `SanFrancisco` preset, so library controls (buttons,
+// menus, fields) wear the same palette; the rest are Presentify's own roles.
+
+theme Presentify [
+    accent = #5B3DF5, accentHovered = #4E31E6, accentPressed = #4127CC, accentTextColor = #FFFFFF,
+    background = #F6F3EE, surface = #FFFFFF, text = #1E1A2E, textMuted = #635D70, textFaint = #8E889A,
+    line = #E5E0D8, control = #EFEBE4, controlHovered = #E7E2D9, controlPressed = #DCD6CB, controlSelected = #E9E4FF,
+    linkColor = #5B3DF5,
+
+    chrome = #FBF9F6,          // the bars and panels around the slide
+    stage = #E8E3DB,           // the ground the slide sits on
+    hover = #F0ECE5,
+    selectedTint = #ECE7FF,    // a chosen tool, the slide being edited
+    brand = #5B3DF5,           // iris
+    spark = #FF6A4D,           // coral
+    ink = #1E1A2E,
+    handle = #5B3DF5,          // a selection's outline and handles
+    guide = #FF2D87,           // snapping guides
+    danger = #D2344A,
+    dangerTint = #FDECEF,
+    ok = #22966B,
+    shadowSoft = #1E1A2E1F,
+    shadowLift = #1E1A2E33
+    ]
+
+
+// ── Marks ───────────────────────────────────────────────────────────────────
+//
+// Every mark is drawn with one pen on the library's 16-unit grid, so the
+// tools, the toolbar and the inspector read as one family.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        const s = shape
+        if (s == "select") {
+            d.moveTo(4, 2); d.lineTo(4, 13); d.lineTo(6.8, 10.4); d.lineTo(8.8, 14.4); d.lineTo(10.6, 13.6)
+            d.lineTo(8.7, 9.7); d.lineTo(12.4, 9.5); d.closePath(); d.stroke()
+        } else if (s == "rect") {
+            d.roundRect(2, 3.5, 12, 9, 1.2); d.stroke()
+        } else if (s == "ellipse") {
+            d.ellipse(8, 8, 6, 5, 0, 0, Math.PI * 2); d.stroke()
+        } else if (s == "line") {
+            d.moveTo(2.5, 13.5); d.lineTo(13.5, 2.5); d.stroke()
+        } else if (s == "text") {
+            d.moveTo(3, 4); d.lineTo(3, 2.8); d.lineTo(13, 2.8); d.lineTo(13, 4)
+            d.moveTo(8, 2.8); d.lineTo(8, 13.5); d.moveTo(6, 13.5); d.lineTo(10, 13.5); d.stroke()
+        } else if (s == "undo") {
+            d.moveTo(5.5, 3); d.lineTo(2.5, 6); d.lineTo(5.5, 9)
+            d.moveTo(2.5, 6); d.lineTo(9.5, 6); d.bezierCurveTo(12, 6, 13.5, 7.6, 13.5, 9.8); d.bezierCurveTo(13.5, 12, 12, 13.5, 9.5, 13.5); d.lineTo(6.5, 13.5); d.stroke()
+        } else if (s == "redo") {
+            d.moveTo(10.5, 3); d.lineTo(13.5, 6); d.lineTo(10.5, 9)
+            d.moveTo(13.5, 6); d.lineTo(6.5, 6); d.bezierCurveTo(4, 6, 2.5, 7.6, 2.5, 9.8); d.bezierCurveTo(2.5, 12, 4, 13.5, 6.5, 13.5); d.lineTo(9.5, 13.5); d.stroke()
+        } else if (s == "play") {
+            d.moveTo(4.5, 2.8); d.lineTo(13, 8); d.lineTo(4.5, 13.2); d.closePath(); d.fill(); d.stroke()
+        } else if (s == "plus") {
+            d.moveTo(8, 3); d.lineTo(8, 13); d.moveTo(3, 8); d.lineTo(13, 8); d.stroke()
+        } else if (s == "trash") {
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke()
+        } else if (s == "copy") {
+            d.roundRect(5, 5, 9, 9, 1.5); d.moveTo(11, 2.5); d.lineTo(3.5, 2.5); d.quadraticCurveTo(2.5, 2.5, 2.5, 3.5); d.lineTo(2.5, 11); d.stroke()
+        } else if (s == "back") {
+            d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (s == "more") {
+            d.arc(3.5, 8, 1.1, 0, 6.3); d.moveTo(9.1, 8); d.arc(8, 8, 1.1, 0, 6.3); d.moveTo(13.6, 8); d.arc(12.5, 8, 1.1, 0, 6.3); d.fill()
+        } else if (s == "check") {
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (s == "sync") {
+            d.arc(8, 8, 5, -2.4, 0.5); d.moveTo(12.6, 3.4); d.lineTo(12.6, 6); d.lineTo(10, 6); d.stroke()
+            d.beginPath(); d.arc(8, 8, 5, 0.74, 3.64); d.moveTo(3.4, 12.6); d.lineTo(3.4, 10); d.lineTo(6, 10); d.stroke()
+        } else if (s == "offline") {
+            d.moveTo(4.5, 12.5); d.bezierCurveTo(2.5, 12.5, 1.5, 11, 1.8, 9.4); d.bezierCurveTo(2, 8, 3.2, 7.2, 4.4, 7.2)
+            d.bezierCurveTo(4.8, 4.8, 6.8, 3.4, 9, 3.6); d.bezierCurveTo(11.6, 3.8, 13.4, 6, 13.2, 8.4)
+            d.bezierCurveTo(14.4, 8.8, 14.8, 10.2, 14.4, 11.2); d.moveTo(2.5, 2.5); d.lineTo(13.5, 13.5); d.stroke()
+        } else if (s == "alert") {
+            d.moveTo(8, 2.2); d.lineTo(14.2, 13.4); d.lineTo(1.8, 13.4); d.closePath(); d.stroke()
+            d.beginPath(); d.moveTo(8, 6.4); d.lineTo(8, 9.4); d.stroke(); d.beginPath(); d.arc(8, 11.4, 0.6, 0, 6.3); d.fill()
+        } else if (s == "italic") {
+            d.moveTo(7, 3); d.lineTo(12, 3); d.moveTo(4, 13); d.lineTo(9, 13); d.moveTo(9.6, 3); d.lineTo(6.4, 13); d.stroke()
+        } else if (s == "textLeft" || s == "textCenter" || s == "textRight") {
+            const rows = [[2, 14], [2, 10], [2, 14], [2, 9]]
+            rows.forEach((r, i) => {
+                const w = r[1] - r[0]
+                const x = s == "textLeft" ? 2 : s == "textRight" ? 14 - w : 8 - w / 2
+                d.moveTo(x, 3 + i * 3.4); d.lineTo(x + w, 3 + i * 3.4)
+                })
+            d.stroke()
+        } else if (s.startsWith("align")) {
+            // a guide line and two bars lined up against it
+            const v = s == "alignLeft" || s == "alignCenter" || s == "alignRight"
+            if (v) {
+                const gx = s == "alignLeft" ? 2.5 : s == "alignRight" ? 13.5 : 8
+                d.moveTo(gx, 1.5); d.lineTo(gx, 14.5); d.stroke(); d.beginPath()
+                const a = s == "alignLeft" ? 4 : s == "alignRight" ? 12 - 8 : 8 - 4
+                const b = s == "alignLeft" ? 4 : s == "alignRight" ? 12 - 5 : 8 - 2.5
+                d.roundRect(a, 3.5, 8, 3.5, 0.8); d.roundRect(b, 9, 5, 3.5, 0.8); d.fill()
+            } else {
+                const gy = s == "alignTop" ? 2.5 : s == "alignBottom" ? 13.5 : 8
+                d.moveTo(1.5, gy); d.lineTo(14.5, gy); d.stroke(); d.beginPath()
+                const a = s == "alignTop" ? 4 : s == "alignBottom" ? 12 - 8 : 8 - 4
+                const b = s == "alignTop" ? 4 : s == "alignBottom" ? 12 - 5 : 8 - 2.5
+                d.roundRect(3.5, a, 3.5, 8, 0.8); d.roundRect(9, b, 3.5, 5, 0.8); d.fill()
+            }
+        } else if (s == "distributeX") {
+            d.moveTo(1.5, 2); d.lineTo(1.5, 14); d.moveTo(14.5, 2); d.lineTo(14.5, 14); d.stroke(); d.beginPath()
+            d.roundRect(4, 4.5, 2.5, 7, 0.6); d.roundRect(9.5, 4.5, 2.5, 7, 0.6); d.fill()
+        } else if (s == "distributeY") {
+            d.moveTo(2, 1.5); d.lineTo(14, 1.5); d.moveTo(2, 14.5); d.lineTo(14, 14.5); d.stroke(); d.beginPath()
+            d.roundRect(4.5, 4, 7, 2.5, 0.6); d.roundRect(4.5, 9.5, 7, 2.5, 0.6); d.fill()
+        } else if (s == "front" || s == "forward" || s == "backward" || s == "toBack") {
+            // two squares; the one this command moves is filled
+            const up = s == "front" || s == "forward"
+            d.roundRect(2, 2, 8, 8, 1.2); d.roundRect(6, 6, 8, 8, 1.2); d.stroke(); d.beginPath()
+            if (up) d.roundRect(6, 6, 8, 8, 1.2); else d.roundRect(2, 2, 8, 8, 1.2)
+            d.globalAlpha = s == "front" || s == "toBack" ? 1 : 0.45
+            d.fill()
+        } else if (s == "group") {
+            d.setLineDash([1.6, 1.8]); d.roundRect(1.5, 1.5, 13, 13, 1.5); d.stroke(); d.setLineDash([]); d.beginPath()
+            d.roundRect(4, 4, 4.5, 4.5, 0.8); d.roundRect(8, 8.5, 4, 3.5, 0.8); d.fill()
+        } else if (s == "ungroup") {
+            d.roundRect(2, 2, 6, 6, 1); d.roundRect(9, 9, 5, 5, 1); d.stroke()
+        } else if (s == "slide") {
+            d.roundRect(1.5, 3.5, 13, 9, 1.5); d.stroke()
+        } else if (s == "none") {
+            d.roundRect(2, 2, 12, 12, 2); d.moveTo(3, 13); d.lineTo(13, 3); d.stroke()
+        } else {
+            d.arc(8, 8, 5, 0, 6.3); d.stroke()
+        }
+        }
+    ]
+
+
+// The mark: a slide on an iris tile, with a coral spark where a play
+// button would be. Drawn at any size from one 32-unit design.
+
+class LogoMark [ width = 28, height = { this.width }, accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const k = d.w / 32
+        d.scale(k, k)
+        d.fillStyle = provided("theme").brand
+        d.beginPath(); d.roundRect(0, 0, 32, 32, 9); d.fill()
+        d.fillStyle = 0xFFFFFF
+        d.beginPath(); d.roundRect(6, 8.5, 20, 13.5, 2.6); d.fill()
+        d.fillStyle = provided("theme").brand
+        d.beginPath(); d.roundRect(9, 12, 8, 2.4, 1.2); d.fill()
+        d.beginPath(); d.roundRect(9, 16.2, 5, 2.4, 1.2); d.fill()
+        d.fillStyle = provided("theme").spark
+        d.beginPath(); d.moveTo(19.4, 12.4); d.lineTo(24.2, 15.25); d.lineTo(19.4, 18.1); d.closePath(); d.fill()
+        d.fillStyle = 0xFFFFFF
+        d.beginPath(); d.roundRect(14, 22.5, 4, 3, 1); d.fill()
+        }
+    ]
+
+
+class Wordmark [
+    size: number = 22,
+    layout: SimpleLayout [ axis = x, spacing = { classroot.size * 0.38 }, align = center ],
+    LogoMark [ width = { classroot.size * 1.3 } ],
+    TextLabel [ fontFamily = { app.brandFace }, fontSize = { classroot.size }, fontWeight = 750, letterSpacing = -0.6,
+        textColor = { provided("theme").ink }, text = "Presentify" ]
+    ]
+
+
+// A small scene for empty places: three slides fanned out, one with a
+// chart, one with a title, one with a shape, in the brand's colors.
+
+class Illustration [ width = 280, height = 180, accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const k = d.w / 280
+        d.scale(k, k)
+        const card = (x: number, y: number, rot: number) => {
+            d.save(); d.translate(x, y); d.rotate(rot)
+            d.shadowColor = provided("theme").shadowSoft; d.shadowBlur = 18; d.shadowOffsetY = 8
+            d.fillStyle = 0xFFFFFF; d.beginPath(); d.roundRect(-80, -45, 160, 90, 8); d.fill()
+            d.shadowBlur = 0; d.shadowOffsetY = 0
+            }
+        card(70, 98, -0.16)
+        d.fillStyle = provided("theme").selectedTint; d.beginPath(); d.roundRect(-64, -30, 128, 60, 6); d.fill()
+        d.fillStyle = provided("theme").brand
+        for (let i = 0; i < 4; i++) { d.beginPath(); d.roundRect(-50 + i * 28, 18 - (i + 1) * 9, 16, (i + 1) * 9, 3); d.fill() }
+        d.restore()
+        card(210, 98, 0.15)
+        d.fillStyle = provided("theme").spark; d.beginPath(); d.arc(-24, 0, 24, 0, 6.3); d.fill()
+        d.fillStyle = provided("theme").ink; d.beginPath(); d.roundRect(12, -14, 46, 8, 4); d.fill()
+        d.globalAlpha = 0.35; d.beginPath(); d.roundRect(12, 2, 34, 6, 3); d.fill(); d.globalAlpha = 1
+        d.restore()
+        card(140, 84, 0)
+        d.fillStyle = provided("theme").brand; d.beginPath(); d.roundRect(-80, -45, 160, 32, [8, 8, 0, 0]); d.fill()
+        d.fillStyle = 0xFFFFFF; d.beginPath(); d.roundRect(-62, -34, 70, 9, 4.5); d.fill()
+        d.fillStyle = provided("theme").ink; d.globalAlpha = 0.18
+        d.beginPath(); d.roundRect(-62, -2, 124, 6, 3); d.fill()
+        d.beginPath(); d.roundRect(-62, 10, 96, 6, 3); d.fill()
+        d.beginPath(); d.roundRect(-62, 22, 110, 6, 3); d.fill()
+        d.globalAlpha = 1
+        d.fillStyle = provided("theme").spark; d.beginPath(); d.moveTo(52, -36); d.lineTo(64, -29); d.lineTo(52, -22); d.closePath(); d.fill()
+        d.restore()
+        }
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+//
+// Everything pressed is a Control: focus, Space and Enter, and `disabled`
+// come with it. Every one carries a name for a screen reader and a tip for
+// the pointer resting on it.
+
+// A square icon button: undo, redo, the inspector's arrange commands.
+
+class IconButton extends Control [ width = 32, height = 32, cornerRadius = 8,
+    shape: string = "",
+    on: boolean = false,
+    tone: Color = { provided("theme").text },
+    tooltipLabel = { this.accessibilityLabel },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").selectedTint } ],
+    Glyph [ x = center, y = center, iconSize = 16, weight = 1.6, shape = { classroot.shape },
+        ink = { classroot.on ? provided("theme").brand : classroot.tone } ],
+    State [ applied = { classroot.disabled }, opacity = 0.35 ]
+    ]
+
+
+// A drawing tool: its mark and its name under it, lit while it is the tool.
+
+class ToolTab extends Control [ width = 62, height = 46, cornerRadius = 10,
+    tool: string = "select",
+    name: string = "",
+    key: string = "",
+    on: boolean = { app.tool == classroot.tool },
+    accessibilityLabel = { classroot.name },
+    accessibilityRole = toggle,
+    accessibilityPressed = { classroot.on },
+    tooltipLabel = { classroot.name + " (" + classroot.key + ")" },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").selectedTint } ],
+    press() { app.chooseTool(classroot.tool) },
+    layout: SimpleLayout [ axis = y, spacing = 3, align = center ],
+    padding = [7, 0, 0, 0],
+    Glyph [ iconSize = 18, weight = 1.6, shape = { classroot.tool },
+        ink = { classroot.on ? provided("theme").brand : provided("theme").text } ],
+    Text [ fontSize = 11, fontWeight = { classroot.on ? 600 : 500 }, wrap = false,
+        textColor = { classroot.on ? provided("theme").brand : provided("theme").textMuted }, text = { classroot.name } ]
+    ]
+
+
+// A labelled button with a mark, for the bars: Present, New slide.
+
+class PillButton extends Control [ height = 34, cornerRadius = 10, padding = [0, 14, 0, 11],
+    label: string = "",
+    shape: string = "",
+    primary: boolean = false,
+    accessibilityLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.primary }, shadow = { Shadow(0, 2, 6, 0x5B3DF544) },
+        fill = { pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent } ],
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+    Glyph [ visible = { classroot.shape != "" }, iconSize = 14, weight = 1.8, shape = { classroot.shape },
+        ink = { classroot.primary ? 0xFFFFFF : provided("theme").text } ],
+    TextLabel [ fontSize = 13.5, fontWeight = 600, wrap = false,
+        textColor = { classroot.primary ? 0xFFFFFF : provided("theme").text }, text = { classroot.label } ],
+    State [ applied = { classroot.disabled }, opacity = 0.4 ]
+    ]
+
+
+// A color, as the inspector shows it: a swatch and its name. "mixed" when
+// the selection's things differ, "none" when there is none. Pressing opens
+// the color picker for this well's `target`.
+
+class ColorWell extends Control [ height = 32, cornerRadius = 8, padding = [0, 10, 0, 5],
+    value: string = "",
+    target: string = "fill",
+    allowNone: boolean = true,
+    label: string = "Color",
+    accessibilityLabel = { classroot.label + ": " + classroot.words },
+    tooltipLabel = { "Choose " + classroot.label.toLowerCase() },
+    words: string = { ({ mixed: "Mixed", none: "None", "": "—" } as Record<string, string>)[classroot.value] ?? classroot.value.toUpperCase().slice(0, 7) },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    press() { app.colorPop.openFor(this) },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    chip: View [ width = 22, height = 22, cornerRadius = 6, clip = true,
+        stroke = { Stroke(1, provided("theme").line) },
+        fill = { Color.from(classroot.value) ?? 0xFFFFFF },
+        Glyph [ visible = { classroot.value == "none" }, x = center, y = center, iconSize = 14, weight = 1.4, shape = "none",
+            ink = { provided("theme").danger } ],
+
+        // mixed: the four corners of a color wheel
+
+        View [ visible = { classroot.value == "mixed" }, width = 11, height = 11, fill = #5B3DF5 ],
+        View [ visible = { classroot.value == "mixed" }, x = 11, width = 11, height = 11, fill = #FF6A4D ],
+        View [ visible = { classroot.value == "mixed" }, y = 11, width = 11, height = 11, fill = #1DB37A ],
+        View [ visible = { classroot.value == "mixed" }, x = 11, y = 11, width = 11, height = 11, fill = #F5C518 ]
+        ],
+    TextLabel [ flexes = true, fontSize = 12.5, fontWeight = 500, wrap = false, numeralWidth = tabular,
+        textColor = { classroot.value == "mixed" ? provided("theme").textMuted : provided("theme").text }, text = { classroot.words } ],
+    State [ applied = { classroot.disabled }, opacity = 0.4 ]
+    ]
+
+
+// One color in the picker.
+
+class Swatch extends Control [ width = 24, height = 24, cornerRadius = 7,
+    color: string = "#FFFFFF",
+    chosen: boolean = false,
+    accessibilityLabel = { classroot.color },
+    accessibilityPressed = { classroot.chosen },
+    tooltipLabel = { classroot.color },
+    fill = { Color.from(classroot.color) },
+    stroke = { Stroke(1, 0x1E1A2E22) },
+    ring: View [ x = -3, y = -3, width = 30, height = 30, cornerRadius = 9, visible = { classroot.chosen || classroot.hovered },
+        stroke = { Stroke(2, classroot.chosen ? provided("theme").brand : provided("theme").line) } ]
+    ]
+
+
+// A titled part of the inspector. Its contents stack under the title.
+
+class Section [ width = 100%, padding = [14, 16, 16, 16], defaultPlacement = body,
+    title: string = "",
+    stroke = { [Stroke(1, provided("theme").line), null, null, null] },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    head: Text [ fontSize = 11, fontWeight = 650, letterSpacing = 0.6, textTransform = uppercase,
+        textColor = { provided("theme").textMuted }, text = { classroot.title } ],
+    body: View [ width = 100%, pointerEvents = { classroot.disabled ? "none" : "auto" },
+        layout: SimpleLayout [ axis = y, spacing = 10 ]
+        ],
+    State [ applied = { classroot.disabled }, opacity = 0.45 ],
+    disabled: boolean = false
+    ]
+
+
+// A row in a section: a label on the left, a control on the right.
+
+class Field2 [ width = 100%, height = 32, defaultPlacement = slot,
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ width = 70, fontSize = 12.5, wrap = false, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    slot: View [ flexes = true, height = 32,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ]
+        ]
+    ]
+
+
+// What the service holds, said in the bar: one of exactly three things.
+
+class SaveStatus [ height = 28, cornerRadius = 14, padding = [0, 11, 0, 9],
+    s: string = { app.sync.status },
+    words: string = { classroot.s == "offline" ? "Not saved: can't reach the service" : classroot.s == "saving" ? "Saving…" : "All changes saved" },
+    accessibilityRole = status,
+    accessibilityLabel = { classroot.words },
+    tooltipLabel = { classroot.s == "offline" ? "Your changes are kept here and sent as soon as the service answers." : classroot.s == "saving" ? "Sending your latest changes." : "Everything here is saved." },
+    fill = { classroot.s == "offline" ? provided("theme").dangerTint : null },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Glyph [ iconSize = 14, weight = 1.6,
+        shape = { classroot.s == "offline" ? "offline" : classroot.s == "saving" ? "sync" : "check" },
+        ink = { classroot.s == "offline" ? provided("theme").danger : classroot.s == "saving" ? provided("theme").textMuted : provided("theme").ok } ],
+    TextLabel [ fontSize = 12.5, fontWeight = 500, wrap = false,
+        textColor = { classroot.s == "offline" ? provided("theme").danger : provided("theme").textMuted }, text = { classroot.words } ]
+    ]

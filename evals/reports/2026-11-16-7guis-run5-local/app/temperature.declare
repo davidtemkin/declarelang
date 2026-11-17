@@ -1,0 +1,46 @@
+/*
+# 2. Temperature Converter
+
+Two fields, Celsius and Fahrenheit. Each field's text is the task's own
+attribute; typing a number into one writes the other's text, converted, and
+typing anything else leaves the other alone. While a person types in a field
+it shows what they typed, so the conversion written back never fights them.
+*/
+
+script {
+    // A number as typed, or null when the text is not one.
+    function parseNumber(t: string): number | null {
+        return /^\s*[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)\s*$/.test(t) ? Number(t) : null
+    }
+    // A converted temperature, to at most two decimals.
+    function formatTemperature(n: number): string { return String(Math.round(n * 100) / 100) }
+    }
+
+
+class TemperatureTask [
+    celsius: string = "",
+    fahrenheit: string = "",
+
+    setCelsius(t: string) {
+        celsius = t
+        const c = parseNumber(t)
+        if (c != null) fahrenheit = formatTemperature(c * 9 / 5 + 32)
+        },
+    setFahrenheit(t: string) {
+        fahrenheit = t
+        const f = parseNumber(t)
+        if (f != null) celsius = formatTemperature((f - 32) * 5 / 9)
+        },
+
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    TextInput [ width = 120, accessibilityLabel = "Celsius", purpose = decimal,
+        value = { classroot.celsius },
+        commit(t: string) { classroot.setCelsius(t) }
+        ],
+    Text [ text = "Celsius =" ],
+    TextInput [ width = 120, accessibilityLabel = "Fahrenheit", purpose = decimal,
+        value = { classroot.fahrenheit },
+        commit(t: string) { classroot.setFahrenheit(t) }
+        ],
+    Text [ text = "Fahrenheit" ]
+    ]

@@ -1,0 +1,139 @@
+/*
+# Presentify: the list of presentations
+
+Every presentation the service holds, most recently changed first, each as a
+card: a live picture of its first slide, its title, and when it last changed.
+A card opens its presentation (which grows out of the card); its ··· menu
+renames or deletes it. The list has a face for each of its states: loading,
+unreachable, empty, and full.
+*/
+
+class DeckCard [ cornerRadius = 14,
+    did: string = { :id ?? "" },
+    name: string = { :title ?? "" },
+    shownName: string = { classroot.name == "" ? "Untitled presentation" : classroot.name },
+    when: string = { :updatedAt ?? "" },
+    count: number = { :slideCount ?? 0 },
+    lit: boolean = { hovered },
+    fill = { classroot.lit ? provided("theme").surface : null },
+    shadow = { classroot.lit ? Shadow(0, 8, 24, 0x1D18301A) : null },
+    onContextMenu(e: PointerEvent) { app.deckMenu.showAt(this, e) },
+    frame: View = { classroot.opener.frame },
+
+    // its first slide, fetched on its own
+
+    first: DataSource [ url = { app.api + "/api/slides/" + (:thumbnailSlideId ?? "") }, autoFetch = true, schema = ServerSlide ],
+
+    // the card opens its presentation; the ··· beside the title is a sibling, so each is its own button
+
+    opener: Control [ width = 100%, padding = 10, cornerRadius = 14,
+        accessibilityLabel = { "Open " + classroot.shownName },
+        press() { app.openDeck(classroot.did, classroot.frame) },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        frame: View [ width = 100%, height = { this.width * 9 / 16 }, cornerRadius = 8, clip = true,
+            fill = { provided("theme").quiet },
+            stroke = { Stroke(1, 0x1D183014) },
+            datapath = { classroot.first.value },
+            SlideArt [ visible = { classroot.first.loaded }, scale = { parent.width / 1280 } ]
+            ],
+        meta: View [ width = 100%, padding = [0, 40, 2, 4],
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, maxLines = 2, fontSize = 15, fontWeight = semibold, textColor = { provided("theme").text },
+                text = { classroot.shownName } ],
+            Text [ width = 100%, maxLines = 1, fontSize = 12.5, textColor = { provided("theme").textMuted },
+                text = { ago(classroot.when, app.clock.now) + "  ·  " + classroot.count + (classroot.count == 1 ? " slide" : " slides") } ]
+            ]
+        ],
+    more: IconButton [ x = { parent.width - 44 }, y = { classroot.opener.meta.y + 6 }, shape = "more",
+        label = { "More for " + classroot.shownName },
+        press() { app.deckMenu.showFor(this) }
+        ]
+    ]
+
+
+// A card's shape while the list is loading.
+
+class GhostCard [ height = 190, cornerRadius = 14, padding = 10,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    View [ width = 100%, height = 130, cornerRadius = 8, fill = { provided("theme").quiet } ],
+    View [ width = 140, height = 12, cornerRadius = 6, fill = { provided("theme").quiet } ],
+    View [ width = 90, height = 10, cornerRadius = 5, fill = { provided("theme").quiet } ]
+    ]
+
+
+class Home [ width = 100%, height = 100%, scrolls = y,
+    fill = { provided("theme").background },
+    accessibilityRole = main,
+    decks: DeckSummary[] = { app.decks.value?.decks ?? [] },
+    room: number = { Math.min(1180, this.width - 96) },
+    cols: number = { Math.max(1, Math.floor((classroot.room + 24) / 264)) },
+
+    col: View [ x = center, width = { classroot.room }, padding = [36, 0, 80, 0],
+        layout: SimpleLayout [ axis = y, spacing = 34 ],
+
+        header: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, align = center ],
+            Wordmark [ big = true ],
+            Spacer [ ],
+            SaveStatus [ visible = { app.sync.status != "saved" } ],
+            View [ width = 12 ],
+            newBtn: PillButton [ height = 40, cornerRadius = 20, padding = [0, 20, 0, 16], primary = true, shape = "plus",
+                label = { app.creating.loading ? "Creating…" : "New presentation" },
+                disabled = { app.creating.loading },
+                press() { app.newDeck() }
+                ]
+            ],
+
+        intro: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, align = baseline ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 26, fontWeight = 700, letterSpacing = -0.6,
+                textColor = { provided("theme").text }, text = "Your presentations" ],
+            Spacer [ ],
+            Text [ visible = { classroot.decks.length > 0 }, fontSize = 13, textColor = { provided("theme").textMuted },
+                text = { classroot.decks.length + (classroot.decks.length == 1 ? " presentation" : " presentations") } ]
+            ],
+
+        // loading, the first time
+
+        loadingGrid: View [ visible = { !app.decks.loaded && !app.decks.failed }, width = 100%,
+            layout: WrappingLayout [ columns = { classroot.cols }, spacing = 24, rowSpacing = 24 ],
+            GhostCard [ flexes = true ],
+            GhostCard [ flexes = true ],
+            GhostCard [ flexes = true ]
+            ],
+
+        // the service couldn't be reached
+
+        unreachable: View [ visible = { app.decks.failed && !app.decks.loaded }, width = 100%, padding = [40, 0, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+            Glyph [ shape = "cloud", iconSize = 40, weight = 1.6, ink = { provided("theme").textFaint } ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 20, fontWeight = 700, textColor = { provided("theme").text },
+                text = "Can't reach your presentations" ],
+            Text [ width = 360, textAlign = center, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = "The service that keeps them isn't answering. Nothing is lost; try again in a moment." ],
+            PillButton [ label = "Try again",
+                press() { app.decks.fetch() }
+                ]
+            ],
+
+        // nothing yet
+
+        empty: View [ visible = { app.decks.loaded && classroot.decks.length == 0 }, width = 100%, padding = [24, 0, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+            FanArt [ ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 22, fontWeight = 700, textColor = { provided("theme").text },
+                text = "Make your first presentation" ],
+            Text [ width = 380, textAlign = center, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = "Start with an empty slide, add shapes and words, then press Present." ],
+            PillButton [ label = "New presentation", primary = true, shape = "plus",
+                press() { app.newDeck() }
+                ]
+            ],
+
+        grid: View [ visible = { app.decks.loaded && classroot.decks.length > 0 }, width = 100%,
+            datapath = { app.decks.value },
+            layout: WrappingLayout [ columns = { classroot.cols }, spacing = 24, rowSpacing = 24 ],
+            DeckCard [ datapath = :decks[], flexes = true ]
+            ]
+        ]
+    ]

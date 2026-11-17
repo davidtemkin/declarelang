@@ -1,0 +1,287 @@
+/*
+# The Venue: the data
+
+What the service holds and what is true of it, kept apart from how it looks.
+`venue.declare` includes this file.
+
+- **Helpers** — formatting (money, dates, times) and the arithmetic of payment
+  cards: plain functions of their arguments.
+- **The shape of the data** — one schema per thing the service sends.
+- **The house** — `House`, the seat map of one performance, kept true by the
+  service's event stream.
+- **The basket** — `Basket`, the seats this person has chosen.
+- **The payment** — `Payment`, what they have typed at checkout. Its fields
+  start from the signed-in account and are the person's once they type.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+
+    function money(cents: number): string { return USD.format(cents / 100) }
+
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    // The service writes times as the hall's local time, "2026-11-13T19:30".
+    function stamp(s: string): number[] {
+        const halves = s.split("T")
+        const d = halves[0].split("-").map(Number)
+        const t = (halves[1] ?? "0:0").split(":").map(Number)
+        return [d[0], d[1], d[2], t[0], t[1]]
+    }
+    function dayLabel(s: string): string {
+        if (s == "") return ""
+        const p = stamp(s)
+        return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] + " " + p[2] + " " + MONTHS[p[1] - 1]
+    }
+    function weekday(s: string): string {
+        if (s == "") return ""
+        const p = stamp(s)
+        return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()]
+    }
+    function dayOfMonth(s: string): string { return s == "" ? "" : "" + stamp(s)[2] }
+    function monthLabel(s: string): string { return s == "" ? "" : MONTHS[stamp(s)[1] - 1] }
+    function timeLabel(s: string): string {
+        if (s == "") return ""
+        const p = stamp(s)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + pad2(p[4]) + (p[3] < 12 ? "am" : "pm")
+    }
+
+    // ── cards
+
+    function digitsOf(s: string): string { return s.replace(/\D/g, "") }
+
+    function brandOf(d: string): string {
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^(5[1-5]|2[2-7])/.test(d)) return "mastercard"
+        if (/^4/.test(d)) return "visa"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        if (b == "visa") return "Visa"
+        if (b == "mastercard") return "Mastercard"
+        if (b == "amex") return "American Express"
+        if (b == "discover") return "Discover"
+        return ""
+    }
+    function cardLength(b: string): number { return b == "amex" ? 15 : 16 }
+    function codeLength(b: string): number { return b == "amex" ? 4 : 3 }
+
+    // Grouped as printed on the card: 4-6-5 for American Express, fours otherwise.
+    function groupCard(d: string): string {
+        const b = brandOf(d)
+        const cut = b == "amex" ? [4, 10, 15] : [4, 8, 12, 16]
+        const out: string[] = []
+        let from = 0
+        for (const to of cut) {
+            if (d.length <= from) break
+            out.push(d.slice(from, to))
+            from = to
+        }
+        return out.join(" ")
+    }
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum = sum + n
+        }
+        return d.length > 0 && sum % 10 == 0
+    }
+
+    // An expiry is typed as "MM / YY".
+    function groupExpiry(t: string): string {
+        const d = digitsOf(t).slice(0, 4)
+        return d.length > 2 ? d.slice(0, 2) + " / " + d.slice(2) : d
+    }
+    function expiryParts(t: string): number[] {
+        const d = digitsOf(t)
+        return d.length == 4 ? [Number(d.slice(0, 2)), 2000 + Number(d.slice(2))] : [0, 0]
+    }
+    function isPast(month: number, year: number): boolean {
+        const now = new Date()
+        return year < now.getFullYear() || (year == now.getFullYear() && month < now.getMonth() + 1)
+    }
+    function expiryShort(month: number, year: number): string { return pad2(month) + "/" + pad2(year % 100) }
+
+    function postalProblem(country: string, code: string): string {
+        const c = code.trim()
+        if (country == "US") return /^\d{5}(-\d{4})?$/.test(c) ? "" : "Enter a 5-digit ZIP code, like 94103."
+        if (country == "CA") return /^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/.test(c) ? "" : "Enter a postal code like K1A 0B1."
+        if (country == "GB") return /^[A-Za-z]{1,2}\d[A-Za-z\d]? ?\d[A-Za-z]{2}$/.test(c) ? "" : "Enter a postcode like SW1A 2AA."
+        return ""
+    }
+
+    // Seat ids are stable: "ORCH-C-14" is Orchestra, row C, seat 14.
+    function seatParts(id: string): string[] { return id.split("-") }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number,
+    seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema SeatRecord [ id: string, number: number, status: "available" | "sold" ]
+schema SeatRow [ name: string, seats[]: SeatRecord ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: SeatRow ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+schema SeatChange [ seatId: string, status: string ]
+
+// One chosen seat, with what it costs.
+
+schema Pick [ id: string, section: string, row: string, number: number, priceCents: number, feeCents: number ]
+schema Picks [ rows[]: Pick ]
+
+schema Address [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing: Address, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+// Every refusal is an error code and a sentence; some name a field or the seats lost.
+
+schema Refusal [ error: string, message: string, field?: string, conflicts[]?: string ]
+
+schema Country [ id: string, label: string ]
+
+
+// ── The house ───────────────────────────────────────────────────────────────
+//
+// The seat map of the performance being looked at. It loads when a
+// performance is chosen, and the event stream (on the App) marks seats sold
+// as other people buy them, so the map never lies about what is free.
+
+class House extends DataSource [ schema = SeatMap, credentials = include,
+    perfId: string = "",
+    url = { classroot.perfId == "" ? "" : app.api + "/api/performances/" + classroot.perfId + "/seats" },
+
+    sections() -> Section[] { return this.value?.sections ?? [] },
+    best: number = { Math.max(1, ...this.sections().map((s) => s.priceCents)) },
+    total: number = { this.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.length, 0), 0) },
+    free: number = { this.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.filter((t) => t.status == "available").length, 0), 0) },
+    freeIn(key: string) -> number {
+        const s = this.sections().find((x) => x.key == key)
+        return s == null ? 0 : s.rows.reduce((m, r) => m + r.seats.filter((t) => t.status == "available").length, 0)
+        },
+
+    // Where a seat is in the map: section, row and seat indices, or [] if nowhere.
+
+    locate(id: string) -> number[] {
+        const p = seatParts(id)
+        const si = this.sections().findIndex((s) => s.key == p[0])
+        if (si < 0) return []
+        const ri = this.sections()[si].rows.findIndex((r) => r.name == p[1])
+        if (ri < 0) return []
+        const ki = this.sections()[si].rows[ri].seats.findIndex((t) => t.id == id)
+        return ki < 0 ? [] : [si, ri, ki]
+        },
+    isFree(id: string) -> boolean {
+        const at = this.locate(id)
+        return at.length == 3 && this.sections()[at[0]].rows[at[1]].seats[at[2]].status == "available"
+        },
+    pick(id: string) -> Pick? {
+        const at = this.locate(id)
+        if (at.length != 3) return null
+        const s = this.sections()[at[0]]
+        const seat = s.rows[at[1]].seats[at[2]]
+        return ({ id: id, section: s.name, row: s.rows[at[1]].name, number: seat.number,
+            priceCents: s.priceCents, feeCents: s.feeCents })
+        },
+    describe(id: string) -> string {
+        const p = this.pick(id)
+        return p == null ? id : p.section + ", row " + p.row + ", seat " + p.number
+        },
+
+    markSold(id: string) {
+        const at = this.locate(id)
+        if (at.length == 3) this.set(["sections", at[0], "rows", at[1], "seats", at[2], "status"], "sold")
+        }
+    ]
+
+
+// ── The basket ──────────────────────────────────────────────────────────────
+
+class Basket extends Node [
+    ids: string[] = [],
+
+    has(id: string) -> boolean { return this.ids.includes(id) },
+    toggle(id: string) {
+        if (this.ids.includes(id)) this.ids = this.ids.filter((x) => x != id)
+        else if (app.house.isFree(id)) this.ids = [...this.ids, id]
+        },
+    drop(gone: string[]) { this.ids = this.ids.filter((x) => !gone.includes(x)) },
+    clear() { this.ids = [] },
+
+    // What is chosen, in the order the house lists it, with what each costs.
+
+    picks: Pick[] = { this.ids.map((id) => app.house.pick(id)).filter((p) => p != null) as Pick[] },
+    lines: Dataset [ schema = Picks, contents = { { rows: classroot.picks } } ],
+    count: number = { this.picks.length },
+    seatsCents: number = { this.picks.reduce((n, p) => n + p.priceCents, 0) },
+    feesCents: number = { this.picks.reduce((n, p) => n + p.feeCents, 0) },
+    totalCents: number = { this.seatsCents + this.feesCents },
+
+    // "3 seats · $240.00", exactly.
+
+    summary: string = { this.count + (this.count == 1 ? " seat" : " seats") + " · " + money(this.seatsCents) }
+    ]
+
+
+// ── The payment ─────────────────────────────────────────────────────────────
+//
+// What the person types at checkout. Each field that the account can answer
+// is a *computed default*: it follows the account (so signing in halfway
+// fills it) until the person types, and from then on it is theirs, so
+// signing in never overwrites what they typed.
+
+class Payment extends Node [
+    account: Account? = null,
+
+    // which card: a saved card's id, or "new"
+
+    usable: SavedCard? = { (this.account?.cards ?? []).find((c) => !isPast(c.expMonth, c.expYear)) ?? null },
+    method: string = { this.usable?.id ?? "new" },
+    savedCard: SavedCard? = { (this.account?.cards ?? []).find((c) => c.id == this.method) ?? null },
+    useSaved: boolean = { this.savedCard != null && !isPast(this.savedCard.expMonth, this.savedCard.expYear) },
+
+    email: string = { this.account?.email ?? "" },
+    cardName: string = { this.account?.name ?? "" },
+    number: string = "",
+    expiry: string = "",
+    cvc: string = "",
+    savedCvc: string = "",
+    line1: string = { this.account?.billing.line1 ?? "" },
+    line2: string = { this.account?.billing.line2 ?? "" },
+    city: string = { this.account?.billing.city ?? "" },
+    postalCode: string = { this.account?.billing.postalCode ?? "" },
+    country: string = { this.account?.billing.country ?? "" },
+
+    digits: string = { digitsOf(this.number) },
+    brand: string = { brandOf(this.digits) },
+    codeLen: number = { this.useSaved ? codeLength(this.savedCard?.brand ?? "") : codeLength(this.brand) },
+
+    // After a payment, or a fresh start: the card's own details go; the
+    // person's name, email and address stay for the next time.
+
+    forgetCard() { number = ""; expiry = ""; cvc = ""; savedCvc = "" },
+
+    body: object = { this.useSaved
+        ? ({ performanceId: app.perfId, seatIds: app.basket.ids, email: this.email.trim(),
+            payment: ({ savedCardId: this.method, cvc: this.savedCvc }) })
+        : ({ performanceId: app.perfId, seatIds: app.basket.ids, email: this.email.trim(),
+            payment: ({
+                card: ({ number: this.digits, expMonth: expiryParts(this.expiry)[0], expYear: expiryParts(this.expiry)[1],
+                    cvc: this.cvc, name: this.cardName.trim() }),
+                billing: ({ line1: this.line1.trim(), line2: this.line2.trim() == "" ? null : this.line2.trim(),
+                    city: this.city.trim(), postalCode: this.postalCode.trim().toUpperCase(), country: this.country }) }) }) }
+    ]

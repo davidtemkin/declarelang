@@ -1,0 +1,14 @@
+# eval-7guis-react-1
+total 5.8 min · 34 turns · output 40861 tokens (thinking 10354)
+tool time 0.2 min · model time 5.6 min
+tokens: input 42 · cache write 49910 · cache read 652459 · output 40861 · thinking 10354
+rate: 7343 output tokens per model-minute
+tools:
+  bash      12×   0.22 min  (median 0.4 s)
+model turns, by what came before:
+  after write    18×   2.82 min  (median 7.6 s)
+  after bash     12×   2.35 min  (median 6.3 s)
+  after edit      2×   0.23 min  (median 6.9 s)
+app: 0 .declare files, 0 non-blank lines · 0 snapshots changed them: 0 lines added, 0 removed
+verify results mentioning accessibility: 0
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs

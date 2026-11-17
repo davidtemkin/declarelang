@@ -1,0 +1,781 @@
+/*
+# Presentify: the screens
+
+- **`Home`**: the presentations, as cards with a picture of each one's
+  first slide. A card opens its presentation, which grows out of it.
+- **`EditorScreen`**: the bar along the top, the slides down the left, the
+  slide being edited in the middle (`Stage`), and the inspector on the right.
+- **`Presenter`**: one slide at a time, filling the screen.
+
+The geometry of the editor's middle is one number, `app.zoom`: how many
+screen pixels a slide point takes. The slide is a 1280 × 720 view scaled by
+it, so a press on the slide arrives in slide points, and the selection's
+handles, drawn inside the same view, divide their sizes by it to stay the
+same size on screen however large the window.
+*/
+
+// ── Presentations ───────────────────────────────────────────────────────────
+
+class Home [ scrolls = y,
+    layout: SimpleLayout [ axis = y ],
+
+    bar: View [ width = 100%, height = 72, padding = [0, 36, 0, 32],
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Wordmark [ size = 24 ],
+        Spacer [ ],
+        PillButton [ label = { app.library.maker.loading ? "Making…" : "New presentation" }, shape = "plus", primary = true,
+            tooltipLabel = "Start a new presentation",
+            disabled = { app.library.maker.loading },
+            press() { app.library.create() }
+            ]
+        ],
+
+    page: View [ width = { Math.min(1208, parent.width - 64) }, x = center, padding = [18, 0, 64, 0],
+        layout: SimpleLayout [ axis = y, spacing = 22 ],
+        head: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 12, align = baseline ],
+            Text [ accessibilityRole = heading, fontFamily = { app.brandFace }, fontSize = 34, fontWeight = 700,
+                letterSpacing = -0.8, textColor = { provided("theme").ink }, text = "Your presentations" ],
+            Text [ visible = { app.library.loaded && app.library.decks().length > 0 }, fontSize = 15, fontWeight = 500,
+                textColor = { provided("theme").textFaint }, text = { "" + app.library.decks().length } ]
+            ],
+
+        grid: View [ width = 100%, datapath = { app.library.value },
+            visible = { app.library.loaded && app.library.decks().length > 0 },
+            layout: WrappingLayout [ spacing = 24, rowSpacing = 30 ],
+            NewCard [ ],
+            DeckCard [ datapath = :decks[], visible = { !app.library.gone.includes(:id ?? "") } ]
+            ],
+
+        // nothing yet
+
+        empty: View [ visible = { app.library.loaded && app.library.decks().length == 0 }, width = 100%, padding = [40, 0, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+            Illustration [ width = 320, height = 206 ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 24, fontWeight = 700, letterSpacing = -0.4,
+                textColor = { provided("theme").ink }, text = "Your first presentation starts here" ],
+            Text [ width = 380, textAlign = center, fontSize = 15, textColor = { provided("theme").textMuted },
+                text = "Make one, add a few slides, and press Present. Everything saves as you go." ],
+            PillButton [ label = "New presentation", shape = "plus", primary = true,
+                press() { app.library.create() }
+                ]
+            ],
+
+        // loading: the shape of the cards to come
+
+        skeleton: View [ visible = { !app.library.loaded && !app.library.failed }, width = 100%,
+            layout: WrappingLayout [ spacing = 24, rowSpacing = 30 ],
+            SkeletonCard [ ],
+            SkeletonCard [ ],
+            SkeletonCard [ ],
+            SkeletonCard [ ]
+            ],
+
+        // the service didn't answer
+
+        unreachable: View [ visible = { !app.library.loaded && app.library.failed }, width = 100%, padding = [48, 0, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+            Glyph [ iconSize = 36, weight = 1.4, shape = "offline", ink = { provided("theme").textFaint } ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 22, fontWeight = 700, textColor = { provided("theme").ink },
+                text = "Can't reach the presentation service" ],
+            Text [ width = 400, textAlign = center, fontSize = 14.5, textColor = { provided("theme").textMuted },
+                text = "Your presentations are kept by a service on this computer, and it isn't answering. Check that it's running, then try again." ],
+            PillButton [ label = { app.library.loading ? "Trying…" : "Try again" }, primary = true,
+                press() { app.library.fetch() }
+                ]
+            ]
+        ]
+    ]
+
+
+// A presentation, as a card: its first slide, its title, when it changed.
+
+class DeckCard [ width = 268,
+    deckId: string = { :id ?? "" },
+    title: string = { app.library.shownTitle(:@) },
+    stamp: string = { :updatedAt ?? "" },
+    count: number = { :slideCount ?? 0 },
+    plate: View = { classroot.opener.plate },
+    onContextMenu(e: PointerEvent) { app.deckMenu.showAt(this, e) },
+
+    // The first slide, fetched on its own, and again whenever the deck changes.
+
+    first: DataSource [ schema = Slide, timeout = 15,
+        url = { :thumbnailSlideId == null ? "" : app.api + "/slides/" + :thumbnailSlideId } ],
+    trackChanges = ["stamp"],
+    onChange() { this.first.fetch() },
+    onInit() { this.first.fetch() },
+
+    lift: number = 0,
+    Spring [ attribute = lift, to = { classroot.opener.hovered || classroot.opener.focused ? 1 : 0 }, stiffness = 380, damping = 30 ],
+
+    // The card opens its presentation; the "…" beside its title is a button
+    // of its own, for renaming and deleting.
+
+    opener: Control [ width = 268,
+        accessibilityLabel = { classroot.title + ", " + plural(classroot.count, "slide", "slides") },
+        tooltipLabel = { classroot.title },
+        press() { app.ed.openFromCard(classroot.deckId, this.plate) },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        plate: View [ width = 268, height = 151,
+            frame: View [ width = 268, height = 151, cornerRadius = 10, clip = true,
+                y = { -3 * classroot.lift },
+                fill = { provided("theme").surface },
+                stroke = { classroot.opener.focused ? Stroke(2, provided("theme").brand) : Stroke(1, provided("theme").line) },
+                shadow = { Shadow(0, 4 + 8 * classroot.lift, 14 + 14 * classroot.lift, provided("theme").shadowSoft) },
+                Thumb [ w = 268, datapath = { classroot.first.value }, visible = { classroot.first.loaded } ],
+                View [ visible = { !classroot.first.loaded }, width = 100%, height = 100%, fill = { provided("theme").control } ]
+                ]
+            ],
+        words: View [ width = 100%, padding = [0, 40, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, fontSize = 15, fontWeight = 650, maxLines = 2, letterSpacing = -0.1,
+                textColor = { provided("theme").ink }, text = { classroot.title } ],
+            Text [ width = 100%, fontSize = 12.5, maxLines = 1, textColor = { provided("theme").textMuted },
+                text = { editedLabel(classroot.stamp) + " · " + plural(classroot.count, "slide", "slides") } ]
+            ]
+        ],
+    more: IconButton [ x = { 268 - 32 }, y = 160, shape = "more", accessibilityLabel = { "More for " + classroot.title },
+        tooltipLabel = "Rename or delete", menu = { app.deckMenu } ]
+    ]
+
+
+// The first card: start a new presentation.
+
+class NewCard extends Control [ width = 268,
+    accessibilityLabel = "New presentation",
+    tooltipLabel = "Start a new presentation",
+    press() { app.library.create() },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    tile: View [ width = 268, height = 151, cornerRadius = 10,
+        fill = { classroot.hovered ? provided("theme").selectedTint : provided("theme").chrome },
+        stroke = { Stroke(1.5, classroot.hovered || classroot.focused ? provided("theme").brand : provided("theme").line) },
+        layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+        padding = [44, 0, 0, 0],
+        View [ width = 40, height = 40, cornerRadius = 20, fill = { provided("theme").brand },
+            Glyph [ x = center, y = center, iconSize = 18, weight = 2.2, shape = "plus", ink = white ]
+            ],
+        TextLabel [ fontSize = 14, fontWeight = 600, textColor = { provided("theme").brand },
+            text = { app.library.maker.loading ? "Making…" : "New presentation" } ]
+        ]
+    ]
+
+
+class SkeletonCard [ width = 268,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    View [ width = 268, height = 151, cornerRadius = 10, fill = { provided("theme").control } ],
+    View [ width = 180, height = 14, cornerRadius = 7, fill = { provided("theme").control } ],
+    View [ width = 120, height = 10, cornerRadius = 5, fill = { provided("theme").control } ]
+    ]
+
+
+// ── The editor ──────────────────────────────────────────────────────────────
+
+class EditorScreen [ fill = { provided("theme").background }, clip = true,
+    layout: SimpleLayout [ axis = y ],
+    top: TopBar [ ],
+    body: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x, align = stretch ],
+        rail: Rail [ width = { app.railW } ],
+        stage: Stage [ flexes = true ],
+        inspector: Inspector [ width = { app.inspectorW } ]
+        ],
+
+    // Opening: the presentation's picture, a moment until the slides arrive.
+
+    loading: View [ visible = { app.openId != "" && !app.ready }, ignoreLayout = true, width = 100%, height = 100%,
+        fill = { provided("theme").background },
+        layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+        padding = [180, 0, 0, 0],
+        LogoMark [ width = 44 ],
+        Text [ visible = { !app.deckSrc.failed && !app.slidesSrc.failed }, fontSize = 15, textColor = { provided("theme").textMuted },
+            text = "Opening…" ],
+        View [ visible = { app.deckSrc.failed || app.slidesSrc.failed },
+            layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 20, fontWeight = 700, textColor = { provided("theme").ink },
+                text = { app.deckSrc.statusCode == 404 ? "This presentation isn't there any more" : "Can't reach the presentation service" } ],
+            Text [ width = 380, textAlign = center, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = { app.deckSrc.statusCode == 404 ? "It may have been deleted in another window." : "It isn't answering. Check that it's running, then try again." } ],
+            View [ layout: SimpleLayout [ axis = x, spacing = 10 ],
+                PillButton [ label = "All presentations", shape = "back",
+                    press() { app.ed.close() }
+                    ],
+                PillButton [ visible = { app.deckSrc.statusCode != 404 }, label = "Try again", primary = true,
+                    press() { app.ed.load(app.openId) }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+class TopBar [ width = 100%, height = { app.barH }, padding = [0, 14, 0, 10],
+    fill = { provided("theme").chrome },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    accessibilityRole = banner,
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+
+    home: Control [ height = 40, cornerRadius = 10, padding = [0, 10, 0, 6],
+        accessibilityLabel = "All presentations", tooltipLabel = "All presentations",
+        fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+        press() { app.ed.close() },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Glyph [ iconSize = 14, weight = 1.8, shape = "back", ink = { provided("theme").textMuted } ],
+        LogoMark [ width = 26 ]
+        ],
+
+    // The title, edited where it is.
+
+    titleField: TextInput [ width = { Math.max(140, Math.min(300, this.contentWidth + 24)) }, height = 34,
+        fontFamily = { app.brandFace }, fontSize = 17, fontWeight = 650,
+        textColor = { provided("theme").ink },
+        fill = { this.focused ? provided("theme").surface : hovered ? provided("theme").hover : null },
+        stroke = { this.focused ? Stroke(1.5, provided("theme").brand) : null },
+        cornerRadius = 8, padding = [0, 9, 0, 9],
+        accessibilityLabel = "Presentation title", tooltipLabel = "Rename this presentation",
+        placeholder = "Untitled presentation",
+        commitOn = "end",
+        value = { app.deck.title },
+        commit(v: string) { app.deck.rename(v) },
+        onEnter() { Focus.focus(null) }
+        ],
+    SaveStatus [ ],
+
+    Spacer [ ],
+    tools: View [ accessibilityRole = toolbar, accessibilityLabel = "Tools",
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        ToolTab [ tool = "select", name = "Select", key = "V" ],
+        ToolTab [ tool = "rect", name = "Rectangle", key = "R" ],
+        ToolTab [ tool = "ellipse", name = "Ellipse", key = "O" ],
+        ToolTab [ tool = "line", name = "Line", key = "L" ],
+        ToolTab [ tool = "text", name = "Text", key = "T" ]
+        ],
+    Spacer [ ],
+
+    IconButton [ shape = "undo", accessibilityLabel = "Undo", tooltipLabel = "Undo (⌘Z)",
+        disabled = { !app.history.canUndo },
+        press() { app.history.undo() }
+        ],
+    IconButton [ shape = "redo", accessibilityLabel = "Redo", tooltipLabel = "Redo (⇧⌘Z)",
+        disabled = { !app.history.canRedo },
+        press() { app.history.redo() }
+        ],
+    View [ width = 1, height = 22, fill = { provided("theme").line } ],
+    Button [ label = "Edit", height = 32, menu = { app.editMenu }, tooltipLabel = "Cut, copy, paste and more" ],
+    Button [ label = "Arrange", height = 32, menu = { app.arrangeMenu }, tooltipLabel = "Group, order and align" ],
+    View [ width = 4 ],
+    PillButton [ label = "Present", shape = "play", primary = true, tooltipLabel = "Present from this slide (⌘↩)",
+        press() { app.ed.present(false) }
+        ]
+    ]
+
+
+// ── The slides, down the left ───────────────────────────────────────────────
+
+class Rail [ fill = { provided("theme").chrome },
+    stroke = { [null, Stroke(1, provided("theme").line), null, null] },
+    layout: SimpleLayout [ axis = y ],
+    head: View [ width = 100%, height = 48, padding = [0, 10, 0, 16],
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Text [ fontSize = 11, fontWeight = 650, letterSpacing = 0.6, textTransform = uppercase,
+            textColor = { provided("theme").textMuted }, text = "Slides" ],
+        Text [ fontSize = 11, fontWeight = 600, textColor = { provided("theme").textFaint }, text = { "" + app.deck.count } ],
+        Spacer [ ],
+        IconButton [ shape = "plus", accessibilityLabel = "New slide", tooltipLabel = "New slide after this one (⌘M)",
+            press() { app.ed.addSlide() }
+            ]
+        ],
+
+    // One Tab stop: the arrows move between slides while it has focus.
+
+    pane: View [ width = 100%, flexes = true, scrolls = y, focusable = true,
+        accessibilityRole = listbox, accessibilityLabel = "Slides",
+        keyBindings = { [
+            ({ key: "ArrowUp", command: "prev", label: "Previous slide" }),
+            ({ key: "ArrowDown", command: "next", label: "Next slide" }),
+            ({ key: "Home", command: "first" }),
+            ({ key: "End", command: "last" }),
+            ({ key: "Backspace", command: "remove" }),
+            ({ key: "Delete", command: "remove", label: "Delete slide" }),
+            ({ key: "Ctrl+D", command: "dup", label: "Duplicate slide" })
+            ] },
+        prev() { app.ed.step(-1) },
+        next() { app.ed.step(1) },
+        first() { app.ed.step(-100000) },
+        last() { app.ed.step(100000) },
+        remove() { app.ed.deleteSlide(app.currentId) },
+        dup() { app.ed.duplicateSlide(app.currentId) },
+        stroke = { this.focused ? Stroke(2, provided("theme").brand) : null },
+
+        list: View [ width = 100%, datapath = { app.deck.value }, padding = [4, 0, 28, 0],
+            layout: RailGlide [ ],
+            RailRow [ datapath = :slides[] ]
+            ],
+
+        // Where a dragged slide will land.
+
+        drop: View [ ignoreLayout = true, visible = { app.ed.slideFrom >= 0 },
+            x = 30, y = { 4 + app.ed.dropAt * app.railRowH - 5 }, width = { parent.width - 42 }, height = 4, cornerRadius = 2,
+            fill = { provided("theme").brand } ]
+        ],
+
+    foot: View [ width = 100%, padding = [10, 14, 12, 14],
+        stroke = { [Stroke(1, provided("theme").line), null, null, null] },
+        PillButton [ width = 100%, label = "New slide", shape = "plus", tooltipLabel = "New slide after this one (⌘M)",
+            press() { app.ed.addSlide() }
+            ]
+        ]
+    ]
+
+
+// Slides keep their places as one moves; when the order changes, each
+// glides to its new place.
+
+class RailGlide extends TweenLayout [ duration = 280,
+    place() {
+        const w = this.contentExtent("width")
+        return this.laid().map((c, i) => ({ x: 0, y: i * app.railRowH, w: w, h: app.railRowH }))
+        }
+    ]
+
+
+class RailRow extends Control [ focusable = false,
+    slideId: string = { :id ?? "" },
+    n: number = { rowIndex + 1 },
+    here: boolean = { app.currentId == classroot.slideId },
+    conflicted: boolean = { app.sync.conflicts[classroot.slideId] != null },
+    lifted: boolean = { app.ed.slideFrom == rowIndex },
+    accessibilityRole = option,
+    accessibilityLabel = { "Slide " + classroot.n },
+    accessibilitySelected = { classroot.here },
+    tooltipLabel = { "Slide " + classroot.n },
+    press() { app.ed.goTo(classroot.slideId) },
+    onContextMenu(e: PointerEvent) {
+        app.ed.goTo(classroot.slideId)
+        app.slideMenu.showAt(this, e)
+        },
+    onDragStart(e: PointerEvent) { app.ed.beginSlideDrag(rowIndex) },
+    onDrag(e: PointerEvent) { app.ed.slideDragTo(e.rootY - parent.rootOrigin().y - 4) },
+    onDragEnd(e: DragEndEvent) { app.ed.endSlideDrag(e.canceled) },
+    cursor = "default",
+
+    num: Text [ x = 10, y = 8, width = 20, textAlign = right, fontSize = 12, fontWeight = { classroot.here ? 700 : 500 },
+        numeralWidth = tabular,
+        textColor = { classroot.here ? provided("theme").brand : provided("theme").textFaint }, text = { "" + classroot.n } ],
+    frame: View [ x = 36, y = 6, width = { app.railW - 52 }, height = { (app.railW - 52) * 9 / 16 }, cornerRadius = 6, clip = true,
+        opacity = { classroot.lifted ? 0.35 : 1 },
+        fill = white,
+        shadow = { classroot.here ? null : Shadow(0, 1, 3, provided("theme").shadowSoft) },
+        Thumb [ w = { app.railW - 52 } ]
+        ],
+    ring: View [ x = 33, y = 3, width = { app.railW - 46 }, height = { (app.railW - 52) * 9 / 16 + 6 }, cornerRadius = 9,
+        stroke = { classroot.here ? Stroke(2.5, provided("theme").brand) : classroot.hovered ? Stroke(1.5, provided("theme").line) : null } ],
+    badge: View [ visible = { classroot.conflicted }, x = { app.railW - 34 }, y = 0, width = 20, height = 20, cornerRadius = 10,
+        fill = { provided("theme").spark }, stroke = { Stroke(2, provided("theme").chrome) },
+        tooltipLabel = "Changed in another window",
+        Glyph [ x = center, y = center, iconSize = 11, weight = 2, shape = "alert", ink = white ]
+        ]
+    ]
+
+
+// ── The slide being edited ──────────────────────────────────────────────────
+
+class Stage [ fill = { provided("theme").stage }, clip = true,
+    frameX: number = { Math.round((this.width - 1280 * app.zoom) / 2) },
+    frameY: number = { Math.round((this.height - 720 * app.zoom) / 2) },
+    onPointerDown(e: PointerEvent) { app.ed.pressEmpty(e.shift || e.meta) },
+
+    paper: View [ x = { classroot.frameX }, y = { classroot.frameY }, width = { 1280 * app.zoom }, height = { 720 * app.zoom },
+        fill = white, shadow = { Shadow(0, 10, 34, provided("theme").shadowLift) } ],
+
+    canvas: SlideArt [ live = true, datapath = { app.deck.value.slides[app.ed.index] },
+        accessibilityLabel = "Slide", accessibilityRole = group,
+        x = { classroot.frameX }, y = { classroot.frameY }, scale = { app.zoom },
+        cursor = { app.tool == "select" ? "default" : "crosshair" },
+        onPointerDown(e: PointerEvent) { app.ed.pressEmpty(e.shift || e.meta) },
+        onDragStart(e: PointerEvent) { app.ed.beginMarquee(e.x, e.y) },
+        onDrag(e: PointerEvent) { app.ed.marqueeBy(e.deltaX / app.zoom, e.deltaY / app.zoom) },
+        onDragEnd(e: DragEndEvent) { app.ed.endMarquee() },
+        onContextMenu(e: PointerEvent) { app.canvasMenu.showAt(this, e) },
+        chrome: SelectionChrome [ ],
+
+        // With a tool chosen, the whole slide is for drawing on.
+
+        drawing: View [ exists = { app.tool != "select" }, width = 1280, height = 720, cursor = "crosshair",
+            onClick(e: PointerEvent) { app.ed.placeAt(app.tool, e.x, e.y) },
+            onDragStart(e: PointerEvent) { app.ed.beginDraw(e.x, e.y) },
+            onDrag(e: PointerEvent) { app.ed.drawBy(e.deltaX / app.zoom, e.deltaY / app.zoom, e.shift) },
+            onDragEnd(e: DragEndEvent) { app.ed.endDraw(e.canceled) }
+            ]
+        ],
+
+    // An empty slide says how to begin.
+
+    hint: View [ visible = { app.ready && app.ed.els.length == 0 && app.tool == "select" }, pointerEvents = "none",
+        x = center, y = { classroot.frameY + 720 * app.zoom / 2 - 22 },
+        height = 44, cornerRadius = 22, padding = [0, 18, 0, 14],
+        fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
+        shadow = { Shadow(0, 4, 16, provided("theme").shadowSoft) },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Glyph [ iconSize = 16, weight = 1.6, shape = "rect", ink = { provided("theme").brand } ],
+        TextLabel [ fontSize = 14, textColor = { provided("theme").textMuted }, wrap = false,
+            text = "An empty slide. Choose Rectangle, Ellipse, Line or Text above, then drag here." ]
+        ],
+
+    // The slide changed in another window: say so, and let the person choose.
+
+    conflict: View [ exists = { app.ready && app.sync.conflicts[app.currentId] != null },
+        x = center, y = 16, padding = [10, 10, 10, 16], cornerRadius = 14,
+        fill = { provided("theme").ink }, shadow = { Shadow(0, 8, 28, provided("theme").shadowLift) },
+        accessibilityRole = status, accessibilityLive = assertive,
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Glyph [ iconSize = 18, weight = 1.7, shape = "alert", ink = { provided("theme").spark } ],
+        View [ layout: SimpleLayout [ axis = y, spacing = 2 ],
+            Text [ fontSize = 14, fontWeight = 650, textColor = white, text = "Someone changed this slide in another window." ],
+            Text [ fontSize = 12.5, textColor = 0xFFFFFFB0,
+                text = "Your version is kept here and hasn't been saved over theirs." ]
+            ],
+        PillButton [ label = "Use their version", primary = true,
+            tooltipLabel = "Replace this slide with the version from the other window (you can undo this)",
+            press() { app.sync.useTheirs(app.currentId) }
+            ],
+        PillButton [ label = "Keep mine", tooltipLabel = "Save your version over theirs",
+            press() { app.sync.keepMine(app.currentId) }
+            ]
+        ]
+    ]
+
+
+// What is selected, drawn over the slide in slide points: an outline round
+// each thing, and handles round the whole. Sizes are divided by the zoom so
+// they are the same on screen at any size.
+
+class SelectionChrome [ width = 1280, height = 720,
+    z: number = { app.zoom },
+
+    outlines: View [ width = 1280, height = 720, pointerEvents = "none",
+        datapath = { app.ed.outlineData.value },
+        SelOutline [ datapath = :items[] ]
+        ],
+
+    // round a selection of several, the box they share
+
+    whole: View [ visible = { app.ed.picked.length > 1 }, pointerEvents = "none",
+        x = { app.ed.box.x }, y = { app.ed.box.y }, width = { app.ed.box.w }, height = { app.ed.box.h },
+        stroke = { Stroke(1 / classroot.z, provided("theme").handle) } ],
+
+    Handle [ hx = 0, hy = 0 ],
+    Handle [ hx = 0.5, hy = 0 ],
+    Handle [ hx = 1, hy = 0 ],
+    Handle [ hx = 0, hy = 0.5 ],
+    Handle [ hx = 1, hy = 0.5 ],
+    Handle [ hx = 0, hy = 1 ],
+    Handle [ hx = 0.5, hy = 1 ],
+    Handle [ hx = 1, hy = 1 ],
+
+    RadiusHandle [ ],
+    EndHandle [ which = 1 ],
+    EndHandle [ which = 2 ],
+
+    guides: View [ width = 1280, height = 720, pointerEvents = "none", datapath = { app.ed.guideData.value },
+        GuideLine [ datapath = :lines[] ]
+        ],
+
+    marquee: View [ visible = { app.ed.marquee != null }, pointerEvents = "none",
+        x = { app.ed.marquee?.x ?? 0 }, y = { app.ed.marquee?.y ?? 0 },
+        width = { app.ed.marquee?.w ?? 0 }, height = { app.ed.marquee?.h ?? 0 },
+        fill = 0x5B3DF514, stroke = { Stroke(1 / classroot.z, provided("theme").handle) } ]
+    ]
+
+
+// The outline round one selected thing: white under iris, so it shows on
+// any color of slide. A line's outline runs along it.
+
+class SelOutline [ pointerEvents = "none",
+    z: number = { app.zoom },
+    isLine: boolean = { :kind == "line" },
+    x = { :x ?? 0 }, y = { :y ?? 0 },
+    width = { :w ?? 0 }, height = { :h ?? 0 },
+    outer: View [ visible = { !classroot.isLine },
+        x = { -1.5 / classroot.z }, y = { -1.5 / classroot.z },
+        width = { parent.width + 3 / classroot.z }, height = { parent.height + 3 / classroot.z },
+        stroke = { Stroke(3 / classroot.z, 0xFFFFFFE6) } ],
+    inner: View [ visible = { !classroot.isLine },
+        x = { -0.75 / classroot.z }, y = { -0.75 / classroot.z },
+        width = { parent.width + 1.5 / classroot.z }, height = { parent.height + 1.5 / classroot.z },
+        stroke = { Stroke(1.5 / classroot.z, provided("theme").handle) } ],
+    along: View [ visible = { classroot.isLine },
+        x1: number = { :x1 ?? 0 },
+        y1: number = { :y1 ?? 0 },
+        x2: number = { :x2 ?? 0 },
+        y2: number = { :y2 ?? 0 },
+        span: number = { Math.hypot(this.x2 - this.x1, this.y2 - this.y1) },
+        x = { (this.x1 + this.x2) / 2 - this.span / 2 - (:x ?? 0) },
+        y = { (this.y1 + this.y2) / 2 - 2 / classroot.z - (:y ?? 0) },
+        width = { this.span }, height = { 4 / classroot.z }, cornerRadius = { 2 / classroot.z },
+        pivotX = { this.span / 2 }, pivotY = { 2 / classroot.z },
+        rotation = { Math.atan2(this.y2 - this.y1, this.x2 - this.x1) * 180 / Math.PI },
+        fill = 0x5B3DF566
+        ]
+    ]
+
+
+// A resize handle: a generous target, drawn as a small white square ringed
+// in iris. `hx`, `hy` place it on the box: 0, ½ or 1 across and down.
+
+class Handle [
+    hx: number = 0,
+    hy: number = 0,
+    z: number = { app.zoom },
+    b: Box = { app.ed.box },
+    hit: number = { 22 / classroot.z },
+    side: boolean = { classroot.hx == 0.5 || classroot.hy == 0.5 },
+    roomy: boolean = { Math.min(classroot.b.w, classroot.b.h) * classroot.z > 36 },
+    visible = { app.ed.handles && (!classroot.side || classroot.roomy) && !(app.ed.singleText && classroot.hx == 0.5) },
+    x = { classroot.b.x + classroot.hx * classroot.b.w - classroot.hit / 2 },
+    y = { classroot.b.y + classroot.hy * classroot.b.h - classroot.hit / 2 },
+    width = { classroot.hit }, height = { classroot.hit },
+    cursor = { classroot.side ? (classroot.hx == 0.5 ? "ns-resize" : "ew-resize") : (classroot.hx == classroot.hy ? "nwse-resize" : "nesw-resize") },
+    onDragStart(e: PointerEvent) { app.ed.beginResize(classroot.hx, classroot.hy) },
+    onDrag(e: PointerEvent) { app.ed.resizeBy(e.deltaX / app.zoom, e.deltaY / app.zoom, e.shift) },
+    onDragEnd(e: DragEndEvent) { app.ed.endResize(e.canceled) },
+    dot: View [ x = center, y = center, width = { 10 / classroot.z }, height = { 10 / classroot.z }, cornerRadius = { 2.5 / classroot.z },
+        fill = white, stroke = { Stroke(1.5 / classroot.z, provided("theme").handle) },
+        shadow = { Shadow(0, 1 / classroot.z, 3 / classroot.z, 0x1E1A2E40) },
+        scale = { classroot.hovered ? 1.25 : 1 }, pivotX = { 5 / classroot.z }, pivotY = { 5 / classroot.z } ]
+    ]
+
+
+// The corner radius of one rectangle: a round handle just inside its top
+// left corner, dragged in to round the corners, out to square them.
+
+class RadiusHandle [
+    z: number = { app.zoom },
+    b: Box = { app.ed.box },
+    r: number = { Math.min(app.ed.single?.cornerRadius ?? 0, app.ed.radiusMax) },
+    inset: number = { Math.min(Math.max(classroot.r, 16 / classroot.z), Math.max(classroot.b.w, classroot.b.h) / 2) },
+    hit: number = { 18 / classroot.z },
+    visible = { app.ed.handles && app.ed.singleRect && Math.min(classroot.b.w, classroot.b.h) * classroot.z > 48 },
+    x = { classroot.b.x + classroot.inset - classroot.hit / 2 },
+    y = { classroot.b.y + classroot.inset - classroot.hit / 2 },
+    width = { classroot.hit }, height = { classroot.hit },
+    cursor = "pointer",
+    tooltipLabel = "Drag to round the corners",
+    onDragStart(e: PointerEvent) { app.ed.beginRadius() },
+    onDrag(e: PointerEvent) { app.ed.radiusBy((e.deltaX + e.deltaY) / 2 / app.zoom) },
+    onDragEnd(e: DragEndEvent) { app.ed.finish(e.canceled) },
+    dot: View [ x = center, y = center, width = { 10 / classroot.z }, height = { 10 / classroot.z }, cornerRadius = { 5 / classroot.z },
+        fill = { provided("theme").spark }, stroke = { Stroke(1.5 / classroot.z, 0xFFFFFF) },
+        shadow = { Shadow(0, 1 / classroot.z, 3 / classroot.z, 0x1E1A2E40) } ]
+    ]
+
+
+// An end of the one selected line.
+
+class EndHandle [
+    which: number = 1,
+    z: number = { app.zoom },
+    e: El? = { app.ed.singleLine ? app.ed.single : null },
+    px: number = { classroot.which == 1 ? (classroot.e?.x1 ?? 0) : (classroot.e?.x2 ?? 0) },
+    py: number = { classroot.which == 1 ? (classroot.e?.y1 ?? 0) : (classroot.e?.y2 ?? 0) },
+    hit: number = { 22 / classroot.z },
+    visible = { app.ed.singleLine && app.editingId == "" },
+    x = { classroot.px - classroot.hit / 2 }, y = { classroot.py - classroot.hit / 2 },
+    width = { classroot.hit }, height = { classroot.hit },
+    cursor = "crosshair",
+    onDragStart(e: PointerEvent) { app.ed.beginEnd(classroot.which) },
+    onDrag(e: PointerEvent) { app.ed.endBy(e.deltaX / app.zoom, e.deltaY / app.zoom, e.shift) },
+    onDragEnd(e: DragEndEvent) { app.ed.finish(e.canceled) },
+    dot: View [ x = center, y = center, width = { 11 / classroot.z }, height = { 11 / classroot.z }, cornerRadius = { 5.5 / classroot.z },
+        fill = white, stroke = { Stroke(1.5 / classroot.z, provided("theme").handle) },
+        shadow = { Shadow(0, 1 / classroot.z, 3 / classroot.z, 0x1E1A2E40) } ]
+    ]
+
+
+class GuideLine [ pointerEvents = "none",
+    z: number = { app.zoom },
+    across: boolean = { :axis == "x" },
+    x = { classroot.across ? (:at ?? 0) - 0.5 / classroot.z : 0 },
+    y = { classroot.across ? 0 : (:at ?? 0) - 0.5 / classroot.z },
+    width = { classroot.across ? 1 / classroot.z : 1280 },
+    height = { classroot.across ? 720 : 1 / classroot.z },
+    fill = { provided("theme").guide }
+    ]
+
+
+// ── The inspector ───────────────────────────────────────────────────────────
+//
+// The same sections in the same places whatever is selected, so it never
+// changes shape under the pointer: what doesn't apply is dimmed, and a value
+// the selection's things don't share says "Mixed".
+
+class Inspector [ fill = { provided("theme").chrome }, scrolls = y,
+    stroke = { [null, null, null, Stroke(1, provided("theme").line)] },
+    accessibilityRole = complementary, accessibilityLabel = "Inspector",
+    layout: SimpleLayout [ axis = y ],
+
+    head: View [ width = 100%, height = 48, padding = [0, 16, 0, 16],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ fontSize = 14, fontWeight = 700, textColor = { provided("theme").ink },
+            text = { app.ed.picked.length == 0 ? "Slide" : app.ed.picked.length == 1 ? app.ed.kindName : app.ed.picked.length + " selected" } ]
+        ],
+
+    fillSection: Section [ title = { app.ed.any ? "Fill" : "Background" },
+        disabled = { app.ed.any && app.ed.fillables.length == 0 },
+        Field2 [ label = "Color",
+            ColorWell [ flexes = true, label = { app.ed.any ? "Fill" : "Background" },
+                target = { app.ed.any ? "fill" : "background" }, allowNone = { app.ed.any },
+                value = { app.ed.any ? app.ed.fillValue : (app.ed.slide?.background ?? "#FFFFFF") } ]
+            ]
+        ],
+
+    outline: Section [ title = "Outline", disabled = { app.ed.strokables.length == 0 },
+        Field2 [ label = "Color",
+            ColorWell [ flexes = true, label = "Outline", target = "stroke",
+                allowNone = { app.ed.strokables.some((e) => e.kind != "line") }, value = { app.ed.strokeValue } ]
+            ],
+        Field2 [ label = "Width",
+            Stepper [ width = 112, height = 30, min = 0, max = 60, step = 1, accessibilityLabel = "Outline width",
+                value = { app.ed.strokeWidth == "mixed" || app.ed.strokeWidth == "" ? 0 : Number(app.ed.strokeWidth) },
+                commit(v: number) { app.ed.setStrokeWidth(v) }
+                ],
+            Text [ visible = { app.ed.strokeWidth == "mixed" }, fontSize = 12, textColor = { provided("theme").textMuted }, text = "Mixed" ]
+            ]
+        ],
+
+    corners: Section [ title = "Corners", disabled = { app.ed.rects.length == 0 },
+        Field2 [ label = "Radius",
+            Slider [ flexes = true, min = 0, max = { Math.max(1, app.ed.radiusMax) }, step = 1, commitOn = "end",
+                accessibilityLabel = "Corner radius",
+                value = { app.ed.radiusValue == "mixed" || app.ed.radiusValue == "" ? 0 : Number(app.ed.radiusValue) },
+                commit(v: number) { app.ed.setRadius(v) }
+                ],
+            Text [ width = 44, textAlign = right, fontSize = 12.5, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                text = { app.ed.radiusValue == "mixed" ? "Mixed" : app.ed.radiusValue == "" ? "—" : app.ed.radiusValue + " pt" } ]
+            ]
+        ],
+
+    type: Section [ title = "Text", disabled = { app.ed.texts.length == 0 },
+        Field2 [ label = "Font",
+            Button [ flexes = true, height = 30, menu = { app.fontMenu }, accessibilityLabel = "Font",
+                label = { app.ed.fontValue == "mixed" ? "Mixed" : app.ed.fontValue == "" ? "—" : app.ed.fontValue } ]
+            ],
+        Field2 [ label = "Size",
+            Stepper [ width = 112, height = 30, min = 6, max = 400, step = 2, accessibilityLabel = "Text size",
+                value = { app.ed.sizeValue == "mixed" || app.ed.sizeValue == "" ? 32 : Number(app.ed.sizeValue) },
+                commit(v: number) { app.ed.setSize(v) }
+                ],
+            Text [ visible = { app.ed.sizeValue == "mixed" }, fontSize = 12, textColor = { provided("theme").textMuted }, text = "Mixed" ]
+            ],
+        Field2 [ label = "Weight",
+            Button [ flexes = true, height = 30, menu = { app.weightMenu }, accessibilityLabel = "Weight",
+                label = { app.ed.weightValue == "mixed" ? "Mixed" : app.weightName(Number(app.ed.weightValue || "400")) } ],
+            IconButton [ shape = "italic", accessibilityLabel = "Italic", tooltipLabel = "Italic",
+                accessibilityRole = toggle, accessibilityPressed = { app.ed.italicValue == "true" },
+                on = { app.ed.italicValue == "true" },
+                press() { app.ed.setItalic(app.ed.italicValue != "true") }
+                ]
+            ],
+        Field2 [ label = "Color",
+            ColorWell [ flexes = true, label = "Text color", target = "text", allowNone = false, value = { app.ed.colorValue } ]
+            ],
+        Field2 [ label = "Align",
+            Segmented [ flexes = true, height = 30, accessibilityLabel = "Alignment",
+                items = { [ ({ id: "left", label: "Left" }), ({ id: "center", label: "Centre" }), ({ id: "right", label: "Right" }) ] },
+                value = { app.ed.alignValue == "mixed" ? "" : app.ed.alignValue },
+                commit(v: string) { app.ed.setAlign(v) }
+                ]
+            ]
+        ],
+
+    proportions: Section [ title = "Proportions", disabled = { app.ed.keepables.length == 0 },
+        Checkbox [ label = { app.ed.keepValue == "mixed" ? "Keep proportions (some do)" : "Keep proportions when resizing" },
+            checked = { app.ed.keepValue == "true" },
+            commit(v: boolean) { app.ed.setKeep(v) }
+            ]
+        ],
+
+    arrange: Section [ title = "Arrange", disabled = { !app.ed.any },
+        Field2 [ label = "Align",
+            IconButton [ shape = "alignLeft", accessibilityLabel = "Align left edges", disabled = { !app.ed.canAlign },
+                press() { app.ed.align("left") }
+                ],
+            IconButton [ shape = "alignCenter", accessibilityLabel = "Align centres", disabled = { !app.ed.canAlign },
+                press() { app.ed.align("center") }
+                ],
+            IconButton [ shape = "alignRight", accessibilityLabel = "Align right edges", disabled = { !app.ed.canAlign },
+                press() { app.ed.align("right") }
+                ]
+            ],
+        Field2 [ label = "",
+            IconButton [ shape = "alignTop", accessibilityLabel = "Align tops", disabled = { !app.ed.canAlign },
+                press() { app.ed.align("top") }
+                ],
+            IconButton [ shape = "alignMiddle", accessibilityLabel = "Align middles", disabled = { !app.ed.canAlign },
+                press() { app.ed.align("middle") }
+                ],
+            IconButton [ shape = "alignBottom", accessibilityLabel = "Align bottoms", disabled = { !app.ed.canAlign },
+                press() { app.ed.align("bottom") }
+                ]
+            ],
+        Field2 [ label = "Distribute",
+            IconButton [ shape = "distributeX", accessibilityLabel = "Distribute evenly across", disabled = { !app.ed.canDistribute },
+                press() { app.ed.distribute("x") }
+                ],
+            IconButton [ shape = "distributeY", accessibilityLabel = "Distribute evenly down", disabled = { !app.ed.canDistribute },
+                press() { app.ed.distribute("y") }
+                ]
+            ],
+        Field2 [ label = "Order",
+            IconButton [ shape = "front", accessibilityLabel = "Bring to front", tooltipLabel = "Bring to front (⇧⌘])", disabled = { !app.ed.any },
+                press() { app.ed.restackSel("front") }
+                ],
+            IconButton [ shape = "forward", accessibilityLabel = "Bring forward", tooltipLabel = "Bring forward (⌘])", disabled = { !app.ed.any },
+                press() { app.ed.restackSel("forward") }
+                ],
+            IconButton [ shape = "backward", accessibilityLabel = "Send backward", tooltipLabel = "Send backward (⌘[)", disabled = { !app.ed.any },
+                press() { app.ed.restackSel("backward") }
+                ],
+            IconButton [ shape = "toBack", accessibilityLabel = "Send to back", tooltipLabel = "Send to back (⇧⌘[)", disabled = { !app.ed.any },
+                press() { app.ed.restackSel("back") }
+                ]
+            ],
+        Field2 [ label = "Group",
+            IconButton [ shape = "group", accessibilityLabel = "Group", tooltipLabel = "Group (⌘G)", disabled = { !app.ed.canGroup },
+                press() { app.ed.group() }
+                ],
+            IconButton [ shape = "ungroup", accessibilityLabel = "Ungroup", tooltipLabel = "Ungroup (⇧⌘G)", disabled = { !app.ed.canUngroup },
+                press() { app.ed.ungroup() }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── Presenting ──────────────────────────────────────────────────────────────
+//
+// The screen, black, with the slide as large as fits. The arrows, space and a
+// click go forward and back; Escape ends, on the slide the person ended on.
+
+class Presenter extends Dialog [ presentation = "full", fill = black,
+    accessibilityLabel = "Presenting",
+    keyBindings = { [
+        ({ key: "ArrowRight", command: "fwd" }), ({ key: "ArrowDown", command: "fwd" }),
+        ({ key: "Space", command: "fwd" }), ({ key: "PageDown", command: "fwd" }), ({ key: "Enter", command: "fwd" }),
+        ({ key: "ArrowLeft", command: "bwd" }), ({ key: "ArrowUp", command: "bwd" }),
+        ({ key: "PageUp", command: "bwd" }), ({ key: "Backspace", command: "bwd" }),
+        ({ key: "Home", command: "home" }), ({ key: "End", command: "end" })
+        ] },
+    fwd() { app.ed.presentStep(1) },
+    bwd() { app.ed.presentStep(-1) },
+    home() { app.presentAt = 0 },
+    end() { app.presentAt = app.deck.count - 1 },
+
+    screen: View [ width = { app.width }, height = { app.height }, fill = black, cursor = "none",
+        s: number = { Math.min(app.width / 1280, app.height / 720) },
+        onClick(e: PointerEvent) { app.ed.presentStep(1) },
+        art: SlideArt [ datapath = { app.deck.value.slides[app.presentAt] }, pointerEvents = "none", accessibilityRole = image,
+            accessibilityLabel = { "Slide " + (app.presentAt + 1) + " of " + app.deck.count },
+            scale = { parent.s }, x = { (app.width - 1280 * parent.s) / 2 }, y = { (app.height - 720 * parent.s) / 2 } ]
+        ]
+    ]

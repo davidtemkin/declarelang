@@ -1,0 +1,416 @@
+/*
+# Presentify: the inspector
+
+The panel beside the slide. It keeps one shape whatever is selected: the
+slide's background at the top, then fill, outline, corners, text and
+arrangement, each section dimmed when it doesn't apply. Where the selected
+things differ, a value reads "Mixed" rather than showing one of them, and a
+change applies to all of them.
+
+Every change made here is one undo step (the Editor's style verbs).
+*/
+
+// One value shared by everything selected, or MIXED when they differ, or
+// NONE when nothing selected has it.
+
+class Inspector [ width = 272, padding = [12, 16, 24, 16],
+    fill = { provided("theme").surface },
+    stroke = { [null, null, null, Stroke(1, provided("theme").line)] },
+    scrolls = y,
+    accessibilityRole = complementary, accessibilityLabel = "Inspector",
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+    ed: Editor = { app.editor },
+    any: boolean = { classroot.ed.count > 0 },
+    shapes: Elem[] = { classroot.ed.leaves.filter((e) => e.kind == "rect" || e.kind == "ellipse") },
+    stroked: Elem[] = { classroot.ed.leaves.filter((e) => e.kind != "text") },
+    rects: Elem[] = { classroot.ed.leaves.filter((e) => e.kind == "rect") },
+    texts: Elem[] = { classroot.ed.leaves.filter((e) => e.kind == "text") },
+    sized: Elem[] = { classroot.ed.leaves.filter((e) => e.kind != "line") },
+
+    fillV: string = { common(classroot.shapes.map((e) => e.fill ?? "none")) },
+    strokeV: string = { common(classroot.stroked.map((e) => e.stroke?.color ?? "none")) },
+    widthV: string = { common(classroot.stroked.map((e) => "" + (e.stroke?.width ?? 0))) },
+    radiusV: string = { common(classroot.rects.map((e) => "" + (e.cornerRadius ?? 0))) },
+    keepV: string = { common(classroot.sized.map((e) => (e.keepProportions ?? false) ? "yes" : "no")) },
+    fontV: string = { common(classroot.texts.map((e) => e.text?.font ?? "")) },
+    sizeV: string = { common(classroot.texts.map((e) => "" + (e.text?.size ?? 0))) },
+    weightV: string = { common(classroot.texts.map((e) => "" + (e.text?.weight ?? 400))) },
+    italicV: string = { common(classroot.texts.map((e) => (e.text?.italic ?? false) ? "yes" : "no")) },
+    colorV: string = { common(classroot.texts.map((e) => e.text?.color ?? "")) },
+    alignV: string = { common(classroot.texts.map((e) => e.text?.align ?? "left")) },
+
+    // ── the slide
+
+    Section [ heading = "Slide",
+        Row [ label = "Background",
+            ColorWell [ target = "background", value = { app.editor.slide?.background ?? "#FFFFFF" } ]
+            ]
+        ],
+
+    // ── what is selected, in a sentence
+
+    Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { selectionWords(classroot.ed.selElems.map((e) => e.kind), classroot.ed.scope != "") } ],
+
+    Section [ heading = "Fill", disabled = { classroot.shapes.length == 0 },
+        Row [ label = "Colour",
+            ColorWell [ target = "fill", value = { classroot.fillV }, allowNone = true ]
+            ]
+        ],
+
+    Section [ heading = "Outline", disabled = { classroot.stroked.length == 0 },
+        Row [ label = "Colour",
+            ColorWell [ target = "stroke", value = { classroot.strokeV }, allowNone = true ]
+            ],
+        Row [ label = "Width",
+            NumberBox [ value = { classroot.widthV }, unit = "pt", min = 0, max = 64, step = 1,
+                accessibilityLabel = "Outline width",
+                set(v: number) { app.editor.setStrokeWidth(v) }
+                ]
+            ]
+        ],
+
+    Section [ heading = "Corners", disabled = { classroot.rects.length == 0 },
+        Row [ label = "Radius",
+            NumberBox [ value = { classroot.radiusV }, unit = "pt", min = 0, max = 2000, step = 2,
+                accessibilityLabel = "Corner radius",
+                set(v: number) { app.editor.setRadius(v) }
+                ]
+            ],
+        Text [ width = 100%, fontSize = 11, textColor = { provided("theme").textFaint },
+            text = "Or drag the coral dot on the slide." ]
+        ],
+
+    Section [ heading = "Text", disabled = { classroot.texts.length == 0 },
+        Row [ label = "Font",
+            PickButton [ label = { mixedWord(classroot.fontV, "—") }, menu = { app.fontMenu }, accessibilityLabel = "Font" ]
+            ],
+        Row [ label = "Size",
+            NumberBox [ value = { classroot.sizeV }, unit = "pt", min = 6, max = 400, step = 2,
+                accessibilityLabel = "Text size",
+                set(v: number) { app.editor.setText((t) => ({ ...t, size: v })) }
+                ]
+            ],
+        Row [ label = "Weight",
+            PickButton [ label = { weightWord(classroot.weightV) }, menu = { app.weightMenu }, accessibilityLabel = "Weight" ]
+            ],
+        Row [ label = "Style",
+            IconToggle [ word = "I", italicWord = true, accessibilityLabel = "Italic",
+                on = { classroot.italicV == "yes" },
+                press() { app.editor.setText((t) => ({ ...t, italic: classroot.italicV != "yes" })) }
+                ],
+            Segmented [ width = 114, height = 30, accessibilityLabel = "Alignment",
+                value = { classroot.alignV == MIXED ? null : classroot.alignV },
+                items = { [ ({ id: "left", icon: "AlignLeftMark", label: "Left aligned" }),
+                    ({ id: "center", icon: "AlignCenterMark", label: "Centred" }),
+                    ({ id: "right", icon: "AlignRightMark", label: "Right aligned" }) ] },
+                commit(v: object) { app.editor.setText((t) => ({ ...t, align: v as "left" | "center" | "right" })) }
+                ]
+            ],
+        Row [ label = "Colour",
+            ColorWell [ target = "text", value = { classroot.colorV } ]
+            ]
+        ],
+
+    Section [ heading = "Arrange", disabled = { !classroot.any },
+        Checkbox [ fontSize = 13, label = { classroot.keepV == MIXED ? "Keep proportions (mixed)" : "Keep proportions" },
+            disabled = { classroot.sized.length == 0 },
+            checked = { classroot.keepV == "yes" },
+            commit(v: boolean) { app.editor.setKeep(v) }
+            ],
+        Text [ fontSize = 11, textColor = { provided("theme").textFaint }, text = "Align" ],
+        row1: View [ layout: SimpleLayout [ axis = x, spacing = 2 ],
+            IconButton [ shape = "alignLeft", accessibilityLabel = "Align left edges", disabled = { classroot.ed.count < 2 },
+                press() { app.editor.align("left") }
+                ],
+            IconButton [ shape = "alignCenter", accessibilityLabel = "Align centres", disabled = { classroot.ed.count < 2 },
+                press() { app.editor.align("center") }
+                ],
+            IconButton [ shape = "alignRight", accessibilityLabel = "Align right edges", disabled = { classroot.ed.count < 2 },
+                press() { app.editor.align("right") }
+                ],
+            IconButton [ shape = "alignTop", accessibilityLabel = "Align tops", disabled = { classroot.ed.count < 2 },
+                press() { app.editor.align("top") }
+                ],
+            IconButton [ shape = "alignMiddle", accessibilityLabel = "Align middles", disabled = { classroot.ed.count < 2 },
+                press() { app.editor.align("middle") }
+                ],
+            IconButton [ shape = "alignBottom", accessibilityLabel = "Align bottoms", disabled = { classroot.ed.count < 2 },
+                press() { app.editor.align("bottom") }
+                ]
+            ],
+        Text [ fontSize = 11, textColor = { provided("theme").textFaint }, text = "Distribute and order" ],
+        row2: View [ layout: SimpleLayout [ axis = x, spacing = 2 ],
+            IconButton [ shape = "distH", accessibilityLabel = "Distribute across", disabled = { classroot.ed.count < 3 },
+                press() { app.editor.distribute(true) }
+                ],
+            IconButton [ shape = "distV", accessibilityLabel = "Distribute down", disabled = { classroot.ed.count < 3 },
+                press() { app.editor.distribute(false) }
+                ],
+            View [ width = 10 ],
+            IconButton [ shape = "front", accessibilityLabel = "Bring to front", disabled = { !classroot.any },
+                press() { app.editor.arrange("front") }
+                ],
+            IconButton [ shape = "toBack", accessibilityLabel = "Send to back", disabled = { !classroot.any },
+                press() { app.editor.arrange("back") }
+                ]
+            ]
+        ]
+    ]
+
+
+// A titled block of the inspector; `disabled` dims it and takes it out of reach.
+
+class Section [ width = 100%, defaultPlacement = body,
+    heading: string = "",
+    disabled: boolean = false,
+    opacity = { classroot.disabled ? 0.38 : 1 },
+    pointerEvents = { classroot.disabled ? "none" : "" },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.7, textTransform = uppercase,
+        textColor = { provided("theme").textFaint }, text = { classroot.heading } ],
+    body: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ]
+        ]
+    ]
+
+
+class Row [ width = 100%, height = 30, defaultPlacement = controls,
+    label: string = "",
+    layout: SimpleLayout [ axis = x, align = center ],
+    Text [ width = 84, fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    controls: View [ flexes = true,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ]
+        ]
+    ]
+
+
+// A colour: its chip and its code. Pressing it opens the palette for it.
+
+class ColorWell extends Control [ height = 30, width = 150, cornerRadius = 8, padding = [0, 10, 0, 5],
+    target: string = "fill",
+    value: string = "",
+    allowNone: boolean = false,
+    accessibilityLabel = { colorHeading(classroot.target) },
+    tooltipLabel = { colorHeading(classroot.target) + ": " + wellWord(classroot.value) },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    press() { app.openColors(this, classroot.target, classroot.allowNone) },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    chip: Swatch [ width = 20, height = 20, color = { classroot.value } ],
+    TextLabel [ fontSize = 12, fontWeight = medium, numeralWidth = tabular, wrap = false,
+        textColor = { provided("theme").text },
+        text = { wellWord(classroot.value) } ]
+    ]
+
+
+// A colour chip: a checkerboard under it shows transparency; a slash, none;
+// a split, a mixed selection.
+
+class Swatch [ cornerRadius = 5,
+    color: string = "",
+    stroke = { Stroke(1, 0x1C183026) },
+    draw(d: DrawContext) {
+        const c = classroot.color
+        if (c == NONE || c == "") return
+        if (c == "none") {
+            d.strokeStyle = provided("theme").danger
+            d.lineWidth = 1.5
+            d.beginPath()
+            d.moveTo(3, d.h - 3)
+            d.lineTo(d.w - 3, 3)
+            d.stroke()
+            return
+            }
+        if (c == MIXED) {
+            d.fillStyle = provided("theme").accent
+            d.beginPath(); d.moveTo(0, 0); d.lineTo(d.w, 0); d.lineTo(0, d.h); d.closePath(); d.fill()
+            d.fillStyle = provided("theme").spot
+            d.beginPath(); d.moveTo(d.w, 0); d.lineTo(d.w, d.h); d.lineTo(0, d.h); d.closePath(); d.fill()
+            return
+            }
+        d.fillStyle = provided("theme").line
+        for (let i = 0; i < d.w; i += 5) for (let j = 0; j < d.h; j += 5) if ((i + j) % 10 == 0) d.fillRect(i, j, 5, 5)
+        d.fillStyle = c
+        d.fillRect(0, 0, d.w, d.h)
+        }
+    ]
+
+
+// A number typed or stepped with the arrow keys; it shows "Mixed" when the
+// selection disagrees. A change lands when the person presses Return or
+// leaves the field: one undo step.
+
+class NumberBox [ height = 30, accessibilityRole = group,
+    value: string = "",
+    unit: string = "",
+    min: number = 0,
+    max: number = 100,
+    step: number = 1,
+    set(v: number) { },
+    clampTo(v: number) -> number { return Math.max(min, Math.min(max, Math.round(v * 10) / 10)) },
+    bump(d: number) {
+        const n = Number(value)
+        if (value == MIXED || isNaN(n)) return
+        this.set(this.clampTo(n + d * step))
+        },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    field: TextInput [ width = 64, height = 30, fontSize = 13, numeralWidth = tabular, padding = [0, 8, 0, 8],
+        accessibilityLabel = { classroot.accessibilityLabel },
+        commitOn = "end", purpose = decimal,
+        value = { classroot.value == MIXED || classroot.value == NONE ? "" : classroot.value },
+        placeholder = { classroot.value == MIXED ? "Mixed" : "—" },
+        admit(t: string) -> string? { return /^[0-9]*\.?[0-9]*$/.test(t) ? t : null },
+        commit(t: string) { if (t != "" && !isNaN(Number(t))) classroot.set(classroot.clampTo(Number(t))) },
+        keyBindings = { [ ({ key: "ArrowUp", command: "up" }), ({ key: "ArrowDown", command: "down" }) ] },
+        up() { classroot.bump(1) },
+        down() { classroot.bump(-1) }
+        ],
+    Text [ fontSize = 12, textColor = { provided("theme").textFaint }, text = { classroot.unit } ],
+    stepper: View [ layout: SimpleLayout [ axis = x ],
+        SmallStep [ word = "−", accessibilityLabel = { "Less " + classroot.accessibilityLabel.toLowerCase() },
+            press() { classroot.bump(-1) }
+            ],
+        SmallStep [ word = "+", accessibilityLabel = { "More " + classroot.accessibilityLabel.toLowerCase() },
+            press() { classroot.bump(1) }
+            ]
+        ]
+    ]
+
+
+// A choice from a menu: the current one, and a chevron.
+
+class PickButton extends Control [ width = 150, height = 30, cornerRadius = 8, padding = [0, 8, 0, 10],
+    label: string = "",
+    fill = { pressed || this.menuOpen ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    TextLabel [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, textColor = { provided("theme").text }, text = { classroot.label } ],
+    ChevronIcon [ iconSize = 10, ink = { provided("theme").textMuted } ]
+    ]
+
+
+class SmallStep extends Control [ width = 26, height = 26, cornerRadius = 7,
+    word: string = "",
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    TextLabel [ x = center, fontSize = 16, textColor = { provided("theme").textMuted }, text = { classroot.word } ]
+    ]
+
+
+class IconToggle extends Control [ width = 30, height = 30, cornerRadius = 8,
+    word: string = "",
+    italicWord: boolean = false,
+    on: boolean = false,
+    accessibilityRole = toggle,
+    accessibilityPressed = { classroot.on },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.on }, fill = { provided("theme").accentTint } ],
+    TextLabel [ x = center, fontSize = 15, fontWeight = bold, italic = { classroot.italicWord }, fontFamily = "Georgia",
+        textColor = { classroot.on ? provided("theme").accent : provided("theme").text }, text = { classroot.word } ]
+    ]
+
+
+// The marks the alignment control shows.
+
+class AlignLeftMark extends Icon [ draw(d: DrawContext) { alignMark(d, unit, ink, weight, 0) }
+    ]
+
+
+class AlignCenterMark extends Icon [ draw(d: DrawContext) { alignMark(d, unit, ink, weight, 1) }
+    ]
+
+
+class AlignRightMark extends Icon [ draw(d: DrawContext) { alignMark(d, unit, ink, weight, 2) }
+    ]
+
+
+use [ AlignLeftMark, AlignCenterMark, AlignRightMark ]
+
+// ── The palette: one popover, opened for whichever well was pressed ─────────
+
+class ColorPopover extends Popover [ width = 252,
+    target: string = "fill",
+    allowNone: boolean = false,
+    hex: string = "",
+    choose(c: string?) {
+        app.applyColor(target, c)
+        },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted },
+        text = { colorHeading(classroot.target) } ],
+    grid: View [ width = 220, datapath = { app.palette.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        PaletteChip [ datapath = :colors[] ]
+        ],
+    hexRow: View [ width = 220,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        TextInput [ flexes = true, height = 30, fontSize = 13, placeholder = "#RRGGBB", accessibilityLabel = "Colour code",
+            value = { classroot.hex },
+            commit(v: string) { classroot.hex = v },
+            onEnter() { const h = normalizeHex(classroot.hex); if (h != "") { classroot.choose(h); classroot.close() } }
+            ],
+        Button [ label = "Use", height = 30, padH = 10, disabled = { normalizeHex(classroot.hex) == "" },
+            onClick() { classroot.choose(normalizeHex(classroot.hex)); classroot.close() }
+            ],
+        Button [ label = "None", height = 30, padH = 10, visible = { classroot.allowNone },
+            onClick() { classroot.choose(null); classroot.close() }
+            ]
+        ]
+    ]
+
+
+class PaletteChip extends Control [ width = 26, height = 26, cornerRadius = 7,
+    c: string = { :@ as string },
+    accessibilityLabel = { classroot.c },
+    tooltipLabel = { classroot.c },
+    fill = { classroot.c as Color },
+    stroke = { Stroke(hovered ? 2 : 1, hovered ? provided("theme").accent : 0x1C183022) },
+    press() { app.colorPop.choose(classroot.c); app.colorPop.close() }
+    ]
+
+
+script {
+    const MIXED = "\u0000mixed"
+    const NONE = "\u0000none"
+
+    function common(values: string[]): string {
+        if (values.length == 0) return NONE
+        return values.every((v) => v == values[0]) ? values[0] : MIXED
+    }
+    function wellWord(v: string): string {
+        return v == MIXED ? "Mixed" : v == "none" ? "None" : v == NONE || v == "" ? "—" : v
+    }
+    function mixedWord(v: string, none: string): string {
+        return v == MIXED ? "Mixed" : v == NONE || v == "" ? none : v
+    }
+    function weightWord(v: string): string {
+        if (v == MIXED) return "Mixed"
+        const names: Record<string, string> = { "100": "Thin", "200": "Extra light", "300": "Light", "400": "Regular",
+            "500": "Medium", "600": "Semibold", "700": "Bold", "800": "Extra bold", "900": "Black" }
+        return names[v] ?? (v == NONE ? "—" : v)
+    }
+    function colorHeading(t: string): string {
+        return t == "fill" ? "Fill colour" : t == "stroke" ? "Outline colour" : t == "text" ? "Text colour" : "Background colour"
+    }
+    function selectionWords(kinds: string[], inGroup: boolean): string {
+        if (kinds.length == 0) return "Nothing selected. Click something on the slide, or drag across it."
+        const names: Record<string, string> = { rect: "rectangle", ellipse: "ellipse", line: "line", text: "text box", group: "group" }
+        const where = inGroup ? " inside a group" : ""
+        if (kinds.length == 1) return "A " + names[kinds[0]] + where + " is selected."
+        return kinds.length + " things are selected" + where + "."
+    }
+    function alignMark(d: DrawContext, unit: number, ink: Color, weight: number, how: number) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.beginPath()
+        const rows = [[2.5, 13.5], [2.5, 10], [2.5, 13.5], [2.5, 9]]
+        rows.forEach((r, i) => {
+            const len = r[1] - r[0]
+            const x0 = how == 0 ? 2.5 : how == 1 ? 8 - len / 2 : 13.5 - len
+            const y = 3.5 + i * 3
+            d.moveTo(x0, y); d.lineTo(x0 + len, y)
+        })
+        d.stroke()
+    }
+    }

@@ -1,0 +1,520 @@
+/*
+# Presentify: the records
+
+Four things with no view of their own.
+
+- **`Deck`** is the open presentation as the person sees it: its title and
+  its slides, in order, each with its elements. It is the one copy every view
+  reads (the slide being edited, the list of slides, the presenter), and every
+  change to a presentation is one of its verbs.
+- **`History`** is undo and redo. Before each thing the person does, it
+  keeps the slides as they were; undoing puts them back, and the selection
+  with them.
+- **`Sync`** keeps the service in step with `Deck`. It never decides what
+  changed from the edits themselves: it compares what the deck holds now with
+  what the service last confirmed, slide by slide, and sends the difference
+  one request at a time. So an undone delete is just a slide the service
+  doesn't have yet, and a failed save is just a difference still there, sent
+  again on the next pass.
+- **`Library`** is the list of presentations, with the requests that create,
+  rename and delete one.
+*/
+
+// What Undo puts back: the slides, which slide was showing, and what was selected.
+
+schema Snap [ slides[]: Slide, selection[]: string, current: string ]
+
+// What the service holds for one slide of the open deck: its id there, its
+// version, and its content as last confirmed (`contentOf`, geometry.declare).
+
+schema Known [ server: string, version: number, saved: string ]
+
+schema Created [ deck: DeckInfo, slides[]: Slide ]
+
+script {
+    // A reply's text as JSON; null when there is none (a 204) or it isn't JSON.
+    function parseReply(v: any): any {
+        if (v == null) return null
+        if (typeof v != "string") return v
+        if (v.trim() == "") return null
+        try { return JSON.parse(v) } catch (e) { return null }
+    }
+    }
+
+
+// ── The open presentation ───────────────────────────────────────────────────
+
+class Deck extends Dataset [ schema = [ slides[]: Slide ],
+    deckId: string = "",
+    title: string = "",
+
+    // Every change the person makes moves `rev` on; Sync listens to it.
+    // Loading a deck from the service is not a change, so `load` leaves it.
+
+    rev: number = 0,
+    touched() { rev = rev + 1 },
+
+    slides() -> Slide[] { return this.value?.slides ?? [] },
+    count: number = { (classroot.value?.slides ?? []).length },
+    indexOf(id: string) -> number { return this.slides().findIndex((s) => s.id == id) },
+    slide(id: string) -> Slide? { return this.slides().find((s) => s.id == id) ?? null },
+    contentHere(id: string) -> string {
+        const s = this.slide(id)
+        return s == null ? "" : contentOf(s.background, s.elements)
+        },
+
+    load(id: string, t: string, all: Slide[]) {
+        deckId = id
+        title = t
+        this.set(["slides"], all)
+        },
+    rename(t: string) {
+        const v = t.trim() == "" ? "Untitled presentation" : t.trim()
+        if (v == title) return
+        title = v
+        touched()
+        },
+
+    setElements(id: string, els: El[]) {
+        const i = this.indexOf(id)
+        if (i < 0) return
+        this.set(["slides", i, "elements"], els)
+        touched()
+        },
+    setBackground(id: string, c: string) {
+        const i = this.indexOf(id)
+        if (i < 0) return
+        this.set(["slides", i, "background"], c)
+        touched()
+        },
+    replaceContent(id: string, bg: string, els: El[]) {
+        const i = this.indexOf(id)
+        if (i < 0) return
+        this.set(["slides", i, "background"], bg)
+        this.set(["slides", i, "elements"], els)
+        touched()
+        },
+    insertSlide(at: number, s: Slide) {
+        this.insert(["slides"], Math.max(0, Math.min(at, this.slides().length)), s)
+        touched()
+        },
+
+    // A slide that arrived from another window: in the deck, but not a
+    // change of this person's, so there is nothing to send back.
+
+    adoptSlide(at: number, s: Slide) {
+        this.insert(["slides"], Math.max(0, Math.min(at, this.slides().length)), s)
+        },
+    removeSlide(id: string) {
+        const i = this.indexOf(id)
+        if (i < 0 || this.slides().length <= 1) return
+        this.removeAt(["slides"], i)
+        touched()
+        },
+    moveSlide(from: number, to: number) {
+        if (from == to) return
+        this.move(["slides"], from, to)
+        touched()
+        },
+    replaceSlides(all: Slide[]) {
+        this.set(["slides"], all)
+        touched()
+        }
+    ]
+
+
+// ── Undo and redo ───────────────────────────────────────────────────────────
+//
+// One step is one thing the person did. Each verb records once, before it
+// changes anything: a drag records at its start, a run of typing when it
+// begins, a change in the inspector when it is made. A step that turns out to
+// have changed nothing (a press that never moved) is taken back off with
+// `forget`. `recordAs(key)` folds a quick run of the same small step — arrow
+// nudges — into one.
+
+class History extends Node [
+    past: Snap[] = [],
+    future: Snap[] = [],
+    lastKey: string = "",
+    lastAt: number = 0,
+    canUndo: boolean = { classroot.past.length > 0 },
+    canRedo: boolean = { classroot.future.length > 0 },
+
+    snap() -> Snap {
+        return ({ slides: copyOf(app.deck.slides()), selection: [...app.selection], current: app.currentId })
+        },
+    record() { this.recordAs("") },
+    recordAs(key: string) {
+        const now = Date.now()
+        if (key != "" && key == lastKey && now - lastAt < 1200) { lastAt = now; return }
+        lastKey = key
+        lastAt = now
+        past = [...past.slice(-199), this.snap()]
+        future = []
+        },
+    forget() {
+        past = past.slice(0, -1)
+        lastKey = ""
+        },
+    undo() {
+        if (past.length == 0) return
+        const s = past[past.length - 1]
+        future = [...future, this.snap()]
+        past = past.slice(0, -1)
+        lastKey = ""
+        this.restore(s)
+        },
+    redo() {
+        if (future.length == 0) return
+        const s = future[future.length - 1]
+        past = [...past, this.snap()]
+        future = future.slice(0, -1)
+        lastKey = ""
+        this.restore(s)
+        },
+    restore(s: Snap) {
+        app.deck.replaceSlides(copyOf(s.slides))
+        app.ed.restoreView(s.current, s.selection)
+        },
+    clear() {
+        past = []
+        future = []
+        lastKey = ""
+        }
+    ]
+
+
+// ── Saving ──────────────────────────────────────────────────────────────────
+//
+// `known` is what the service holds for each slide of the open deck, by the
+// slide's id here (a slide made here has a local id until the service gives
+// it one, and keeps its local id after). A pass walks the deck and sends the
+// first difference it finds:
+//
+// 1. a slide the service doesn't have yet → POST it, after its neighbour;
+// 2. a slide the service has that the deck doesn't → DELETE it;
+// 3. a slide whose content differs from what was confirmed → PUT it;
+// 4. the order or the title differing → PATCH the deck.
+//
+// Each reply records what the service now holds and starts the next pass,
+// until there is no difference. A request that doesn't get through leaves the
+// difference where it was and tries again later, waiting longer each time.
+//
+// A slide changed in another window answers a PUT with a conflict, and the
+// service's copy is kept in `conflicts` until the person chooses: theirs
+// (`useTheirs`) or their own (`keepMine`). Until then nothing is sent for that
+// slide. A visit to a slide, and every few seconds while one is open, asks
+// the service whether it has changed (`check`), so the person is told before
+// they type over it.
+
+class Sync extends Node [
+    deckId: string = "",
+    deckVersion: number = 0,
+    savedTitle: string = "",
+    savedOrder: string[] = [],
+    known: Record<string, Known> = { ({}) },
+    conflicts: Record<string, Slide> = { ({}) },
+
+    busy: boolean = false,       // a request is out
+    waiting: boolean = false,    // an edit hasn't been compared yet
+    offline: boolean = false,    // the last request didn't get through
+    held: boolean = false,       // only conflicted slides are left unsent
+    retryIn: number = 2000,
+
+    status: "saved" | "saving" | "offline" = { classroot.offline ? "offline" : classroot.unsaved ? "saving" : "saved" },
+    unsaved: boolean = { classroot.busy || classroot.waiting || classroot.held },
+    conflictCount: number = { Object.keys(classroot.conflicts).length },
+
+    // An edit: compare and send shortly after the last one.
+
+    rev: number = { app.deck.rev },
+    trackChanges = ["rev"],
+    onChange() {
+        if (deckId == "") return
+        waiting = true
+        this.schedule(800)
+        },
+
+    gen: number = 0,
+    schedule(ms: number) {
+        gen = gen + 1
+        const g = gen
+        afterDelay(ms, () => { if (g == this.gen) this.pass() })
+        },
+    saveNow() {
+        if (deckId == "") return
+        gen = gen + 1
+        waiting = true
+        this.pass()
+        },
+
+    begin(d: DeckInfo, slides: Slide[]) {
+        gen = gen + 1
+        deckId = d.id
+        this.adoptDeck(d)
+        const k: Record<string, Known> = {}
+        for (const s of slides) k[s.id] = ({ server: s.id, version: s.version ?? 0, saved: contentOf(s.background, s.elements) })
+        known = k
+        conflicts = ({})
+        busy = false
+        waiting = false
+        offline = false
+        held = false
+        retryIn = 2000
+        },
+    adoptDeck(d: DeckInfo) {
+        deckVersion = d.version
+        savedOrder = [...d.slideOrder]
+        savedTitle = d.title
+        },
+
+    // ── a pass
+
+    pass() {
+        if (busy || deckId == "") return
+        const slides = app.deck.slides()
+        const ids = slides.map((s) => s.id)
+        const base = app.api + "/decks/" + deckId
+        for (let i = 0; i < slides.length; i++) {
+            const s = slides[i]
+            if (known[s.id] != null) continue
+            let after: string | null = null
+            for (let j = i - 1; j >= 0 && after == null; j--) after = known[slides[j].id]?.server ?? null
+            this.send("create", s.id, "POST", base + "/slides",
+                ({ after: after, background: s.background, elements: s.elements.map(wire) }))
+            return
+        }
+        for (const local of Object.keys(known)) {
+            if (ids.includes(local)) continue
+            this.send("delete", local, "DELETE", app.api + "/slides/" + known[local].server, null)
+            return
+        }
+        for (const s of slides) {
+            const k = known[s.id]
+            if (conflicts[s.id] != null || contentOf(s.background, s.elements) == k.saved) continue
+            this.send("save", s.id, "PUT", app.api + "/slides/" + k.server,
+                ({ version: k.version, background: s.background, elements: s.elements.map(wire) }))
+            return
+        }
+        const order = slides.map((s) => known[s.id].server)
+        if (order.join(",") != savedOrder.join(",") || app.deck.title != savedTitle) {
+            this.send("deck", "", "PATCH", base, ({ version: deckVersion, title: app.deck.title, slideOrder: order }))
+            return
+        }
+        waiting = false
+        held = slides.some((s) => conflicts[s.id] != null && contentOf(s.background, s.elements) != known[s.id].saved)
+        },
+
+    // ── one request at a time, through one source
+
+    op: string = "",
+    opLocal: string = "",
+    reqUrl: string = "",
+    reqMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+    reqBody: object? = null,
+    req: DataSource [ format = "text", timeout = 15,
+        url = { classroot.reqUrl }, method = { classroot.reqMethod }, body = { classroot.reqBody },
+        onLoad() { classroot.landed() },
+        onError() { classroot.refused() }
+        ],
+
+    send(kind: string, local: string, m: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", url: string, body: object?) {
+        op = kind
+        opLocal = local
+        reqUrl = url
+        reqMethod = m
+        reqBody = body
+        busy = true
+        req.fetch()
+        },
+
+    remember(local: string, s: Slide) {
+        known = { ...known, [local]: ({ server: s.id, version: s.version ?? 0, saved: contentOf(s.background, s.elements) }) }
+        },
+    forgetSlide(local: string) {
+        const next = { ...known }
+        delete next[local]
+        known = next
+        },
+
+    landed() {
+        const r: any = parseReply(req.value)
+        if (op == "create" && r != null) {
+            this.remember(opLocal, r.slide as Slide)
+            this.adoptDeck(r.deck as DeckInfo)
+        } else if (op == "delete") {
+            this.forgetSlide(opLocal)
+            if (r != null) this.adoptDeck(r.deck as DeckInfo)
+        } else if (op == "save" && r != null) {
+            this.remember(opLocal, r as Slide)
+        } else if (op == "deck" && r != null) {
+            this.adoptDeck(r as DeckInfo)
+        } else if (op == "pull" && r != null) {
+            this.merge(r.slides as Slide[])
+        }
+        busy = false
+        offline = false
+        retryIn = 2000
+        this.pass()
+        },
+
+    refused() {
+        const code = req.statusCode
+        const b: any = parseReply(req.errorBody)
+        busy = false
+        if (code == 409 && op == "save" && b?.current != null) {
+            conflicts = { ...conflicts, [opLocal]: b.current as Slide }
+            this.pass()
+            return
+        }
+        if (code == 409 && op == "deck" && b?.current != null) {
+            this.adoptDeck(b.current as DeckInfo)
+            this.send("pull", "", "GET", app.api + "/decks/" + deckId + "/slides", null)
+            return
+        }
+        if (code == 404 && (op == "save" || op == "delete")) {
+            this.forgetSlide(opLocal)       // gone from the service: a save makes it again
+            this.pass()
+            return
+        }
+        if (code == 409 && op == "delete") {    // the service's last slide: keep it
+            this.pass()
+            return
+        }
+        if (code == 422) console.error("Presentify: the service refused", op, b?.field, b?.message)
+        offline = true
+        this.schedule(retryIn)
+        retryIn = Math.min(retryIn * 2, 15000)
+        },
+
+    // The deck changed in another window. Slides added there join this deck
+    // where they stand; slides removed there are forgotten, so if they are
+    // still here they are sent again rather than lost.
+
+    merge(theirs: Slide[]) {
+        const order = theirs.map((s) => s.id)
+        const mine = Object.keys(known)
+        for (const local of mine) if (!order.includes(known[local].server)) this.forgetSlide(local)
+        const byServer: Record<string, string> = {}
+        for (const local of Object.keys(known)) byServer[known[local].server] = local
+        theirs.forEach((s, i) => {
+            if (byServer[s.id] != null) return
+            let at = 0
+            for (let j = i - 1; j >= 0; j--) {
+                const local = byServer[order[j]]
+                if (local != null) { at = app.deck.indexOf(local) + 1; break }
+            }
+            app.deck.adoptSlide(at, s)
+            this.remember(s.id, s)
+            byServer[s.id] = s.id
+            })
+        },
+
+    // ── another window's changes to one slide
+
+    probeLocal: string = "",
+    probeUrl: string = "",
+    probe: DataSource [ format = "text", timeout = 10, url = { classroot.probeUrl },
+        onLoad() { classroot.probed() }
+        ],
+    check(local: string) {
+        const k = known[local]
+        if (k == null || deckId == "" || conflicts[local] != null) return
+        probeLocal = local
+        probeUrl = app.api + "/slides/" + k.server
+        probe.fetch()
+        },
+    probed() {
+        const s = parseReply(probe.value) as Slide | null
+        const local = probeLocal
+        const k = known[local]
+        if (s == null || k == null || conflicts[local] != null) return
+        if ((s.version ?? 0) <= k.version || (busy && opLocal == local)) return
+        const theirs = contentOf(s.background, s.elements)
+        if (theirs == k.saved || theirs == app.deck.contentHere(local)) { this.remember(local, s); return }
+        conflicts = { ...conflicts, [local]: s }
+        },
+
+    resolve(local: string) {
+        const next = { ...conflicts }
+        delete next[local]
+        conflicts = next
+        },
+    useTheirs(local: string) {
+        const s = conflicts[local]
+        if (s == null) return
+        app.history.record()
+        this.remember(local, s)
+        this.resolve(local)
+        app.deck.replaceContent(local, s.background, s.elements)
+        app.selection = []
+        },
+    keepMine(local: string) {
+        const s = conflicts[local]
+        if (s == null) return
+        this.remember(local, s)
+        this.resolve(local)
+        this.saveNow()
+        }
+    ]
+
+
+// ── The presentations ───────────────────────────────────────────────────────
+
+class Library extends DataSource [ schema = [ decks[]: DeckSummary ], timeout = 15,
+    url = { app.api + "/decks" },
+    decks() -> DeckSummary[] { return (this.value?.decks ?? []).filter((d) => !this.gone.includes(d.id)) },
+    gone: string[] = [],           // deleted here, until the list comes back without them
+    onLoad() { gone = [] },
+
+    // A new presentation opens as soon as the service has made it.
+
+    maker: DataSource [ schema = Created, timeout = 15, method = "POST",
+        url = { app.api + "/decks" }, body = { ({ title: "Untitled presentation" }) },
+        onLoad() { app.ed.openCreated(this.value.deck, this.value.slides) },
+        onError() { app.notify("Couldn't make a presentation: can't reach the service.") }
+        ],
+    create() { if (!maker.loading) maker.fetch() },
+
+    // A rename needs the deck's version, so it reads the deck first.
+
+    renameId: string = "",
+    renameTitle: string = "",
+    reader: DataSource [ schema = DeckInfo, timeout = 15,
+        url = { classroot.renameId == "" ? "" : app.api + "/decks/" + classroot.renameId },
+        onLoad() { classroot.renamer.fetch() },
+        onError() { app.notify("Couldn't rename it: can't reach the service.") }
+        ],
+    renamer: DataSource [ format = "text", timeout = 15, method = "PATCH",
+        url = { classroot.renameId == "" ? "" : app.api + "/decks/" + classroot.renameId },
+        body = { ({ version: classroot.reader.value?.version ?? 0, title: classroot.renameTitle }) },
+        onLoad() { classroot.fetch() },
+        onError() {
+            if (this.statusCode == 409) classroot.reader.fetch()
+            else app.notify("Couldn't rename it: can't reach the service.")
+            }
+        ],
+    rename(id: string, t: string) {
+        renameId = id
+        renameTitle = t.trim() == "" ? "Untitled presentation" : t.trim()
+        reader.fetch()
+        },
+    shownTitle(d: DeckSummary) -> string {
+        return renamer.loading && renameId == d.id ? renameTitle : d.title
+        },
+
+    removeId: string = "",
+    remover: DataSource [ format = "text", timeout = 15, method = "DELETE",
+        url = { classroot.removeId == "" ? "" : app.api + "/decks/" + classroot.removeId },
+        onLoad() { classroot.fetch() },
+        onError() {
+            classroot.gone = classroot.gone.filter((g) => g != classroot.removeId)
+            app.notify("Couldn't delete it: can't reach the service.")
+            }
+        ],
+    remove(id: string) {
+        removeId = id
+        gone = [...gone, id]
+        remover.fetch()
+        }
+    ]

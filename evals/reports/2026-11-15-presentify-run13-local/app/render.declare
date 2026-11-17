@@ -1,0 +1,207 @@
+/*
+# Presentify: how a slide draws
+
+One slide, drawn at 1280 × 720 points and scaled to wherever it is shown — the
+editor, a thumbnail in the slide list, a card in the list of presentations,
+the screen while presenting. It is the same class everywhere, so a slide
+looks exactly the same in each.
+
+Each element is a view of its own, picked by `classFor` from its kind; a
+group is a view holding its children's views, so groups nest as deep as the
+data does. On the editor's slide (`live`), each element takes its own presses
+and hands them to the canvas; everywhere else the slide is only a picture.
+*/
+
+// The text style an element's text box uses, as `measureText` and `Text` both read it.
+
+script {
+    // Which view draws an element of each kind.
+    function shapeClass(kind: string) {
+        return kind == "rect" ? "RectEl" : kind == "ellipse" ? "EllipseEl" : kind == "line" ? "LineEl" : kind == "text" ? "TextEl" : "GroupEl"
+    }
+
+    function textStyleOf(t: TextBody): object {
+        return { fontFamily: t.font, fontSize: t.size, fontWeight: t.weight, italic: t.italic, lineHeight: 1.2 }
+    }
+    }
+
+
+class SlideArt [ width = 1280, height = 720, pivotX = 0, pivotY = 0, clip = true,
+    live: boolean = false,               // the editor's slide: elements take presses
+    px: number = { 1 / Math.max(0.01, this.scale) },   // one screen pixel, in slide points
+    fill = { :background ?? "#FFFFFF" },
+    ElBase [ datapath = :elements[], classFor = { shapeClass(:kind ?? "") } ]
+    ]
+
+
+// What every element reads from its record.
+
+class ElBase [
+    eid: string = { :id ?? "" },
+    live: boolean = { provided("live") },
+    pressable: boolean = { classroot.live && app.tool == "select" && !app.presenting }
+    ]
+
+
+// A shape that takes presses on the editor's slide: a press selects it, a
+// drag moves the selection, a double-click goes into a group or a text box.
+
+class Shape extends ElBase [
+    pointerEvents = { classroot.pressable ? "auto" : "none" },
+    cursor = { classroot.pressable ? "move" : "" },
+
+    // under the pointer, and not yet selected: a hairline says what a press would take
+
+    lit: boolean = { classroot.pressable && hovered && !app.sel.includes(classroot.eid) && app.canvas?.mode == "" },
+    px: number = { provided("px") },
+    pick: Color = { provided("theme").pick },
+    sw: number = { :stroke?.width ?? 0 },
+    m: number = { classroot.sw / 2 },
+    onPointerDown(e: PointerEvent) { app.canvas?.pressEl(classroot.eid, e) },
+    onDragStart(e: PointerEvent) { app.canvas?.moveStart(e) },
+    onDrag(e: PointerEvent) { app.canvas?.moveDrag(e) },
+    onDragEnd(e: DragEndEvent) { app.canvas?.moveEnd(e) },
+    onDoubleClick(e: PointerEvent) { app.canvas?.doubleEl(classroot.eid) },
+    onContextMenu(e: PointerEvent) { app.canvas?.contextEl(classroot.eid, this, e) }
+    ]
+
+
+// A rectangle: its box grown by half its outline, so the outline is centred
+// on the box's edge as the format means it; the corners never stretch.
+
+class RectEl extends Shape [
+    x = { (:x ?? 0) - classroot.m }, y = { (:y ?? 0) - classroot.m },
+    width = { (:width ?? 0) + classroot.sw }, height = { (:height ?? 0) + classroot.sw },
+    radius: number = { Math.max(0, Math.min(:cornerRadius ?? 0, (:width ?? 0) / 2, (:height ?? 0) / 2)) },
+    paint: string = { :fill ?? "" },
+    ink: string = { :stroke?.color ?? "" },
+    draw(d: DrawContext) {
+        const m = classroot.m, w = :width ?? 0, h = :height ?? 0
+        d.beginPath()
+        d.roundRect(m, m, w, h, classroot.radius)
+        if (classroot.paint != "") { d.fillStyle = classroot.paint; d.fill() }
+        if (classroot.ink != "" && classroot.sw > 0) { d.strokeStyle = classroot.ink; d.lineWidth = Math.max(classroot.sw, classroot.px); d.stroke() }
+        if (classroot.lit) { d.strokeStyle = classroot.pick; d.lineWidth = 1.5 * classroot.px; d.stroke() }
+        }
+    ]
+
+
+// An ellipse: drawn, and pressable only inside its outline (the clip), so a
+// press in its box's corners reaches what is beneath.
+
+class EllipseEl extends Shape [
+    x = { (:x ?? 0) - classroot.m }, y = { (:y ?? 0) - classroot.m },
+    width = { (:width ?? 0) + classroot.sw }, height = { (:height ?? 0) + classroot.sw },
+    paint: string = { :fill ?? "" },
+    ink: string = { :stroke?.color ?? "" },
+    clip = { ovalPath(this.width, this.height) },
+    draw(d: DrawContext) {
+        const w = :width ?? 0, h = :height ?? 0, m = classroot.m
+        d.beginPath()
+        d.ellipse(m + w / 2, m + h / 2, Math.max(0, w / 2), Math.max(0, h / 2), 0, 0, Math.PI * 2)
+        if (classroot.paint != "") { d.fillStyle = classroot.paint; d.fill() }
+        if (classroot.ink != "" && classroot.sw > 0) { d.strokeStyle = classroot.ink; d.lineWidth = Math.max(classroot.sw, classroot.px); d.stroke() }
+        if (classroot.lit) { d.strokeStyle = classroot.pick; d.lineWidth = 3 * classroot.px; d.stroke() }
+        }
+    ]
+
+
+script {
+    function ovalPath(w: number, h: number): string {
+        const rx = w / 2, ry = h / 2
+        return "M 0 " + ry + " A " + rx + " " + ry + " 0 1 0 " + w + " " + ry + " A " + rx + " " + ry + " 0 1 0 0 " + ry + " Z"
+    }
+    }
+
+
+// A line: drawn in its own box (as wide as a pointer needs around it), and
+// pressable only within a band along it (the clip), so a press beside a
+// diagonal line reaches what is beneath.
+
+class LineEl extends Shape [
+    ax: number = { :x1 ?? 0 },
+    ay: number = { :y1 ?? 0 },
+    bx: number = { :x2 ?? 0 },
+    by: number = { :y2 ?? 0 },
+    reach: number = { Math.max(classroot.sw / 2, 9) },
+    ox: number = { Math.min(classroot.ax, classroot.bx) - classroot.reach },
+    oy: number = { Math.min(classroot.ay, classroot.by) - classroot.reach },
+    ink: string = { :stroke?.color ?? "#1D1830" },
+    x = { classroot.ox }, y = { classroot.oy },
+    width = { Math.abs(classroot.bx - classroot.ax) + 2 * classroot.reach },
+    height = { Math.abs(classroot.by - classroot.ay) + 2 * classroot.reach },
+    clip = { bandPath(classroot.ax - classroot.ox, classroot.ay - classroot.oy, classroot.bx - classroot.ox, classroot.by - classroot.oy, classroot.reach) },
+    draw(d: DrawContext) {
+        d.lineCap = "butt"
+        d.beginPath()
+        d.moveTo(classroot.ax - classroot.ox, classroot.ay - classroot.oy)
+        d.lineTo(classroot.bx - classroot.ox, classroot.by - classroot.oy)
+        if (classroot.lit) { d.strokeStyle = classroot.pick; d.lineWidth = Math.max(classroot.sw, classroot.px) + 4 * classroot.px; d.stroke() }
+        d.strokeStyle = classroot.ink
+        d.lineWidth = Math.max(classroot.sw, 1.2 * classroot.px)
+        d.stroke()
+        }
+    ]
+
+
+script {
+    // A band `r` wide either side of a segment, and `r` past each end, as a path.
+    function bandPath(x1: number, y1: number, x2: number, y2: number, r: number): string {
+        const len = Math.hypot(x2 - x1, y2 - y1) || 1
+        const ux = (x2 - x1) / len, uy = (y2 - y1) / len
+        const nx = -uy * r, ny = ux * r
+        const ax = x1 - ux * r, ay = y1 - uy * r, bx = x2 + ux * r, by = y2 + uy * r
+        const p = (x: number, y: number) => x.toFixed(2) + " " + y.toFixed(2)
+        return "M " + p(ax + nx, ay + ny) + " L " + p(bx + nx, by + ny) + " L " + p(bx - nx, by - ny) + " L " + p(ax - nx, ay - ny) + " Z"
+    }
+    }
+
+
+// A text box: one block of text in one style, wrapped to its width and as
+// tall as its lines. While it is being edited, a field takes the text's place
+// in the same face, so nothing moves as editing starts or ends.
+
+class TextEl extends Shape [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { Math.max(1, :width ?? 0) },
+    body: TextBody? = { :text ?? null },
+    content: string = { classroot.body?.content ?? "" },
+    face: string = { classroot.body?.font ?? "Helvetica Neue" },
+    size: number = { classroot.body?.size ?? 32 },
+    heavy: number = { classroot.body?.weight ?? 400 },
+    slanted: boolean = { classroot.body?.italic ?? false },
+    ink: string = { classroot.body?.color ?? "#1D1830" },
+    side: "left" | "center" | "right" = { classroot.body?.align ?? "left" },
+    editing: boolean = { classroot.live && app.editingText == classroot.eid },
+    oneLine: number = { Math.ceil(classroot.size * 1.2) },
+    height = { Math.max(classroot.oneLine, classroot.editing ? classroot.field?.contentHeight ?? 0 : classroot.words.height) },
+    cursor = { classroot.editing ? "text" : classroot.pressable ? "move" : "" },
+    hint: View [ ignoreLayout = true, width = 100%, height = 100%, pointerEvents = "none", visible = { classroot.lit },
+        stroke = { Stroke(1.5 * classroot.px, classroot.pick) } ],
+
+    words: Text [ width = 100%, wrap = true, visible = { !classroot.editing },
+        fontFamily = { classroot.face }, fontSize = { classroot.size }, fontWeight = { classroot.heavy },
+        italic = { classroot.slanted }, textColor = { hex(classroot.ink) }, lineHeight = 1.2,
+        textAlign = { classroot.side }, text = { classroot.content } ],
+
+    field: TextInput [ exists = { classroot.editing }, width = 100%, multiline = true, wrap = true,
+        padding = 0, fill = null, stroke = null, cornerRadius = 0,
+        accessibilityLabel = "Text box",
+        placeholder = "Type something",
+        fontFamily = { classroot.face }, fontSize = { classroot.size }, fontWeight = { classroot.heavy },
+        italic = { classroot.slanted }, textColor = { hex(classroot.ink) }, lineHeight = 1.2,
+        textAlign = { classroot.side },
+        value = { classroot.content },
+        commit(v: string) { app.canvas?.typed(classroot.eid, v) },
+        keyBindings = { [ ({ key: "Escape", command: "leave" }) ] },
+        leave() { app.canvas?.endText() },
+        onInit() { afterSettle(() => { Focus.focus(this); this.select(this.value.length, this.value.length) }) }
+        ]
+    ]
+
+
+// A group: no box of its own, its children where they stand. It takes no
+// presses itself, so a press between its children reaches what is beneath.
+
+class GroupEl extends ElBase [ pointerEvents = "none",
+    ElBase [ datapath = :children[], classFor = { shapeClass(:kind ?? "") } ]
+    ]

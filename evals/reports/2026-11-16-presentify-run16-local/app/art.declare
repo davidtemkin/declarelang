@@ -1,0 +1,212 @@
+/*
+# Presentify: a slide, drawn
+
+A slide is a 1280 × 720 view (`SlideArt`) holding one view per element, in
+the slide's stacking order, back to front. The same class draws the slide
+being edited, the pictures in the list of slides, the first slide on each
+presentation's card and the slide being presented, so a slide looks exactly
+the same everywhere: it is the same views at a different `scale`.
+
+Each element is a view of its own, picked by `classFor` from the element's
+kind. A view takes its own presses, so nothing here works out from
+coordinates what was pressed: an ellipse takes presses only inside its
+outline (its `clip` path), a line is a thin view turned along it, and a
+group is a layer of its members, each pressed on its own.
+
+Only the slide being edited is `live`: its elements take presses and report
+them to the editor (`app.ed`, editor.declare). Everywhere else the slide is a
+picture, and `pointerEvents = "none"` at its use site passes presses by.
+*/
+
+use [ RectEl, EllipseEl, LineEl, TextEl, GroupEl ]
+
+script {
+    // `classFor` names the class for each element from its record alone.
+    function elClass(kind: string): string {
+        switch (kind) {
+            case "rect": return "RectEl"
+            case "ellipse": return "EllipseEl"
+            case "line": return "LineEl"
+            case "text": return "TextEl"
+            default: return "GroupEl"
+        }
+    }
+
+    // An ellipse filling a w × h box, as a clip path.
+    function ellipsePath(w: number, h: number): string {
+        const rx = Math.max(0.5, w / 2), ry = Math.max(0.5, h / 2)
+        return "M 0 " + ry + " A " + rx + " " + ry + " 0 1 0 " + (2 * rx) + " " + ry +
+            " A " + rx + " " + ry + " 0 1 0 0 " + ry + " Z"
+    }
+    }
+
+
+// The whole slide. Its record is the cursor: `:background`, `:elements`.
+
+class SlideArt [ width = 1280, height = 720, clip = true,
+    live: boolean = false,
+    fill = { :background ?? "#FFFFFF" },
+    layer: Layer [ live = { classroot.live },
+        Piece [ datapath = :elements[], classFor = { elClass(:kind) } ]
+        ]
+    ]
+
+
+// A layer of elements: the slide's own, or a group's. `chain` is the groups
+// it sits inside, outermost first, so an element knows its whole path.
+
+class Layer [ width = 1280, height = 720,
+    chain: string[] = [],
+    live: boolean = false
+    ]
+
+
+// What every element knows about itself.
+
+class Piece [
+    elId: string = { :id ?? "" },
+    layer: Layer = { parent as Layer },
+    chain: string[] = { [...classroot.layer.chain, classroot.elId] },
+    live: boolean = { classroot.layer.live }
+    ]
+
+
+// A group has no box of its own: its members keep their slide coordinates,
+// in a layer of their own that takes no presses itself.
+
+class GroupEl extends Piece [ width = 1280, height = 720,
+    members: Layer [ chain = { classroot.chain }, live = { classroot.live },
+        Piece [ datapath = :children[], classFor = { elClass(:kind) } ]
+        ]
+    ]
+
+
+// A shape a person presses: it tells the editor, which decides what that
+// selects (the shape, or the group it is in) and what a drag moves.
+
+class Leaf extends Piece [
+    cursor = { classroot.live && app.tool == "select" ? "move" : "" },
+    onPointerDown(e: PointerEvent) { app.ed.press(classroot.chain, e.shift || e.meta) },
+    onClick(e: PointerEvent) { app.ed.click(classroot.chain, e.shift || e.meta) },
+    onDoubleClick(e: PointerEvent) { app.ed.doubleClick(classroot.chain) },
+    onDragStart(e: PointerEvent) { app.ed.beginMove() },
+    onDrag(e: PointerEvent) { app.ed.moveBy(e.deltaX / app.zoom, e.deltaY / app.zoom, e.alt) },
+    onDragEnd(e: DragEndEvent) { app.ed.endMove(e.canceled) },
+    onContextMenu(e: PointerEvent) {
+        app.ed.press(classroot.chain, false)
+        app.canvasMenu.showAt(this, e)
+        }
+    ]
+
+
+class RectEl extends Leaf [
+    x = { :x ?? 0 }, y = { :y ?? 0 },
+    width = { Math.max(0, :width ?? 0) }, height = { Math.max(0, :height ?? 0) },
+    fill = { :fill ?? null },
+    stroke = { :stroke == null ? null : Stroke(:stroke.width, :stroke.color) },
+
+    // A radius is a length: the same however large the rectangle, never
+    // more than fully round ends.
+
+    cornerRadius = { Math.min(:cornerRadius ?? 0, Math.min(this.width, this.height) / 2) }
+    ]
+
+
+class EllipseEl extends Leaf [
+    x = { :x ?? 0 }, y = { :y ?? 0 },
+    width = { Math.max(0, :width ?? 0) }, height = { Math.max(0, :height ?? 0) },
+    paint: string? = { :fill ?? null },
+    outline: Outline? = { :stroke ?? null },
+    clip = { ellipsePath(this.width, this.height) },
+    draw(d: DrawContext) {
+        const rx = d.w / 2
+        const ry = d.h / 2
+        if (classroot.paint != null) {
+            d.beginPath()
+            d.ellipse(rx, ry, Math.max(0, rx), Math.max(0, ry), 0, 0, Math.PI * 2)
+            d.fillStyle = classroot.paint
+            d.fill()
+        }
+        const o = classroot.outline
+        if (o != null && o.width > 0) {
+            // drawn inside the box, as a rectangle's outline is
+            d.beginPath()
+            d.ellipse(rx, ry, Math.max(0, rx - o.width / 2), Math.max(0, ry - o.width / 2), 0, 0, Math.PI * 2)
+            d.lineWidth = o.width
+            d.strokeStyle = o.color
+            d.stroke()
+        }
+        }
+    ]
+
+
+// A line is a band turned along it: wide enough to press easily in the
+// editor, with the line itself painted down its middle.
+
+class LineEl extends Leaf [
+    x1: number = { :x1 ?? 0 },
+    y1: number = { :y1 ?? 0 },
+    x2: number = { :x2 ?? 0 },
+    y2: number = { :y2 ?? 0 },
+    weight: number = { :stroke?.width ?? 2 },
+    span: number = { Math.hypot(classroot.x2 - classroot.x1, classroot.y2 - classroot.y1) },
+    band: number = { Math.max(classroot.weight, classroot.live ? 14 / app.zoom : 0) },
+    x = { (classroot.x1 + classroot.x2) / 2 - classroot.span / 2 },
+    y = { (classroot.y1 + classroot.y2) / 2 - classroot.band / 2 },
+    width = { Math.max(1, classroot.span) },
+    height = { classroot.band },
+    pivotX = { classroot.span / 2 },
+    pivotY = { classroot.band / 2 },
+    rotation = { Math.atan2(classroot.y2 - classroot.y1, classroot.x2 - classroot.x1) * 180 / Math.PI },
+    ink: View [ y = center, width = 100%, height = { classroot.weight }, fill = { :stroke?.color ?? "#1E1A2E" } ]
+    ]
+
+
+// A text box: one run of text in one style, wrapping at the box's width and
+// as tall as its lines. Double-clicked, a field takes the run's place, set
+// in the same face, so the words stay where they were as they are edited.
+
+class TextEl extends Leaf [
+    x = { :x ?? 0 }, y = { :y ?? 0 },
+    width = { Math.max(8, :width ?? 0) },
+    run: TextRun? = { :text ?? null },
+    face: array = { app.faceFor(classroot.run?.font ?? "") },
+    size: number = { classroot.run?.size ?? 32 },
+    editing: boolean = { classroot.live && app.editingId == classroot.elId },
+    cursor = { classroot.editing ? "text" : classroot.live && app.tool == "select" ? "move" : "" },
+    height = { Math.max(this.contentHeight, classroot.size * 1.25) },
+
+    // The box's height as laid out is part of the format; the editor keeps
+    // it current for the slide being edited.
+
+    laid: number = { this.height },
+    trackChanges = ["laid"],
+    onChange() { if (classroot.live) app.ed.settleTextHeight(classroot.elId, classroot.laid) },
+
+    body: Text [ width = 100%, visible = { !classroot.editing },
+        text = { classroot.run?.content ?? "" },
+        fontFamily = { classroot.face }, fontSize = { classroot.size },
+        fontWeight = { classroot.run?.weight ?? 400 }, italic = { classroot.run?.italic ?? false },
+        textColor = { Color.from(classroot.run?.color ?? "#1E1A2E") }, textAlign = { classroot.run?.align ?? "left" } ],
+    field: TextInput [ exists = { classroot.editing }, width = 100%, multiline = true, wrap = true,
+        padding = 0, fill = null, stroke = null, spellcheck = true,
+        accessibilityLabel = "Text box", placeholder = "Type here",
+        fontFamily = { classroot.face }, fontSize = { classroot.size },
+        fontWeight = { classroot.run?.weight ?? 400 }, italic = { classroot.run?.italic ?? false },
+        textColor = { Color.from(classroot.run?.color ?? "#1E1A2E") }, textAlign = { classroot.run?.align ?? "left" },
+        value = { classroot.run?.content ?? "" },
+        commit(v: string) { app.ed.typeText(classroot.elId, v) },
+        keyBindings = { [ ({ key: "Escape", command: "finish" }) ] },
+        finish() { app.ed.endText() },
+        onBlur() { app.ed.endText() },
+        onInit() { afterSettle(() => Focus.focus(this)) }
+        ]
+    ]
+
+
+// A slide as a small picture: the slide itself, scaled to `w` wide.
+
+class Thumb [ width = { classroot.w }, height = { classroot.w * 9 / 16 }, clip = true,
+    w: number = 160,
+    art: SlideArt [ scale = { classroot.w / 1280 }, pointerEvents = "none", accessibilityHidden = true ]
+    ]

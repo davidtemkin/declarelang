@@ -1,0 +1,473 @@
+/*
+# Conduit: the pages
+
+One class per page of the RealWorld routing table, plus the frame around them
+(the navbar and the footer). Each page reads what it shows from the App's
+sources (`app.articles`, `app.article`, `app.comments`, `app.profile`, …) and
+says what a press does by calling one of the App's verbs. The forms are
+`Form`s, and each carries the `DataSource` it sends through, so a form's
+request, its pending state and its refusal live together.
+*/
+
+// ── The frame ───────────────────────────────────────────────────────────────
+
+// A link in the navbar, lit while its page is the one showing.
+
+class NavLink [ padding = [7, 0, 7, 0],
+    label: string = "",
+    icon: string = "",
+    pic: string = "",
+    showPic: boolean = false,
+    here: boolean = false,
+    ink: Color = { classroot.here ? provided("theme").navLinkActive : classroot.hovered ? provided("theme").navLinkHovered : provided("theme").navLink },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Avatar [ visible = { classroot.showPic }, size = 26, image = { classroot.pic } ],
+    Glyph [ visible = { classroot.icon != "" }, shape = { classroot.icon }, iconSize = 14, ink = { classroot.ink } ],
+    Text [ wrap = false, textColor = { classroot.ink }, text = { classroot.label } ]
+    ]
+
+
+class NavBar [ width = 100%, padding = [8, 0, 8, 0], accessibilityRole = navigation,
+    Container [
+        layout: SimpleLayout [ axis = x, align = center ],
+        Text [ wrap = false, padding = [0, 32, 4, 0], fontFamily = { app.serif }, fontSize = 24,
+            textColor = { provided("theme").ink }, link = "#/", text = "conduit" ],
+        Spacer [ ],
+        links: View [
+            layout: WrappingLayout [ spacing = 16, rowSpacing = 0, align = center, justify = end ],
+            NavLink [ label = "Home", link = "#/", here = { app.page == "home" } ],
+            NavLink [ visible = { !app.signedIn }, label = "Sign in", link = "#/login", here = { app.page == "login" } ],
+            NavLink [ visible = { !app.signedIn }, label = "Sign up", link = "#/register", here = { app.page == "register" } ],
+            NavLink [ visible = { app.signedIn }, icon = "compose", label = "New Article", link = "#/editor",
+                here = { app.page == "editor" && app.slug == "" } ],
+            NavLink [ visible = { app.signedIn }, icon = "gear", label = "Settings", link = "#/settings",
+                here = { app.page == "settings" } ],
+            NavLink [ visible = { app.signedIn && app.myName != "" }, showPic = true, pic = { app.myImage },
+                label = { app.myName }, link = { app.profileRef(app.myName) },
+                here = { app.page == "profile" && app.profileName == app.myName } ]
+            ]
+        ]
+    ]
+
+
+class Footer [ width = 100%, padding = [16, 0, 16, 0], accessibilityRole = contentinfo,
+    stroke = { [Stroke(1, provided("theme").border), null, null, null] },
+    row: View [ x = center, width = { Math.min(720, parent.width) }, padding = [0, 15, 0, 15],
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ wrap = false, fontFamily = { app.serif }, textColor = { provided("theme").ink }, link = "#/", text = "conduit" ],
+        Text [ flexes = true, fontSize = 12.8, fontWeight = light, textColor = { provided("theme").textLight },
+            text = "An interactive learning project. Code & design licensed under MIT." ]
+        ]
+    ]
+
+
+// ── Home ────────────────────────────────────────────────────────────────────
+
+class HomePage [ width = 100%,
+    layout: SimpleLayout [ axis = y ],
+    banner: View [ width = 100%, padding = 32,
+        stroke = { [Stroke(1, provided("theme").border), null, Stroke(1, provided("theme").border), null] },
+        layout: SimpleLayout [ axis = y, align = center ],
+        Text [ accessibilityRole = heading, padding = [0, 0, 8, 0], fontFamily = { app.serif }, fontSize = 56,
+            fontWeight = bold, lineHeight = 1.1, text = "conduit" ],
+        Text [ fontWeight = light, textColor = { provided("theme").textMuted }, text = "A place to share your knowledge." ]
+        ],
+    Container [ padding = [56, 15, 0, 15],
+        layout: ResponsiveLayout [ plan = { [
+            ({ from: 700, flow: "row", share: ({ main: 75, side: 25 }) }),
+            ({ from: 0, flow: "stack", share: ({ main: 100, side: 100 }) })
+            ] } ],
+        main: View [
+            layout: SimpleLayout [ axis = y ],
+            tabs: ChoiceControl [ width = 100%, accessibilityLabel = "Feeds", value = { app.feedTab },
+                commit(v: string) { app.showFeed(v as "feed" | "global" | "tag", v == "tag" ? app.tag : "") },
+                layout: SimpleLayout [ axis = x, spacing = 3 ],
+                TabItem [ visible = { app.signedIn }, choice = "feed", label = "Your Feed" ],
+                TabItem [ choice = "global", label = "Global Feed" ],
+                TabItem [ visible = { app.feedTab == "tag" }, choice = "tag", label = { "# " + app.tag } ]
+                ],
+            ArticleList [ ]
+            ],
+        side: View [ padding = [0, 0, 24, 10],
+            sidebar: View [ width = 100%, padding = [0, 0, 0, 20],
+                stroke = { [null, null, null, Stroke(1, provided("theme").border)] },
+                layout: SimpleLayout [ axis = y, spacing = 4 ],
+                Text [ text = "Popular Tags" ],
+                Text [ visible = { !app.tags.loaded }, textColor = { provided("theme").textMuted },
+                    text = { app.tags.failed ? "Could not load tags." : "Loading tags..." } ],
+                tagList: View [ width = 100%, datapath = { app.tags.value },
+                    layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+                    TagButton [ datapath = :tags[], label = { :@ },
+                        press() { app.showFeed("tag", :@) }
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── Sign in and sign up ─────────────────────────────────────────────────────
+
+// The two share one form: sign-up adds the username. A successful reply is
+// the signed-in user, handed to `app.signIn`.
+
+class AuthForm extends Form [ width = 100%,
+    register: boolean = false,
+    username: string = "",
+    email: string = "",
+    password: string = "",
+    save: DataSource [ method = "POST", schema = UserReply,
+        url = { app.api + (classroot.register ? "/users" : "/users/login") },
+        body = { classroot.payload() },
+        onLoad() { const u = this.value?.user; if (u != null) app.signIn(u) }
+        ],
+    source = { classroot.save },
+    payload() -> object {
+        return register ? ({ user: ({ username: username, email: email, password: password }) })
+            : ({ user: ({ email: email, password: password }) })
+        },
+
+    // The service's refusals are listed above the fields, as the templates
+    // show them, rather than laid on each field.
+
+    refusal(body: any) -> FormProblem[] { return [] },
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    ErrorList [ lines = { classroot.save.failed ? errorLines(classroot.save.errorBody, classroot.error) : [] } ],
+    Input [ visible = { classroot.register }, placeholder = "Username", purpose = username, value <-> classroot.username ],
+    Input [ placeholder = "Email", purpose = email, value <-> classroot.email ],
+    Input [ placeholder = "Password", purpose = { classroot.register ? "newPassword" : "password" }, concealed = true,
+        value <-> classroot.password ],
+    actions: View [ width = 100%,
+        Btn [ x = end, kind = "primary", size = "lg", label = { classroot.register ? "Sign up" : "Sign in" },
+            press() { classroot.submit() }
+            ]
+        ]
+    ]
+
+
+class AuthPage [ width = 100%,
+    register: boolean = false,
+    Container [ padding = [24, 15, 0, 15],
+        Column [ share = 0.5,
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            Text [ width = 100%, accessibilityRole = heading, textAlign = center, fontSize = 40, fontWeight = medium,
+                text = { classroot.register ? "Sign up" : "Sign in" } ],
+            Text [ x = center, padding = [0, 0, 8, 0], textColor = { provided("theme").brand }, underline = { hovered },
+                link = { classroot.register ? "#/login" : "#/register" },
+                text = { classroot.register ? "Have an account?" : "Need an account?" } ],
+            AuthForm [ register = { classroot.register } ]
+            ]
+        ]
+    ]
+
+
+// ── Settings ────────────────────────────────────────────────────────────────
+
+// Each field starts from the signed-in account and is the person's once they
+// type in it (a computed default). Only what is filled in is sent; a new
+// password only when one is typed.
+
+class SettingsForm extends Form [ width = 100%,
+    image: string = { app.user?.image ?? "" },
+    username: string = { app.user?.username ?? "" },
+    bio: string = { app.user?.bio ?? "" },
+    email: string = { app.user?.email ?? "" },
+    password: string = "",
+    save: DataSource [ method = "PUT", schema = UserReply,
+        url = { app.api + "/user" },
+        headers = { app.authHeaders },
+        body = { classroot.payload() },
+        onLoad() {
+            const u = this.value?.user
+            if (u != null) { app.signIn(u); app.location = app.profilePath(u.username) }
+            }
+        ],
+    source = { classroot.save },
+    payload() -> object {
+        const changes = ({ image: image.trim(), username: username.trim(), bio: bio, email: email.trim() })
+        return ({ user: password == "" ? changes : ({ ...changes, password: password }) })
+        },
+    refusal(body: any) -> FormProblem[] { return [] },
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    ErrorList [ lines = { classroot.save.failed ? errorLines(classroot.save.errorBody, classroot.error) : [] } ],
+    Input [ large = false, placeholder = "URL of profile picture", purpose = url, value <-> classroot.image ],
+    Input [ placeholder = "Your Name", purpose = username, value <-> classroot.username ],
+    Input [ rows = 8, placeholder = "Short bio about you", value <-> classroot.bio ],
+    Input [ placeholder = "Email", purpose = email, value <-> classroot.email ],
+    Input [ placeholder = "New Password", purpose = newPassword, concealed = true, value <-> classroot.password ],
+    actions: View [ width = 100%,
+        Btn [ x = end, kind = "primary", size = "lg", label = "Update Settings",
+            press() { classroot.submit() }
+            ]
+        ]
+    ]
+
+
+class SettingsPage [ width = 100%,
+    Container [ padding = [24, 15, 0, 15],
+        Column [ share = 0.5,
+            layout: SimpleLayout [ axis = y, spacing = 16 ],
+            Text [ width = 100%, accessibilityRole = heading, textAlign = center, fontSize = 40, fontWeight = medium,
+                text = "Your Settings" ],
+            SettingsForm [ ],
+            Rule [ ],
+            Btn [ size = "md", tone = { provided("theme").danger }, label = "Or click here to logout.",
+                press() { app.signOut() }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── The editor ──────────────────────────────────────────────────────────────
+
+// A new article, or one being edited (`editSlug`). Editing, every field
+// starts from the article as it loads and is the person's once they type.
+// A tag is added with Return in the tags field, and removed by pressing it.
+
+class EditorForm extends Form [ width = 100%,
+    editSlug: string = "",
+    original: Article? = { app.loadedArticle(classroot.editSlug) },
+    heading: string = { classroot.original?.title ?? "" },
+    about: string = { classroot.original?.description ?? "" },
+    markdown: string = { classroot.original?.body ?? "" },
+    tagList: string[] = { classroot.original?.tagList ?? [] },
+    tagEntry: string = "",
+    tagData: Dataset [ contents = { { tags: classroot.tagList } } ],
+    addTag() {
+        const t = tagEntry.trim()
+        if (t != "" && !tagList.includes(t)) tagList = [...tagList, t]
+        tagEntry = ""
+        },
+    removeTag(t: string) { tagList = tagList.filter((x) => x != t) },
+
+    save: DataSource [ schema = ArticleReply,
+        method = { classroot.editSlug == "" ? "POST" : "PUT" },
+        url = { classroot.editSlug == "" ? app.api + "/articles" : app.articleUrl(classroot.editSlug) },
+        headers = { app.authHeaders },
+        body = { { article: { title: classroot.heading, description: classroot.about, body: classroot.markdown,
+            tagList: classroot.tagList } } },
+        onLoad() { const a = this.value?.article; if (a != null) app.published(a) }
+        ],
+    source = { classroot.save },
+    refusal(body: any) -> FormProblem[] { return [] },
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    ErrorList [ lines = { classroot.save.failed ? errorLines(classroot.save.errorBody, classroot.error) : [] } ],
+    Input [ placeholder = "Article Title", value <-> classroot.heading ],
+    Input [ large = false, placeholder = "What's this article about?", value <-> classroot.about ],
+    Input [ large = false, rows = 8, placeholder = "Write your article (in markdown)", value <-> classroot.markdown ],
+    tags: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Input [ large = false, placeholder = "Enter tags", value <-> classroot.tagEntry,
+            onEnter() { classroot.addTag() }
+            ],
+        chips: View [ width = 100%, datapath = { classroot.tagData.value },
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+            TagButton [ datapath = :tags[], removable = true, label = { :@ },
+                press() { classroot.removeTag(:@) }
+                ]
+            ]
+        ],
+    actions: View [ width = 100%,
+        Btn [ x = end, kind = "primary", size = "lg", label = "Publish Article",
+            press() { classroot.submit() }
+            ]
+        ]
+    ]
+
+
+class EditorPage [ width = 100%,
+    editSlug: string = "",
+    Container [ padding = [24, 15, 0, 15],
+        Column [ share = 0.8333,
+            EditorForm [ editSlug = { classroot.editSlug } ]
+            ]
+        ]
+    ]
+
+
+// ── An article ──────────────────────────────────────────────────────────────
+
+// The byline with the article's actions: Edit and Delete for its author;
+// Follow and Favorite for everyone else.
+
+class ArticleMeta [
+    art: Article? = null,
+    mine: boolean = { classroot.art != null && classroot.art.author.username == app.myName },
+    authorName: string = { classroot.art?.author.username ?? "" },
+    following: boolean = { classroot.art?.author.following ?? false },
+    favorited: boolean = { classroot.art?.favorited ?? false },
+    favorites: number = { classroot.art?.favoritesCount ?? 0 },
+    nameInk: Color = { provided("theme").brand },
+    layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = center ],
+    Avatar [ link = { app.profileRef(classroot.authorName) }, accessibilityLabel = { classroot.authorName },
+        image = { classroot.art?.author.image ?? "" } ],
+    Byline [ padding = [0, 16, 0, 0], name = { classroot.authorName }, date = { classroot.art?.createdAt ?? "" },
+        nameInk = { classroot.nameInk } ],
+    Btn [ visible = { !classroot.mine }, icon = "plus", tone = { provided("theme").secondary }, on = { classroot.following },
+        label = { (classroot.following ? "Unfollow " : "Follow ") + classroot.authorName },
+        press() { app.toggleFollow(classroot.authorName, classroot.following) }
+        ],
+    Btn [ visible = { !classroot.mine }, icon = "heart", on = { classroot.favorited },
+        label = { classroot.favorited ? "Unfavorite Article" : "Favorite Article" },
+        counter = { " (" + classroot.favorites + ")" },
+        press() { if (classroot.art != null) app.toggleFavorite(classroot.art) }
+        ],
+    Btn [ visible = { classroot.mine }, icon = "edit", tone = { provided("theme").secondary }, label = "Edit Article",
+        press() { app.location = app.editorPath(app.slug) }
+        ],
+    Btn [ visible = { classroot.mine }, icon = "trash", tone = { provided("theme").danger }, label = "Delete Article",
+        press() { app.deleteArticle() }
+        ]
+    ]
+
+
+// The comment box, for a signed-in reader.
+
+class CommentForm extends Form [ width = 100%, clip = true, cornerRadius = 12,
+    stroke = { Stroke(1, provided("theme").border) },
+    draft: string = "",
+    save: DataSource [ method = "POST", schema = CommentReply,
+        url = { app.commentsUrl },
+        headers = { app.authHeaders },
+        body = { { comment: { body: classroot.draft } } },
+        onLoad() {
+            const c = this.value?.comment
+            if (c != null) app.comments.insert(["comments"], 0, c)
+            classroot.draft = ""
+            }
+        ],
+    source = { classroot.save },
+    refusal(body: any) -> FormProblem[] { return [] },
+    layout: SimpleLayout [ axis = y ],
+    ErrorList [ padding = [12, 20, 0, 36],
+        lines = { classroot.save.failed ? errorLines(classroot.save.errorBody, classroot.error) : [] } ],
+    Input [ large = false, rows = 3, padding = 20, cornerRadius = 0, stroke = null, placeholder = "Write a comment...",
+        value <-> classroot.draft ],
+    foot: View [ width = 100%, padding = [12, 20, 12, 20], fill = { provided("theme").cardFooter },
+        stroke = { [Stroke(1, provided("theme").border), null, null, null] },
+        layout: SimpleLayout [ axis = x, align = center ],
+        Avatar [ size = 30, image = { app.myImage } ],
+        Spacer [ ],
+        Btn [ kind = "primary", bold = true, label = "Post Comment",
+            press() { classroot.submit() }
+            ]
+        ]
+    ]
+
+
+class CommentCard [ width = 100%, clip = true, cornerRadius = 12,
+    commentId: number = { :id ?? 0 },
+    author: string = { :author.username ?? "" },
+    stroke = { Stroke(1, provided("theme").border) },
+    shadow = { Shadow(0, 1, 2, provided("theme").cardShadow) },
+    layout: SimpleLayout [ axis = y ],
+    View [ width = 100%, padding = 20,
+        Text [ width = 100%, text = { :body ?? "" } ]
+        ],
+    foot: View [ width = 100%, padding = [12, 20, 12, 20], fill = { provided("theme").cardFooter },
+        stroke = { [Stroke(1, provided("theme").border), null, null, null] },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Avatar [ size = 20, link = { app.profileRef(classroot.author) }, accessibilityLabel = { classroot.author },
+            image = { :author.image ?? "" } ],
+        Text [ wrap = false, fontSize = 12.8, fontWeight = light, link = { app.profileRef(classroot.author) },
+            textColor = { provided("theme").brand }, underline = { hovered }, text = { classroot.author } ],
+        Text [ wrap = false, fontSize = 12.8, fontWeight = light, textColor = { provided("theme").textLight },
+            text = { longDate(:createdAt ?? "") } ],
+        Spacer [ ],
+        IconBtn [ visible = { classroot.author == app.myName }, shape = "trash", accessibilityLabel = "Delete comment",
+            press() { app.deleteComment(classroot.commentId) }
+            ]
+        ]
+    ]
+
+
+class ArticlePage [ width = 100%,
+    art: Article? = { app.loadedArticle(app.slug) },
+    layout: SimpleLayout [ axis = y ],
+    note: Text [ x = center, padding = 32, visible = { classroot.art == null },
+        textColor = { provided("theme").textMuted },
+        text = { app.article.failed ? "This article could not be found." : "Loading article..." } ],
+    banner: View [ width = 100%, padding = [32, 0, 32, 0], visible = { classroot.art != null },
+        stroke = { [Stroke(1, provided("theme").border), null, Stroke(1, provided("theme").border), null] },
+        reading: View [ x = center, width = { Math.min(720, parent.width - 30) },
+            layout: SimpleLayout [ axis = y, spacing = 32 ],
+            Text [ width = 100%, accessibilityRole = heading, fontSize = 44.8, fontWeight = semibold, lineHeight = 1.1,
+                textColor = { provided("theme").ink }, text = { classroot.art?.title ?? "" } ],
+            ArticleMeta [ art = { classroot.art }, nameInk = { provided("theme").text } ]
+            ]
+        ],
+    page: View [ x = center, width = { Math.min(720, parent.width - 30) }, padding = [32, 0, 0, 0],
+        visible = { classroot.art != null },
+        layout: SimpleLayout [ axis = y, spacing = 24 ],
+        Markdown [ width = 100%, fontFamily = { app.serif }, fontSize = 19.2, lineHeight = 1.5,
+            text = { classroot.art?.body ?? "" } ],
+        tagRow: View [ width = 100%, datapath = { classroot.art },
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+            TagPill [ datapath = :tagList[], label = { :@ } ]
+            ],
+        Rule [ ],
+        ArticleMeta [ x = center, art = { classroot.art } ],
+        comments: View [ width = 100%, padding = [24, 0, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            CommentForm [ exists = { app.signedIn } ],
+            invite: View [ visible = { !app.signedIn },
+                layout: SimpleLayout [ axis = x, spacing = 4 ],
+                Text [ link = "#/login", textColor = { provided("theme").brand }, text = "Sign in" ],
+                Text [ text = "or" ],
+                Text [ link = "#/register", textColor = { provided("theme").brand }, text = "sign up" ],
+                Text [ text = "to add comments on this article." ]
+                ],
+            list: View [ width = 100%, datapath = { app.comments.value },
+                layout: SimpleLayout [ axis = y, spacing = 12 ],
+                CommentCard [ datapath = :comments[] ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── A profile ───────────────────────────────────────────────────────────────
+
+class ProfilePage [ width = 100%,
+    who: Profile? = { app.loadedProfile() },
+    mine: boolean = { app.profileName == app.myName },
+    following: boolean = { classroot.who?.following ?? false },
+    layout: SimpleLayout [ axis = y ],
+    info: View [ width = 100%, padding = [32, 0, 16, 0],
+        stroke = { [Stroke(1, provided("theme").border), null, Stroke(1, provided("theme").border), null] },
+        Container [
+            layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+            Avatar [ size = 100, image = { classroot.who?.image ?? "" } ],
+            Text [ accessibilityRole = heading, fontSize = 24, fontWeight = bold,
+                text = { classroot.who?.username ?? (app.profile.failed ? "No such profile" : app.profileName) } ],
+            Text [ width = { Math.min(450, parent.contentBox("width")) }, textAlign = center, fontWeight = light,
+                visible = { (classroot.who?.bio ?? "") != "" },
+                textColor = { provided("theme").textLighter }, text = { classroot.who?.bio ?? "" } ],
+            actions: View [ width = 100%, visible = { app.signedIn || !classroot.mine },
+                Btn [ x = end, visible = { !classroot.mine }, icon = "plus", tone = { provided("theme").actionInk },
+                    on = { classroot.following },
+                    label = { (classroot.following ? "Unfollow " : "Follow ") + app.profileName },
+                    press() { app.toggleFollow(app.profileName, classroot.following) }
+                    ],
+                Btn [ x = end, visible = { classroot.mine }, icon = "gear", tone = { provided("theme").actionInk },
+                    label = "Edit Profile Settings",
+                    press() { app.location = "/settings" }
+                    ]
+                ]
+            ]
+        ],
+    Container [ padding = [24, 15, 0, 15],
+        Column [ share = 0.8333,
+            layout: SimpleLayout [ axis = y ],
+            tabs: ChoiceControl [ width = 100%, accessibilityLabel = "Articles", value = { app.profileTab },
+                commit(v: string) { app.location = app.profilePath(app.profileName) + (v == "favorites" ? "/favorites" : "") },
+                layout: SimpleLayout [ axis = x, spacing = 3 ],
+                TabItem [ choice = "articles", label = "My Articles" ],
+                TabItem [ choice = "favorites", label = "Favorited Articles" ]
+                ],
+            ArticleList [ ]
+            ]
+        ]
+    ]

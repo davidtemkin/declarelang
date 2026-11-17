@@ -1,0 +1,598 @@
+/*
+# Presentify: the model
+
+What a presentation is, and how it reaches the service. Nothing here draws.
+
+- **The shape of the data** — the schemas, which are the service's format
+  (`task/api/API.md`) plus the one field the app adds to a slide: `key`, its
+  identity in this window, which outlives the server id (a slide made while
+  the service is away has no id yet).
+- **Geometry** — plain functions of their arguments: an element's box, a
+  moved or resized copy, ids, the wire form. A group has no box of its own;
+  its box is its children's.
+- **`Deck`** — the open presentation, the working copy every view binds to.
+  Every write goes through its verbs, and each bumps `revision`, which is
+  what the saver watches.
+- **`History`** — undo and redo, as whole-document snapshots taken around
+  one thing the person did.
+- **`Saver`** — reconciles the working copy with the service, one request at
+  a time, and says which of the three save states is true.
+*/
+
+// ── Geometry ────────────────────────────────────────────────────────────────
+
+script {
+    type Outline = { color: string; width: number }
+    type TextStyleT = { content: string; font: string; size: number; weight: number; italic: boolean; color: string; align: string }
+    type Elem = El
+    type Box = { x: number; y: number; w: number; h: number }
+    type Pt = { x: number; y: number }
+
+    function emptyBox(): Box { return { x: 0, y: 0, w: 0, h: 0 } }
+
+    function unionBox(bs: Box[]): Box {
+        if (bs.length == 0) return emptyBox()
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+        for (const b of bs) {
+            x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y)
+            x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h)
+        }
+        return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+    }
+
+    function boxOf(e: Elem): Box {
+        if (e.kind == "group") return unionBox((e.children ?? []).map(boxOf))
+        if (e.kind == "line") {
+            const ax = e.x1 ?? 0, ay = e.y1 ?? 0, bx = e.x2 ?? 0, by = e.y2 ?? 0
+            return { x: Math.min(ax, bx), y: Math.min(ay, by), w: Math.abs(bx - ax), h: Math.abs(by - ay) }
+        }
+        return { x: e.x ?? 0, y: e.y ?? 0, w: e.width ?? 0, h: e.height ?? 0 }
+    }
+
+    function boxesOf(els: Elem[]): Box { return unionBox(els.map(boxOf)) }
+
+    function boxesTouch(a: Box, b: Box): boolean {
+        return a.x <= b.x + Math.max(b.w, 1) && b.x <= a.x + a.w && a.y <= b.y + Math.max(b.h, 1) && b.y <= a.y + a.h
+    }
+
+    function moved(e: Elem, dx: number, dy: number): Elem {
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => moved(c, dx, dy)) }
+        if (e.kind == "line") return { ...e, x1: (e.x1 ?? 0) + dx, y1: (e.y1 ?? 0) + dy, x2: (e.x2 ?? 0) + dx, y2: (e.y2 ?? 0) + dy }
+        return { ...e, x: (e.x ?? 0) + dx, y: (e.y ?? 0) + dy }
+    }
+
+    // A copy of `e` carried from the box `from` to the box `to`. A rectangle's
+    // corner radius is a length and stays; a text box keeps its type size and
+    // its height follows its wrapped lines.
+    function mapped(e: Elem, from: Box, to: Box): Elem {
+        const sx = from.w > 0 ? to.w / from.w : 1
+        const sy = from.h > 0 ? to.h / from.h : 1
+        const fx = (v: number) => to.x + (v - from.x) * sx
+        const fy = (v: number) => to.y + (v - from.y) * sy
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => mapped(c, from, to)) }
+        if (e.kind == "line") return { ...e, x1: fx(e.x1 ?? 0), y1: fy(e.y1 ?? 0), x2: fx(e.x2 ?? 0), y2: fy(e.y2 ?? 0) }
+        const w = Math.max(1, (e.width ?? 0) * sx)
+        if (e.kind == "text") return { ...e, x: fx(e.x ?? 0), y: fy(e.y ?? 0), width: w }
+        return { ...e, x: fx(e.x ?? 0), y: fy(e.y ?? 0), width: w, height: Math.max(1, (e.height ?? 0) * sy) }
+    }
+
+    function idsIn(els: Elem[]): string[] {
+        const out: string[] = []
+        const walk = (e: Elem) => { out.push(e.id); (e.children ?? []).forEach(walk) }
+        els.forEach(walk)
+        return out
+    }
+
+    function freshId(taken: Set<string>): string {
+        let id = ""
+        do { id = "e" + Math.random().toString(36).slice(2, 8) } while (taken.has(id))
+        taken.add(id)
+        return id
+    }
+
+    // A deep copy with new ids, none of them in `taken` (which grows).
+    function withFreshIds(e: Elem, taken: Set<string>): Elem {
+        const c: Elem = { ...e, id: freshId(taken) }
+        if (e.children) c.children = e.children.map((k) => withFreshIds(k, taken))
+        return c
+    }
+
+    function findIn(els: Elem[], id: string): Elem | null {
+        for (const e of els) {
+            if (e.id == id) return e
+            const inner = findIn(e.children ?? [], id)
+            if (inner) return inner
+        }
+        return null
+    }
+
+    // The element `id` replaced by what `fn` makes of it, wherever it is; a
+    // group left with fewer than two children dissolves into what is left.
+    function replaced(els: Elem[], id: string, fn: (e: Elem) => Elem | null): Elem[] {
+        const out: Elem[] = []
+        for (const e of els) {
+            if (e.id == id) { const r = fn(e); if (r) out.push(r); continue }
+            if (e.kind == "group") {
+                const kids = replaced(e.children ?? [], id, fn)
+                if (kids.length >= 2) out.push({ ...e, children: kids })
+                else out.push(...kids)
+                continue
+            }
+            out.push(e)
+        }
+        return out
+    }
+
+    // The top-level element that holds `id` (itself, if it is top-level).
+    function topOf(els: Elem[], id: string): string {
+        for (const e of els) if (e.id == id || findIn(e.children ?? [], id)) return e.id
+        return ""
+    }
+
+    // The group whose direct child `id` is, or "" at the top level.
+    function parentOf(els: Elem[], id: string, within: string = ""): string {
+        for (const e of els) {
+            if (e.id == id) return within
+            if (e.children) { const p = parentOf(e.children, id, e.id); if (p != "") return p }
+        }
+        return ""
+    }
+
+    // The siblings `id` sits among.
+    function siblingsOf(els: Elem[], id: string): Elem[] {
+        const p = parentOf(els, id)
+        return p == "" ? els : (findIn(els, p)?.children ?? [])
+    }
+
+    function leavesOf(e: Elem): Elem[] { return e.kind == "group" ? (e.children ?? []).flatMap(leavesOf) : [e] }
+
+    // Only the fields the format defines for each kind: the service refuses others.
+    function wireEl(e: Elem): Elem {
+        const r = (n: number | undefined) => Math.round((n ?? 0) * 100) / 100
+        const sk = (s: Outline | null | undefined) => s ? { color: s.color, width: s.width } : null
+        switch (e.kind) {
+            case "group": return { id: e.id, kind: "group", children: (e.children ?? []).map(wireEl) }
+            case "line": return { id: e.id, kind: "line", x1: r(e.x1), y1: r(e.y1), x2: r(e.x2), y2: r(e.y2),
+                stroke: sk(e.stroke) ?? { color: "#1F2328", width: 2 } }
+            case "text": return { id: e.id, kind: "text", x: r(e.x), y: r(e.y), width: Math.max(0, r(e.width)), height: Math.max(0, r(e.height)),
+                keepProportions: e.keepProportions ?? false, text: { ...e.text! } }
+            case "ellipse": return { id: e.id, kind: "ellipse", x: r(e.x), y: r(e.y), width: Math.max(0, r(e.width)), height: Math.max(0, r(e.height)),
+                fill: e.fill ?? null, stroke: sk(e.stroke), keepProportions: e.keepProportions ?? false }
+            default: return { id: e.id, kind: "rect", x: r(e.x), y: r(e.y), width: Math.max(0, r(e.width)), height: Math.max(0, r(e.height)),
+                fill: e.fill ?? null, stroke: sk(e.stroke), cornerRadius: Math.max(0, r(e.cornerRadius)), keepProportions: e.keepProportions ?? false }
+        }
+    }
+
+    function wireJson(background: string, els: Elem[]): string {
+        return JSON.stringify({ background: background, elements: els.map(wireEl) })
+    }
+
+    // An ellipse inscribed in a w × h box, as a clip path.
+    function ellipsePath(w: number, h: number): string {
+        const rx = w / 2, ry = h / 2
+        return `M 0 ${ry} A ${rx} ${ry} 0 1 0 ${w} ${ry} A ${rx} ${ry} 0 1 0 0 ${ry} Z`
+    }
+
+    // How light a colour is, 0 to 1.
+    function lightness(hex: string): number {
+        const h = hex.replace("#", "")
+        if (h.length < 6) return 1
+        const v = (i: number) => parseInt(h.slice(i, i + 2), 16) / 255
+        return 0.2126 * v(0) + 0.7152 * v(2) + 0.0722 * v(4)
+    }
+
+    // A colour from the data as the renderer takes it, or `fallback` when it isn't one.
+    function paint(s: string | null | undefined, fallback: Color): Color {
+        return s != null && hexOk(s) ? s as Color : fallback
+    }
+
+    function hexOk(s: string): boolean { return /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(s) }
+
+    // The nearest of `cands` to any of `edges`, within `tol`: how far to move, and where the guide is.
+    function snapTo(edges: number[], cands: number[], tol: number): { d: number; at: number } | null {
+        let best: { d: number; at: number } | null = null
+        for (const e of edges) for (const c of cands) {
+            const d = c - e
+            if (Math.abs(d) <= tol && (best == null || Math.abs(d) < Math.abs(best.d))) best = { d: d, at: c }
+        }
+        return best
+    }
+
+    function ago(iso: string, now: number): string {
+        const t = Date.parse(iso)
+        if (isNaN(t)) return ""
+        const s = Math.max(0, Math.round((now - t) / 1000))
+        if (s < 45) return "Edited just now"
+        const m = Math.round(s / 60)
+        if (m < 60) return `Edited ${m} minute${m == 1 ? "" : "s"} ago`
+        const h = Math.round(m / 60)
+        if (h < 24) return `Edited ${h} hour${h == 1 ? "" : "s"} ago`
+        const d = Math.round(h / 24)
+        if (d < 7) return `Edited ${d} day${d == 1 ? "" : "s"} ago`
+        return "Edited " + new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    }
+
+    function localKey(): string { return "k" + Math.random().toString(36).slice(2, 10) }
+
+    type SlideMeta = { id: string; version: number; saved: string }
+    type MetaMap = { [key: string]: SlideMeta }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Outline [ color: string, width: number ]
+schema TextRun [ content: string, font: string, size: number, weight: number, italic: boolean, color: string,
+    align: "left" | "center" | "right" ]
+schema El [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    fill?: string, stroke?: Outline, cornerRadius?: number, keepProportions?: boolean,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    text?: TextRun, children[]?: El ]
+
+// A slide in this window: `key` is its identity here; the server's id and
+// version are the saver's business.
+
+schema SlideRec [ key: string, background: string, elements[]: El ]
+schema DeckDoc [ title: string, slides[]: SlideRec ]
+
+// What the service sends.
+
+schema ServerSlide [ id: string, deckId: string, version: number, background: string, elements[]: El ]
+schema ServerDeck [ id: string, title: string, version: number, updatedAt: string, slideOrder[]: string, thumbnailSlideId: string ]
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number, thumbnailSlideId: string ]
+schema DeckList [ decks[]: DeckSummary ]
+schema SlideList [ slides[]: ServerSlide ]
+schema NewDeck [ deck: ServerDeck, slides[]: ServerSlide ]
+schema Refusal [ error: string, message?: string, field?: string ]
+
+// A slide someone else changed while this window had it.
+
+schema Conflict [ key: string, current: ServerSlide ]
+
+// One undoable state: the document and where the person was in it.
+
+schema Snap [ doc: DeckDoc, cur: string, sel[]: string, scope: string ]
+schema Step [ label: string, merge: string, at: number, before: Snap, after: Snap ]
+
+
+// ── The open presentation ───────────────────────────────────────────────────
+
+class Deck extends Dataset [ schema = DeckDoc,
+    revision: number = 0,       // moves on with every write
+    silent: number = 0,         // writes that are not the person's own (a text box's measured height)
+
+    title() -> string { return this.value?.title ?? "" },
+    slides() -> SlideRec[] { return this.value?.slides ?? [] },
+    at(key: string) -> number { return this.slides().findIndex((s) => s.key == key) },
+    slide(key: string) -> SlideRec? { return this.slides().find((s) => s.key == key) ?? null },
+    els(key: string) -> El[] { return this.slide(key)?.elements ?? [] },
+    keys() -> string[] { return this.slides().map((s) => s.key) },
+
+    touched() { this.revision = this.revision + 1 },
+
+    load(title: string, slides: ServerSlide[]) {
+        this.set([], ({ title: title, slides: slides.map((s) => ({ key: s.id, background: s.background, elements: s.elements })) }))
+        },
+    restore(d: DeckDoc) { this.set([], structuredClone(d)); this.touched() },
+
+    setTitle(t: string) { this.set(["title"], t); this.touched() },
+    setEls(key: string, els: El[]) {
+        const i = this.at(key)
+        if (i < 0) return
+        this.set(["slides", i, "elements"], els)
+        this.touched()
+        },
+    setBackground(key: string, c: string) {
+        const i = this.at(key)
+        if (i >= 0) { this.set(["slides", i, "background"], c); this.touched() }
+        },
+    replaceSlide(key: string, background: string, els: El[]) {
+        const i = this.at(key)
+        if (i >= 0) { this.set(["slides", i], ({ key: key, background: background, elements: els })); this.touched() }
+        },
+    insertAfter(key: string, rec: SlideRec) {
+        this.insert(["slides"], this.at(key) + 1, rec)
+        this.touched()
+        },
+    remove(key: string) {
+        const i = this.at(key)
+        if (i >= 0 && this.slides().length > 1) { this.removeAt(["slides"], i); this.touched() }
+        },
+    moveTo(key: string, to: number) {
+        const i = this.at(key)
+        if (i < 0 || i == to) return
+        this.move(["slides"], i, to)
+        this.touched()
+        },
+
+    // A text box's height is "as last laid out": the view measures it and says so here.
+
+    syncHeight(key: string, id: string, h: number) {
+        const e = findIn(this.els(key), id)
+        if (e == null || Math.abs((e.height ?? 0) - h) < 0.5) return
+        this.setEls(key, replaced(this.els(key), id, (x) => ({ ...x, height: h })))
+        this.silent = this.silent + 1
+        }
+    ]
+
+
+// ── Undo and redo ───────────────────────────────────────────────────────────
+//
+// A step holds the state before and after one thing the person did. Steps
+// with the same `merge` key, close together, are one step: a slider dragged,
+// a stepper pressed three times, a title typed.
+
+class History extends Node [
+    past: Step[] = [],
+    future: Step[] = [],
+    canUndo: boolean = { this.past.length > 0 },
+    canRedo: boolean = { this.future.length > 0 },
+    undoLabel: string = { this.past.length > 0 ? this.past[this.past.length - 1].label : "" },
+    redoLabel: string = { this.future.length > 0 ? this.future[this.future.length - 1].label : "" },
+
+    clear() { past = []; future = [] },
+    record(label: string, merge: string, before: Snap, after: Snap) {
+        const now = Date.now()
+        const top = past.length > 0 ? past[past.length - 1] : null
+        if (top != null && merge != "" && top.merge == merge && now - top.at < 1500) {
+            past = [...past.slice(0, -1), ({ label: label, merge: merge, at: now, before: top.before, after: after })]
+        } else {
+            past = [...past.slice(-199), ({ label: label, merge: merge, at: now, before: before, after: after })]
+        }
+        future = []
+        },
+    takeUndo() -> Step? {
+        if (past.length == 0) return null
+        const s = past[past.length - 1]
+        past = past.slice(0, -1)
+        future = [...future, s]
+        return s
+        },
+    takeRedo() -> Step? {
+        if (future.length == 0) return null
+        const s = future[future.length - 1]
+        future = future.slice(0, -1)
+        past = [...past, s]
+        return s
+        },
+
+    // A step that changed nothing a person can undo is dropped, not kept.
+
+    seal() { if (past.length > 0) past = [...past.slice(0, -1), ({ ...past[past.length - 1], merge: "" })] }
+    ]
+
+
+// ── Saving ──────────────────────────────────────────────────────────────────
+//
+// The saver compares the working copy with what the service last accepted
+// and sends one request at a time until they agree: slides made here are
+// created, slides gone from here are deleted, changed slides are put, and the
+// deck's order and title are patched. Anything refused for want of a service
+// is simply still different, so it goes again on the next try: nothing is
+// lost by a failure, and nothing is queued twice.
+
+class Saver extends Node [
+    base: string = "",
+    deckId: string = "",
+    deckVersion: number = 0,
+    serverOrder: string[] = [],
+    serverTitle: string = "",
+    meta: MetaMap = { ({}) },
+    conflicts: Conflict[] = [],
+
+    pending: boolean = false,       // the working copy may differ from the service's
+    busy: boolean = false,          // a request is out
+    unreachable: boolean = false,   // the last request didn't reach the service
+    status: "saved" | "saving" | "offline" = { this.unreachable ? "offline" : this.pending || this.busy ? "saving" : "saved" },
+
+    rev: number = { app.doc.revision },
+    trackChanges = ["rev"],
+    onChange() { if (this.deckId != "") { this.pending = true; this.soon() } },
+
+    _timer: object = null,
+    soon() {
+        (this._timer as { cancel(): void } | null)?.cancel()
+        this._timer = afterDelay(700, () => this.pump())
+        },
+    now() { (this._timer as { cancel(): void } | null)?.cancel(); this.pump() },
+
+    // A deck as the service gave it: everything here agrees with the service.
+
+    adopt(deck: ServerDeck, slides: ServerSlide[]) {
+        const m: MetaMap = {}
+        slides.forEach((s) => { m[s.id] = { id: s.id, version: s.version, saved: wireJson(s.background, s.elements) } })
+        this.meta = m
+        this.deckId = deck.id
+        this.deckVersion = deck.version
+        this.serverOrder = deck.slideOrder
+        this.serverTitle = deck.title
+        this.conflicts = []
+        this.pending = false
+        this.unreachable = false
+        },
+    close() { this.deckId = ""; this.pending = false; this.busy = false; this.conflicts = [] },
+
+    conflictFor(key: string) -> Conflict? { return this.conflicts.find((c) => c.key == key) ?? null },
+    idOf(key: string) -> string { return this.meta[key]?.id ?? "" },
+
+    // ── the request: one source, aimed afresh for each step
+
+    reqKind: string = "",
+    reqKey: string = "",
+    reqSent: string = "",
+    reqUrl: string = "",
+    reqMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+    reqBody: object = null,
+    req: DataSource [ url = { classroot.reqUrl }, method = { classroot.reqMethod }, body = { classroot.reqBody },
+        timeout = 8,
+        onLoad() { classroot.landed() },
+        onError() { classroot.refused() }
+        ],
+
+    send(kind: string, key: string, method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", url: string, body: object, sent: string) {
+        this.busy = true
+        this.reqKind = kind
+        this.reqKey = key
+        this.reqMethod = method
+        this.reqUrl = this.base + url
+        this.reqBody = body
+        this.reqSent = sent
+        this.req.fetch()
+        },
+
+    pump() {
+        if (this.busy || this.deckId == "") return
+        const doc = app.doc
+        const local = doc.slides()
+        const blocked = (k: string) => this.conflicts.some((c) => c.key == k)
+
+        // 1. slides made here
+        for (const s of local) {
+            if (this.meta[s.key] == null) {
+                const body = ({ background: s.background, elements: s.elements.map(wireEl) })
+                this.send("create", s.key, "POST", "/api/decks/" + this.deckId + "/slides", body, JSON.stringify(body))
+                return
+            }
+        }
+        // 2. slides gone from here
+        for (const k of Object.keys(this.meta)) {
+            if (!local.some((s) => s.key == k)) {
+                this.send("delete", k, "DELETE", "/api/slides/" + this.meta[k].id, null, "")
+                return
+            }
+        }
+        // 3. slides changed here
+        for (const s of local) {
+            if (blocked(s.key)) continue
+            const json = wireJson(s.background, s.elements)
+            const m = this.meta[s.key]
+            if (json != m.saved) {
+                const body = ({ version: m.version, background: s.background, elements: s.elements.map(wireEl) })
+                this.send("put", s.key, "PUT", "/api/slides/" + m.id, body, json)
+                return
+            }
+        }
+        // 4. the deck: its order and its title
+        const ids = local.map((s) => this.meta[s.key].id)
+        const extra = this.serverOrder.filter((id) => !ids.includes(id) && !Object.values(this.meta).some((m) => m.id == id))
+        const order = [...ids, ...extra]
+        if (order.join(",") != this.serverOrder.join(",") || doc.title() != this.serverTitle) {
+            this.send("deck", "", "PATCH", "/api/decks/" + this.deckId,
+                ({ version: this.deckVersion, title: doc.title(), slideOrder: order }), "")
+            return
+        }
+        this.pending = this.conflicts.length > 0
+        },
+
+    landed() {
+        const v = this.req.value
+        const k = this.reqKey
+        this.busy = false
+        this.unreachable = false
+        if (this.reqKind == "create") {
+            const r = v as { slide: ServerSlide; deck: ServerDeck }
+            const sent = JSON.parse(this.reqSent) as { background: string; elements: El[] }
+            this.meta = { ...this.meta, [k]: { id: r.slide.id, version: r.slide.version, saved: wireJson(sent.background, sent.elements) } }
+            this.deckVersion = r.deck.version
+            this.serverOrder = r.deck.slideOrder
+        } else if (this.reqKind == "delete") {
+            const r = v as { deck: ServerDeck }
+            const m = { ...this.meta }
+            delete m[k]
+            this.meta = m
+            this.deckVersion = r.deck.version
+            this.serverOrder = r.deck.slideOrder
+        } else if (this.reqKind == "put") {
+            const r = v as ServerSlide
+            this.meta = { ...this.meta, [k]: { id: r.id, version: r.version, saved: this.reqSent } }
+        } else if (this.reqKind == "deck") {
+            const r = v as ServerDeck
+            this.deckVersion = r.version
+            this.serverOrder = r.slideOrder
+            this.serverTitle = r.title
+        } else if (this.reqKind == "peek") {
+            this.peeked(v as ServerSlide)
+        }
+        this.pump()
+        },
+
+    refused() {
+        const code = this.req.statusCode
+        const body = this.req.errorBody as { error?: string; message?: string; current?: object } | null
+        const k = this.reqKey
+        this.busy = false
+        if (this.reqKind == "peek") { this.pump(); return }     // only a look: nothing went unsaved
+        if (this.req.failure != "rejected" || code == 503) {
+            // No service, or it didn't take the write: nothing was saved, and the
+            // working copy still differs, so the next try sends it again.
+            this.unreachable = true
+            return
+        }
+        this.unreachable = false
+        if (code == 409 && body?.error == "conflict" && this.reqKind == "put") {
+            this.noteConflict(k, body.current as ServerSlide)
+        } else if (code == 409 && body?.error == "conflict" && this.reqKind == "deck") {
+            const d = body.current as ServerDeck
+            this.deckVersion = d.version
+            this.serverOrder = d.slideOrder
+            this.serverTitle = d.title
+        } else if (code == 404 && this.reqKind == "put") {
+            // Deleted somewhere else: made again from this window's copy.
+            const m = { ...this.meta }
+            delete m[k]
+            this.meta = m
+        } else if (code == 404 && this.reqKind == "delete") {
+            const m = { ...this.meta }
+            delete m[k]
+            this.meta = m
+        } else {
+            console.warn("Presentify: the service refused a save", code, body)
+            return
+        }
+        this.pump()
+        },
+
+    noteConflict(key: string, current: ServerSlide) {
+        if (this.conflicts.some((c) => c.key == key)) return
+        this.conflicts = [...this.conflicts, ({ key: key, current: current })]
+        },
+
+    // ── has someone else changed the slide the person just went to?
+
+    peek(key: string) {
+        const id = this.idOf(key)
+        if (id == "" || this.busy) return
+        this.send("peek", key, "GET", "/api/slides/" + id, null, "")
+        },
+    peeked(s: ServerSlide) {
+        const m = this.meta[this.reqKey]
+        if (m != null && s.version > m.version) this.noteConflict(this.reqKey, s)
+        },
+
+    // Their version: this window takes the slide as it is now.
+
+    takeTheirs(key: string) {
+        const c = this.conflictFor(key)
+        if (c == null) return
+        this.meta = { ...this.meta, [key]: { id: c.current.id, version: c.current.version, saved: wireJson(c.current.background, c.current.elements) } }
+        this.conflicts = this.conflicts.filter((x) => x.key != key)
+        },
+
+    // Mine: the slide is saved over theirs, because the person said so.
+
+    keepMine(key: string) {
+        const c = this.conflictFor(key)
+        if (c == null) return
+        this.meta = { ...this.meta, [key]: { id: c.current.id, version: c.current.version, saved: "" } }
+        this.conflicts = this.conflicts.filter((x) => x.key != key)
+        this.pending = true
+        this.soon()
+        },
+
+    // While the service is away, try again every few seconds.
+
+    retry: Time [ tick = 3000, running = { classroot.unreachable && classroot.deckId != "" },
+        onTick() { classroot.pump() }
+        ]
+    ]

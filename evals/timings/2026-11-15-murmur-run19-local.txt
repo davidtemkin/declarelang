@@ -1,0 +1,30 @@
+# eval-murmur-19
+total 10.6 min · 43 turns · output 63830 tokens (thinking 29958)
+phases: reading 4.8 · writing 3.9 · checking 1.9 min
+tool time 0.5 min · model time 10.1 min
+tokens: input 86 · cache write 227225 · cache read 6717016 · output 63830 · thinking 29958
+rate: 6310 output tokens per model-minute
+tools:
+  help       6×   0.27 min  (median 2.1 s)
+  verify     7×   0.20 min  (median 1.4 s)
+model turns, by what came before:
+  after write     4×   3.92 min  (median 6.4 s)
+  after bash     12×   2.67 min  (median 3.0 s)
+  after read     12×   1.22 min  (median 1.8 s)
+  after help      6×   1.11 min  (median 3.0 s)
+  after verify    7×   0.99 min  (median 3.5 s)
+app: 2 .declare files, 960 non-blank lines · 10 snapshots changed them: 1166 lines added, 44 removed
+verify results mentioning accessibility: 1
+source reads: library 1 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library
+diagnostic codes, by tool results reporting them: DECLARE1002 3, DECLARE2000 1, DECLARE2006 1, DECLARE4035 1, DECLARE4025 1, DECLARE4005 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   0.05 min     3×  R4 boot, in all
+   0.05 min     6×  compile (R1–R3)
+   0.04 min     5×  page: load, compile in the page and boot
+   0.01 min     5×  page: a new page
+   0.00 min     2×  program: built from the compile
+   0.00 min     3×  chrome: a browser (shared between calls)
+   0.00 min     3×  end: the browser context released
+   0.00 min     3×  serve: start the program's server
+   0.00 min     7×  compile (R1–R3): the last compile, if its files are unchanged

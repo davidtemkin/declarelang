@@ -1,0 +1,130 @@
+/*
+# 7GUIs
+
+The seven tasks of the 7GUIs benchmark (Eugen Kiss), as one program: a window
+with a tab bar along the top and the chosen task below it.
+
+Each task is a class in a file of its own, which this file includes, and each
+reads on its own:
+
+- `counter.declare`     — 1. Counter
+- `temperature.declare` — 2. Temperature Converter
+- `flight.declare`      — 3. Flight Booker
+- `timer.declare`       — 4. Timer
+- `crud.declare`        — 5. CRUD
+- `circles.declare`     — 6. Circle Drawer
+- `cells.declare`       — 7. Cells (its formula language is `formula.ts`)
+
+The task on show is the App's `location`, so each task has an address of its
+own (`#cells`), and Back returns to the one before.
+*/
+
+include [ "counter.declare" ]
+
+include [ "temperature.declare" ]
+
+include [ "flight.declare" ]
+
+include [ "timer.declare" ]
+
+include [ "crud.declare" ]
+
+include [ "circles.declare" ]
+
+include [ "cells.declare" ]
+
+defaultFlags [ devices = desktop ]
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// The tokens the tasks read beyond the library's own, light and dark.
+
+theme GuisLight [
+    page = #F4F6FA, field = #FFFFFF, invalidFill = #FDECEC, invalidLine = #D93025,
+    canvas = #FFFFFF, circleLine = #1B2733, circleSelected = #B4BAC2,
+    gridLine = #E3E7EC, gridHeader = #EEF1F5, gridError = #C93429
+    ]
+
+
+theme GuisDark [
+    page = #16191D, field = #1F2328, invalidFill = #3A1F20, invalidLine = #FF6A5F,
+    canvas = #1F2328, circleLine = #E6E9ED, circleSelected = #5A616A,
+    gridLine = #30353B, gridHeader = #262A30, gridError = #FF6A5F
+    ]
+
+
+// ── A task's page ───────────────────────────────────────────────────────────
+//
+// Every task sits on the same page: inset from the window's edges, with its
+// title above it. A task that should fill the room (CRUD, Circle Drawer,
+// Cells) flexes into what the title leaves.
+
+class TaskPage [ width = 100%, height = 100%, padding = 24, accessibilityRole = tabPanel,
+    heading: string = "",
+    defaultPlacement = body,
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    Text [ accessibilityRole = heading, fontSize = 20, fontWeight = semibold, text = { classroot.heading } ],
+    body: View [ width = 100%, flexes = true ]
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "7GUIs", minWidth = 720, minHeight = 520, scrolls = none,
+    theme = { app.systemDark ? ({ ...SanFranciscoDark, ...GuisDark }) : ({ ...SanFrancisco, ...GuisLight }) },
+    fill = { provided("theme").page },
+    textColor = { provided("theme").text },
+
+    // Where the user is: which task is on show, in the URL.
+
+    location = "counter",
+    tasks: array = { [ ({ id: "counter", label: "Counter" }),
+                       ({ id: "temperature", label: "Temperature" }),
+                       ({ id: "flight", label: "Flight Booker" }),
+                       ({ id: "timer", label: "Timer" }),
+                       ({ id: "crud", label: "CRUD" }),
+                       ({ id: "circles", label: "Circle Drawer" }),
+                       ({ id: "cells", label: "Cells" }) ] },
+    page: string = { app.tasks.some((t) => t.id == app.location) ? app.location : "counter" },
+
+    layout: SimpleLayout [ axis = y ],
+
+    bar: View [ width = 100%, padding = [12, 16, 12, 16], accessibilityRole = banner,
+        fill = { provided("theme").surface },
+        stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+        Text [ fontSize = 15, fontWeight = bold, text = "7GUIs" ],
+        TabBar [ flexes = true, accessibilityLabel = "Tasks",
+            items = { app.tasks },
+            value = { app.page },
+            commit(v: string) { app.location = v }
+            ]
+        ],
+
+    // The pages. Each is built once and kept while another is on show
+    // (`visible`), so a task keeps its state between visits.
+
+    pages: View [ width = 100%, flexes = true,
+        TaskPage [ visible = { app.page == "counter" }, heading = "Counter", accessibilityLabel = "Counter",
+            CounterTask [ ]
+            ],
+        TaskPage [ visible = { app.page == "temperature" }, heading = "Temperature Converter", accessibilityLabel = "Temperature Converter",
+            TemperatureTask [ ]
+            ],
+        TaskPage [ visible = { app.page == "flight" }, heading = "Flight Booker", accessibilityLabel = "Flight Booker",
+            FlightTask [ ]
+            ],
+        TaskPage [ visible = { app.page == "timer" }, heading = "Timer", accessibilityLabel = "Timer",
+            TimerTask [ ]
+            ],
+        TaskPage [ visible = { app.page == "crud" }, heading = "CRUD", accessibilityLabel = "CRUD",
+            CrudTask [ ]
+            ],
+        TaskPage [ visible = { app.page == "circles" }, heading = "Circle Drawer", accessibilityLabel = "Circle Drawer",
+            CircleTask [ ]
+            ],
+        TaskPage [ visible = { app.page == "cells" }, heading = "Cells", accessibilityLabel = "Cells",
+            CellsTask [ ]
+            ]
+        ]
+    ]

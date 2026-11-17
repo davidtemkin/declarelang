@@ -1,0 +1,35 @@
+# eval-venue-0901
+total 48.3 min · 199 turns · output 197962 tokens (thinking 79233)
+tool time 16.6 min · model time 31.6 min
+tokens: input 316 · cache write 474768 · cache read 44880180 · output 197962 · thinking 79233
+rate: 6257 output tokens per model-minute
+tools:
+  bash     123×  16.55 min  (median 1.1 s)
+  help      10×   0.07 min  (median 0.5 s)
+model turns, by what came before:
+  after bash    122×  18.75 min  (median 6.9 s)
+  after help     10×   5.37 min  (median 4.2 s)
+  after image    30×   4.11 min  (median 4.2 s)
+  after read      7×   2.06 min  (median 8.7 s)
+  after grep      6×   0.83 min  (median 4.2 s)
+  after write    21×   0.58 min  (median 0.8 s)
+  after edit      1×   0.02 min  (median 1.2 s)
+app: 1 .declare files, 1312 non-blank lines · 26 snapshots changed them: 1672 lines added, 186 removed
+verify results mentioning accessibility: 0
+source reads: library 4 file(s), runtime/compiler 12 — each to be audited: never a stand-in for the docs
+            runtime  runtime/src
+            runtime  runtime/src/dom-backend.ts
+            runtime  runtime/src/focus.ts
+            runtime  runtime/src/view.ts
+            runtime  runtime/src/text-input.ts
+            runtime  runtime/src/schema.ts
+            runtime  runtime/src/backend.ts
+            runtime  runtime/src/
+            runtime  runtime/src/keys.ts
+            library  library/button.declare
+            library  library/segmented.declare
+            library  library/control.declare
+            runtime  runtime/src/data.ts
+            runtime  runtime/src/interaction.ts
+            runtime  runtime/src/input.ts
+            library  library/themes/sanfrancisco.declare

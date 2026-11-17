@@ -1,0 +1,46 @@
+# eval-presentify-12
+total 35.0 min · 134 turns · output 185418 tokens (thinking 65214)
+phases: reading 7.6 · writing 10.3 · checking 17.1 min
+tool time 7.2 min · model time 27.8 min
+tokens: input 226 · cache write 443640 · cache read 37516437 · output 185418 · thinking 65214
+rate: 6679 output tokens per model-minute
+tools:
+  verify    42×   5.82 min  (median 5.5 s)
+  look      15×   0.82 min  (median 3.2 s)
+  help      10×   0.35 min  (median 0.7 s)
+  bash      20×   0.18 min  (median 0.1 s)
+  read      15×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after write     7×   8.90 min  (median 103.1 s)
+  after bash     20×   6.08 min  (median 4.6 s)
+  after verify   41×   5.38 min  (median 4.9 s)
+  after image    24×   3.61 min  (median 6.3 s)
+  after help     10×   2.50 min  (median 5.2 s)
+  after look     15×   0.50 min  (median 1.4 s)
+  after read     15×   0.50 min  (median 0.5 s)
+app: 7 .declare files, 2743 non-blank lines · 37 snapshots changed them: 3366 lines added, 258 removed
+verify results mentioning accessibility: 5
+source reads: library 1 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/*.declare
+diagnostic codes, by tool results reporting them: DECLARE4026 4, DECLARE4025 3, DECLARE4035 3, DECLARE4022 3, DECLARE2000 2, DECLARE4020 2, DECLARE6001 2, DECLARE4015 1, DECLARE1002 1, DECLARE4002 1, DECLARE7001 1
+inside the agent's verify and look calls:
+   4.60 min    44×  R5 behavior, in all
+   3.86 min    44×  script: the assert script, in all
+   0.79 min   166×  drive.click
+   0.78 min    74×  page: load, compile in the page and boot
+   0.64 min   242×  drive.settleMotion
+   0.63 min    44×  open: the app loaded and arrived, in all
+   0.61 min   363×  check: scrolling come to rest
+   0.53 min   121×  locator.click
+   0.49 min    43×  compile (R1–R3)
+   0.34 min    53×  drive.moveBy
+   0.33 min    91×  drive.settleData
+   0.28 min    30×  R4 boot, in all
+   0.27 min   202×  drive.key
+   0.24 min    38×  drive.drag
+   0.18 min     2×  drive.profile
+   0.16 min    45×  drive.clickAt
+   0.12 min    34×  drive.press
+   0.11 min    46×  drive.wait
+   0.10 min    74×  page: a new page
+   0.07 min    52×  drive.type

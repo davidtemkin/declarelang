@@ -1,0 +1,13 @@
+STARTED=2026-11-16T21:53:37Z
+APP=7guis
+MODEL=claude-opus-5-5
+SUBJECT=none — React, from the brief alone
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=React
+LEVEL=standard
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=/Users/temkin/Code/eval-7guis-react-2/work (logs outside it)
+PORT=8320 (the brief names none)
+DEV_PORT=8600 (the agent's dev server: PORT in its environment)
+SERVICE=node task/api/server.mjs --port=8320
+AGENT_PID=96197

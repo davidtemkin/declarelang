@@ -1,0 +1,568 @@
+/*
+# Presentify: the model
+
+What a presentation is, and the three pieces of machinery that keep it:
+
+- **`Deck`**, the open presentation as one dataset: its title and its slides,
+  in order, each with its elements. Every edit is one of its verbs, and each
+  verb moves `rev` on, which is how the other two hear that something changed.
+- **`History`**, undo and redo. A step is a snapshot of the deck (and the
+  slide and selection the person had) taken before they did something, kept
+  once the thing is done if it changed anything. A drag, a run of typing or an
+  inspector change opens a step at its start and closes it at its end, so each
+  is one step however many writes it made.
+- **`Sync`**, saving. It compares the deck with what the service last
+  accepted and sends whatever differs — a new slide, a changed one, a deleted
+  one, a new order or title — one request at a time, about a second after the
+  last edit. A request that fails is kept and tried again; a slide someone
+  else saved in the meantime is never written over without the person's say.
+
+Slides are known by a key of our own (`id` in the deck), which is the
+service's id for a slide that came from it and a fresh one for a slide made
+here; `Sync` maps keys to the service's ids, so an undo that brings a deleted
+slide back simply makes it again.
+*/
+
+// ── The shape of the data ───────────────────────────────────────────────────
+//
+// The service's format, field for field (task/api/API.md). `?` marks what one
+// kind of element has and another hasn't; a nullable fill or stroke is `?` too.
+
+schema Outline [ color: string, width: number ]
+schema TextBody [ content: string, font: string, size: number, weight: number, italic: boolean,
+    color: string, align: "left" | "center" | "right" ]
+schema Element [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    fill?: string, stroke?: Outline, cornerRadius?: number, keepProportions?: boolean,
+    text?: TextBody, children[]?: Element ]
+schema Slide [ id: string, background: string, elements[]: Element ]
+schema Doc [ title: string, slides[]: Slide ]
+
+// What the service sends back.
+
+schema DeckInfo [ id: string, title: string, version: number, updatedAt: string,
+    slideOrder[]: string, thumbnailSlideId: string ]
+schema ServerSlide [ id: string, deckId: string, version: number, background: string, elements[]: Element ]
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number, thumbnailSlideId: string ]
+schema DeckList [ decks[]: DeckSummary ]
+schema SlidesReply [ slides[]: ServerSlide ]
+schema Refusal [ error: string, message?: string, field?: string, current?: any ]
+
+// One undo step: the deck and where the person was, before and after.
+
+schema Place [ doc: Doc, slide: string, sel[]: string ]
+schema Step [ before: Place, after: Place ]
+
+
+// ── Geometry ────────────────────────────────────────────────────────────────
+//
+// Plain functions of their arguments: an element's box, an element moved or
+// mapped from one box to another, fresh ids for a copy. Everything is in
+// slide points.
+
+script {
+    type Box = { x: number, y: number, w: number, h: number }
+    type Pending = { cancel(): void }
+    type Point = { x: number, y: number }
+
+    // A colour from the format ("#RRGGBB" or "#RRGGBBAA"), or none for "".
+    function hex(c: string): Color { return (c == "" ? null : c) as Color }
+
+    function newId(prefix: string): string { return prefix + Math.random().toString(36).slice(2, 10) }
+
+    function boxOf(e: Element): Box {
+        if (e.kind == "line") {
+            const x1 = e.x1 ?? 0, y1 = e.y1 ?? 0, x2 = e.x2 ?? 0, y2 = e.y2 ?? 0
+            return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) }
+        }
+        if (e.kind == "group") return unionOf((e.children ?? []).map(boxOf))
+        return { x: e.x ?? 0, y: e.y ?? 0, w: e.width ?? 0, h: e.height ?? 0 }
+    }
+
+    function unionOf(bs: Box[]): Box {
+        if (bs.length == 0) return { x: 0, y: 0, w: 0, h: 0 }
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+        for (const b of bs) {
+            x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y)
+            x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h)
+        }
+        return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+    }
+
+    function touches(a: Box, b: Box): boolean {
+        return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h
+    }
+
+    function r2(v: number): number { return Math.round(v * 100) / 100 }
+
+    // A copy of an element moved by (dx, dy), children and all.
+    function moved(e: Element, dx: number, dy: number): Element {
+        const c: Element = { ...e }
+        if (e.kind == "line") {
+            c.x1 = r2((e.x1 ?? 0) + dx); c.y1 = r2((e.y1 ?? 0) + dy)
+            c.x2 = r2((e.x2 ?? 0) + dx); c.y2 = r2((e.y2 ?? 0) + dy)
+        } else if (e.kind == "group") {
+            c.children = (e.children ?? []).map((k) => moved(k, dx, dy))
+        } else {
+            c.x = r2((e.x ?? 0) + dx); c.y = r2((e.y ?? 0) + dy)
+        }
+        return c
+    }
+
+    // A copy of an element carried from box `a` to box `b`: positions and
+    // sizes scale, a corner radius and a font size don't (they are lengths).
+    function mapped(e: Element, a: Box, b: Box): Element {
+        const sx = a.w == 0 ? 1 : b.w / a.w, sy = a.h == 0 ? 1 : b.h / a.h
+        const fx = (x: number) => r2(b.x + (x - a.x) * sx)
+        const fy = (y: number) => r2(b.y + (y - a.y) * sy)
+        const c: Element = { ...e }
+        if (e.kind == "line") {
+            c.x1 = fx(e.x1 ?? 0); c.y1 = fy(e.y1 ?? 0); c.x2 = fx(e.x2 ?? 0); c.y2 = fy(e.y2 ?? 0)
+        } else if (e.kind == "group") {
+            c.children = (e.children ?? []).map((k) => mapped(k, a, b))
+        } else {
+            const x0 = fx(e.x ?? 0), y0 = fy(e.y ?? 0)
+            const x1 = fx((e.x ?? 0) + (e.width ?? 0)), y1 = fy((e.y ?? 0) + (e.height ?? 0))
+            c.x = x0; c.y = y0; c.width = Math.max(1, r2(x1 - x0)); c.height = Math.max(1, r2(y1 - y0))
+        }
+        return c
+    }
+
+    // A copy with fresh ids throughout, for a duplicate or a paste.
+    function freshIds(e: Element): Element {
+        const c: Element = { ...e, id: newId("e") }
+        if (e.kind == "group") c.children = (e.children ?? []).map(freshIds)
+        return c
+    }
+
+    // Groups of fewer than two are no groups: one left alone is its child.
+    function tidy(els: Element[]): Element[] {
+        const out: Element[] = []
+        for (const e of els) {
+            if (e.kind != "group") { out.push(e); continue }
+            const kids = tidy(e.children ?? [])
+            if (kids.length == 1) out.push(kids[0])
+            else if (kids.length > 1) out.push({ ...e, children: kids })
+        }
+        return out
+    }
+
+    function findIn(els: Element[], id: string): Element | null {
+        for (const e of els) {
+            if (e.id == id) return e
+            if (e.kind == "group") { const hit = findIn(e.children ?? [], id); if (hit) return hit }
+        }
+        return null
+    }
+
+    // The ids from the outermost element down to `id`: ["e5", "e3"] for a
+    // child of a group; [] when it isn't there.
+    function lineage(els: Element[], id: string): string[] {
+        for (const e of els) {
+            if (e.id == id) return [e.id]
+            if (e.kind == "group") {
+                const below = lineage(e.children ?? [], id)
+                if (below.length > 0) return [e.id, ...below]
+            }
+        }
+        return []
+    }
+
+    // What the service stores for a slide, as one comparable string.
+    function slideKey(background: string, elements: Element[]): string {
+        return background + "|" + JSON.stringify(elements)
+    }
+
+    // Light or dark: the ink to put on a background.
+    function isDark(hex: string): boolean {
+        const h = hex.replace("#", "")
+        if (h.length < 6) return false
+        const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16)
+        return (0.299 * r + 0.587 * g + 0.114 * b) < 140
+    }
+
+    // "Edited 3 minutes ago", as a person says it.
+    function ago(iso: string, now: number): string {
+        const t = Date.parse(iso)
+        if (isNaN(t)) return ""
+        const s = Math.max(0, Math.round((now - t) / 1000))
+        if (s < 45) return "Edited just now"
+        const m = Math.round(s / 60)
+        if (m < 60) return "Edited " + m + (m == 1 ? " minute ago" : " minutes ago")
+        const h = Math.round(m / 60)
+        if (h < 24) return "Edited " + h + (h == 1 ? " hour ago" : " hours ago")
+        const d = Math.round(h / 24)
+        if (d < 7) return "Edited " + (d == 1 ? "yesterday" : d + " days ago")
+        const dt = new Date(t)
+        return "Edited " + dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: dt.getFullYear() == new Date(now).getFullYear() ? undefined : "numeric" })
+    }
+    }
+
+
+// ── The open presentation ───────────────────────────────────────────────────
+
+class Deck extends Dataset [ schema = Doc,
+    rev: number = 0,             // moves on with every write: History and Sync listen to it
+
+    slides() -> Slide[] { return this.value?.slides ?? [] },
+    title() -> string { return this.value?.title ?? "" },
+    at(key: string) -> number { return this.slides().findIndex((s) => s.id == key) },
+    slide(key: string) -> Slide? { return this.slides().find((s) => s.id == key) ?? null },
+    els(key: string) -> Element[] { return this.slide(key)?.elements ?? [] },
+    el(key: string, id: string) -> Element? { return findIn(this.els(key), id) },
+
+    // The path to an element's place, through any groups it is in.
+
+    pathOf(key: string, id: string) -> array {
+        const i = this.at(key)
+        if (i < 0) return []
+        const line = lineage(this.els(key), id)
+        if (line.length == 0) return []
+        const path: (string | number)[] = ["slides", i, "elements"]
+        let list = this.els(key)
+        line.forEach((eid, n) => {
+            const k = list.findIndex((e) => e.id == eid)
+            path.push(k)
+            if (n < line.length - 1) { path.push("children"); list = list[k].children ?? [] }
+            })
+        return path
+        },
+
+    // The writes.
+
+    write(path: array, v: object) { this.set(path, v); rev = rev + 1 },
+    load(doc: Doc) { this.set([], doc); rev = rev + 1 },
+    setTitle(t: string) { this.write(["title"], t) },
+    setEl(key: string, e: Element) { const p = this.pathOf(key, e.id); if (p.length > 0) this.write(p, e) },
+    setEls(key: string, els: Element[]) { const i = this.at(key); if (i >= 0) this.write(["slides", i, "elements"], tidy(els)) },
+    setBackground(key: string, c: string) { const i = this.at(key); if (i >= 0) this.write(["slides", i, "background"], c) },
+    addSlide(index: number, s: Slide) { this.insert(["slides"], index, s); rev = rev + 1 },
+    removeSlide(key: string) { const i = this.at(key); if (i >= 0) { this.removeAt(["slides"], i); rev = rev + 1 } },
+    moveSlide(from: number, to: number) { if (from != to) { this.move(["slides"], from, to); rev = rev + 1 } }
+    ]
+
+
+// ── Undo ────────────────────────────────────────────────────────────────────
+//
+// `begin()` notes where things stand; `end()` keeps a step if the deck moved
+// since. Calls nest (a drag that also re-measures a text box is still one
+// step); only the outermost `end()` decides. `apply(place)` puts a place back.
+
+class History extends Node [
+    undos: Step[] = [],
+    redos: Step[] = [],
+    depth: number = 0,
+    opened: Place? = null,
+    canUndo: boolean = { classroot.undos.length > 0 },
+    canRedo: boolean = { classroot.redos.length > 0 },
+
+    here() -> Place {
+        return ({ doc: structuredClone(app.deck.value) as Doc, slide: app.current, sel: [...app.sel] })
+        },
+    begin() {
+        if (depth == 0) opened = here()
+        depth = depth + 1
+        },
+    end() {
+        if (depth == 0) return
+        depth = depth - 1
+        if (depth > 0 || opened == null) return
+        const was = opened
+        opened = null
+        const now = here()
+        if (JSON.stringify(was.doc) == JSON.stringify(now.doc)) return
+        undos = [...undos.slice(-150), ({ before: was, after: now })]
+        redos = []
+        },
+
+    // One thing done in one call: `app.hist.step(() => …)`.
+
+    step(fn: () => void) { begin(); fn(); end() },
+
+    undo() {
+        if (depth > 0) { depth = 1; end() }
+        const s = undos[undos.length - 1]
+        if (s == null) return
+        undos = undos.slice(0, -1)
+        redos = [...redos, s]
+        apply(s.before)
+        },
+    redo() {
+        if (depth > 0) { depth = 1; end() }
+        const s = redos[redos.length - 1]
+        if (s == null) return
+        redos = redos.slice(0, -1)
+        undos = [...undos, s]
+        apply(s.after)
+        },
+    apply(p: Place) {
+        app.deck.load(structuredClone(p.doc) as Doc)
+        app.goTo(app.deck.at(p.slide) >= 0 ? p.slide : app.deck.slides()[0]?.id ?? "")
+        app.sel = [...p.sel]
+        app.entered = ""
+        },
+    clear() { undos = []; redos = []; depth = 0; opened = null }
+    ]
+
+
+// ── Saving ──────────────────────────────────────────────────────────────────
+//
+// What the service holds of each slide, by our key: its id there, the
+// version we last read, and what it held then (`saved`). Anything the deck
+// holds that differs is work, done in this order: make slides that don't
+// exist there yet, delete the ones the deck no longer has, save the changed
+// ones, then the order and title. One request is in flight at a time, through
+// `req`; its answer says what the service now holds.
+
+schema Held [ sid: string, version: number, saved: string ]
+
+class Sync extends Node [
+    api: string = "",
+    deckId: string = "",
+    deckVersion: number = 0,
+    serverTitle: string = "",
+    serverOrder: string[] = [],
+    held: object = { {} },               // key → Held
+    conflicts: object = { {} },          // key → the slide as the service now has it
+
+    busy: boolean = false,
+    failed: boolean = false,         // the last request didn't reach the service
+    work: boolean = false,           // something here isn't saved yet
+    conflictKeys: string[] = { Object.keys(classroot.conflicts) },
+
+    status: "saved" | "saving" | "failed" = { classroot.failed ? "failed" : (classroot.work || classroot.busy) ? "saving" : "saved" },
+    statusText: string = { classroot.status == "failed" ? "Not saved: can't reach the service" : classroot.status == "saving" ? "Saving…" : "All changes saved" },
+
+    // An edit: there is work now, and the next request goes a second after the last edit.
+
+    seen: number = { app.deck.rev },
+    trackChanges = ["seen"],
+    onChange() {
+        if (deckId == "" || app.deck.rev == baseRev) return
+        work = true
+        later?.cancel()
+        later = afterDelay(1100, () => this.pump())
+        },
+    later: Pending? = null,
+    baseRev: number = 0,             // the deck as it arrived: not an edit
+
+    heldOf(key: string) -> Held? { return (held as Record<string, Held>)[key] ?? null },
+    setHeld(key: string, h: Held?) {
+        const next = { ...(held as Record<string, Held>) }
+        if (h == null) delete next[key]
+        else next[key] = h
+        held = next
+        },
+    setConflict(key: string, s: ServerSlide?) {
+        const next = { ...(conflicts as Record<string, ServerSlide>) }
+        if (s == null) delete next[key]
+        else next[key] = s
+        conflicts = next
+        },
+    conflictFor(key: string) -> ServerSlide? { return (conflicts as Record<string, ServerSlide>)[key] ?? null },
+
+    // A deck as it arrived from the service: everything it holds is saved.
+
+    start(deck: DeckInfo, slides: ServerSlide[]) {
+        later?.cancel()
+        deckId = deck.id
+        baseRev = app.deck.rev
+        deckVersion = deck.version
+        serverTitle = deck.title
+        serverOrder = [...deck.slideOrder]
+        const h: Record<string, Held> = {}
+        slides.forEach((s) => { h[s.id] = ({ sid: s.id, version: s.version, saved: slideKey(s.background, s.elements) }) })
+        held = h
+        conflicts = {}
+        checks = []
+        busy = false
+        failed = false
+        work = false
+        },
+    stop() { later?.cancel(); deckId = ""; held = {}; conflicts = {}; checks = []; work = false; failed = false },
+
+    // ⌘S, leaving the editor, a retry: send now.
+
+    flush() { later?.cancel(); pump() },
+
+    // Ask the service whether a slide moved on since we read it.
+
+    checks: string[] = [],
+    check(key: string) {
+        if (deckId == "" || heldOf(key) == null || checks.includes(key)) return
+        checks = [...checks, key]
+        pump()
+        },
+
+    // ── the next request
+    //
+    // `op` says what is in flight, and for which slide, so the answer knows
+    // what it answers.
+
+    op: string = "",
+    opKey: string = "",
+    opSent: string = "",
+
+    pump() {
+        if (busy || deckId == "") return
+        const slides = app.deck.slides()
+        const keys = slides.map((s) => s.id)
+        const h = held as Record<string, Held>
+
+        // a slide someone asked about
+        if (checks.length > 0) {
+            const key = checks[0]
+            checks = checks.slice(1)
+            const mine = heldOf(key)
+            if (mine != null) return send("check", key, "", "GET", "/api/slides/" + mine.sid, null)
+        }
+        // a slide the service hasn't got yet: made after the nearest earlier slide it has
+        const fresh = slides.findIndex((s) => h[s.id] == null)
+        if (fresh >= 0) {
+            const s = slides[fresh]
+            let after: string? = null
+            for (let i = fresh - 1; i >= 0; i--) { const p = h[slides[i].id]; if (p != null) { after = p.sid; break } }
+            return send("create", s.id, slideKey(s.background, s.elements), "POST", "/api/decks/" + deckId + "/slides",
+                ({ after: after, background: s.background, elements: s.elements }))
+        }
+        // a slide the deck no longer has
+        const gone = Object.keys(h).find((k) => !keys.includes(k))
+        if (gone != null) return send("delete", gone, "", "DELETE", "/api/slides/" + h[gone].sid, null)
+        // a changed slide (a conflicted one waits for the person)
+        const changed = slides.find((s) => h[s.id].saved != slideKey(s.background, s.elements) && conflictFor(s.id) == null)
+        if (changed != null) {
+            const s = changed
+            return send("put", s.id, slideKey(s.background, s.elements), "PUT", "/api/slides/" + h[s.id].sid,
+                ({ version: h[s.id].version, background: s.background, elements: s.elements }))
+        }
+        // the order and the title
+        const mineOrder = keys.map((k) => h[k].sid)
+        const theirs = serverOrder.filter((sid) => !mineOrder.includes(sid))
+        const order = [...mineOrder, ...theirs]
+        const title = app.deck.title()
+        if (order.join() != serverOrder.join() || title != serverTitle) {
+            return send("deck", "", "", "PATCH", "/api/decks/" + deckId, ({ version: deckVersion, title: title, slideOrder: order }))
+        }
+        work = conflictKeys.length > 0
+        failed = false
+        },
+
+    send(kind: string, key: string, sent: string, method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body: object) {
+        busy = true
+        work = true
+        op = kind
+        opKey = key
+        opSent = sent
+        reqMethod = method
+        reqUrl = api + path
+        reqBody = body
+        req.fetch()
+        },
+
+    reqUrl: string = "",
+    reqMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+    reqBody: object = null,
+    req: DataSource [ url = { classroot.reqUrl }, method = { classroot.reqMethod }, body = { classroot.reqBody },
+        timeout = 12,
+        onLoad() { classroot.answered(this.value) },
+        onError() { classroot.refused() }
+        ],
+
+    answered(v: object) {
+        busy = false
+        failed = false
+        const key = opKey
+        if (op == "check") {
+            const s = v as ServerSlide
+            const mine = heldOf(key)
+            if (mine != null && s.version > mine.version) {
+                // moved on there: if nothing here is unsaved, it is only news;
+                // either way the person decides what the slide holds
+                setConflict(key, s)
+            }
+        } else if (op == "create") {
+            const r = v as ({ slide: ServerSlide, deck: DeckInfo })
+            setHeld(key, ({ sid: r.slide.id, version: r.slide.version, saved: opSent }))
+            took(r.deck)
+        } else if (op == "delete") {
+            setHeld(key, null)
+            const r = v as ({ deck: DeckInfo })
+            if (r?.deck != null) took(r.deck)
+        } else if (op == "put") {
+            const s = v as ServerSlide
+            const mine = heldOf(key)
+            if (mine != null) setHeld(key, ({ sid: mine.sid, version: s.version, saved: opSent }))
+        } else if (op == "deck") {
+            took(v as DeckInfo)
+        }
+        op = ""
+        pump()
+        },
+    took(d: DeckInfo) {
+        deckVersion = d.version
+        serverTitle = d.title
+        serverOrder = [...d.slideOrder]
+        },
+
+    refused() {
+        busy = false
+        const code = req.statusCode
+        const body = req.errorBody as Refusal?
+        const key = opKey
+        const kind = op
+        op = ""
+        if (req.failure == "rejected" && code == 409 && body?.error == "conflict") {
+            if (kind == "deck") {
+                took(body.current as DeckInfo)
+            } else if (body.current != null) {
+                setConflict(key, body.current as ServerSlide)
+            }
+            return pump()
+        }
+        if (req.failure == "rejected" && code == 404) {
+            // gone there: a slide is made again from what we hold; a check has nothing to say
+            if (kind == "put") setHeld(key, null)
+            if (kind == "delete") setHeld(key, null)
+            return pump()
+        }
+        if (req.failure == "rejected") {
+            // the service refused what we sent; say so, and don't send it again as it is
+            console.warn("Presentify: the service refused a " + kind + ":", body)
+            if (kind == "put" || kind == "create") {
+                const mine = heldOf(key)
+                if (mine != null) setHeld(key, ({ sid: mine.sid, version: mine.version, saved: opSent }))
+            }
+            return pump()
+        }
+        // unreachable, or the answer was lost: keep everything and try again
+        failed = true
+        work = true
+        later?.cancel()
+        later = afterDelay(3000, () => this.pump())
+        },
+
+    // ── the person's say on a conflict
+
+    takeTheirs(key: string) {
+        const s = conflictFor(key)
+        if (s == null) return
+        const mine = heldOf(key)
+        if (mine != null) setHeld(key, ({ sid: mine.sid, version: s.version, saved: slideKey(s.background, s.elements) }))
+        setConflict(key, null)
+        app.hist.step(() => {
+            app.deck.setBackground(key, s.background)
+            app.deck.setEls(key, s.elements)
+            app.sel = []
+            })
+        },
+    keepMine(key: string) {
+        const s = conflictFor(key)
+        if (s == null) return
+        const mine = heldOf(key)
+        // saved as theirs, so ours differs and is sent over it
+        if (mine != null) setHeld(key, ({ sid: mine.sid, version: s.version, saved: slideKey(s.background, s.elements) }))
+        setConflict(key, null)
+        flush()
+        }
+    ]

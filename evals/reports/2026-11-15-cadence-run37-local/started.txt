@@ -1,0 +1,13 @@
+STARTED=2026-11-15T14:59:44Z
+APP=cadence
+MODEL=claude-opus-5-5
+SUBJECT=local tree at 0b31b0c9 derived artifacts + 392 changed, 8 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=standard
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-cadence-37/work (logs outside it)
+PORT=8320 (the brief names 8320)
+DEV_PORT=8600 (the agent's dev server: PORT in its environment)
+SERVICE=node task/api/server.mjs --port=8320
+AGENT_PID=81094

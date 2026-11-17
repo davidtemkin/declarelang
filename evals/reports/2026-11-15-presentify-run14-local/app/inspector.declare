@@ -1,0 +1,424 @@
+/*
+# Presentify: the inspector
+
+The panel beside the slide. It shows what is selected — its fill, its
+outline, its corners, its text, where it is and how big — and changes them.
+With nothing selected it shows the slide's own background.
+
+When the selected things differ, a field says "Mixed" rather than showing
+one of them as if it were true of all; a change applies to every one of
+them. A change made here is one undo step.
+
+Its width never changes, so the slide beside it never jumps as the
+selection does.
+*/
+
+script {
+    function uniq(xs: string[]): string[] { return [...new Set(xs)] }
+    function leavesOf(els: any[]): any[] {
+        const out: any[] = []
+        const go = (e: any) => { if (e.kind == "group") (e.children ?? []).forEach(go); else out.push(e) }
+        els.forEach(go)
+        return out
+    }
+    }
+
+class Inspector [ width = 288, fill = { provided("theme").panel },
+    stroke = { [null, null, null, Stroke(1, provided("theme").line)] },
+    accessibilityRole = complementary, accessibilityLabel = "Inspector",
+
+    // what the fields read: the selection's leaves, by kind
+
+    leaves: El[] = { leavesOf(app.ed.sel) as El[] },
+    shapes: El[] = { this.leaves.filter((e) => e.kind == "rect" || e.kind == "ellipse") },
+    lined: El[] = { this.leaves.filter((e) => e.kind != "text") },
+    texts: El[] = { this.leaves.filter((e) => e.kind == "text") },
+    rects: El[] = { this.leaves.filter((e) => e.kind == "rect") },
+    boxed: El[] = { app.ed.sel.filter((e) => e.kind != "line") },
+
+    fills: string[] = { uniq(this.shapes.map((e) => e.fill ?? "none")) },
+    lineColors: string[] = { uniq(this.lined.map((e) => e.stroke?.color ?? "none")) },
+    lineWidths: string[] = { uniq(this.lined.filter((e) => e.stroke != null).map((e) => "" + e.stroke!.width)) },
+    radii: string[] = { uniq(this.rects.map((e) => "" + (e.cornerRadius ?? 0))) },
+    fonts: string[] = { uniq(this.texts.map((e) => e.text!.font)) },
+    sizes: string[] = { uniq(this.texts.map((e) => "" + e.text!.size)) },
+    weights: string[] = { uniq(this.texts.map((e) => "" + e.text!.weight)) },
+    italics: string[] = { uniq(this.texts.map((e) => "" + e.text!.italic)) },
+    aligns: string[] = { uniq(this.texts.map((e) => e.text!.align)) },
+    inks: string[] = { uniq(this.texts.map((e) => e.text!.color)) },
+    keeps: string[] = { uniq(this.boxed.map((e) => "" + (e.keepProportions ?? false))) },
+
+    one(xs: string[]) -> string { return xs.length == 1 ? xs[0] : xs.length == 0 ? "" : "mixed" },
+
+    kindName: string = { ({ rect: "Rectangle", ellipse: "Ellipse", line: "Line", text: "Text", group: "Group" } as Record<string, string>)[app.ed.one?.kind ?? ""] ?? "" },
+    heading: string = { app.selection.length == 0 ? "Slide" : app.selection.length > 1 ? app.selection.length + " objects" : this.kindName },
+
+    pane: View [ width = 100%, height = 100%, scrolls = y,
+        padding = [18, 18, 24, 18],
+        layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+        head: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Text [ flexes = true, fontFamily = { app.brandFace }, fontSize = 20, fontWeight = 700, letterSpacing = -0.2,
+                wrap = false, text = { classroot.heading } ],
+            Text [ visible = { app.scope != "" }, fontSize = 12, fontWeight = 600, textColor = { provided("theme").accent },
+                text = "Inside a group" ]
+            ],
+
+        // ── nothing selected: the slide
+
+        slide: Section [ visible = { app.selection.length == 0 }, title = "Background",
+            Row [ label = "Colour",
+                ColorWell [ value = { app.doc.body(app.current).background }, allowNone = false, accessibilityLabel = "Background colour",
+                    commit(c: string) { app.ed.setBackground(c) }
+                    ]
+                ],
+            Swatches [ current = { app.doc.body(app.current).background },
+                choose(c: string) { app.ed.setBackground(c) }
+                ],
+            Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textFaint },
+                text = "Select something on the slide to change it. Shift-click to select more than one." ]
+            ],
+
+        // ── fill
+
+        fillSection: Section [ visible = { classroot.shapes.length > 0 }, title = "Fill",
+            Row [ label = "Colour",
+                ColorWell [ value = { classroot.one(classroot.fills) }, allowNone = true, accessibilityLabel = "Fill colour",
+                    commit(c: string) { app.ed.restyle((e) => e.kind == "rect" || e.kind == "ellipse" ? ({ ...e, fill: c == "none" ? null : c }) : e) }
+                    ]
+                ]
+            ],
+
+        // ── outline
+
+        outline: Section [ visible = { classroot.lined.length > 0 }, title = "Outline",
+            Row [ label = "Colour",
+                ColorWell [ value = { classroot.one(classroot.lineColors) }, allowNone = { classroot.lined.every((e) => e.kind != "line") },
+                    accessibilityLabel = "Outline colour",
+                    commit(c: string) { app.ed.restyle((e) => e.kind == "text" ? e
+                        : c == "none" ? (e.kind == "line" ? e : ({ ...e, stroke: null }))
+                        : ({ ...e, stroke: ({ color: c, width: e.stroke?.width ?? 2 }) })) }
+                    ]
+                ],
+            Row [ label = "Width",
+                NumField [ width = 92, suffix = "pt", min = 0, max = 200, accessibilityLabel = "Outline width",
+                    num = { Number(classroot.lineWidths[0] ?? 0) }, mixed = { classroot.lineWidths.length > 1 },
+                    setTo(n: number) { app.ed.restyle((e) => e.kind == "text" ? e
+                        : n <= 0 ? (e.kind == "line" ? ({ ...e, stroke: ({ color: e.stroke?.color ?? "#1F2328", width: 1 }) }) : ({ ...e, stroke: null }))
+                        : ({ ...e, stroke: ({ color: e.stroke?.color ?? "#1F2328", width: n }) })) }
+                    ]
+                ]
+            ],
+
+        // ── corners
+
+        corners: Section [ visible = { classroot.rects.length > 0 && classroot.rects.length == classroot.leaves.length }, title = "Corners",
+            Row [ label = "Radius",
+                NumField [ width = 92, suffix = "pt", min = 0, max = 2000, accessibilityLabel = "Corner radius",
+                    num = { Number(classroot.radii[0] ?? 0) }, mixed = { classroot.radii.length > 1 },
+                    setTo(n: number) { app.ed.restyle((e) => e.kind == "rect" ? ({ ...e, cornerRadius: n }) : e) }
+                    ]
+                ],
+            cornerChoices: View [ width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 6 ],
+                CornerChip [ label = "Square", radius = 0 ],
+                CornerChip [ label = "Soft", radius = 16 ],
+                CornerChip [ label = "Round", radius = 48 ],
+                CornerChip [ label = "Pill", radius = 9999 ]
+                ]
+            ],
+
+        // ── text
+
+        text: Section [ visible = { classroot.texts.length > 0 }, title = "Text",
+            Row [ label = "Font",
+                Button [ width = 170, height = 30, label = { classroot.fonts.length > 1 ? "Mixed" : classroot.fonts[0] ?? "" },
+                    accessibilityLabel = "Font", tooltipLabel = "Font", menu = { app.fontMenu } ]
+                ],
+            Row [ label = "Size",
+                NumField [ width = 92, suffix = "pt", min = 6, max = 400, accessibilityLabel = "Text size",
+                    num = { Number(classroot.sizes[0] ?? 32) }, mixed = { classroot.sizes.length > 1 },
+                    setTo(n: number) { app.ed.restyle((e) => e.kind == "text" ? ({ ...e, text: ({ ...e.text!, size: n }) }) : e) }
+                    ]
+                ],
+            Row [ label = "Weight",
+                Button [ width = 170, height = 30, label = { classroot.weights.length > 1 ? "Mixed" : weightName(Number(classroot.weights[0] ?? 400)) },
+                    accessibilityLabel = "Weight", tooltipLabel = "Weight", menu = { app.weightMenu } ]
+                ],
+            Row [ label = "Style",
+                styleRow: View [ layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+                    ToggleButton [ shape = "italic", accessibilityLabel = "Italic", tooltipLabel = "Italic",
+                        on = { classroot.italics.length == 1 && classroot.italics[0] == "true" },
+                        press() { const v = !(classroot.italics.length == 1 && classroot.italics[0] == "true")
+                            app.ed.restyle((e) => e.kind == "text" ? ({ ...e, text: ({ ...e.text!, italic: v }) }) : e) }
+                        ],
+                    View [ width = 1, height = 20, fill = { provided("theme").line } ],
+                    AlignChip [ align = "left", shape = "textLeft", accessibilityLabel = "Align text left" ],
+                    AlignChip [ align = "center", shape = "textCenter", accessibilityLabel = "Centre text" ],
+                    AlignChip [ align = "right", shape = "textRight", accessibilityLabel = "Align text right" ]
+                    ]
+                ],
+            Row [ label = "Colour",
+                ColorWell [ value = { classroot.one(classroot.inks) }, allowNone = false, accessibilityLabel = "Text colour",
+                    commit(c: string) { app.ed.restyle((e) => e.kind == "text" ? ({ ...e, text: ({ ...e.text!, color: c }) }) : e) }
+                    ]
+                ]
+            ],
+
+        // ── where and how big
+
+        geometry: Section [ visible = { app.selection.length > 0 }, title = "Position and size",
+            grid: View [ width = 100%,
+                layout: WrappingLayout [ columns = 2, spacing = 10, rowSpacing = 10 ],
+                BoxField [ field = "x", caption = "X" ],
+                BoxField [ field = "y", caption = "Y" ],
+                BoxField [ field = "w", caption = "W" ],
+                BoxField [ field = "h", caption = "H" ]
+                ],
+            keep: View [ width = 100%, visible = { classroot.boxed.length > 0 },
+                layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                Glyph [ iconSize = 14, shape = "lock", ink = { provided("theme").textMuted } ],
+                Text [ flexes = true, fontSize = 13, text = { classroot.keeps.length > 1 ? "Keep proportions (mixed)" : "Keep proportions" } ],
+                Switch [ accessibilityLabel = "Keep proportions", tooltipLabel = "Keep proportions when resizing",
+                    checked = { classroot.keeps.length == 1 && classroot.keeps[0] == "true" },
+                    commit(v: boolean) { app.ed.restyle((e) => e.kind == "line" ? e : ({ ...e, keepProportions: v })) }
+                    ]
+                ]
+            ],
+
+        // ── arrange
+
+        arrange: Section [ visible = { app.selection.length > 0 }, title = "Arrange",
+            Text [ fontSize = 12, textColor = { provided("theme").textFaint }, text = "Align" ],
+            alignRow: View [ layout: SimpleLayout [ axis = x, spacing = 2 ],
+                ArrangeButton [ shape = "alignLeft", name = "Align left edges", act = "align:left", need = 2 ],
+                ArrangeButton [ shape = "alignCenter", name = "Align centres", act = "align:center", need = 2 ],
+                ArrangeButton [ shape = "alignRight", name = "Align right edges", act = "align:right", need = 2 ],
+                ArrangeButton [ shape = "alignTop", name = "Align tops", act = "align:top", need = 2 ],
+                ArrangeButton [ shape = "alignMiddle", name = "Align middles", act = "align:middle", need = 2 ],
+                ArrangeButton [ shape = "alignBottom", name = "Align bottoms", act = "align:bottom", need = 2 ]
+                ],
+            Text [ fontSize = 12, textColor = { provided("theme").textFaint }, text = "Distribute and order" ],
+            orderRow: View [ layout: SimpleLayout [ axis = x, spacing = 2 ],
+                ArrangeButton [ shape = "distributeX", name = "Distribute evenly across", act = "distribute:x", need = 3 ],
+                ArrangeButton [ shape = "distributeY", name = "Distribute evenly down", act = "distribute:y", need = 3 ],
+                View [ width = 8 ],
+                ArrangeButton [ shape = "front", name = "Bring to front", act = "front", need = 1 ],
+                ArrangeButton [ shape = "forward", name = "Bring forward", act = "forward", need = 1 ],
+                ArrangeButton [ shape = "backward", name = "Send backward", act = "backward", need = 1 ],
+                ArrangeButton [ shape = "back2", name = "Send to back", act = "back", need = 1 ]
+                ],
+            groupRow: View [ width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
+                PillButton [ flexes = true, label = "Group", shape = "group", disabled = { !app.ed.canGroup },
+                    tooltipLabel = "Group  ⌘G",
+                    press() { app.ed.group() }
+                    ],
+                PillButton [ flexes = true, label = "Ungroup", shape = "ungroup", disabled = { !app.ed.canUngroup },
+                    tooltipLabel = "Ungroup  ⇧⌘G",
+                    press() { app.ed.ungroup() }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+script {
+    function weightName(w: number): string {
+        return w <= 300 ? "Light" : w <= 400 ? "Regular" : w <= 500 ? "Medium" : w <= 600 ? "Semibold" : w <= 700 ? "Bold" : "Black"
+    }
+    }
+
+
+// ── The inspector's parts ───────────────────────────────────────────────────
+
+class Section [ width = 100%,
+    title: string = "",
+    defaultPlacement = body,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    SectionTitle [ text = { classroot.title } ],
+    body: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ]
+        ]
+    ]
+
+
+// A caption on the left, its control on the right.
+
+class Row [ width = 100%, height = 32,
+    label: string = "",
+    defaultPlacement = slot,
+    layout: SimpleLayout [ axis = x, align = center ],
+    Text [ width = 70, fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    slot: View [ flexes = true, height = 32,
+        layout: SimpleLayout [ axis = x, align = center ]
+        ]
+    ]
+
+
+// A colour, shown as a swatch with its hex beside it; pressing it opens the
+// colour picker. "none" is no colour, "mixed" is several.
+
+class ColorWell extends Control [ height = 30, cornerRadius = 8, padding = [0, 10, 0, 4],
+    value: string = "#FFFFFF",
+    allowNone: boolean = false,
+    commit(c: string) { },
+    tooltipLabel = { this.accessibilityLabel },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    press() { app.colorPop.openFor(this) },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    chip: View [ width = 22, height = 22, cornerRadius = 6, clip = true,
+        fill = { classroot.value.startsWith("#") ? classroot.value as Color : "#FFFFFF" },
+        stroke = { Stroke(1, "#00000026") },
+        Glyph [ visible = { classroot.value == "none" }, x = center, y = center, iconSize = 18, shape = "none", ink = { provided("theme").danger } ],
+        View [ visible = { classroot.value == "mixed" }, width = 11, height = 22, fill = #1D1A2E ],
+        View [ visible = { classroot.value == "mixed" }, x = 11, width = 11, height = 22, fill = #5B3DF5 ]
+        ],
+    TextLabel [ fontSize = 13, fontWeight = 500, numeralWidth = tabular, wrap = false,
+        text = { classroot.value == "none" ? "None" : classroot.value == "mixed" ? "Mixed" : classroot.value.toUpperCase() } ]
+    ]
+
+
+// A number typed in place. Up and Down step it (by ten with Shift); it is
+// written when the person leaves the field or presses Return, and Return gives
+// the keyboard back to the slide. "Mixed" stands in when the selection differs.
+
+class NumField extends TextInput [ height = 30, padding = [0, 26, 0, 8], cornerRadius = 8,
+    num: number = 0,
+    mixed: boolean = false,
+    min: number = -100000,
+    max: number = 100000,
+    suffix: string = "",
+    setTo(n: number) { },
+    tooltipLabel = { this.accessibilityLabel },
+    fill = { provided("theme").surface },
+    stroke = { Stroke(1, this.focused ? provided("theme").accent : provided("theme").line) },
+    fontSize = 13, numeralWidth = tabular,
+    commitOn = "end",
+    value = { this.mixed ? "" : "" + Math.round(this.num * 10) / 10 },
+    placeholder = { this.mixed ? "Mixed" : "" },
+    admit(t: string) -> string? { return /^-?[0-9]*\.?[0-9]*$/.test(t) ? t : null },
+    commit(t: string) {
+        const n = Number(t)
+        if (t.trim() == "" || isNaN(n)) return
+        const v = Math.max(this.min, Math.min(this.max, n))
+        if (v != this.num || this.mixed) this.setTo(v)
+        },
+    keyBindings = { [ ({ key: "ArrowUp", command: "bump", args: [1] }), ({ key: "ArrowDown", command: "bump", args: [-1] }),
+        ({ key: "Shift+ArrowUp", command: "bump", args: [10] }), ({ key: "Shift+ArrowDown", command: "bump", args: [-10] }) ] },
+    bump(d: number) { this.setTo(Math.max(this.min, Math.min(this.max, Math.round(this.num) + d))) },
+
+    // Return hands the keyboard back to the slide, so ⌘Z undoes the change just made
+
+    onEnter() { app.focusStage() },
+    unit: Text [ ignoreLayout = true, x = { parent.width - this.width - 8 }, y = center, fontSize = 11,
+        textColor = { provided("theme").textFaint }, text = { classroot.suffix } ]
+    ]
+
+
+// One of the selection box's numbers: X, Y, W or H.
+
+class BoxField [ width = 115, height = 30,
+    field: "x" | "y" | "w" | "h" = "x",
+    caption: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Text [ width = 14, fontSize = 12, fontWeight = 600, textColor = { provided("theme").textMuted }, text = { classroot.caption } ],
+    NumField [ flexes = true, suffix = "pt",
+        accessibilityLabel = { ({ x: "X position", y: "Y position", w: "Width", h: "Height" } as Record<string, string>)[classroot.field] },
+        min = { classroot.field == "w" || classroot.field == "h" ? 1 : -5000 },
+        num = { (app.ed.box as Record<string, number> | null)?.[classroot.field] ?? 0 },
+        setTo(n: number) { app.ed.setBox(classroot.field, n) }
+        ]
+    ]
+
+
+// The colours on offer, as a grid of swatches.
+
+class Swatches [ width = 100%,
+    choose(c: string) { },
+    current: string = "",
+    layout: WrappingLayout [ columns = 8, spacing = 5, rowSpacing = 5 ],
+    sw: Dataset [ contents = { { colors: palette() } } ],
+    datapath = { this.sw.value },
+    Swatch [ datapath = :colors[], flexes = true, color = { :@ as string },
+        on = { classroot.current.toUpperCase() == (:@ as string).toUpperCase() },
+        press() { classroot.choose(this.color) }
+        ]
+    ]
+
+
+class Swatch extends Control [ height = 26, cornerRadius = 7, accessibilityPressed = { this.on },
+    color: string = "#FFFFFF",
+    on: boolean = false,
+    accessibilityLabel = { this.color },
+    tooltipLabel = { this.color },
+    fill = { this.color as Color },
+    stroke = { this.on ? Stroke(2, provided("theme").accent) : Stroke(1, "#00000022") },
+    scale = { hovered ? 1.08 : 1 }, pivotX = { this.width / 2 }, pivotY = 13
+    ]
+
+
+class CornerChip extends Control [ height = 28, flexes = true, cornerRadius = 7,
+    label: string = "",
+    radius: number = 0,
+    accessibilityLabel = { "Corners: " + classroot.label },
+    tooltipLabel = { classroot.label + " corners" },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    press() { const r = classroot.radius
+        app.ed.restyle((e) => e.kind == "rect" ? ({ ...e, cornerRadius: r == 9999 ? Math.round(Math.min(e.width ?? 0, e.height ?? 0) / 2) : r }) : e) },
+    TextLabel [ x = center, fontSize = 12, fontWeight = 500, text = { classroot.label } ]
+    ]
+
+
+class AlignChip extends ToggleButton [
+    align: "left" | "center" | "right" = "left",
+    tooltipLabel = { this.accessibilityLabel },
+    on = { app.inspector.aligns.length == 1 && app.inspector.aligns[0] == classroot.align },
+    press() { const a = classroot.align; app.ed.restyle((e) => e.kind == "text" ? ({ ...e, text: ({ ...e.text!, align: a }) }) : e) }
+    ]
+
+
+class ArrangeButton extends IconButton [ width = 34,
+    name: string = "",
+    act: string = "",
+    need: number = 1,
+    accessibilityLabel = { this.name },
+    tooltipLabel = { this.name },
+    disabled = { app.selection.length < this.need },
+    press() { app.run(this.act) }
+    ]
+
+
+// The colour picker: the palette, a hex field, and None where none is allowed.
+// One popover serves every colour well; `well` is the one it was opened for.
+
+class ColorPop extends Popover [ width = 268, placement = "below",
+    well: ColorWell? = null,
+    openFor(w: ColorWell) { well = w; this.showFor(w) },
+    choose(c: string) { if (well != null) well!.commit(c); this.close() },
+    padding = 14,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Swatches [ current = { classroot.well?.value ?? "" },
+        choose(c: string) { classroot.choose(c) }
+        ],
+    hexRow: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ fontSize = 12, fontWeight = 600, textColor = { provided("theme").textMuted }, text = "Hex" ],
+        TextInput [ flexes = true, height = 30, padding = [0, 8, 0, 8], cornerRadius = 7, fontSize = 13,
+            accessibilityLabel = "Hex colour", tooltipLabel = "Type a colour as #RRGGBB", placeholder = "#RRGGBB",
+            fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
+            commitOn = "end",
+            value = { (classroot.well?.value ?? "").startsWith("#") ? classroot.well!.value.toUpperCase() : "" },
+            commit(t: string) {
+                const v = (t.startsWith("#") ? t : "#" + t).toUpperCase()
+                if (validHex(v)) classroot.choose(v)
+                },
+            onEnter() { }
+            ],
+        PillButton [ visible = { classroot.well?.allowNone ?? false }, label = "None", shape = "none", tooltipLabel = "No colour",
+            press() { classroot.choose("none") }
+            ]
+        ]
+    ]

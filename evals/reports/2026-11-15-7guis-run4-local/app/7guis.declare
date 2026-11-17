@@ -1,0 +1,114 @@
+/*
+# 7GUIs
+
+The seven tasks of the 7GUIs benchmark (Eugen Kiss), as one desktop program: a
+sidebar names the tasks, and the one chosen fills the rest of the window.
+
+How it is put together:
+
+- **Each task is one class in a file of its own** (`counter.declare`,
+  `temperature.declare`, … `cells.declare`), included below. A task's class
+  holds its own state and its own views, so each file reads on its own. Cells
+  keeps its formula language apart again, in plain TypeScript (`formula.ts`).
+- **Where the user is** — which task is open — is the App's `location`, so
+  every task has an address (`#crud`, `#cells`) and Back returns to the last one.
+- **The tasks stay built** while another is shown (`visible`, not `exists`), so
+  switching away and back keeps what a person typed, drew or booked.
+*/
+
+include [ "counter.declare" ]
+
+include [ "temperature.declare" ]
+
+include [ "flight.declare" ]
+
+include [ "timer.declare" ]
+
+include [ "crud.declare" ]
+
+include [ "circles.declare" ]
+
+include [ "cells.declare" ]
+
+// A desktop program: mouse and keyboard.
+
+defaultFlags [ devices = desktop ]
+
+schema TaskEntry [ id: string, name: string, challenge: string ]
+
+
+// A task in the sidebar: its name, as a link to its address.
+
+class TaskLink [ width = 100%, height = 32, cornerRadius = 7, padding = [0, 10, 0, 10],
+    taskId: string = "",
+    name: string = "",
+    here: boolean = { app.taskId == classroot.taskId },
+    link = { "#" + classroot.taskId },
+    accessibilityCurrent = { here ? "page" : "none" },
+    fill = { hovered ? provided("theme").controlHovered : null },
+    State [ applied = { classroot.here }, fill = { provided("theme").controlSelected } ],
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ width = 18, fontSize = 12, textColor = { provided("theme").textMuted }, text = { "" + (classroot.rowIndex + 1) } ],
+    Text [ flexes = true, fontSize = 14, wrap = false,
+        fontWeight = { classroot.here ? "semibold" : "regular" }, text = { classroot.name } ]
+    ]
+
+
+App [ appName = "7GUIs", minWidth = 960, minHeight = 640, scrolls = none,
+    theme = { app.systemDark ? SanFranciscoDark : SanFrancisco },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    tasks: Dataset [ schema = [ rows[]: TaskEntry ] ] { { "rows": [
+        { "id": "counter", "name": "Counter", "challenge": "The basic ideas of a language or toolkit." },
+        { "id": "temperature", "name": "Temperature Converter", "challenge": "Bidirectional data flow, and the user's text as input." },
+        { "id": "flight", "name": "Flight Booker", "challenge": "Constraints between controls and within one." },
+        { "id": "timer", "name": "Timer", "challenge": "Time, and user and timer acting on the same state at once." },
+        { "id": "crud", "name": "CRUD", "challenge": "Keeping domain and presentation apart, mutation, and a layout of some substance." },
+        { "id": "circles", "name": "Circle Drawer", "challenge": "Undo and redo, drawing, and an interaction spread across several steps." },
+        { "id": "cells", "name": "Cells", "challenge": "Change propagation, and building a widget of real substance." } ] } },
+
+    // ── where the user is: the open task, in the URL
+
+    location = "counter",
+    taskId: string = { app.location == "" ? "counter" : app.location },
+    current: TaskEntry? = { (app.tasks.value?.rows ?? []).find((t) => t.id == app.taskId) ?? null },
+
+    // ── the screen: the task list beside the open task
+
+    layout: SimpleLayout [ axis = x, align = stretch ],
+
+    side: View [ width = 232, padding = [20, 12, 20, 12], accessibilityRole = navigation, accessibilityLabel = "Tasks",
+        fill = { provided("theme").surface }, stroke = { [null, Stroke(1, provided("theme").line), null, null] },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ padding = [0, 10, 2, 10], fontSize = 20, fontWeight = bold, text = "7GUIs" ],
+        Text [ padding = [0, 10, 14, 10], fontSize = 12, textColor = { provided("theme").textMuted }, text = "Seven tasks, one program" ],
+        list: View [ width = 100%, datapath = { app.tasks.value },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            TaskLink [ datapath = :rows[], taskId = :id, name = :name ]
+            ]
+        ],
+
+    main: View [ flexes = true, padding = [28, 32, 28, 32], accessibilityRole = main,
+        layout: SimpleLayout [ axis = y, spacing = 20 ],
+        head: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ accessibilityRole = heading, fontSize = 24, fontWeight = bold, text = { app.current?.name ?? "" } ],
+            Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+                text = { "Challenge: " + (app.current?.challenge ?? "") } ]
+            ],
+
+        // The open task, in the room that is left. Every task is built once and
+        // shown while it is the one chosen.
+
+        stage: View [ width = 100%, flexes = true,
+            counter: CounterTask [ visible = { app.taskId == "counter" } ],
+            temperature: TemperatureTask [ visible = { app.taskId == "temperature" } ],
+            flight: FlightTask [ visible = { app.taskId == "flight" } ],
+            timer: TimerTask [ visible = { app.taskId == "timer" } ],
+            crud: CrudTask [ visible = { app.taskId == "crud" }, width = 100%, height = 100% ],
+            circles: CircleTask [ visible = { app.taskId == "circles" }, width = 100%, height = 100% ],
+            cells: CellsTask [ visible = { app.taskId == "cells" }, width = 100%, height = 100% ]
+            ]
+        ]
+    ]

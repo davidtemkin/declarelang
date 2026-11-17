@@ -1,0 +1,604 @@
+/*
+# Presentify: around the canvas
+
+The editor's other parts: the slides down the left side, the inspector on
+the right, the bar along the top, the colour popover, and the banner that
+says when someone else changed the slide being edited. Each reads where the
+person is from the App (`app.current`, `app.sel`) and changes things through
+the App's verbs, so every change is one undo step.
+*/
+
+// ── The slide list ──────────────────────────────────────────────────────────
+//
+// The slides in order, each a live picture of itself. Drag one to move it:
+// while it is dragged nothing in the list moves under the pointer — a line
+// shows where it will land — and when it is dropped the slides glide to
+// their new places. The arrow keys move between slides.
+
+class Glide extends TweenLayout [ duration = 260,
+    rowH: number = 108,
+    place() {
+        const w = this.contentExtent("width")
+        return this.laid().map((c, i) => ({ x: 0, y: i * this.rowH, w: w, h: this.rowH }))
+        }
+    ]
+
+
+class SlideThumb extends Control [
+    key: string = { :id ?? "" },
+    n: number = { rowIndex + 1 },
+    here: boolean = { app.current == classroot.key },
+    conflicted: boolean = { app.sync.conflictKeys.includes(classroot.key) },
+    lifted: boolean = { app.slideList.dragKey == classroot.key },
+    accessibilityLabel = { "Slide " + classroot.n },
+    accessibilityRole = option,
+    accessibilitySelected = { classroot.here },
+    press() { app.goTo(classroot.key) },
+    keyBindings = { [
+        ({ key: "ArrowUp", command: "step", args: [-1] }), ({ key: "ArrowDown", command: "step", args: [1] }),
+        ({ key: "Home", command: "jump", args: [0] }), ({ key: "End", command: "jump", args: [-1] }),
+        ({ key: "Delete", command: "drop", label: "Delete slide" }), ({ key: "Backspace", command: "drop" }),
+        ({ key: "Alt+ArrowUp", command: "shift", args: [-1], label: "Move slide up" }),
+        ({ key: "Alt+ArrowDown", command: "shift", args: [1], label: "Move slide down" })
+        ] },
+    step(d: number) { app.slideList.stepFrom(classroot.key, d) },
+    jump(i: number) { app.slideList.jumpTo(i) },
+    drop() { app.deleteSlide(classroot.key) },
+    shift(d: number) { app.moveSlideBy(classroot.key, d) },
+    onDragStart(e: PointerEvent) { app.slideList.dragStart(classroot.key, e) },
+    onDrag(e: PointerEvent) { app.slideList.dragMove(e) },
+    onDragEnd(e: DragEndEvent) { app.slideList.dragEnd(e) },
+    onContextMenu(e: PointerEvent) { app.goTo(classroot.key); app.slideMenu.showAt(this, e) },
+    opacity = { classroot.lifted ? 0.35 : 1 },
+
+    num: Text [ x = 8, y = 8, width = 20, textAlign = right, fontSize = 12, fontWeight = semibold,
+        textColor = { classroot.here ? provided("theme").accent : provided("theme").textFaint },
+        text = { "" + classroot.n } ],
+    frame: View [ x = 34, y = 6, width = 160, height = 90, cornerRadius = 6, clip = true,
+        fill = white,
+        shadow = { classroot.here ? null : Shadow(0, 1, 3, 0x1D18301F) },
+        SlideArt [ scale = 0.125 ]
+        ],
+    ring: View [ x = 31, y = 3, width = 166, height = 96, cornerRadius = 8, pointerEvents = "none",
+        stroke = { classroot.here ? Stroke(2.5, provided("theme").accent) : classroot.hovered ? Stroke(1.5, provided("theme").lineStrong) : null } ],
+    badge: View [ visible = { classroot.conflicted }, x = 176, y = 10, width = 14, height = 14, cornerRadius = 7,
+        fill = { provided("theme").saving }, tooltipLabel = "Changed in another window",
+        Text [ x = center, y = center, fontSize = 10, fontWeight = bold, textColor = white, text = "!" ]
+        ]
+    ]
+
+
+class SlideList [ width = 216,
+    fill = { provided("theme").surface },
+    stroke = { [null, Stroke(1, provided("theme").line), null, null] },
+    rowH: number = 108,
+    layout: SimpleLayout [ axis = y ],
+
+    head: View [ width = 100%, height = 46, padding = [0, 10, 0, 16],
+        layout: SimpleLayout [ axis = x, align = center ],
+        Text [ flexes = true, fontSize = 11, fontWeight = bold, letterSpacing = 0.6, textTransform = uppercase,
+            textColor = { provided("theme").textFaint },
+            text = { app.deck.slides().length == 1 ? "1 slide" : app.deck.slides().length + " slides" } ],
+        IconButton [ shape = "plus", label = "New slide",
+            press() { app.addSlide() }
+            ]
+        ],
+
+    pane: View [ width = 100%, flexes = true, scrolls = y,
+        accessibilityRole = listbox, accessibilityLabel = "Slides",
+        rows: View [ width = 100%, padding = [2, 0, 12, 0], datapath = { app.deck.value },
+            layout: Glide [ rowH = { classroot.rowH } ],
+            SlideThumb [ datapath = :slides[] ]
+            ],
+        dropLine: View [ visible = { classroot.dragKey != "" }, x = 30, width = 170, height = 3, cornerRadius = 1.5,
+            y = { 2 + classroot.dropAt * classroot.rowH - 2 },
+            fill = { provided("theme").accent } ],
+        ghost: View [ visible = { classroot.dragKey != "" }, x = 44, width = 160, height = 90, cornerRadius = 6, clip = true,
+            y = { classroot.ghostY }, pointerEvents = "none",
+            shadow = { Shadow(0, 10, 24, 0x1D183040) },
+            datapath = { app.deck.value?.slides?.[app.deck.at(classroot.dragKey)] },
+            SlideArt [ scale = 0.125 ]
+            ]
+        ],
+
+    foot: View [ width = 100%, padding = [10, 12, 12, 12], stroke = { [Stroke(1, provided("theme").line), null, null, null] },
+        PillButton [ width = 100%, label = "New slide", shape = "plus",
+            press() { app.addSlide() }
+            ]
+        ],
+
+    // ── reordering by drag
+
+    dragKey: string = "",
+    dropAt: number = 0,
+    ghostY: number = 0,
+    grabY: number = 0,
+
+    localY(e: PointerEvent) -> number { return e.rootY - pane.rows.rootOrigin().y },
+    dragStart(key: string, e: PointerEvent) {
+        dragKey = key
+        const i = app.deck.at(key)
+        grabY = localY(e) - e.deltaY - i * rowH
+        dragMove(e)
+        },
+    dragMove(e: PointerEvent) {
+        if (dragKey == "") return
+        const y = localY(e)
+        const n = app.deck.slides().length
+        dropAt = Math.max(0, Math.min(n, Math.floor((y - 2 + rowH / 2) / rowH)))
+        ghostY = y - grabY + 6
+        },
+    dragEnd(e: DragEndEvent) {
+        const key = dragKey
+        dragKey = ""
+        if (e.canceled || key == "") return
+        const from = app.deck.at(key)
+        const to = dropAt > from ? dropAt - 1 : dropAt
+        if (from >= 0 && to != from) app.hist.step(() => app.deck.moveSlide(from, to))
+        },
+
+    // ── the keys
+
+    thumbFor(key: string) -> View? {
+        return (pane.rows.childViews as View[]).find((v) => (v as SlideThumb).key == key) ?? null
+        },
+
+    // A slide that has just arrived waits, hidden, until the list's glide lands; focus it then.
+
+    focusThumb(key: string) { afterSettle(() => this.focusWhenShown(key, 6)) },
+    focusWhenShown(key: string, tries: number) {
+        const t = thumbFor(key)
+        if (t == null) return
+        if (t.visible || tries <= 0) Focus.focus(t)
+        else afterDelay(60, () => this.focusWhenShown(key, tries - 1))
+        },
+    stepFrom(key: string, d: number) {
+        const all = app.deck.slides()
+        const i = Math.max(0, Math.min(all.length - 1, app.deck.at(key) + d))
+        app.goTo(all[i].id)
+        focusThumb(all[i].id)
+        },
+    jumpTo(i: number) {
+        const all = app.deck.slides()
+        const s = i < 0 ? all[all.length - 1] : all[0]
+        app.goTo(s.id)
+        focusThumb(s.id)
+        }
+    ]
+
+
+// ── The inspector ───────────────────────────────────────────────────────────
+//
+// What is selected, and its fill, outline, corners and text. Every section is
+// always there, in the same place; one that doesn't apply to the selection
+// dims. Where the selected things differ, a control says "Mixed" rather than
+// showing one of them, and a change applies to all of them.
+
+class NumberBox extends TextInput [ width = 64, height = 28, fontSize = 13, padding = [0, 8, 0, 8],
+    num: number = 0,
+    mixed: boolean = false,
+    min: number = 0,
+    max: number = 999,
+    value = { classroot.mixed ? "" : "" + classroot.num },
+    placeholder = { classroot.mixed ? "Mixed" : "" },
+    commitOn = "end",
+    admit(t: string) -> string? { return /^[0-9]*\.?[0-9]*$/.test(t) ? t : null },
+    commit(t: string) { if (t != "") classroot.take(Math.max(min, Math.min(max, Number(t)))) },
+    take(v: number) { },
+    keyBindings = { [ ({ key: "ArrowUp", command: "bump", args: [1] }), ({ key: "ArrowDown", command: "bump", args: [-1] }),
+        ({ key: "Shift+ArrowUp", command: "bump", args: [10] }), ({ key: "Shift+ArrowDown", command: "bump", args: [-10] }) ] },
+    bump(d: number) { take(Math.max(min, Math.min(max, num + d))) }
+    ]
+
+
+class Inspector [ width = 280,
+    fill = { provided("theme").surface },
+    stroke = { [null, null, null, Stroke(1, provided("theme").line)] },
+    scrolls = y,
+    accessibilityRole = complementary, accessibilityLabel = "Inspector",
+
+    // ── the facts it shows, each once
+
+    leaves: Element[] = { leavesOf(app.selEls()) },
+    none: boolean = { app.sel.length == 0 },
+    shapes: Element[] = { classroot.leaves.filter((e) => e.kind == "rect" || e.kind == "ellipse") },
+    outlined: Element[] = { classroot.leaves.filter((e) => e.kind != "text") },
+    texts: Element[] = { classroot.leaves.filter((e) => e.kind == "text") },
+    rects: Element[] = { classroot.leaves.filter((e) => e.kind == "rect") },
+    sized: Element[] = { classroot.leaves.filter((e) => e.kind != "line") },
+    allShapes: boolean = { !classroot.none && classroot.shapes.length == classroot.leaves.length },
+    allOutlined: boolean = { !classroot.none && classroot.outlined.length == classroot.leaves.length },
+    allText: boolean = { !classroot.none && classroot.texts.length == classroot.leaves.length },
+    allRects: boolean = { !classroot.none && classroot.rects.length == classroot.leaves.length },
+
+    fills: string[] = { classroot.shapes.map((e) => e.fill ?? "") },
+    strokes: string[] = { classroot.outlined.map((e) => e.stroke?.color ?? "") },
+    widths: number[] = { classroot.outlined.map((e) => e.stroke?.width ?? 0) },
+    radii: number[] = { classroot.rects.map((e) => e.cornerRadius ?? 0) },
+    fonts: string[] = { classroot.texts.map((e) => e.text?.font ?? "") },
+    sizes: number[] = { classroot.texts.map((e) => e.text?.size ?? 0) },
+    weights: number[] = { classroot.texts.map((e) => e.text?.weight ?? 400) },
+    italics: boolean[] = { classroot.texts.map((e) => e.text?.italic ?? false) },
+    inks: string[] = { classroot.texts.map((e) => e.text?.color ?? "") },
+    aligns: string[] = { classroot.texts.map((e) => e.text?.align ?? "left") },
+    keeps: boolean[] = { classroot.sized.map((e) => e.keepProportions ?? false) },
+    maxR: number = { Math.max(1, ...classroot.rects.map((e) => Math.min(e.width ?? 0, e.height ?? 0) / 2)) },
+    hasStroke: boolean = { classroot.strokes.some((c) => c != "") },
+    lineOnly: boolean = { classroot.allOutlined && classroot.leaves.every((e) => e.kind == "line") },
+
+    mixed(vs: array) -> boolean { return new Set(vs.map((v) => "" + v)).size > 1 },
+    colorWords(vs: string[]) -> string {
+        if (mixed(vs)) return "Mixed"
+        const c = vs[0] ?? ""
+        return c == "" ? "None" : c.toUpperCase()
+        },
+
+    layout: SimpleLayout [ axis = y ],
+
+    head: View [ width = 100%, height = 58, padding = [0, 16, 0, 16],
+        stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = y, spacing = 2, align = start ],
+        Spacer [ ],
+        Text [ fontFamily = { app.brandFace }, fontSize = 17, fontWeight = 700, textColor = { provided("theme").text },
+            text = { app.selTitle } ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { app.selLine } ],
+        Spacer [ ]
+        ],
+
+    fillSec: Section [ title = { classroot.none ? "Background" : "Fill" },
+        applies = { classroot.none || classroot.allShapes },
+        Row [ label = "Colour",
+            ColorWell [ visible = { classroot.none }, target = "background", label = "Slide background",
+                color = { app.deck.slide(app.current)?.background ?? "#FFFFFF" } ],
+            ColorWell [ visible = { !classroot.none }, target = "fill", label = "Fill colour",
+                color = { classroot.fills[0] ?? "" }, mixed = { classroot.mixed(classroot.fills) } ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+                text = { classroot.none ? (app.deck.slide(app.current)?.background ?? "").toUpperCase() : classroot.colorWords(classroot.fills) } ],
+            Spacer [ ],
+            ToggleChip [ visible = { !classroot.none }, shape = "none", label = "No fill",
+                on = { classroot.fills.length > 0 && classroot.fills.every((f) => f == "") },
+                press() { app.applyColor("fill", "") }
+                ]
+            ]
+        ],
+
+    strokeSec: Section [ title = "Outline", applies = { classroot.allOutlined },
+        Row [ label = "Colour",
+            ColorWell [ target = "stroke", label = "Outline colour",
+                color = { classroot.strokes[0] ?? "" }, mixed = { classroot.mixed(classroot.strokes) } ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+                text = { classroot.colorWords(classroot.strokes) } ],
+            Spacer [ ],
+            ToggleChip [ shape = "none", label = "No outline", visible = { !classroot.lineOnly },
+                on = { classroot.strokes.length > 0 && classroot.strokes.every((c) => c == "") },
+                press() { app.applyColor("stroke", "") }
+                ]
+            ],
+        Row [ label = "Width",
+            NumberBox [ accessibilityLabel = "Outline width", min = { classroot.lineOnly ? 1 : 0 }, max = 80,
+                num = { classroot.widths[0] ?? 0 }, mixed = { classroot.mixed(classroot.widths) },
+                take(v: number) { app.applyStrokeWidth(v) }
+                ],
+            Text [ fontSize = 12, textColor = { provided("theme").textFaint }, text = "pt" ]
+            ]
+        ],
+
+    cornerSec: Section [ title = "Corners", applies = { classroot.allRects },
+        Row [ label = "Radius",
+            Slider [ flexes = true, min = 0, max = { classroot.maxR }, accessibilityLabel = "Corner radius",
+                value = { classroot.radii[0] ?? 0 },
+                commit(v: number) { app.applyRadius(Math.round(v)) },
+                trackChanges = ["dragging"],
+                onChange() { if (this.dragging) app.hist.begin(); else app.hist.end() }
+                ],
+            NumberBox [ width = 52, accessibilityLabel = "Corner radius in points", max = 9999,
+                num = { classroot.radii[0] ?? 0 }, mixed = { classroot.mixed(classroot.radii) },
+                take(v: number) { app.hist.step(() => app.applyRadius(v)) }
+                ]
+            ]
+        ],
+
+    textSec: Section [ title = "Text", applies = { classroot.allText },
+        Row [ label = "Font",
+            Button [ flexes = true, height = 28, fontSize = 13, menu = { app.fontMenu },
+                label = { classroot.mixed(classroot.fonts) ? "Mixed" : classroot.fonts[0] ?? "Helvetica Neue" },
+                accessibilityLabel = "Font" ]
+            ],
+        Row [ label = "Size",
+            NumberBox [ accessibilityLabel = "Font size", min = 4, max = 400,
+                num = { classroot.sizes[0] ?? 32 }, mixed = { classroot.mixed(classroot.sizes) },
+                take(v: number) { app.restyleText((t) => ({ ...t, size: v })) }
+                ],
+            Text [ fontSize = 12, textColor = { provided("theme").textFaint }, text = "pt" ],
+            Spacer [ ],
+            ToggleChip [ shape = "bold", label = "Bold", on = { classroot.weights.length > 0 && classroot.weights.every((w) => w >= 600) },
+                press() { const b = !this.on; app.restyleText((t) => ({ ...t, weight: b ? 700 : 400 })) }
+                ],
+            ToggleChip [ shape = "italic", label = "Italic", on = { classroot.italics.length > 0 && classroot.italics.every((i) => i) },
+                press() { const it = !this.on; app.restyleText((t) => ({ ...t, italic: it })) }
+                ]
+            ],
+        Row [ label = "Weight",
+            Button [ flexes = true, height = 28, fontSize = 13, menu = { app.weightMenu }, accessibilityLabel = "Weight",
+                label = { classroot.mixed(classroot.weights) ? "Mixed" : weightName(classroot.weights[0] ?? 400) } ]
+            ],
+        Row [ label = "Colour",
+            ColorWell [ target = "text", label = "Text colour",
+                color = { classroot.inks[0] ?? "" }, mixed = { classroot.mixed(classroot.inks) } ],
+            Spacer [ ],
+            ChoiceControl [ accessibilityLabel = "Alignment",
+                value = { classroot.mixed(classroot.aligns) ? "" : classroot.aligns[0] ?? "left" },
+                commit(v: string) { app.restyleText((t) => ({ ...t, align: v as "left" | "center" | "right" })) },
+                layout: SimpleLayout [ axis = x, spacing = 4 ],
+                ChipChoice [ choice = "left", shape = "textLeft", label = "Align left" ],
+                ChipChoice [ choice = "center", shape = "textCenter", label = "Align centre" ],
+                ChipChoice [ choice = "right", shape = "textRight", label = "Align right" ]
+                ]
+            ]
+        ],
+
+    sizeSec: Section [ title = "Proportions", applies = { classroot.sized.length > 0 },
+        Checkbox [ fontSize = 13, label = { classroot.mixed(classroot.keeps) ? "Keep proportions (mixed)" : "Keep proportions" },
+            checked = { classroot.keeps.length > 0 && classroot.keeps.every((k) => k) },
+            commit(v: boolean) { app.applyKeep(v) }
+            ]
+        ],
+
+    arrangeSec: Section [ title = "Arrange", applies = { !classroot.none },
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            IconButton [ shape = "alignLeft", label = "Align left edges", disabled = { app.sel.length < 2 },
+                press() { app.align("left") }
+                ],
+            IconButton [ shape = "alignCenter", label = "Align centres", disabled = { app.sel.length < 2 },
+                press() { app.align("center") }
+                ],
+            IconButton [ shape = "alignRight", label = "Align right edges", disabled = { app.sel.length < 2 },
+                press() { app.align("right") }
+                ],
+            IconButton [ shape = "alignTop", label = "Align tops", disabled = { app.sel.length < 2 },
+                press() { app.align("top") }
+                ],
+            IconButton [ shape = "alignMiddle", label = "Align middles", disabled = { app.sel.length < 2 },
+                press() { app.align("middle") }
+                ],
+            IconButton [ shape = "alignBottom", label = "Align bottoms", disabled = { app.sel.length < 2 },
+                press() { app.align("bottom") }
+                ]
+            ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            IconButton [ shape = "distH", label = "Distribute across", disabled = { app.sel.length < 3 },
+                press() { app.distribute("x") }
+                ],
+            IconButton [ shape = "distV", label = "Distribute down", disabled = { app.sel.length < 3 },
+                press() { app.distribute("y") }
+                ],
+            BarRule [ ],
+            IconButton [ shape = "front", label = "Bring to front",
+                press() { app.order("front") }
+                ],
+            IconButton [ shape = "forward", label = "Bring forward",
+                press() { app.order("forward") }
+                ],
+            IconButton [ shape = "backward", label = "Send backward",
+                press() { app.order("backward") }
+                ],
+            IconButton [ shape = "back2", label = "Send to back",
+                press() { app.order("back") }
+                ]
+            ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            IconButton [ shape = "group", label = "Group", disabled = { app.sel.length < 2 },
+                press() { app.group() }
+                ],
+            IconButton [ shape = "ungroup", label = "Ungroup", disabled = { !app.selEls().some((e) => e.kind == "group") },
+                press() { app.ungroup() }
+                ],
+            BarRule [ ],
+            IconButton [ shape = "duplicate", label = "Duplicate",
+                press() { app.duplicateSel() }
+                ],
+            IconButton [ shape = "trash", label = "Delete", tone = { provided("theme").danger },
+                press() { app.deleteSel() }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── The colour popover ──────────────────────────────────────────────────────
+//
+// One popover, opened from whichever colour well was pressed (`target` says
+// which property it sets): the palette as swatches, and a field for any hex.
+
+class Swatch extends ChoiceItem [ width = 26, height = 26, cornerRadius = 6,
+    fill = { hex(this.choice) },
+    accessibilityLabel = { this.choice },
+    stroke = { Stroke(1, 0x1D18301F) },
+    ring: View [ x = -3, y = -3, width = 32, height = 32, cornerRadius = 8, pointerEvents = "none",
+        stroke = { classroot.on ? Stroke(2, provided("theme").pick) : hovered ? Stroke(1.5, provided("theme").lineStrong) : null } ]
+    ]
+
+
+class ColorPop extends Popover [ width = 252,
+    target: string = "",
+    openFor(v: View, t: string) { target = t; this.showFor(v) },
+    current: string = { app.colorOf(classroot.target) },
+    differs: boolean = { classroot.current == "" && app.sel.length > 1 },
+    allowsNone: boolean = { classroot.target == "fill" || (classroot.target == "stroke" && !app.selIsLines) },
+    swatches: Dataset { { "rows": [
+        { "id": "#FFFFFF" }, { "id": "#F4F1EC" }, { "id": "#D9D4CB" }, { "id": "#9690A3" }, { "id": "#4A4458" }, { "id": "#1D1830" }, { "id": "#000000" },
+        { "id": "#F2542D" }, { "id": "#F59E0B" }, { "id": "#E9C46A" }, { "id": "#2E9A63" }, { "id": "#1F9AA8" }, { "id": "#2F6BFF" }, { "id": "#5B3FE0" },
+        { "id": "#9E2A12" }, { "id": "#8A5A00" }, { "id": "#6B5B1F" }, { "id": "#17583A" }, { "id": "#0E3B43" }, { "id": "#1C3A8A" }, { "id": "#2E1F73" },
+        { "id": "#FDE8E1" }, { "id": "#FEF1D6" }, { "id": "#FBF3DC" }, { "id": "#E2F3E9" }, { "id": "#DDF1F3" }, { "id": "#E3EBFF" }, { "id": "#EEEAFD" }
+        ] } },
+    padding = 14,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 12, fontWeight = bold, letterSpacing = 0.5, textTransform = uppercase, textColor = { provided("theme").textFaint },
+        text = { app.colorTitle(classroot.target) } ],
+    palette: ChoiceControl [ width = 100%, datapath = { classroot.swatches.value }, accessibilityLabel = "Colours",
+        value = { classroot.current.toUpperCase().slice(0, 7) },
+        commit(v: string) { app.applyColor(classroot.target, v) },
+        layout: WrappingLayout [ columns = 7, spacing = 6, rowSpacing = 6 ],
+        Swatch [ datapath = :rows[], choice = :id ]
+        ],
+    hexRow: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ fontSize = 12.5, textColor = { provided("theme").textMuted }, text = "Hex" ],
+        TextInput [ flexes = true, height = 28, fontSize = 13, accessibilityLabel = "Hex colour",
+            value = { classroot.current.toUpperCase() }, commitOn = "end", placeholder = { classroot.differs ? "Mixed" : "#RRGGBB" },
+            commit(t: string) {
+                const v = t.trim().replace(/^#?/, "#").toUpperCase()
+                if (/^#[0-9A-F]{6}([0-9A-F]{2})?$/.test(v)) app.applyColor(classroot.target, v)
+                }
+            ],
+        Button [ visible = { classroot.allowsNone }, height = 28, fontSize = 13, label = "None",
+            onClick() { app.applyColor(classroot.target, ""); classroot.close() }
+            ]
+        ]
+    ]
+
+
+// ── The bar ─────────────────────────────────────────────────────────────────
+
+// Where saving stands, in the words the brief fixes, with a dot that says it at a glance.
+
+class SaveStatus [ height = 30, padding = [0, 10, 0, 10], cornerRadius = 15,
+    status: string = { app.sync.status },
+    fill = { classroot.status == "failed" ? provided("theme").dangerTint : null },
+    accessibilityRole = status, accessibilityLabel = { app.sync.statusText },
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+    dot: View [ width = 8, height = 8, cornerRadius = 4,
+        fill = { classroot.status == "failed" ? provided("theme").failed : classroot.status == "saving" ? provided("theme").saving : provided("theme").saved } ],
+    Text [ fontSize = 12.5, fontWeight = medium, wrap = false,
+        textColor = { classroot.status == "failed" ? provided("theme").failed : provided("theme").textMuted },
+        text = { app.sync.statusText } ],
+    Control [ visible = { classroot.status == "failed" }, height = 22, padding = [0, 8, 0, 8], cornerRadius = 11,
+        accessibilityLabel = "Try saving again",
+        fill = { hovered ? provided("theme").surface : null },
+        press() { app.sync.flush() },
+        TextLabel [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").failed }, text = "Retry" ]
+        ]
+    ]
+
+
+// A drawing tool: one of the five the bar chooses between.
+
+class ToolChoice extends ChoiceItem [ width = 34, height = 34, cornerRadius = 9,
+    shape: string = "",
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    tooltipLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").surface }, shadow = { Shadow(0, 1, 3, 0x1D183026) } ],
+    Glyph [ x = center, y = center, iconSize = 17, weight = 1.6, shape = { classroot.shape },
+        ink = { classroot.on ? provided("theme").pick : provided("theme").text } ]
+    ]
+
+
+class TopBar [ width = 100%, height = 56, padding = [0, 12, 0, 10],
+    fill = { provided("theme").surface },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    accessibilityRole = banner,
+
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    IconButton [ shape = "back", label = "All presentations",
+        press() { app.closeDeck() }
+        ],
+    LogoMark [ width = 24, height = 24 ],
+
+    // The title, edited in place. While it isn't being edited, a long one is
+    // shown cut with an ellipsis rather than cut off.
+
+    title: TextInput [ width = { Math.max(110, classroot.tools.x - this.x - classroot.menus.width - 22) }, height = 34, fontSize = 15, fontWeight = semibold,
+        padding = [0, 8, 0, 8], cornerRadius = 8, accessibilityLabel = "Presentation title",
+        fill = { this.focused ? provided("theme").surface : hovered ? provided("theme").hover : null },
+        stroke = { this.focused ? Stroke(1.5, provided("theme").pick) : null },
+        textColor = { this.focused ? provided("theme").text : 0x00000000 },
+        value = { app.deck.title() }, commitOn = "end", placeholder = "Untitled presentation",
+        commit(t: string) { app.rename(t) },
+        keyBindings = { [ ({ key: "Enter", command: "done" }) ] },
+        done() { afterSettle(() => Focus.focus(app.canvas?.board)) },
+        resting: Text [ visible = { !parent.focused }, x = 8, y = center, width = { parent.width - 16 }, maxLines = 1,
+            pointerEvents = "none", fontSize = 15, fontWeight = semibold, textColor = { provided("theme").text },
+            text = { app.deck.title() } ]
+        ],
+
+    // the bar's menus: every command, findable without its key
+
+    menus: View [ layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        Button [ height = 32, fontSize = 13, label = "Edit", menu = { app.editMenu } ],
+        Button [ height = 32, fontSize = 13, label = "Arrange", menu = { app.arrangeMenu } ]
+        ],
+
+    // the tools, centred on the window whatever is beside them: one choice of five, then undo and redo
+
+    tools: View [ ignoreLayout = true, x = { Math.min((parent.width - this.width) / 2, classroot.right.x - this.width - 16) }, y = center, height = 40, padding = [0, 3, 0, 3],
+        cornerRadius = 11, fill = { provided("theme").quiet },
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        picker: ChoiceControl [ accessibilityLabel = "Tools", value = { app.tool },
+            commit(v: string) { app.useTool(v as "select" | "rect" | "ellipse" | "line" | "text") },
+            layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+            ToolChoice [ choice = "select", shape = "select", label = "Select" ],
+            ToolChoice [ choice = "rect", shape = "rect", label = "Rectangle" ],
+            ToolChoice [ choice = "ellipse", shape = "ellipse", label = "Ellipse" ],
+            ToolChoice [ choice = "line", shape = "line", label = "Line" ],
+            ToolChoice [ choice = "text", shape = "text", label = "Text" ]
+            ],
+        BarRule [ ],
+        IconButton [ shape = "undo", label = "Undo", disabled = { !app.hist.canUndo },
+            press() { app.undo() }
+            ],
+        IconButton [ shape = "redo", label = "Redo", disabled = { !app.hist.canRedo },
+            press() { app.redo() }
+            ]
+        ],
+
+    // saving, and presenting, held to the right edge
+
+    right: View [ ignoreLayout = true, x = end, y = center,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        SaveStatus [ ],
+        PillButton [ label = "Present", shape = "play", primary = true, tooltipLabel = "Present from this slide (⌘⏎)",
+            press() { app.present() }
+            ]
+        ]
+    ]
+
+
+// ── Someone else changed this slide ─────────────────────────────────────────
+//
+// Said in plain words above the slide, with their version shown small beside
+// the choice. Until the person chooses, their own work stays as it is and is
+// not saved over the other.
+
+class ConflictBanner [ padding = 12, cornerRadius = 12,
+    fill = { provided("theme").surface },
+    stroke = { Stroke(1, provided("theme").saving) },
+    shadow = { Shadow(0, 6, 18, 0x1D18301F) },
+    accessibilityRole = status, accessibilityLive = assertive,
+    theirs: Dataset [ contents = { app.sync.conflictFor(app.current) ?? ({ id: "", background: "#FFFFFF", elements: [] }) } ],
+    layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+    View [ width = 96, height = 54, cornerRadius = 4, clip = true, stroke = { Stroke(1, provided("theme").line) },
+        datapath = { classroot.theirs.value },
+        tooltipLabel = "Their version",
+        SlideArt [ scale = 0.075 ]
+        ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        Text [ width = 100%, fontSize = 13.5, fontWeight = semibold, textColor = { provided("theme").text },
+            text = { "Slide " + (app.deck.at(app.current) + 1) + " was changed in another window." } ],
+        Text [ width = 100%, fontSize = 12.5, textColor = { provided("theme").textMuted },
+            text = "Their version is on the left. Yours isn't saved over it until you choose." ]
+        ],
+    View [ layout: SimpleLayout [ axis = y, spacing = 6, align = stretch ],
+        PillButton [ height = 30, label = "Use their version", primary = true,
+            press() { app.sync.takeTheirs(app.current) }
+            ],
+        PillButton [ height = 30, label = "Keep mine",
+            press() { app.sync.keepMine(app.current) }
+            ]
+        ]
+    ]

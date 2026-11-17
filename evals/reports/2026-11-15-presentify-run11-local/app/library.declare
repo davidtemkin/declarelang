@@ -1,0 +1,185 @@
+/*
+# Presentify: the list of presentations
+
+Every presentation the service holds, most recently changed first: its
+first slide, its title, when it was last changed. A card opens its
+presentation (which grows out of the card); its menu renames or deletes it,
+and deleting asks first.
+*/
+
+class Decks extends DataSource [ schema = [ decks[]: DeckSummary ],
+    all() -> DeckSummary[] { return this.value?.decks ?? [] }
+    ]
+
+
+class LibraryScreen [ width = 100%, height = 100%, scrolls = y,
+    fill = { provided("theme").background },
+    accessibilityRole = main,
+
+    col: View [ x = center, width = { Math.min(1160, parent.width - 64) }, padding = [0, 0, 64, 0],
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+
+        bar: View [ width = 100%, height = 84,
+            layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+            Wordmark [ markSize = 30 ],
+            Spacer [ ],
+            PillButton [ label = "New presentation", shape = "plus", spot = true,
+                press() { app.newDeck() }
+                ]
+            ],
+
+        hero: View [ width = 100%, padding = [18, 0, 26, 0],
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Text [ accessibilityRole = heading, fontFamily = { app.displayFace }, fontSize = 40, fontWeight = semibold,
+                letterSpacing = -0.8, textColor = { provided("theme").text }, text = "Your presentations" ],
+            Text [ fontSize = 15, textColor = { provided("theme").textMuted },
+                text = { app.decks.loaded ? deckCount(app.decks.all().length) : "" } ]
+            ],
+
+        // the presentations, as cards; the first card makes a new one
+
+        grid: View [ width = 100%, datapath = { app.decks.value },
+            visible = { app.decks.loaded },
+            layout: WrappingLayout [ spacing = 28, rowSpacing = 32 ],
+            NewCard [ ],
+            DeckCard [ datapath = :decks[] ]
+            ],
+
+        // loading: three quiet cards where the real ones will be
+
+        loading: View [ width = 100%, visible = { !app.decks.loaded && !app.decks.failed },
+            layout: SimpleLayout [ axis = x, spacing = 28 ],
+            GhostCard [ ],
+            GhostCard [ ],
+            GhostCard [ ]
+            ],
+
+        // the service isn't answering
+
+        down: View [ width = 100%, padding = [40, 0, 0, 0], visible = { !app.decks.loaded && app.decks.failed },
+            layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+            Spotlight [ ],
+            Text [ fontFamily = { app.displayFace }, fontSize = 22, fontWeight = semibold, textColor = { provided("theme").text },
+                text = "Can't reach your presentations" ],
+            Text [ width = 380, textAlign = center, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = "The presentation service isn't answering. Nothing is lost — try again in a moment." ],
+            Button [ label = "Try again", primary = true,
+                onClick() { app.decks.fetch() }
+                ]
+            ],
+
+        // nothing yet
+
+        empty: View [ width = 100%, padding = [24, 0, 0, 0], visible = { app.decks.loaded && app.decks.all().length == 0 },
+            layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+            Spotlight [ ],
+            Text [ fontFamily = { app.displayFace }, fontSize = 22, fontWeight = semibold, textColor = { provided("theme").text },
+                text = "The stage is yours" ],
+            Text [ fontSize = 14, textColor = { provided("theme").textMuted },
+                text = "Start a presentation, and it will wait for you here." ]
+            ]
+        ]
+    ]
+
+
+// A presentation: its first slide, its title (two lines at most), and when
+// it changed. Hovering shows its menu.
+
+class DeckCard [ width = 256,
+    deckId: string = { :id ?? "" },
+    title: string = { :title ?? "" },
+    lit: boolean = { classroot.hovered || classroot.open.focused },
+
+    thumb: DataSource [ url = { app.api + "/api/slides/" + (:thumbnailSlideId ?? "") }, autoFetch = true, schema = ServerSlide ],
+
+    open: Control [ width = 100%,
+        accessibilityLabel = { "Open " + classroot.title },
+        press() { app.openDeck(classroot.deckId, this.pic) },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        pic: View [ width = 256, height = 144, cornerRadius = 12, clip = true,
+            fill = { provided("theme").card },
+            stroke = { Stroke(classroot.lit ? 2 : 1, classroot.lit ? provided("theme").accentSoft : provided("theme").line) },
+            shadow = { classroot.lit ? Shadow(0, 10, 26, 0x1C183026) : Shadow(0, 2, 8, 0x1C183012) },
+            datapath = { classroot.thumb.value },
+            SlidePicture [ pictureWidth = 256, visible = { classroot.thumb.loaded } ]
+            ],
+        words: View [ width = 100%, padding = [0, 2, 0, 2],
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, maxLines = 2, fontSize = 15, fontWeight = semibold, textColor = { provided("theme").text },
+                text = { classroot.title == "" ? "Untitled presentation" : classroot.title } ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+                text = { editedLabel(:updatedAt ?? "", app.clock.now) + " · " + slideCount(:slideCount ?? 0) } ]
+            ]
+        ],
+
+    // its menu: rename, delete
+
+    more: IconButton [ x = 218, y = 6, width = 32, height = 32, shape = "more",
+        accessibilityLabel = { "More for " + classroot.title },
+        opacity = { classroot.lit || this.focused || this.menuOpen ? 1 : 0 },
+        fill = { 0xFFFFFFE6 },
+        press() { app.menuDeck = classroot.deckId; app.menuTitle = classroot.title; app.deckMenu.showFor(this) }
+        ]
+    ]
+
+
+class NewCard extends Control [ width = 256,
+    accessibilityLabel = "New presentation",
+    press() { app.newDeck() },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    pic: View [ width = 256, height = 144, cornerRadius = 12,
+        fill = { classroot.hovered ? provided("theme").spotTint : provided("theme").quiet },
+        stroke = { Stroke(1.5, classroot.hovered ? provided("theme").spot : provided("theme").lineStrong) },
+        View [ x = center, y = center,
+            layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+            View [ width = 40, height = 40, cornerRadius = 20, fill = { provided("theme").spot },
+                Glyph [ x = center, y = center, iconSize = 18, weight = 2.2, shape = "plus", ink = white ]
+                ],
+            TextLabel [ fontSize = 13, fontWeight = semibold, textColor = { provided("theme").text }, text = "New presentation" ]
+            ]
+        ],
+    Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "Starts with one empty slide" ]
+    ]
+
+
+class GhostCard [ width = 256,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    View [ width = 256, height = 144, cornerRadius = 12, fill = { provided("theme").stage } ],
+    View [ width = 180, height = 12, cornerRadius = 6, fill = { provided("theme").stage } ],
+    View [ width = 110, height = 10, cornerRadius = 5, fill = { provided("theme").quiet } ]
+    ]
+
+
+// The illustration for an empty or unreachable list: a slide on a stage,
+// with the spotlight on it.
+
+class Spotlight [ width = 220, height = 140,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const g = d.createRadialGradient(150, 30, 4, 150, 30, 120)
+        g.addColorStop(0, 0xFF5B3A55)
+        g.addColorStop(1, 0xFF5B3A00)
+        d.fillStyle = g
+        d.beginPath(); d.moveTo(150, 18); d.lineTo(196, 128); d.lineTo(40, 128); d.closePath(); d.fill()
+        d.fillStyle = t.stageDeep
+        d.beginPath(); d.ellipse(110, 128, 96, 10, 0, 0, Math.PI * 2); d.fill()
+        d.fillStyle = 0xFFFFFF
+        d.strokeStyle = t.lineStrong
+        d.lineWidth = 1.5
+        d.beginPath(); d.roundRect(52, 44, 116, 70, 8); d.fill(); d.stroke()
+        d.fillStyle = t.accent
+        d.beginPath(); d.roundRect(66, 60, 52, 7, 3.5); d.fill()
+        d.fillStyle = t.accentSoft
+        d.beginPath(); d.roundRect(66, 74, 84, 5, 2.5); d.roundRect(66, 84, 70, 5, 2.5); d.fill()
+        d.fillStyle = t.spot
+        d.beginPath(); d.arc(150, 18, 9, 0, Math.PI * 2); d.fill()
+        d.fillStyle = 0x1C1830
+        d.beginPath(); d.moveTo(144, 6); d.lineTo(156, 6); d.lineTo(153, 0); d.lineTo(147, 0); d.closePath(); d.fill()
+        }
+    ]
+
+
+script {
+    function deckCount(n: number): string { return n == 0 ? "" : n == 1 ? "One presentation" : n + " presentations" }
+    function slideCount(n: number): string { return n == 1 ? "1 slide" : n + " slides" }
+    }

@@ -1,0 +1,368 @@
+/*
+# Presentify: the parts
+
+The look of Presentify, kept apart from how it works: the palette, the brand
+mark, the drawn icons, and the small controls the editor and the list are
+built from. `presentify.declare` includes this file.
+
+The identity in one line: warm paper and deep ink for the app, one coral
+for what matters (the Present button, the mark, the primary actions), and a
+violet for the selection, which no slide palette is likely to share. The
+slide itself is always the brightest thing on screen; everything around it
+is quiet.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// A token record laid over the library's SanFrancisco preset, so library
+// controls read the same palette (`accent`, `surface`, `text`, …), and our own
+// views read ours by name (`provided("theme").stage`).
+
+theme Paper [
+    background = #F4F1EC, surface = #FFFFFF, card = #FFFFFF, stage = #E7E3DC, stageEdge = #DAD5CC,
+    line = #E3DED5, lineStrong = #CFC8BC, hover = #EFEBE4, quiet = #F1EDE7, selection = #E9E4FB,
+    text = #1D1830, textMuted = #615B70, textFaint = #9690A3,
+    accent = #F2542D, accentHovered = #E0461F, accentPressed = #C93C18, accentTextColor = #FFFFFF,
+    accentTint = #FDE8E1,
+    pick = #5B3FE0, pickTint = #EEEAFD, pickGlow = #5B3FE033,
+    linkColor = #5B3FE0,
+    control = #F1EDE7, controlHovered = #E9E4DC, controlPressed = #DFD9CF, controlSelected = #E9E4FB,
+    saved = #2E9A63, saving = #C98A0B, failed = #D0342C, danger = #D0342C, dangerTint = #FCE9E7,
+    tooltipFill = #1D1830, tooltipTextColor = #F6F3EE,
+    ink = #1D1830, inkSoft = #2A2440
+    ]
+
+
+// ── Type ────────────────────────────────────────────────────────────────────
+//
+// The brand face is Bricolage Grotesque (the App holds the `Font`); the UI is
+// the system face. These are the faces a slide's text can use: the format
+// stores a family name, so the menu offers names a desk computer has.
+
+script {
+    const SLIDE_FONTS = ["Helvetica Neue", "Avenir Next", "Futura", "Gill Sans", "Georgia",
+        "Palatino", "Baskerville", "Didot", "American Typewriter", "Menlo"]
+    const WEIGHTS: [number, string][] = [[300, "Light"], [400, "Regular"], [500, "Medium"],
+        [600, "Semibold"], [700, "Bold"], [800, "Heavy"]]
+    function weightName(w: number): string {
+        const hit = WEIGHTS.find((p) => p[0] == w)
+        return hit ? hit[1] : "" + w
+    }
+
+    // The palette the colour popover offers: a row of neutrals, then the
+    // brand's own hues and their deep and light companions.
+    const SWATCHES = [
+        "#FFFFFF", "#F4F1EC", "#D9D4CB", "#9690A3", "#4A4458", "#1D1830", "#000000",
+        "#F2542D", "#F59E0B", "#E9C46A", "#2E9A63", "#1F9AA8", "#2F6BFF", "#5B3FE0",
+        "#9E2A12", "#8A5A00", "#6B5B1F", "#17583A", "#0E3B43", "#1C3A8A", "#2E1F73",
+        "#FDE8E1", "#FEF1D6", "#FBF3DC", "#E2F3E9", "#DDF1F3", "#E3EBFF", "#EEEAFD"]
+    }
+
+
+// ── The brand mark ──────────────────────────────────────────────────────────
+//
+// A slide, tilted, with a coral spark in its corner: the thing you make,
+// and the moment you show it.
+
+class LogoMark [ width = 30, height = 30,
+    draw(d: DrawContext) {
+        const k = d.w / 30
+        d.scale(k, k)
+        // the slide behind, in ink
+        d.fillStyle = "#1D1830"
+        d.beginPath(); d.roundRect(1, 7, 24, 17, 4); d.fill()
+        // the slide in front, in coral, lifted and turned a little
+        d.save(); d.translate(17, 12); d.rotate(-0.14)
+        d.fillStyle = "#F2542D"
+        d.beginPath(); d.roundRect(-11, -8, 22, 16, 3.5); d.fill()
+        // on it: a title bar and a dot
+        d.fillStyle = "#FFFFFF"
+        d.beginPath(); d.roundRect(-7.5, -4.5, 11, 2.6, 1.3); d.fill()
+        d.beginPath(); d.arc(4.5, 2.5, 2.6, 0, Math.PI * 2); d.fill()
+        d.restore()
+        }
+    ]
+
+
+class Wordmark [
+    big: boolean = false,
+    layout: SimpleLayout [ axis = x, spacing = { classroot.big ? 12 : 8 }, align = center ],
+    LogoMark [ width = { classroot.big ? 40 : 26 }, height = { this.width } ],
+    Text [ fontFamily = { app.brandFace }, fontSize = { classroot.big ? 34 : 19 }, fontWeight = 800,
+        letterSpacing = { classroot.big ? -1.2 : -0.5 }, textColor = { provided("theme").ink }, text = "Presentify" ]
+    ]
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// One pen for every mark: a 1.5 stroke with round ends on the library's 16-unit
+// grid, so the tools, the inspector and the menus read as one family.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        const s = shape
+        if (s == "select") {
+            d.moveTo(4, 2); d.lineTo(4, 13); d.lineTo(6.8, 10.4); d.lineTo(8.8, 14.5); d.lineTo(10.6, 13.6)
+            d.lineTo(8.7, 9.6); d.lineTo(12.4, 9.4); d.closePath(); d.stroke()
+        } else if (s == "rect") {
+            d.roundRect(2, 3.5, 12, 9, 1.5); d.stroke()
+        } else if (s == "ellipse") {
+            d.ellipse(8, 8, 6, 5, 0, 0, Math.PI * 2); d.stroke()
+        } else if (s == "line") {
+            d.moveTo(2.5, 13.5); d.lineTo(13.5, 2.5); d.stroke()
+        } else if (s == "text") {
+            d.moveTo(3, 4); d.lineTo(3, 2.8); d.lineTo(13, 2.8); d.lineTo(13, 4)
+            d.moveTo(8, 2.8); d.lineTo(8, 13.5); d.moveTo(6, 13.5); d.lineTo(10, 13.5); d.stroke()
+        } else if (s == "undo") {
+            d.moveTo(5.5, 3); d.lineTo(2.5, 6); d.lineTo(5.5, 9)
+            d.moveTo(2.5, 6); d.lineTo(10, 6); d.arc(10, 9.5, 3.5, -Math.PI / 2, Math.PI / 2); d.lineTo(6, 13); d.stroke()
+        } else if (s == "redo") {
+            d.moveTo(10.5, 3); d.lineTo(13.5, 6); d.lineTo(10.5, 9)
+            d.moveTo(13.5, 6); d.lineTo(6, 6); d.arc(6, 9.5, 3.5, -Math.PI / 2, Math.PI / 2, true); d.lineTo(10, 13); d.stroke()
+        } else if (s == "play") {
+            d.moveTo(4.5, 2.8); d.lineTo(13, 8); d.lineTo(4.5, 13.2); d.closePath(); d.fill()
+        } else if (s == "plus") {
+            d.moveTo(8, 3); d.lineTo(8, 13); d.moveTo(3, 8); d.lineTo(13, 8); d.stroke()
+        } else if (s == "duplicate") {
+            d.roundRect(5, 5, 9, 9, 1.5); d.moveTo(11, 2.5); d.lineTo(3.5, 2.5); d.arcTo(2.5, 2.5, 2.5, 3.5, 1); d.lineTo(2.5, 11); d.stroke()
+        } else if (s == "trash") {
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke()
+        } else if (s == "back") {
+            d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (s == "more") {
+            for (const x of [3.5, 8, 12.5]) { d.moveTo(x + 1.2, 8); d.arc(x, 8, 1.2, 0, Math.PI * 2) }
+            d.fill()
+        } else if (s == "group") {
+            d.setLineDash([1.6, 2]); d.roundRect(1.5, 1.5, 13, 13, 2); d.stroke(); d.setLineDash([])
+            d.beginPath(); d.roundRect(4, 4, 5, 4, 0.8); d.roundRect(7, 8, 5, 4, 0.8); d.stroke()
+        } else if (s == "ungroup") {
+            d.roundRect(2, 2, 6, 5, 1); d.roundRect(8, 9, 6, 5, 1); d.stroke()
+        } else if (s == "alignLeft") {
+            d.moveTo(2.5, 2); d.lineTo(2.5, 14); d.stroke(); d.beginPath(); d.roundRect(4.5, 4, 9, 3, 0.8); d.roundRect(4.5, 9, 5.5, 3, 0.8); d.stroke()
+        } else if (s == "alignCenter") {
+            d.moveTo(8, 2); d.lineTo(8, 14); d.stroke(); d.beginPath(); d.roundRect(3, 4, 10, 3, 0.8); d.roundRect(5, 9, 6, 3, 0.8); d.stroke()
+        } else if (s == "alignRight") {
+            d.moveTo(13.5, 2); d.lineTo(13.5, 14); d.stroke(); d.beginPath(); d.roundRect(2.5, 4, 9, 3, 0.8); d.roundRect(6, 9, 5.5, 3, 0.8); d.stroke()
+        } else if (s == "alignTop") {
+            d.moveTo(2, 2.5); d.lineTo(14, 2.5); d.stroke(); d.beginPath(); d.roundRect(4, 4.5, 3, 9, 0.8); d.roundRect(9, 4.5, 3, 5.5, 0.8); d.stroke()
+        } else if (s == "alignMiddle") {
+            d.moveTo(2, 8); d.lineTo(14, 8); d.stroke(); d.beginPath(); d.roundRect(4, 3, 3, 10, 0.8); d.roundRect(9, 5, 3, 6, 0.8); d.stroke()
+        } else if (s == "alignBottom") {
+            d.moveTo(2, 13.5); d.lineTo(14, 13.5); d.stroke(); d.beginPath(); d.roundRect(4, 2.5, 3, 9, 0.8); d.roundRect(9, 6, 3, 5.5, 0.8); d.stroke()
+        } else if (s == "distH") {
+            d.moveTo(2, 2); d.lineTo(2, 14); d.moveTo(14, 2); d.lineTo(14, 14); d.stroke(); d.beginPath(); d.roundRect(6.5, 4, 3, 8, 0.8); d.stroke()
+        } else if (s == "distV") {
+            d.moveTo(2, 2); d.lineTo(14, 2); d.moveTo(2, 14); d.lineTo(14, 14); d.stroke(); d.beginPath(); d.roundRect(4, 6.5, 8, 3, 0.8); d.stroke()
+        } else if (s == "front" || s == "back2") {
+            // two overlapping cards, the one that ends up on top filled
+            d.roundRect(2, 2, 8, 8, 1.2); d.roundRect(6, 6, 8, 8, 1.2); d.stroke()
+            d.beginPath()
+            if (s == "front") d.roundRect(6, 6, 8, 8, 1.2)
+            else d.roundRect(2, 2, 8, 8, 1.2)
+            d.globalAlpha = 0.4; d.fill(); d.globalAlpha = 1
+        } else if (s == "forward" || s == "backward") {
+            // one card and an arrow: a step up or down the stack
+            d.roundRect(2, 5, 8, 8, 1.2); d.stroke(); d.beginPath()
+            if (s == "forward") { d.moveTo(12.5, 10); d.lineTo(12.5, 2.5); d.moveTo(10.5, 4.5); d.lineTo(12.5, 2.5); d.lineTo(14.5, 4.5) }
+            else { d.moveTo(12.5, 3); d.lineTo(12.5, 10.5); d.moveTo(10.5, 8.5); d.lineTo(12.5, 10.5); d.lineTo(14.5, 8.5) }
+            d.stroke()
+        } else if (s == "lock") {
+            d.roundRect(3, 7, 10, 7, 1.5); d.moveTo(5.5, 7); d.lineTo(5.5, 5); d.arc(8, 5, 2.5, Math.PI, 0); d.lineTo(10.5, 7); d.stroke()
+        } else if (s == "check") {
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (s == "cloud") {
+            d.moveTo(4.5, 12.5); d.arc(4.5, 9.5, 3, Math.PI / 2, Math.PI * 1.5); d.arc(8.5, 6.5, 3.6, Math.PI * 1.1, Math.PI * 1.95)
+            d.arc(11.8, 9.6, 2.9, -Math.PI / 2, Math.PI / 2); d.closePath(); d.stroke()
+        } else if (s == "warn") {
+            d.moveTo(8, 2.5); d.lineTo(14, 13); d.lineTo(2, 13); d.closePath(); d.moveTo(8, 6.5); d.lineTo(8, 9.2); d.stroke()
+            d.beginPath(); d.arc(8, 11.2, 0.6, 0, Math.PI * 2); d.fill()
+        } else if (s == "slides") {
+            d.roundRect(2, 3, 12, 8, 1.5); d.moveTo(4.5, 13.5); d.lineTo(11.5, 13.5); d.stroke()
+        } else if (s == "rename") {
+            d.moveTo(3, 13); d.lineTo(3.5, 10.5); d.lineTo(10.5, 3.5); d.lineTo(12.5, 5.5); d.lineTo(5.5, 12.5); d.closePath(); d.stroke()
+        } else if (s == "none") {
+            d.arc(8, 8, 5.5, 0, Math.PI * 2); d.moveTo(4.2, 11.8); d.lineTo(11.8, 4.2); d.stroke()
+        } else if (s == "bold") {
+            d.moveTo(4.5, 2.5); d.lineTo(9, 2.5); d.arc(9, 5.25, 2.75, -Math.PI / 2, Math.PI / 2); d.lineTo(4.5, 8)
+            d.moveTo(9, 8); d.arc(9.5, 10.75, 2.75, -Math.PI / 2, Math.PI / 2); d.lineTo(4.5, 13.5); d.lineTo(4.5, 2.5); d.stroke()
+        } else if (s == "italic") {
+            d.moveTo(7, 2.5); d.lineTo(12, 2.5); d.moveTo(4, 13.5); d.lineTo(9, 13.5); d.moveTo(9.5, 2.5); d.lineTo(6.5, 13.5); d.stroke()
+        } else if (s == "textLeft" || s == "textCenter" || s == "textRight") {
+            const ws = [11, 7, 9]
+            ws.forEach((w, i) => {
+                const y = 4 + i * 4
+                const x = s == "textLeft" ? 2.5 : s == "textRight" ? 13.5 - w : 8 - w / 2
+                d.moveTo(x, y); d.lineTo(x + w, y)
+                })
+            d.stroke()
+        } else {
+            d.roundRect(3, 3, 10, 10, 2); d.stroke()
+        }
+        }
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A square icon button: the tools, undo and redo, the arrange commands. Its
+// label is what a pointer resting on it and a screen reader both hear.
+
+class IconButton extends Control [ width = 34, height = 34, cornerRadius = 9,
+    shape: string = "",
+    label: string = "",
+    tone: Color = { provided("theme").text },
+    accessibilityLabel = { classroot.label },
+    tooltipLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    opacity = { disabled ? 0.35 : 1 },
+    Glyph [ x = center, y = center, iconSize = 17, weight = 1.6, shape = { classroot.shape }, ink = { classroot.tone } ]
+    ]
+
+
+// A labelled pill button with an optional glyph: New presentation, Present.
+
+class PillButton extends Control [ height = 34, cornerRadius = 17, padding = [0, 16, 0, 13],
+    label: string = "",
+    shape: string = "",
+    primary: boolean = false,
+    accessibilityLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.primary },
+        fill = { pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent } ],
+    opacity = { disabled ? 0.4 : 1 },
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+    Glyph [ visible = { classroot.shape != "" }, iconSize = 14, weight = 1.8, shape = { classroot.shape },
+        ink = { classroot.primary ? 0xFFFFFF : provided("theme").text } ],
+    TextLabel [ fontSize = 13.5, fontWeight = semibold, wrap = false,
+        textColor = { classroot.primary ? 0xFFFFFF : provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// A thin rule between groups in a bar.
+
+class BarRule [ width = 1, height = 22, fill = { provided("theme").line } ]
+
+// A colour well: the current colour (or a slash for none, or a split for
+// "these differ"), opening the shared colour popover for one property.
+
+class ColorWell extends Control [ width = 44, height = 28, cornerRadius = 7,
+    color: string = "",         // "" means none
+    mixed: boolean = false,
+    target: string = "",        // which property the popover edits
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    tooltipLabel = { classroot.label },
+    stroke = { Stroke(1, hovered ? provided("theme").lineStrong : provided("theme").line) },
+    fill = { provided("theme").surface },
+    press() { app.colors.openFor(this, classroot.target) },
+    chip: View [ x = 4, y = 4, width = { parent.width - 8 }, height = { parent.height - 8 }, cornerRadius = 4,
+        fill = { hex(classroot.mixed ? "" : classroot.color) },
+        stroke = { Stroke(1, 0x00000018) },
+        draw(d: DrawContext) {
+            if (classroot.mixed) {
+                d.fillStyle = "#F2542D"; d.beginPath(); d.moveTo(0, 0); d.lineTo(d.w, 0); d.lineTo(0, d.h); d.closePath(); d.fill()
+                d.fillStyle = "#5B3FE0"; d.beginPath(); d.moveTo(d.w, 0); d.lineTo(d.w, d.h); d.lineTo(0, d.h); d.closePath(); d.fill()
+            } else if (classroot.color == "") {
+                d.strokeStyle = "#D0342C"; d.lineWidth = 1.5
+                d.beginPath(); d.moveTo(2, d.h - 2); d.lineTo(d.w - 2, 2); d.stroke()
+            }
+            }
+        ]
+    ]
+
+
+// A section of the inspector: a small caption over its controls. A section
+// that doesn't apply to the selection stays where it is, dimmed and out of
+// reach, so the panel never changes shape under the pointer.
+
+class Section [ width = 100%, padding = [11, 16, 12, 16],
+    title: string = "",
+    applies: boolean = true,
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    defaultPlacement = body,
+    layout: SimpleLayout [ axis = y, spacing = 7 ],
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = center ],
+        Text [ flexes = true, fontSize = 11, fontWeight = bold, letterSpacing = 0.6, textTransform = uppercase,
+            textColor = { provided("theme").textFaint }, text = { classroot.title } ]
+        ],
+    body: View [ width = 100%, opacity = { classroot.applies ? 1 : 0.4 },
+        pointerEvents = { classroot.applies ? "auto" : "none" },
+        layout: SimpleLayout [ axis = y, spacing = 6 ]
+        ]
+    ]
+
+
+// One labelled line inside a section: a caption on the left, the control on the right.
+
+class Row [ width = 100%, height = 28,
+    label: string = "",
+    defaultPlacement = slot,
+    layout: SimpleLayout [ axis = x, align = center ],
+    Text [ width = 74, fontSize = 12.5, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    slot: View [ flexes = true,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ]
+        ]
+    ]
+
+
+// A small square toggle in the inspector: bold, italic, an alignment.
+
+class ToggleChip extends Control [ width = 30, height = 28, cornerRadius = 6,
+    shape: string = "",
+    label: string = "",
+    on: boolean = false,
+    accessibilityRole = toggle,
+    accessibilityPressed = { on },
+    accessibilityLabel = { classroot.label },
+    tooltipLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.on }, fill = { provided("theme").pickTint } ],
+    Glyph [ x = center, y = center, iconSize = 15, weight = 1.6, shape = { classroot.shape },
+        ink = { classroot.on ? provided("theme").pick : provided("theme").text } ]
+    ]
+
+
+// One of a few choices drawn as the toggles above: a text box's alignment.
+
+class ChipChoice extends ChoiceItem [ width = 30, height = 28, cornerRadius = 6,
+    shape: string = "",
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    tooltipLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.on }, fill = { provided("theme").pickTint } ],
+    Glyph [ x = center, y = center, iconSize = 15, weight = 1.6, shape = { classroot.shape },
+        ink = { classroot.on ? provided("theme").pick : provided("theme").text } ]
+    ]
+
+
+// The illustration on an empty list of presentations: three slides fanned
+// out, the front one with a title bar, a circle and a line.
+
+class FanArt [ width = 240, height = 160,
+    draw(d: DrawContext) {
+        const card = (x: number, y: number, a: number, fill: string) => {
+            d.save(); d.translate(x, y); d.rotate(a)
+            d.shadowColor = "#1D183022"; d.shadowBlur = 18; d.shadowOffsetY = 6
+            d.fillStyle = fill; d.beginPath(); d.roundRect(-80, -45, 160, 90, 8); d.fill()
+            d.restore()
+            }
+        card(84, 92, -0.16, "#FDE8E1")
+        card(158, 86, 0.14, "#EEEAFD")
+        card(120, 78, 0, "#FFFFFF")
+        d.fillStyle = "#1D1830"; d.beginPath(); d.roundRect(52, 44, 136, 18, 3); d.fill()
+        d.fillStyle = "#F2542D"; d.beginPath(); d.arc(80, 92, 14, 0, Math.PI * 2); d.fill()
+        d.fillStyle = "#5B3FE0"; d.beginPath(); d.roundRect(104, 82, 70, 7, 3.5); d.fill()
+        d.fillStyle = "#CFC8BC"; d.beginPath(); d.roundRect(104, 96, 50, 7, 3.5); d.fill()
+        }
+    ]

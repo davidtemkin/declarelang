@@ -1,0 +1,52 @@
+# eval-murmur-18
+total 23.6 min · 114 turns · output 96675 tokens (thinking 37179)
+phases: reading 6.0 · writing 2.7 · checking 14.9 min
+tool time 8.1 min · model time 15.5 min
+tokens: input 188 · cache write 315459 · cache read 22705229 · output 96675 · thinking 37179
+rate: 6234 output tokens per model-minute
+tools:
+  verify    26×   5.53 min  (median 14.2 s)
+  look      17×   2.22 min  (median 6.7 s)
+  help       9×   0.23 min  (median 1.4 s)
+  bash      21×   0.07 min  (median 0.0 s)
+model turns, by what came before:
+  after help      9×   3.17 min  (median 3.3 s)
+  after bash     21×   2.95 min  (median 2.2 s)
+  after verify   25×   2.81 min  (median 4.7 s)
+  after write     6×   2.74 min  (median 5.8 s)
+  after image    19×   2.40 min  (median 6.5 s)
+  after look     17×   0.95 min  (median 1.5 s)
+  after read     12×   0.29 min  (median 0.6 s)
+  after edit      3×   0.05 min  (median 1.0 s)
+app: 3 .declare files, 1068 non-blank lines · 23 snapshots changed them: 1325 lines added, 79 removed
+verify results mentioning accessibility: 4
+source reads: library 5 file(s), runtime/compiler 2 — each to be audited: never a stand-in for the docs
+            library  library
+            library  library/slider.declare
+            library  library/valuecontrol.declare
+            library  library/dialog.declare
+            runtime  runtime/src
+            runtime  runtime/src/change-event.ts
+            library  library/*.declare
+diagnostic codes, by tool results reporting them: DECLARE4035 3, DECLARE1002 2, DECLARE5001 1, DECLARE2000 1, DECLARE4025 1, DECLARE4005 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   6.77 min    37×  R5 behavior, in all
+   6.21 min    37×  script: the assert script, in all
+   4.51 min   142×  drive.waitReal
+   0.70 min    96×  locator.click
+   0.64 min    44×  page: load, compile in the page and boot
+   0.47 min    37×  open: the app loaded and arrived, in all
+   0.39 min   153×  drive.settleMotion
+   0.30 min   178×  check: scrolling come to rest
+   0.29 min   533×  locator: wait a tick for it
+   0.23 min     4×  R4 boot, in all
+   0.23 min    25×  drive.wheel
+   0.21 min    55×  drive.click
+   0.17 min    34×  compile (R1–R3)
+   0.06 min    44×  page: a new page
+   0.06 min   668×  locator: query the page
+   0.04 min    25×  end: layout questions at the end of the script
+   0.03 min     6×  drive.hold
+   0.03 min    16×  drive.wait
+   0.03 min   178×  check: the layout questions
+   0.03 min    22×  screenshot: capture and write

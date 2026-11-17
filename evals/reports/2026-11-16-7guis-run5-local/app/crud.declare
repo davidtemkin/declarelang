@@ -1,0 +1,129 @@
+/*
+# 5. CRUD
+
+People, filtered by a surname prefix, created, updated and deleted.
+
+- **The domain** is `People`, a dataset class: the records and every write to
+  them (create, update, delete). It knows nothing of filters or selection.
+- **The presentation** is `CrudTask`: the filter, the fields, the selection,
+  and `shown`, a dataset derived from the records and the filter. It holds
+  the people's own records, not copies, so selecting one in the list selects
+  the record itself.
+*/
+
+schema Person [ id: number, name: string, surname: string ]
+
+
+class People extends Dataset [ schema = [ people[]: Person ],
+    lastId: number = 0,
+
+    all() -> Person[] { return this.value?.people ?? [] },
+    indexOf(id: number) -> number { return this.all().findIndex((p) => p.id == id) },
+
+    onInit() { this.lastId = this.all().reduce((m, p) => Math.max(m, p.id), 0) },
+
+    create(name: string, surname: string) -> Person {
+        this.lastId = this.lastId + 1
+        const p = ({ id: this.lastId, name: name, surname: surname })
+        this.insert(["people"], this.all().length, p)
+        return p
+        },
+    update(id: number, name: string, surname: string) {
+        const i = this.indexOf(id)
+        if (i < 0) return
+        this.set(["people", i, "name"], name)
+        this.set(["people", i, "surname"], surname)
+        },
+    remove(id: number) {
+        const i = this.indexOf(id)
+        if (i >= 0) this.removeAt(["people"], i)
+        }
+    ]
+
+
+class CrudTask [ width = 100%, height = 100%,
+    people: People { { "people": [
+        { "id": 1, "name": "Hans", "surname": "Emil" },
+        { "id": 2, "name": "Max", "surname": "Mustermann" },
+        { "id": 3, "name": "Roman", "surname": "Tisch" } ] } },
+
+    // Where the user is.
+
+    prefix: string = "",
+    name: string = "",
+    surname: string = "",
+    selectedId: number = 0,                  // 0 for no one
+
+    // What the list shows: the people whose surname starts with the prefix.
+
+    matches(p: Person) -> boolean { return p.surname.toLowerCase().startsWith(prefix.toLowerCase()) },
+    shown: Dataset [ schema = [ people[]: Person ],
+        contents = { { people: classroot.people.all().filter((p) => classroot.matches(p)) } } ],
+
+    // The selection counts only while the person is in the list.
+
+    selected: Person? = { classroot.shown.value.people.find((p) => p.id == classroot.selectedId) ?? null },
+    hasSelection: boolean = { classroot.selected != null },
+
+    select(p: Person?) {
+        selectedId = p?.id ?? 0
+        if (p != null) { name = p.name; surname = p.surname }
+        },
+    create() {
+        const p = people.create(name.trim(), surname.trim())
+        selectedId = p.id
+        },
+    update() { if (selected != null) people.update(selected.id, name.trim(), surname.trim()) },
+    delete() {
+        if (selected == null) return
+        people.remove(selected.id)
+        selectedId = 0
+        },
+
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+    filterRow: View [
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ text = "Filter prefix:" ],
+        SearchField [ width = 200, accessibilityLabel = "Filter prefix", value <-> classroot.prefix ]
+        ],
+
+    // The list takes the room left; the fields sit beside it.
+
+    middle: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x, spacing = 16, align = stretch ],
+        list: Table [ flexes = true, accessibilityLabel = "People", datapath = { classroot.shown.value },
+            fill = { provided("theme").field }, stroke = { Stroke(1, provided("theme").line) }, cornerRadius = 6,
+            selection = { classroot.selected == null ? null : [classroot.selected] },
+            commit(sel: object) {
+                const chosen = (sel as Person[] | null) ?? []
+                classroot.select(chosen.length > 0 ? chosen[chosen.length - 1] : null)
+                },
+            TableRow [ datapath = :people[], width = 100%, height = 28,
+                TextLabel [ x = 10, y = center, text = { :surname + ", " + :name } ]
+                ]
+            ],
+        fields: View [ width = 260,
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            Field [ label = "Name", stacked = true,
+                TextInput [ width = 260, value <-> classroot.name ]
+                ],
+            Field [ label = "Surname", stacked = true,
+                TextInput [ width = 260, value <-> classroot.surname ]
+                ]
+            ]
+        ],
+
+    buttons: View [
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Button [ label = "Create",
+            onClick() { classroot.create() }
+            ],
+        Button [ label = "Update", disabled = { !classroot.hasSelection },
+            onClick() { classroot.update() }
+            ],
+        Button [ label = "Delete", disabled = { !classroot.hasSelection },
+            onClick() { classroot.delete() }
+            ]
+        ]
+    ]

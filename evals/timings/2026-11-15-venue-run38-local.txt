@@ -1,0 +1,30 @@
+# eval-venue-38
+total 10.7 min · 39 turns · output 67976 tokens (thinking 30390)
+phases: reading 5.4 · writing 4.3 · checking 1.1 min
+tool time 0.5 min · model time 10.2 min
+tokens: input 64 · cache write 233137 · cache read 5200247 · output 67976 · thinking 30390
+rate: 6658 output tokens per model-minute
+tools:
+  help       7×   0.23 min  (median 1.2 s)
+  verify     7×   0.22 min  (median 1.5 s)
+model turns, by what came before:
+  after write     3×   4.25 min  (median 75.1 s)
+  after help      7×   3.64 min  (median 8.1 s)
+  after bash      9×   1.37 min  (median 2.6 s)
+  after verify    7×   0.37 min  (median 2.6 s)
+  after read     10×   0.25 min  (median 0.5 s)
+  after edit      1×   0.01 min  (median 0.8 s)
+app: 3 .declare files, 1315 non-blank lines · 10 snapshots changed them: 1558 lines added, 40 removed
+verify results mentioning accessibility: 0
+source reads: library 0 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+diagnostic codes, by tool results reporting them: DECLARE1002 3, DECLARE1000 1, DECLARE5001 1, DECLARE4005 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   0.07 min     7×  compile (R1–R3)
+   0.05 min     3×  R4 boot, in all
+   0.03 min     5×  page: load, compile in the page and boot
+   0.01 min     3×  chrome: a browser (shared between calls)
+   0.01 min     5×  page: a new page
+   0.00 min     3×  program: built from the compile
+   0.00 min     3×  end: the browser context released
+   0.00 min     3×  serve: start the program's server
+   0.00 min     7×  compile (R1–R3): the last compile, if its files are unchanged

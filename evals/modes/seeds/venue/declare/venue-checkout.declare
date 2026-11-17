@@ -11,7 +11,7 @@ follow the account until the person types.
 // ── The order ───────────────────────────────────────────────────────────────
 
 class OrderLine [ width = 100%, padding = [10, 0, 10, 0],
-    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     head: View [ width = 100%,
         layout: SimpleLayout [ axis = x, spacing = 12, align = baseline ],

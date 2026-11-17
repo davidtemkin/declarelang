@@ -1,0 +1,13 @@
+STARTED=2026-11-15T21:39:42Z
+APP=7guis
+MODEL=claude-opus-5-5
+SUBJECT=local tree at 0b31b0c9 derived artifacts + 423 changed, 20 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=standard
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-7guis-4/work (logs outside it)
+PORT=8320 (the brief names none)
+DEV_PORT=8600 (the agent's dev server: PORT in its environment)
+SERVICE=node task/api/server.mjs --port=8320
+AGENT_PID=7281

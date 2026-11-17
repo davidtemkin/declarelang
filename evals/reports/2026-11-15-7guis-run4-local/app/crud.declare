@@ -1,0 +1,123 @@
+/*
+# 5. CRUD
+
+People, filtered by the start of their surname, and edited through two
+fields and three buttons.
+
+- **The domain** is `People`, a dataset class: it holds the records and makes
+  every write (`create`, `replace`, `remove`). Nothing else changes them.
+- **The presentation** is the task's own state — the filter, the selection,
+  the two fields — and `shown`, a dataset derived from the people and the
+  filter. It holds People's own records, not copies, so the list shows each
+  write as soon as People makes it.
+- **The selection** is the id of the selected person, and counts only while
+  that person is in the list: filter them out, and nothing is selected, so
+  Update and Delete can't act on someone the person can't see.
+*/
+
+schema Person [ id: number, name: string, surname: string ]
+
+
+class People extends Dataset [ schema = [ rows[]: Person ],
+    lastId: number = 3,
+
+    all() -> Person[] { return this.value?.rows ?? [] },
+    byId(id: number) -> Person? { return this.all().find((p) => p.id == id) ?? null },
+    withSurnamePrefix(prefix: string) -> Person[] {
+        const p = prefix.toLowerCase()
+        return this.all().filter((x) => x.surname.toLowerCase().startsWith(p))
+        },
+
+    create(name: string, surname: string) -> number {
+        this.lastId = this.lastId + 1
+        this.insert(["rows"], this.all().length, ({ id: this.lastId, name: name, surname: surname }))
+        return this.lastId
+        },
+    replace(id: number, name: string, surname: string) {
+        const i = this.all().findIndex((p) => p.id == id)
+        if (i >= 0) this.set(["rows", i], ({ id: id, name: name, surname: surname }))
+        },
+    remove(id: number) {
+        const i = this.all().findIndex((p) => p.id == id)
+        if (i >= 0) this.removeAt(["rows"], i)
+        }
+    ]
+
+
+class CrudTask [
+    people: People { { "rows": [
+        { "id": 1, "name": "Hans", "surname": "Emil" },
+        { "id": 2, "name": "Max", "surname": "Mustermann" },
+        { "id": 3, "name": "Roman", "surname": "Tisch" } ] } },
+
+    // ── where the person is
+
+    prefix: string = "",
+    selectedId: number = 0,
+    name: string = "",
+    surname: string = "",
+
+    shown: Dataset [ schema = [ rows[]: Person ], contents = { { rows: classroot.people.withSurnamePrefix(classroot.prefix) } } ],
+    blank: boolean = { classroot.name.trim() == "" && classroot.surname.trim() == "" },
+    selected: Person? = { (classroot.shown.value?.rows ?? []).find((p) => p.id == classroot.selectedId) ?? null },
+
+    // Choosing a person puts them in the fields, ready to change.
+
+    choose(p: Person?) {
+        selectedId = p?.id ?? 0
+        if (p != null) { name = p.name; surname = p.surname }
+        },
+
+    create() { if (!blank) selectedId = people.create(name.trim(), surname.trim()) },
+    update() { if (selected != null) people.replace(selected.id, name.trim(), surname.trim()) },
+    delete() { if (selected != null) { people.remove(selected.id); selectedId = 0 } },
+
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+    filterRow: View [
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ text = "Filter prefix:" ],
+        SearchField [ width = 220, accessibilityLabel = "Filter prefix", placeholder = "Start of a surname", value <-> classroot.prefix ]
+        ],
+
+    // The list takes the room left beside the fields, and between the filter
+    // and the buttons.
+
+    body: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x, spacing = 20, align = stretch ],
+        list: Table [ flexes = true, minWidth = 240, cornerRadius = 7, accessibilityLabel = "People",
+            fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
+            datapath = { classroot.shown.value },
+            selection = { classroot.selected == null ? null : [classroot.selected] },
+            commit(sel: object) {
+                const picked = (sel as Person[] | null) ?? []
+                classroot.choose(picked.length == 0 ? null : picked[picked.length - 1])
+                },
+            TableRow [ datapath = :rows[], height = 28,
+                TextLabel [ x = 10, y = center, text = { :surname + ", " + :name } ]
+                ]
+            ],
+        fields: View [ width = 300,
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            Field [ label = "Name", labelWidth = 70,
+                TextInput [ width = 220, value <-> classroot.name ]
+                ],
+            Field [ label = "Surname", labelWidth = 70,
+                TextInput [ width = 220, value <-> classroot.surname ]
+                ]
+            ]
+        ],
+
+    buttons: View [
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Button [ label = "Create", disabled = { classroot.blank },
+            onClick() { classroot.create() }
+            ],
+        Button [ label = "Update", disabled = { classroot.selected == null },
+            onClick() { classroot.update() }
+            ],
+        Button [ label = "Delete", disabled = { classroot.selected == null },
+            onClick() { classroot.delete() }
+            ]
+        ]
+    ]

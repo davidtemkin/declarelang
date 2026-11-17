@@ -1,0 +1,430 @@
+/*
+# Conduit: the parts
+
+The look of Conduit, kept apart from how it works: the theme (the shared
+Conduit palette, as tokens), the drawn icons that stand in for Ionicons, and
+the small pieces every page is made of — buttons, avatars, tag pills, the
+author line, an article's preview, a list of them with its pages, the list of
+errors a form shows. `conduit.declare` includes this file and holds the pages.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// The Conduit theme's custom properties, by name. The App lays this record over
+// a library preset, so library controls (a text field's focus ring, its error
+// outline) read the same palette: `accent` is the brand green, `line` the
+// #eee hairline every border uses.
+
+theme Conduit [
+    background = #FFFFFF, surface = #FFFFFF,
+    text = #373A3C, textMuted = #999999, textFaint = #BBBBBB, textLighter = #AAAAAA,
+    heading = #222222, inputText = #55595C, disabledText = #818A91,
+    accent = #33AA44, accentHovered = #2B8E3A, accentPressed = #237630, accentTextColor = #FFFFFF,
+    brand = #33AA44, brandHover = #2B8E3A, brandDark = #237630, brandLight = #7DD88B,
+    danger = #B85C5C, error = #B85C5C,
+    secondary = #CCCCCC, secondaryHover = #B3B3B3,
+    line = #EEEEEE, hover = #EEEEEE, pageHover = #ECEEEF, cardFoot = #F5F5F5,
+    navLink = #0000004D, navLinkHover = #00000099, navLinkActive = #000000CC,
+    fieldCornerRadius = 8, controlCornerRadius = 8
+    ]
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// The templates use seven Ionicons v2 marks. These are drawn rather than
+// loaded from an icon font, on the library's 16-unit grid: `unit` scales the
+// grid to `iconSize`, and `ink` is the color the use site gives.
+
+class Ion extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = 1.7
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "heart") {
+            d.moveTo(8, 14.2)
+            d.bezierCurveTo(2.2, 10.2, 0.6, 7.2, 1.5, 4.6)
+            d.bezierCurveTo(2.5, 1.8, 6.4, 1.2, 8, 4.2)
+            d.bezierCurveTo(9.6, 1.2, 13.5, 1.8, 14.5, 4.6)
+            d.bezierCurveTo(15.4, 7.2, 13.8, 10.2, 8, 14.2)
+            d.closePath()
+            d.fill()
+        } else if (shape == "compose") {            // a page with a pen across it
+            d.moveTo(9, 3); d.lineTo(3, 3); d.lineTo(3, 14); d.lineTo(13, 14); d.lineTo(13, 8)
+            d.stroke(); d.beginPath()
+            d.moveTo(7, 10); d.lineTo(7.4, 8); d.lineTo(13.4, 2); d.lineTo(15, 3.6); d.lineTo(9, 9.6); d.closePath()
+            d.fill()
+        } else if (shape == "gear") {
+            for (let i = 0; i < 8; i++) {
+                const a = i * Math.PI / 4
+                d.moveTo(8 + Math.cos(a) * 4.6, 8 + Math.sin(a) * 4.6)
+                d.lineTo(8 + Math.cos(a) * 7, 8 + Math.sin(a) * 7)
+            }
+            d.lineWidth = 2.2
+            d.stroke(); d.beginPath()
+            d.lineWidth = 1.7
+            d.arc(8, 8, 4.6, 0, Math.PI * 2); d.stroke()
+            d.beginPath(); d.arc(8, 8, 1.8, 0, Math.PI * 2); d.stroke()
+        } else if (shape == "plus") {
+            d.lineWidth = 2.2
+            d.moveTo(8, 2); d.lineTo(8, 14); d.moveTo(2, 8); d.lineTo(14, 8); d.stroke()
+        } else if (shape == "edit") {               // a pencil
+            d.moveTo(2, 14); d.lineTo(2.6, 11); d.lineTo(11.4, 2.2); d.lineTo(13.8, 4.6); d.lineTo(5, 13.4); d.closePath()
+            d.fill()
+        } else if (shape == "trash") {
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.stroke(); d.beginPath()
+            d.moveTo(3.8, 5); d.lineTo(4.6, 14.5); d.lineTo(11.4, 14.5); d.lineTo(12.2, 5); d.closePath(); d.fill()
+        } else if (shape == "close") {
+            d.lineWidth = 2.2
+            d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke()
+        } else if (shape == "menu") {
+            for (const y of [3.5, 8, 12.5]) { d.moveTo(2, y); d.lineTo(14, y) }
+            d.stroke()
+        }
+        }
+    ]
+
+
+// ── Layout pieces ───────────────────────────────────────────────────────────
+
+// The theme's `.container`: centered, as wide as the breakpoint allows, with
+// 15px gutters inside.
+
+class Container [ x = center, width = { app.containerW }, padding = [0, 15, 0, 15] ]
+
+// A round picture of a person; the default avatar when they have none.
+
+class Avatar extends Image [ fit = cover, clip = true, cornerRadius = { this.width / 2 },
+    url: string = "",
+    source = { classroot.url == "" ? "default-avatar.svg" : classroot.url }
+    ]
+
+
+// A link set in running text: the brand green, underlined under the pointer.
+
+class TextLink extends Text [ wrap = false, textColor = { provided("theme").brand },
+    underline = { hovered }
+    ]
+
+
+// ── Buttons ─────────────────────────────────────────────────────────────────
+//
+// The theme's `.btn` family as one control: `kind` is the variant
+// (btn-primary, btn-outline-primary, …), `size` sm, md or lg. An outline button
+// fills with its color under the pointer, when pressed, or while `on`. On a
+// touch-first device a button is at least a finger tall.
+
+class Btn extends Control [
+    label: string = "",
+    icon: string = "",
+    counter: string = "",
+    kind: "primary" | "secondary" | "outline-primary" | "outline-secondary" | "outline-danger" | "action" = "outline-primary",
+    size: "sm" | "md" | "lg" = "sm",
+    on: boolean = false,
+    accessibilityPressed = { classroot.on },
+    accessibilityLabel = { classroot.label + (classroot.counter == "" ? "" : " " + classroot.counter) },
+
+    fs: number = { classroot.size == "sm" ? 14 : classroot.size == "lg" ? 20 : 16 },
+    padH: number = { classroot.size == "sm" ? 8 : classroot.size == "lg" ? 24 : 16 },
+    natural: number = { classroot.fs * 1.25 + (classroot.size == "sm" ? 8 : classroot.size == "lg" ? 24 : 16) + 2 },
+    height = { app.touchFirst ? Math.max(44, classroot.natural) : classroot.natural },
+    width = { app.touchFirst ? Math.max(44, this.contentWidth) : this.contentWidth },
+    cornerRadius = { classroot.size == "sm" ? 6 : classroot.size == "lg" ? 10 : 8 },
+    padding = { [0, classroot.padH, 0, classroot.padH] },
+
+    toneOf(k: string) -> Color {
+        const t = provided("theme")
+        switch (k) {
+            case "primary": case "outline-primary": return t.brand
+            case "outline-danger": return t.danger
+            case "action": return t.textMuted
+            default: return t.secondary
+            }
+        },
+    hoverToneOf(k: string) -> Color { return k == "primary" ? provided("theme").brandHover : provided("theme").secondaryHover },
+    base: Color = { classroot.toneOf(classroot.kind) },
+    hoverBase: Color = { classroot.hoverToneOf(classroot.kind) },
+    solid: boolean = { classroot.kind == "primary" || classroot.kind == "secondary" },
+    lit: boolean = { classroot.on || classroot.hovered || classroot.pressed },
+    ink: Color = { classroot.solid || classroot.lit ? 0xFFFFFF : classroot.base },
+    fill = { classroot.solid ? (classroot.lit ? classroot.hoverBase : classroot.base) : (classroot.lit ? classroot.base : null) },
+    stroke = { Stroke(1, classroot.solid && classroot.lit ? classroot.hoverBase : classroot.base) },
+    opacity = { disabled ? 0.65 : 1 },
+
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Ion [ visible = { classroot.icon != "" }, shape = { classroot.icon }, iconSize = { classroot.fs * 0.85 },
+        ink = { classroot.ink } ],
+    TextLabel [ visible = { classroot.label != "" }, fontSize = { classroot.fs }, wrap = false,
+        fontWeight = { classroot.size == "lg" ? "semibold" : "normal" },
+        textColor = { classroot.ink }, text = { classroot.label } ],
+    TextLabel [ visible = { classroot.counter != "" }, fontSize = 13, wrap = false,
+        textColor = { classroot.ink }, text = { classroot.counter } ]
+    ]
+
+
+// ── Tags ────────────────────────────────────────────────────────────────────
+
+// A tag as shown on an article: a quiet outlined pill.
+
+class TagOutline [ height = 22, cornerRadius = 11, padding = [0, 9, 0, 9],
+    stroke = { Stroke(1, provided("theme").line) },
+    label: string = "",
+    TextLabel [ fontSize = 12.8, fontWeight = light, wrap = false,
+        textColor = { provided("theme").textLighter }, text = { classroot.label } ]
+    ]
+
+
+// A popular tag in the sidebar: pressing it opens that tag's feed.
+
+class TagPill extends Control [ height = { app.touchFirst ? 36 : 28 }, cornerRadius = 100,
+    padding = [0, 12, 0, 12],
+    label: string = "",
+    fill = { hovered || pressed ? provided("theme").hover : null },
+    stroke = { Stroke(1, provided("theme").line) },
+    accessibilityLabel = { "Tag " + classroot.label },
+    TextLabel [ fontSize = 12.8, wrap = false, textColor = { provided("theme").heading }, text = { classroot.label } ]
+    ]
+
+
+// ── The author line ─────────────────────────────────────────────────────────
+//
+// `.article-meta`: an avatar and the author's name over the date, both linking
+// to the author's profile. The buttons beside it differ by place, so they are
+// the use site's children (`defaultPlacement`), placed after the info.
+
+class AuthorLine [
+    username: string = "",
+    image: string = "",
+    date: string = "",
+    nameColor: Color = { provided("theme").brand },
+    centered: boolean = false,
+    defaultPlacement = actions,
+    layout: WrappingLayout [ spacing = 0, rowSpacing = 8, align = center,
+        justify = { classroot.centered ? "center" : "start" } ],
+    pic: Avatar [ width = 32, height = 32, url = { classroot.image },
+        link = { app.profileLink(classroot.username) }, accessibilityLabel = { classroot.username } ],
+    info: View [ padding = [0, 24, 0, 8],
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        TextLink [ fontWeight = medium, textColor = { classroot.nameColor }, text = { classroot.username },
+            link = { app.profileLink(classroot.username) } ],
+        Text [ fontSize = 12.8, fontWeight = light, wrap = false, textColor = { provided("theme").textFaint },
+            text = { longDate(classroot.date) } ]
+        ],
+    actions: View [ width = { Math.min(this.contentWidth, classroot.width) },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center,
+            justify = { classroot.centered ? "center" : "start" } ]
+        ]
+    ]
+
+
+// ── An article in a list ────────────────────────────────────────────────────
+//
+// `.article-preview`, standing on one record of an article list. The heart
+// favorites it: a request of its own (`fav`), whose reply is written back
+// into this record, so the button and its count follow.
+
+class ArticlePreview [ width = 100%, padding = [24, 0, 24, 0],
+    stroke = { [Stroke(1, provided("theme").line), null, null, null] },
+    slug: string = { :slug ?? "" },
+    favorited: boolean = { :favorited ?? false },
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    fav: DataSource [ url = { app.api + "/articles/" + encodeURIComponent(classroot.slug) + "/favorite" },
+        method = { classroot.favorited ? "DELETE" : "POST" },
+        headers = { app.auth },
+        schema = [ article: Article ],
+        onLoad() {
+            :favorited = this.value.article.favorited;
+            :favoritesCount = this.value.article.favoritesCount
+            }
+        ],
+
+    meta: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = start ],
+        AuthorLine [ flexes = true, username = { :author.username ?? "" }, image = { :author.image ?? "" },
+            date = { :createdAt ?? "" } ],
+        Btn [ kind = { classroot.favorited ? "primary" : "outline-primary" }, icon = "heart",
+            counter = { "" + (:favoritesCount ?? 0) },
+            accessibilityLabel = { (classroot.favorited ? "Unfavorite" : "Favorite") + " article, " + (:favoritesCount ?? 0) },
+            disabled = { classroot.fav.loading },
+            press() { if (app.requireSignIn()) classroot.fav.fetch() }
+            ]
+        ],
+
+    // `.preview-link`: the title, the description and "Read more…", one link
+    // to the article.
+
+    preview: View [ width = 100%, link = { "#/article/" + classroot.slug },
+        layout: SimpleLayout [ axis = y ],
+        Text [ width = 100%, fontSize = 24, fontWeight = semibold, lineHeight = 1.1, accessibilityRole = heading,
+            textColor = { provided("theme").text }, text = { :title ?? "" } ],
+        Text [ width = 100%, padding = [3, 0, 15, 0], fontWeight = light, lineHeight = 1.3,
+            textColor = { provided("theme").textMuted }, text = { :description ?? "" } ],
+        foot: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, align = start ],
+            Text [ fontSize = 12.8, fontWeight = light, wrap = false, textColor = { provided("theme").textFaint },
+                text = "Read more..." ],
+            Spacer [ ],
+            tags: View [ width = 50%,
+                layout: WrappingLayout [ spacing = 4, rowSpacing = 4, justify = end ],
+                TagOutline [ datapath = :tagList[], label = :@ ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── A list of articles, a page at a time ────────────────────────────────────
+//
+// One request for the page on screen. `query` is what the owner filters by
+// (`tag=css`, `author=jake`, `favorited=jake`, or "feed" for the people you
+// follow); a new query starts again at page 1. The records live in the
+// source, so a preview that favorites writes the record it shows.
+
+class ArticleList [ width = 100%,
+    query: string = "",
+    page: number = 1,
+    perPage: number = 10,
+    trackChanges = ["query"],
+    onChange() { page = 1 },
+
+    filter: string = { classroot.query == "feed" ? "" : classroot.query },
+    paging: string = { "limit=" + classroot.perPage + "&offset=" + (classroot.page - 1) * classroot.perPage },
+    path: string = { classroot.query == "feed" ? "/articles/feed" : "/articles" },
+    src: DataSource [ url = { app.api + classroot.path + "?" + [classroot.filter, classroot.paging].filter((p) => p != "").join("&") },
+        autoFetch = true, headers = { app.auth },
+        schema = [ articles[]: Article, articlesCount: number ] ],
+    count: number = { classroot.src.value?.articlesCount ?? 0 },
+    pages: number = { Math.ceil(classroot.count / classroot.perPage) },
+    showing: boolean = { classroot.src.loaded && !classroot.src.loading },
+
+    layout: SimpleLayout [ axis = y ],
+    Text [ visible = { !classroot.showing && !classroot.src.failed }, padding = [24, 0, 24, 0],
+        text = "Loading articles..." ],
+    Text [ visible = { classroot.src.failed }, padding = [24, 0, 24, 0], textColor = { provided("theme").danger },
+        text = "Couldn't load articles." ],
+    Text [ visible = { classroot.showing && classroot.count == 0 }, padding = [24, 0, 24, 0],
+        stroke = { [Stroke(1, provided("theme").line), null, null, null] }, width = 100%,
+        text = "No articles are here... yet." ],
+    items: View [ width = 100%, visible = { classroot.showing }, datapath = { classroot.src.value },
+        layout: SimpleLayout [ axis = y ],
+        ArticlePreview [ datapath = :articles[], identityKey = :slug ]
+        ],
+    Pagination [ visible = { classroot.showing && classroot.pages > 1 }, pages = { classroot.pages },
+        page = { classroot.page },
+        go(n: number) { classroot.page = n; app.scrollTo(0) }
+        ]
+    ]
+
+
+// The page numbers, `.pagination`: joined boxes, the current one grey.
+
+class Pagination [ width = 100%, padding = [16, 0, 16, 0],
+    pages: number = 0,
+    page: number = 1,
+    go(n: number) { },
+    numbers: Dataset [ contents = { ({ rows: Array.from({ length: classroot.pages }, (_, i) => i + 1) }) } ],
+    accessibilityRole = navigation, accessibilityLabel = "Pages",
+    row: View [ width = 100%, datapath = { classroot.numbers.value },
+        layout: WrappingLayout [ spacing = -1, rowSpacing = 4 ],
+        PageLink [ datapath = :rows[], n = :@, current = { :@ == classroot.page },
+            first = { :@ == 1 }, last = { :@ == classroot.pages },
+            press() { if (!this.current) classroot.go(this.n) }
+            ]
+        ]
+    ]
+
+
+class PageLink extends Control [
+    n: number = 1,
+    current: boolean = false,
+    first: boolean = false,
+    last: boolean = false,
+    height = { app.touchFirst ? 44 : 38 },
+    width = { Math.max(this.height - (app.touchFirst ? 0 : 4), this.label.width + 24) },
+    cornerRadius = { [classroot.first ? 8 : 0, classroot.last ? 8 : 0, classroot.last ? 8 : 0, classroot.first ? 8 : 0] },
+    stroke = { Stroke(1, provided("theme").line) },
+    fill = { classroot.current ? provided("theme").line : (hovered || pressed ? provided("theme").pageHover : 0xFFFFFF) },
+    accessibilityLabel = { "Page " + classroot.n },
+    accessibilityPressed = { classroot.current },
+    label: TextLabel [ x = center, wrap = false,
+        textColor = { classroot.current ? provided("theme").heading : (classroot.hovered ? provided("theme").brandDark : provided("theme").brand) },
+        text = { "" + classroot.n } ]
+    ]
+
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+//
+// `.nav-pills.outline-active`: the feed and profile toggles. The active tab
+// is green with a green rule under it.
+
+class Tab extends ChoiceItem [ height = { app.touchFirst ? 44 : 40 }, padding = [0, 16, 0, 16],
+    label: string = "",
+    stroke = { classroot.on ? [null, null, Stroke(2, provided("theme").brand), null] : null },
+    tint: Color = { classroot.on ? provided("theme").brand : hovered ? 0x555555 : provided("theme").textLighter },
+    TextLabel [ wrap = false, textColor = { classroot.tint }, text = { classroot.label } ]
+    ]
+
+
+class Tabs extends ChoiceControl [ width = 100%,
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    layout: WrappingLayout [ spacing = 3 ]
+    ]
+
+
+// ── Errors ──────────────────────────────────────────────────────────────────
+//
+// `.error-messages`: what a form says is wrong, a bulleted list in red. The
+// list is records (a derived dataset over `messages`), so each line is a row.
+
+class ErrorList [ width = 100%, padding = [0, 0, 16, 40],
+    messages: string[] = [],
+    visible = { classroot.messages.length > 0 },
+    lines: Dataset [ contents = { ({ rows: classroot.messages }) } ],
+    accessibilityRole = status, accessibilityLive = assertive,
+    datapath = { classroot.lines.value },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    View [ datapath = :rows[], width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Text [ fontWeight = bold, textColor = { provided("theme").danger }, text = "•" ],
+        Text [ flexes = true, fontWeight = bold, textColor = { provided("theme").danger }, text = :@ ]
+        ]
+    ]
+
+
+// A form that talks to the Conduit API. The service refuses with
+// `{ "errors": { "email": ["has already been taken"] } }`; Conduit shows each
+// as "email has already been taken" in the list at the top of the form, so
+// the refusal is kept here (`refusedWith`) rather than laid on the fields.
+// `messages` is everything the list shows: what the fields say once the form
+// has been tried, then what the service said.
+
+class ConduitForm extends Form [ width = 100%,
+    serverErrors: string[] = [],
+    messages: string[] = { [...(this.submitted ? this.problems.map((p) => p.message) : []),
+        ...this.serverErrors, ...(this.error == "" ? [] : [this.error])] },
+    failedMessage = "That didn't go through. Try again.",
+    submit() { serverErrors = []; super.submit() },
+    refusedWith(body: any) { serverErrors = apiErrors(body) },
+    refusal(body: any) -> FormProblem[] { return [] }
+    ]
+
+
+// A text field in the theme's `.form-control` look; `large` is
+// `.form-control-lg`.
+
+class Input extends TextInput [ width = 100%,
+    large: boolean = true,
+    fontSize = { classroot.large ? 20 : 16 },
+    textColor = { provided("theme").inputText },
+    cornerRadius = { classroot.large ? 10 : 8 },
+    padH: number = { classroot.large ? 24 : 12 },
+    padV: number = { classroot.large ? 12 : 8 },
+    tallV: number = { app.touchFirst && !classroot.multiline ? (classroot.large ? 9 : 13) : 0 },
+    padding = { [Math.max(classroot.padV, classroot.tallV), classroot.padH, Math.max(classroot.padV, classroot.tallV), classroot.padH] }
+    ]

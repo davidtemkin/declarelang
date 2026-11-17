@@ -1,0 +1,197 @@
+/*
+# 6. Circle Drawer
+
+Circles on a canvas, with Undo and Redo.
+
+- **The drawing and its history** are `Drawing`, a dataset class. The circles
+  are its records; `done` and `undone` are the steps that can be taken back and
+  put back. A step is a circle drawn, or a diameter changed from one value to
+  another. Making a step clears `undone`, so Redo ends where a new step begins.
+- **Adjusting a diameter is several moves and one step.** While the slider
+  moves, the circle's diameter follows (`preview`), which is not history; when
+  the window closes, the change from where it started becomes one step
+  (`settle`).
+- **The selection** is a fact about the pointer: of the circles that contain
+  it, the one whose centre is nearest. Each circle is a view clipped to its own
+  outline, so a click inside one is the circle's and a click outside every one
+  reaches the canvas, which draws.
+*/
+
+schema Circle [ id: number, x: number, y: number, d: number ]
+schema DrawStep [ kind: "draw" | "resize", circle: Circle, from: number, to: number ]
+
+script {
+    // A circle as an SVG path in a box of side d: the clip that makes a
+    // circle's view answer only inside its outline.
+    function circlePath(d: number): string {
+        const r = d / 2
+        return "M 0 " + r + " A " + r + " " + r + " 0 1 0 " + d + " " + r + " A " + r + " " + r + " 0 1 0 0 " + r + " Z"
+    }
+    }
+
+
+class Drawing extends Dataset [ schema = [ circles[]: Circle ],
+    done: DrawStep[] = [],
+    undone: DrawStep[] = [],
+    lastId: number = 0,
+
+    all() -> Circle[] { return this.value?.circles ?? [] },
+    indexOf(id: number) -> number { return this.all().findIndex((c) => c.id == id) },
+    byId(id: number) -> Circle? { return this.all().find((c) => c.id == id) ?? null },
+
+    // The circle nearest (x, y) among those that contain it; 0 for none.
+
+    nearestAt(x: number, y: number) -> number {
+        let best = 0
+        let bestDist = Infinity
+        for (const c of this.all()) {
+            const dist = Math.hypot(c.x - x, c.y - y)
+            if (dist <= c.d / 2 && dist < bestDist) { best = c.id; bestDist = dist }
+        }
+        return best
+        },
+
+    // ── steps
+
+    draw(x: number, y: number, d: number) {
+        this.lastId = this.lastId + 1
+        const c = ({ id: this.lastId, x: x, y: y, d: d })
+        this.insert(["circles"], this.all().length, c)
+        this.record(({ kind: "draw", circle: ({ ...c }), from: d, to: d }))
+        },
+    preview(id: number, d: number) {
+        const i = this.indexOf(id)
+        if (i >= 0) this.set(["circles", i, "d"], d)
+        },
+    settle(id: number, from: number) {
+        const c = this.byId(id)
+        if (c != null && c.d != from) this.record(({ kind: "resize", circle: ({ ...c }), from: from, to: c.d }))
+        },
+    record(s: DrawStep) {
+        this.done = [...this.done, s]
+        this.undone = []
+        },
+
+    undo() {
+        if (this.done.length == 0) return
+        const s = this.done[this.done.length - 1]
+        this.done = this.done.slice(0, -1)
+        this.undone = [...this.undone, s]
+        if (s.kind == "draw") this.removeAt(["circles"], this.indexOf(s.circle.id))
+        else this.preview(s.circle.id, s.from)
+        },
+    redo() {
+        if (this.undone.length == 0) return
+        const s = this.undone[this.undone.length - 1]
+        this.undone = this.undone.slice(0, -1)
+        this.done = [...this.done, s]
+        if (s.kind == "draw") this.insert(["circles"], this.all().length, ({ ...s.circle }))
+        else this.preview(s.circle.id, s.to)
+        }
+    ]
+
+
+// A circle: unfilled, or grey while it is the selected one.
+
+class CircleMark [
+    selected: boolean = false,
+    x = { :x - :d / 2 },
+    y = { :y - :d / 2 },
+    width = { :d },
+    height = { :d },
+    cornerRadius = { :d / 2 },
+    clip = { circlePath(:d) },
+    accessibilityRole = image,
+    accessibilityLabel = { "Circle at " + Math.round(:x) + ", " + Math.round(:y) + ", diameter " + Math.round(:d) },
+    stroke = { Stroke(1.5, provided("theme").text) },
+    fill = { classroot.selected ? 0x9AA3AD : null }
+    ]
+
+
+class CircleTask [
+    drawing: Drawing { { "circles": [] } },
+    diameter: number = 40,
+
+    // ── where the person is
+
+    pointerX: number = 0,
+    pointerY: number = 0,
+    menuFor: number = 0,           // the circle a context menu was opened on
+    adjusting: number = 0,         // the circle the diameter window is open for
+    startDiameter: number = 0,     // its diameter when the window opened
+
+    under: number = { classroot.canvas.hovered ? classroot.drawing.nearestAt(classroot.pointerX, classroot.pointerY) : 0 },
+    selectedId: number = { classroot.adjusting != 0 ? classroot.adjusting : classroot.under },
+    adjusted: Circle? = { classroot.drawing.byId(classroot.adjusting) },
+
+    beginAdjust() {
+        const c = drawing.byId(menuFor)
+        if (c == null) return
+        adjusting = c.id
+        startDiameter = c.d
+        adjuster.show()
+        },
+    endAdjust() {
+        drawing.settle(adjusting, startDiameter)
+        adjusting = 0
+        },
+
+    keyBindings = { [ ({ key: "Ctrl+Z", command: "undo", label: "Undo" }),
+                      ({ key: "Ctrl+Shift+Z", command: "redo", label: "Redo" }) ] },
+    undo() { drawing.undo() },
+    redo() { drawing.redo() },
+
+    menu: ContextMenu [
+        items = { [ ({ id: "adjust", label: "Adjust diameter…" }) ] },
+        picked(id: string) { if (id == "adjust") classroot.beginAdjust() }
+        ],
+
+    // The small window: a slider the circle follows as it moves. However it
+    // closes — Done, Esc — the change becomes one step.
+
+    adjuster: Dialog [ title = "Adjust diameter",
+        message = { classroot.adjusted == null ? "" :
+            "Circle at (" + Math.round(classroot.adjusted.x) + ", " + Math.round(classroot.adjusted.y) + ")" },
+        buttons = { [ ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+        closed() { classroot.endAdjust() },
+        row: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Slider [ flexes = true, accessibilityLabel = "Diameter", min = 10, max = 200, step = 1,
+                value = { classroot.adjusted?.d ?? classroot.diameter },
+                commit(v: number) { classroot.drawing.preview(classroot.adjusting, v) }
+                ],
+            Text [ width = 36, textAlign = end, numeralWidth = tabular,
+                text = { "" + Math.round(classroot.adjusted?.d ?? 0) } ]
+            ]
+        ],
+
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+    bar: View [
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Button [ label = "Undo", disabled = { classroot.drawing.done.length == 0 },
+            onClick() { classroot.undo() }
+            ],
+        Button [ label = "Redo", disabled = { classroot.drawing.undone.length == 0 },
+            onClick() { classroot.redo() }
+            ]
+        ],
+
+    canvas: View [ width = 100%, flexes = true, clip = true, cornerRadius = 7, focusable = true,
+        accessibilityRole = group, accessibilityLabel = "Canvas",
+        fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
+        datapath = { classroot.drawing.value },
+        onPointerMove(e: PointerEvent) { classroot.pointerX = e.x; classroot.pointerY = e.y },
+        onClick(e: PointerEvent) { classroot.drawing.draw(e.x, e.y, classroot.diameter) },
+        CircleMark [ datapath = :circles[],
+            selected = { classroot.selectedId == :id },
+            onContextMenu(e: PointerEvent) {
+                classroot.menuFor = classroot.selectedId
+                if (classroot.menuFor != 0) classroot.menu.showAt(this, e)
+                }
+            ],
+        hint: Text [ x = center, y = center, fontSize = 13, textColor = { provided("theme").textMuted },
+            visible = { classroot.drawing.all().length == 0 },
+            text = "Click to draw a circle. Right-click a circle to adjust its diameter." ]
+        ]
+    ]

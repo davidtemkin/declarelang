@@ -1,0 +1,131 @@
+/*
+# Cadence: the parts
+
+The look of Cadence, kept apart from how it works: the palette, the two
+type roles, and the small controls the screens are built from. `cadence.declare`
+includes this file.
+
+The palette is ink on paper with one accent, and the accent means one thing:
+effort. A bar, a cell or a band is coloured by how hard the session was, from
+the faint ink of an easy hour to full vermilion at 10. Nothing else is red.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+
+theme Paper [
+    background = #F3F0E9, surface = #EAE6DC, card = #F8F6F1,
+    line = #D9D3C6, quiet = #E4DFD3, hover = #E9E4D9, selection = #DFD9CC,
+    text = #151412, textMuted = #6F6A60, textFaint = #9C968A,
+    ink = #151412, paper = #F8F6F1,
+    accent = #F2461B, accentHovered = #DD3D15, accentPressed = #C23410, accentTextColor = #FFFFFF,
+    linkColor = #151412,
+    control = #E4DFD3, controlHovered = #DCD6C9, controlPressed = #D2CBBC, controlSelected = #151412,
+
+    // the bottom of the effort ramp: an easy session is this, a hard one the accent
+
+    easy = #C8C1B2
+    ]
+
+
+// ── Type ────────────────────────────────────────────────────────────────────
+//
+// Two roles, two families. Figures are the heavy sans, large and tight; the
+// words around them are small spaced capitals in the mono. The scale between
+// them is the design.
+
+class Fig extends Text [ fontWeight = 800, letterSpacing = -1.5, numeralWidth = tabular, wrap = false ]
+
+class Kicker extends Text [ fontFamily = { app.mono }, fontSize = 12, letterSpacing = 1.4,
+    textTransform = uppercase, textColor = { provided("theme").textMuted }, wrap = false
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+//
+// Each is a Control: focus, Space and Enter, and `pressed` come with it. The
+// use site says what pressing does by writing `press()`.
+
+// A plain action: an outlined word.
+
+class Action extends Control [ height = { app.tap }, cornerRadius = 6, padding = [0, 14, 0, 14],
+    label: string = "",
+    accessibilityLabel = { label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    stroke = { Stroke(1, provided("theme").line) },
+    TextLabel [ x = center, fontSize = { app.wide ? 14 : 16 }, fontWeight = 600, text = { classroot.label } ]
+    ]
+
+
+// One of a few, inside a ChoiceControl: a sport, a range of the year, a
+// quick duration. The control holds what is chosen; the chosen one is solid
+// ink.
+
+class Option extends ChoiceItem [ height = { app.tap }, cornerRadius = 6, padding = [0, 14, 0, 14],
+    label: string = "",
+    accessibilityLabel = { label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    stroke = { Stroke(1, provided("theme").line) },
+    State [ applied = { classroot.on }, fill = { provided("theme").ink }, stroke = null ],
+    TextLabel [ x = center, fontSize = { app.wide ? 14 : 16 }, fontWeight = 600,
+        textColor = { classroot.on ? provided("theme").paper : provided("theme").text },
+        text = { classroot.label } ]
+    ]
+
+
+// A round − or + beside a figure.
+
+class StepButton extends Control [ width = { app.tap + 8 }, height = { this.width }, cornerRadius = { this.width / 2 },
+    glyph: string = "+",
+    fill = { pressed ? provided("theme").controlPressed : provided("theme").control },
+    TextLabel [ x = center, fontSize = 26, fontWeight = 500, text = { classroot.glyph } ]
+    ]
+
+
+// A figure with a − and a + either side. The use site writes `down()` and
+// `up()`, and gives the figure as text.
+
+class Nudger [ width = 100%,
+    shown: string = "",
+    what: string = "",
+    canDown: boolean = true,
+    canUp: boolean = true,
+    down() { },
+    up() { },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    StepButton [ glyph = "−", accessibilityLabel = { "Less " + classroot.what }, disabled = { !classroot.canDown },
+        press() { classroot.down() }
+        ],
+    Fig [ flexes = true, textAlign = center, fontSize = { app.wide ? 40 : 48 }, text = { classroot.shown } ],
+    StepButton [ glyph = "+", accessibilityLabel = { "More " + classroot.what }, disabled = { !classroot.canUp },
+        press() { classroot.up() }
+        ]
+    ]
+
+
+// One step of the effort scale, 1 to 10. Lit up to the chosen level, each in
+// its own place on the ramp, so the strip itself reads as easy-to-hard. A
+// ChoiceItem: the strip around it (a ChoiceControl) holds the choice.
+
+class EffortCell extends ChoiceItem [ height = { app.tap + 4 }, cornerRadius = 4,
+    level: number = 1,
+    chosen: number = 0,
+    choice = { "" + level },
+    lit: boolean = { level <= chosen },
+    accessibilityLabel = { "Effort " + level },
+    fill = { classroot.lit ? app.effortInk(classroot.level) : pressed ? provided("theme").controlPressed : provided("theme").control },
+    TextLabel [ x = center, fontSize = 15, fontWeight = 700,
+        textColor = { classroot.lit && classroot.level >= 5 ? provided("theme").paper : provided("theme").text },
+        text = { "" + classroot.level } ]
+    ]
+
+
+// A label over a figure: distance, effort, heart rate.
+
+class Fact [
+    label: string = "",
+    value: string = "",
+    tone: Color = null,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Kicker [ text = { classroot.label } ],
+    Fig [ fontSize = 32, letterSpacing = -0.8, textColor = { classroot.tone ?? provided("theme").text }, text = { classroot.value } ]
+    ]

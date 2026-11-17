@@ -1,0 +1,192 @@
+/*
+# Murmur: the parts
+
+The look of Murmur, kept apart from how it works: the two themes, the time
+words, the drawn marks, and the small pieces every screen is made of (an
+avatar, a round icon button). `murmur.declare` includes this file.
+*/
+
+// ── Words for time ──────────────────────────────────────────────────────────
+//
+// Plain functions of their arguments. `now` is passed in (from the App's
+// clock), so a constraint that calls one re-runs when the minute turns.
+
+script {
+    const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+        "August", "September", "October", "November", "December"]
+
+    function midnight(ms: number): number { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime() }
+    function daysBefore(iso: string, now: number): number {
+        return Math.round((midnight(now) - midnight(Date.parse(iso))) / 86400000)
+    }
+    function sameDay(a: string, b: string): boolean { return midnight(Date.parse(a)) == midnight(Date.parse(b)) }
+    function minutesBetween(a: string, b: string): number { return Math.abs(Date.parse(b) - Date.parse(a)) / 60000 }
+
+    // "14:02" or "2:02 PM", as the reader's own locale writes a time
+    const CLOCK = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
+    function clockOf(iso: string): string { return CLOCK.format(new Date(iso)) }
+
+    // A day heading in a conversation: Today, Yesterday, Monday, Tuesday 4 August, 4 August 2024
+    function dayHeading(iso: string, now: number): string {
+        const n = daysBefore(iso, now), d = new Date(iso)
+        if (n == 0) return "Today"
+        if (n == 1) return "Yesterday"
+        if (n > 1 && n < 7) return DAYS[d.getDay()]
+        const sameYear = d.getFullYear() == new Date(now).getFullYear()
+        return DAYS[d.getDay()] + " " + d.getDate() + " " + MONTHS[d.getMonth()] + (sameYear ? "" : " " + d.getFullYear())
+    }
+
+    // The stamp on a conversation in the list: 14:02, Yesterday, Mon, 4 Aug, 4 Aug 2024
+    function listStamp(iso: string, now: number): string {
+        if (iso == "") return ""
+        const n = daysBefore(iso, now), d = new Date(iso)
+        if (n <= 0) return clockOf(iso)
+        if (n == 1) return "Yesterday"
+        if (n < 7) return DAYS[d.getDay()].slice(0, 3)
+        const sameYear = d.getFullYear() == new Date(now).getFullYear()
+        return d.getDate() + " " + MONTHS[d.getMonth()].slice(0, 3) + (sameYear ? "" : " " + d.getFullYear())
+    }
+
+    // 0:07, 1:24
+    function clipTime(seconds: number): string {
+        const s = Math.max(0, Math.round(seconds))
+        return Math.floor(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + (s % 60)
+    }
+
+    function initialsOf(name: string): string {
+        const words = name.trim().split(/\s+/).filter((w) => w != "")
+        if (words.length == 0) return "?"
+        const a = words[0][0], b = words.length > 1 ? words[words.length - 1][0] : ""
+        return (a + b).toUpperCase()
+    }
+
+    // A person's hue: a stable index from their id, into the theme's `people` lists.
+    function hueIndex(id: string, n: number): number {
+        let h = 0
+        for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 997
+        return h % n
+    }
+
+    // Reactions, grouped for the pill under a message: "❤️ 2  😂"
+    function reactionSummary(rs: { person: string; emoji: string }[]): string {
+        const order: string[] = [], count: { [k: string]: number } = {}
+        for (const r of rs) { if (!(r.emoji in count)) { order.push(r.emoji); count[r.emoji] = 0 } count[r.emoji]++ }
+        return order.map((e) => count[e] > 1 ? e + " " + count[e] : e).join("  ")
+    }
+    }
+
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's SanFrancisco preset, so library controls (the
+// popovers, the dialog, the text field) read the same palette. Murmur's own
+// tokens: `paper` behind the conversation, `mine`/`theirs` for the bubbles,
+// and `people`/`peopleInk`, one hue per person — their monogram, their name
+// in a group, the rule beside their run of messages.
+
+theme MurmurLight [
+    background = #FBFAF7, surface = #F3F1EC, paper = #FBFAF7, card = #FFFFFF,
+    line = #E6E2DA, lineStrong = #D6D1C7, hover = #EEEBE4, selection = #E7E3F7,
+    text = #1D1C1A, textMuted = #6E6A63, textFaint = #9C978E,
+    accent = #3446C8, accentHovered = #2B3CB4, accentPressed = #24339C, accentTextColor = #FFFFFF,
+    mine = #3446C8, mineText = #FFFFFF, mineFaint = #C9CFF5,
+    theirs = #EFECE5, theirsText = #1D1C1A,
+    chip = #FFFFFF, chipMine = #E4E7FB, scrim = #000000,
+    unread = #3446C8, pill = #1D1C1A, pillText = #FBFAF7,
+    people = [#C2553A, #2F8A5B, #7A4FC2, #B07A12, #2079A8, #B2416E, #4F7A2A, #5A5FD0],
+    peopleInk = [#A6432B, #23744B, #6440A8, #8C600B, #18638A, #963459, #3E6420, #464BB8]
+    ]
+
+
+theme MurmurDark [
+    background = #151413, surface = #1C1B19, paper = #151413, card = #24231F,
+    line = #2D2B27, lineStrong = #3B3934, hover = #252420, selection = #262A45,
+    text = #EEECE6, textMuted = #A39F96, textFaint = #78746C,
+    accent = #6C7DF0, accentHovered = #7C8BF3, accentPressed = #5A6BE0, accentTextColor = #FFFFFF,
+    mine = #4153D6, mineText = #FFFFFF, mineFaint = #9FA9EE,
+    theirs = #262522, theirsText = #EEECE6,
+    chip = #24231F, chipMine = #2C3260, scrim = #000000,
+    unread = #7C8BF3, pill = #EEECE6, pillText = #151413,
+    people = [#E07A5F, #4CB37E, #A07BE8, #D9A033, #4BA3D3, #E06A9A, #7FAF4F, #8A8EF0],
+    peopleInk = [#F09A82, #6CCB98, #B79AF0, #E8B85A, #74BCE3, #EE8FB4, #9CC870, #A5A8F5]
+    ]
+
+
+// ── Marks ───────────────────────────────────────────────────────────────────
+//
+// One pen for every mark: a round-ended stroke on the library's 16-unit grid.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "back") {                    // a chevron pointing back
+            d.moveTo(10, 2.5); d.lineTo(4.5, 8); d.lineTo(10, 13.5); d.stroke()
+        } else if (shape == "send") {             // an arrow up
+            d.moveTo(8, 13.5); d.lineTo(8, 2.8); d.moveTo(3.4, 7.2); d.lineTo(8, 2.6); d.lineTo(12.6, 7.2); d.stroke()
+        } else if (shape == "photo") {            // a frame with a hill and a sun
+            d.roundRect(1.8, 3, 12.4, 10, 2)
+            d.moveTo(2.4, 11.6); d.lineTo(6.2, 7.8); d.lineTo(9, 10.4); d.lineTo(10.6, 9); d.lineTo(13.8, 12)
+            d.stroke(); d.beginPath(); d.arc(10.6, 6, 1.1, 0, 6.3); d.fill()
+        } else if (shape == "react") {            // a face, smiling
+            d.arc(8, 8, 6, 0, 6.3); d.stroke(); d.beginPath()
+            d.arc(8, 8.2, 3, 0.35, Math.PI - 0.35); d.stroke(); d.beginPath()
+            d.arc(5.9, 6.4, 0.8, 0, 6.3); d.arc(10.1, 6.4, 0.8, 0, 6.3); d.fill()
+        } else if (shape == "play") {             // a filled triangle
+            d.moveTo(5, 2.8); d.lineTo(13, 8); d.lineTo(5, 13.2); d.closePath(); d.fill(); d.stroke()
+        } else if (shape == "pause") {            // two bars
+            d.roundRect(4, 3, 2.6, 10, 1); d.roundRect(9.4, 3, 2.6, 10, 1); d.fill()
+        } else if (shape == "close") {            // a cross
+            d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke()
+        } else if (shape == "down") {             // an arrow down
+            d.moveTo(8, 2.5); d.lineTo(8, 13); d.moveTo(3.6, 8.8); d.lineTo(8, 13.2); d.lineTo(12.4, 8.8); d.stroke()
+        } else if (shape == "clock") {            // sending
+            d.arc(8, 8, 5.6, 0, 6.3); d.moveTo(8, 5); d.lineTo(8, 8.2); d.lineTo(10.2, 9.4); d.stroke()
+        } else if (shape == "check") {            // sent
+            d.moveTo(3.2, 8.6); d.lineTo(6.6, 11.8); d.lineTo(12.8, 4.6); d.stroke()
+        } else if (shape == "mic") {              // a microphone, for a voice message in the list
+            d.roundRect(5.8, 1.8, 4.4, 8, 2.2); d.moveTo(3.4, 7.6); d.arc(8, 7.6, 4.6, Math.PI, 0, true)
+            d.moveTo(8, 12.2); d.lineTo(8, 14.4); d.stroke()
+        }
+        }
+    ]
+
+
+// ── Small pieces ────────────────────────────────────────────────────────────
+
+// A person's face: their picture when they have one, else their initials on
+// their own hue. The hue is always behind, so a picture still loading shows
+// the person's color rather than a hole.
+
+class Avatar [ width = 36, height = { this.width }, cornerRadius = { this.width / 2 }, clip = true,
+    personId: string = "",
+    hue: number = { hueIndex(classroot.personId, 8) },
+    picture: string = { app.chat.avatarOf(classroot.personId) },
+    fill = { provided("theme").people[classroot.hue] },
+    accessibilityRole = image,
+    accessibilityLabel = { app.chat.nameOf(classroot.personId) },
+    TextLabel [ x = center, y = center, visible = { !(classroot.pic?.loaded ?? false) },
+        fontSize = { classroot.width * 0.38 }, fontWeight = semibold, textColor = white,
+        text = { initialsOf(app.chat.nameOf(classroot.personId)) } ],
+    pic: Image [ exists = { classroot.picture != "" }, width = 100%, height = 100%, fit = cover,
+        source = { classroot.picture } ]
+    ]
+
+
+// A round button with one mark: back, the photo picker, a reaction.
+
+class RoundButton extends Control [ width = { app.tap }, height = { this.width }, cornerRadius = { this.width / 2 },
+    shape: string = "",
+    tone: Color = { provided("theme").textMuted },
+    markSize: number = 18,
+    fill = { pressed ? provided("theme").line : hovered ? provided("theme").hover : null },
+    Glyph [ x = center, y = center, iconSize = { classroot.markSize }, weight = 1.8,
+        shape = { classroot.shape }, ink = { classroot.tone } ]
+    ]

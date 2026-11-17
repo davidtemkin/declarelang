@@ -1,0 +1,40 @@
+/*
+# 4. Timer
+
+Elapsed time e runs toward a duration d. Each frame adds the frame's time to
+e, so e depends on its previous value: that is integration, the one job for a
+per-frame `onTick`. The clock runs only while e < d, so it stops when e
+reaches d, and starts again by itself when the slider raises d past e.
+*/
+
+class TimerTask [ width = 360,
+    elapsed: number = 0,               // e, in seconds
+    duration: number = 15,             // d, in seconds
+    maxDuration: number = 60,
+
+    clock: Time [ tick = frame, running = { classroot.elapsed < classroot.duration },
+        onTick(dt: number) { classroot.elapsed = Math.min(classroot.duration, classroot.elapsed + dt) }
+        ],
+
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ width = 110, text = "Elapsed time:" ],
+        ProgressBar [ flexes = true, accessibilityLabel = "Elapsed time",
+            min = 0, max = { Math.max(classroot.duration, 0.001) },
+            value = { Math.min(classroot.elapsed, classroot.duration) } ]
+        ],
+    Text [ numeralWidth = tabular, text = { classroot.elapsed.toFixed(1) + " s" } ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ width = 110, text = "Duration:" ],
+        Slider [ flexes = true, accessibilityLabel = "Duration", min = 0, max = { classroot.maxDuration }, step = 0.1,
+            value = { classroot.duration },
+            commit(v: number) { classroot.duration = v }
+            ],
+        Text [ width = 52, textAlign = end, numeralWidth = tabular, text = { classroot.duration.toFixed(1) + " s" } ]
+        ],
+    Button [ width = 100%, label = "Reset",
+        onClick() { classroot.elapsed = 0 }
+        ]
+    ]

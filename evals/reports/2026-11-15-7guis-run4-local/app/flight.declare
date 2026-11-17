@@ -1,0 +1,114 @@
+/*
+# 3. Flight Booker
+
+A one-way or return flight, a start date and a return date, and Book. The
+dates are text in the form DD.MM.YYYY, kept as typed; whether each reads as a
+real date, and whether the return comes before the start, are derived from
+that text, and Book and the red outlines follow from them.
+
+A field's red outline is the library's: a `TextInput` whose `validate` names a
+problem, judged from the start, outlines itself in the theme's error color.
+*/
+
+script {
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    // A date as this task shows it: 14.11.2026.
+    function formatFlightDate(y: number, m: number, d: number): string {
+        return pad2(d) + "." + pad2(m) + "." + y
+    }
+
+    // The day a text names, as a number that orders days (yyyymmdd), or null
+    // when it is not a real date in the form D.M.YYYY.
+    function parseFlightDate(t: string): number | null {
+        const m = /^\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s*$/.exec(t)
+        if (m == null) return null
+        const d = Number(m[1]), mo = Number(m[2]), y = Number(m[3])
+        const dt = new Date(y, mo - 1, d)
+        if (dt.getFullYear() != y || dt.getMonth() != mo - 1 || dt.getDate() != d) return null
+        return y * 10000 + mo * 100 + d
+    }
+
+    // The same day, written in the canonical form: 1.2.2027 → 01.02.2027.
+    function normalizeFlightDate(t: string): string {
+        const n = parseFlightDate(t)
+        return n == null ? t : formatFlightDate(Math.floor(n / 10000), Math.floor(n / 100) % 100, n % 100)
+    }
+    }
+
+class FlightTask [ width = 300,
+    clock: Time [ tick = day ],
+    today: string = { formatFlightDate(classroot.clock.year, classroot.clock.month, classroot.clock.day) },
+
+    // What the person has chosen and typed. Both dates start at today.
+
+    kind: "oneway" | "return" = "oneway",
+    start: string = { classroot.today },
+    back: string = { classroot.today },
+
+    // What follows from it.
+
+    isReturn: boolean = { classroot.kind == "return" },
+    startDay: number? = { parseFlightDate(classroot.start) },
+    backDay: number? = { parseFlightDate(classroot.back) },
+    backBeforeStart: boolean = { classroot.startDay != null && classroot.backDay != null && classroot.backDay < classroot.startDay },
+    canBook: boolean = { classroot.startDay != null && (!classroot.isReturn || (classroot.backDay != null && !classroot.backBeforeStart)) },
+
+    book() {
+        if (!canBook) return
+        const s = normalizeFlightDate(start)
+        const message = isReturn
+            ? "You have booked a return flight leaving on " + s + " and returning on " + normalizeFlightDate(back) + "."
+            : "You have booked a one-way flight on " + s + "."
+        booked.notice("Flight booked", message)
+        },
+
+    kinds: Menu [
+        items = { [ ({ id: "oneway", label: "one-way flight", group: "kind", checked: !classroot.isReturn }),
+                    ({ id: "return", label: "return flight", group: "kind", checked: classroot.isReturn }) ] },
+        picked(id: string) { classroot.kind = id == "return" ? "return" : "oneway" }
+        ],
+    booked: Dialog [ ],
+
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+    // The choice is a pop-up button: it names the current choice, and its menu
+    // offers both.
+
+    Button [ width = 100%, accessibilityLabel = "Flight type", menu = { classroot.kinds },
+        label = { classroot.isReturn ? "return flight" : "one-way flight" } ],
+
+    // Each date in a Field: its name beside it, and what is wrong with it under
+    // it, beside the red.
+
+    Field [ label = "Start", labelWidth = 60,
+        startField: TextInput [ width = 230, accessibilityLabel = "Start date", placeholder = "DD.MM.YYYY",
+            judged = true,
+            value = { classroot.start },
+            commit(t: string) { classroot.start = t },
+            validate(t: string) -> string { return parseFlightDate(t) == null ? "Not a date: write it as DD.MM.YYYY." : "" }
+            ]
+        ],
+
+    // Editable only for a return flight. Red when it isn't a date, or when it
+    // comes before the start.
+
+    Field [ label = "Return", labelWidth = 60,
+        backField: TextInput [ width = 230, accessibilityLabel = "Return date", placeholder = "DD.MM.YYYY",
+            judged = true,
+            disabled = { !classroot.isReturn },
+            value = { classroot.back },
+            commit(t: string) { classroot.back = t },
+            validate(t: string) -> string {
+                if (!classroot.isReturn) return ""
+                if (parseFlightDate(t) == null) return "Not a date: write it as DD.MM.YYYY."
+                return classroot.backBeforeStart ? "The return is before the start." : ""
+                }
+            ]
+        ],
+    Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "Dates are written day.month.year, as 14.11.2026." ],
+
+    Button [ width = 100%, label = "Book", primary = true, disabled = { !classroot.canBook },
+        onClick() { classroot.book() }
+        ]
+    ]

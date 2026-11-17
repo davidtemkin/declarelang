@@ -1,0 +1,750 @@
+/*
+# Presentify: the editor's verbs
+
+`Editor` is everything the person can do to the open presentation, as
+methods: select, move, resize, draw, type, style, group, align, reorder,
+copy and paste, and the slides themselves. The views call these and nothing
+else — an element reports a press, a handle reports a drag, the inspector
+reports a choice — so each rule lives in one place.
+
+Where the person is (the slide showing, what is selected, the tool) is on
+the App; this class reads it and changes it. The slides are `app.deck`'s;
+every change goes through it, after `app.history` has kept what was there.
+
+A drag is one step: it records when it starts, works from a copy of the
+elements as they were (`startEls`), and on every move writes that copy moved,
+so it never drifts and Escape puts it back exactly.
+*/
+
+class Editor extends Node [
+
+    // ── what is in front of the person
+
+    index: number = { Math.max(0, app.deck.indexOf(app.currentId)) },
+    slide: Slide? = { app.deck.slide(app.currentId) },
+    els: El[] = { classroot.slide?.elements ?? [] },
+    picked: El[] = { app.selection.map((id) => findEl(classroot.els, id)).filter((e) => e != null) as El[] },
+    any: boolean = { classroot.picked.length > 0 },
+    box: Box = { unionOf(classroot.picked.map((e) => boxOf(e))) },
+    leaves: El[] = { leavesOf(classroot.picked) },
+    single: El? = { classroot.picked.length == 1 ? classroot.picked[0] : null },
+    singleLine: boolean = { classroot.single?.kind == "line" },
+    singleRect: boolean = { classroot.single?.kind == "rect" },
+    singleText: boolean = { classroot.single?.kind == "text" },
+    canGroup: boolean = { classroot.picked.length >= 2 },
+    canUngroup: boolean = { classroot.picked.some((e) => e.kind == "group") },
+    canAlign: boolean = { classroot.picked.length >= 2 },
+    canDistribute: boolean = { classroot.picked.length >= 3 },
+    handles: boolean = { classroot.any && app.editingId == "" && !classroot.singleLine && classroot.drawId == "" },
+    kindName: string = { app.kindNames[classroot.single?.kind ?? ""] ?? "" },
+
+    // The outline drawn round each selected thing (SelectionChrome).
+
+    outlineData: Dataset [ contents = { ({ items: classroot.picked.map((e) => {
+        const b = boxOf(e)
+        return ({ id: e.id, kind: e.kind, x: b.x, y: b.y, w: b.w, h: b.h,
+            x1: e.x1 ?? 0, y1: e.y1 ?? 0, x2: e.x2 ?? 0, y2: e.y2 ?? 0 })
+        }) }) } ],
+
+    // What the inspector shows: each value the selection's things share, or
+    // "mixed". Fill belongs to rectangles and ellipses; an outline to those
+    // and lines; a text style to text boxes.
+
+    fillables: El[] = { classroot.leaves.filter((e) => e.kind == "rect" || e.kind == "ellipse") },
+    strokables: El[] = { classroot.leaves.filter((e) => e.kind != "text") },
+    texts: El[] = { classroot.leaves.filter((e) => e.kind == "text") },
+    rects: El[] = { classroot.leaves.filter((e) => e.kind == "rect") },
+    keepables: El[] = { classroot.leaves.filter((e) => e.kind != "line") },
+    fillValue: string = { common(classroot.fillables.map((e) => e.fill ?? "none")) },
+    strokeValue: string = { common(classroot.strokables.map((e) => e.stroke?.color ?? "none")) },
+    strokeWidth: string = { common(classroot.strokables.map((e) => String(e.stroke?.width ?? 0))) },
+    radiusValue: string = { common(classroot.rects.map((e) => String(Math.round(e.cornerRadius ?? 0)))) },
+    radiusMax: number = { classroot.rects.length == 0 ? 0 : Math.min(...classroot.rects.map((e) => Math.min(e.width ?? 0, e.height ?? 0) / 2)) },
+    fontValue: string = { common(classroot.texts.map((e) => e.text?.font ?? "")) },
+    sizeValue: string = { common(classroot.texts.map((e) => String(e.text?.size ?? 32))) },
+    weightValue: string = { common(classroot.texts.map((e) => String(e.text?.weight ?? 400))) },
+    italicValue: string = { common(classroot.texts.map((e) => String(e.text?.italic ?? false))) },
+    colorValue: string = { common(classroot.texts.map((e) => e.text?.color ?? "#1E1A2E")) },
+    alignValue: string = { common(classroot.texts.map((e) => e.text?.align ?? "left")) },
+    keepValue: string = { common(classroot.keepables.map((e) => String(e.keepProportions ?? false))) },
+
+    write(els: El[]) { app.deck.setElements(app.currentId, els) },
+
+    // ── selecting
+    //
+    // A press selects the outermost thing under it that isn't a group the
+    // person has gone into (`app.scope`, by double-clicking). Pressing
+    // something outside those groups leaves them.
+
+    aim(chain: string[]) -> string {
+        let depth = 0
+        while (depth < app.scope.length && depth < chain.length - 1 && app.scope[depth] == chain[depth]) depth = depth + 1
+        if (depth < app.scope.length) app.scope = app.scope.slice(0, depth)
+        return chain[depth]
+        },
+    press(chain: string[], add: boolean) {
+        if (app.tool != "select") return
+        if (app.editingId != "" && !chain.includes(app.editingId)) this.endText()
+        const target = this.aim(chain)
+        if (add) {
+            app.selection = app.selection.includes(target) ? app.selection.filter((i) => i != target) : [...app.selection, target]
+        } else if (!app.selection.includes(target)) {
+            app.selection = [target]
+        }
+        },
+    click(chain: string[], add: boolean) {
+        if (add || app.selection.length < 2 || app.editingId != "") return
+        app.selection = [this.aim(chain)]
+        },
+    doubleClick(chain: string[]) {
+        const target = this.aim(chain)
+        const e = findEl(els, target)
+        if (e == null) return
+        if (e.kind == "group") {
+            const i = chain.indexOf(target)
+            app.scope = chain.slice(0, i + 1)
+            app.selection = [chain[i + 1]]
+        } else if (e.kind == "text") {
+            this.beginText(target, false)
+        }
+        },
+    pressEmpty(add: boolean) {
+        if (app.editingId != "") this.endText()
+        if (add) return
+        app.scope = []
+        app.selection = []
+        },
+    selectAll() {
+        this.endText()
+        app.scope = []
+        app.selection = els.map((e) => e.id)
+        },
+
+    // Escape steps out: of a group gone into, then of the selection, then of a tool.
+
+    escape() -> boolean {
+        if (app.scope.length > 0) {
+            app.selection = [app.scope[app.scope.length - 1]]
+            app.scope = app.scope.slice(0, -1)
+            return true
+        }
+        if (app.selection.length > 0) { app.selection = []; return true }
+        if (app.tool != "select") { app.tool = "select"; return true }
+        return false
+        },
+
+    restoreView(current: string, selection: string[]) {
+        app.editingId = ""
+        app.scope = []
+        app.currentId = app.deck.slide(current) != null ? current : (app.deck.slides()[0]?.id ?? "")
+        const here = app.deck.slide(app.currentId)?.elements ?? []
+        app.selection = selection.filter((id) => findEl(here, id) != null)
+        },
+
+    // ── one drag at a time
+
+    startEls: El[] = [],
+    startBox: Box = { ({ x: 0, y: 0, w: 0, h: 0 }) },
+    moved: boolean = false,
+    others: Box[] = [],
+    guides: Guide[] = [],
+    guideData: Dataset [ contents = { ({ lines: classroot.guides }) } ],
+
+    begin() -> boolean {
+        if (app.selection.length == 0) return false
+        app.history.record()
+        startEls = copyOf(els)
+        startBox = box
+        moved = false
+        const sel = app.selection
+        others = els.filter((e) => !sel.includes(e.id)).map((e) => boxOf(e))
+        return true
+        },
+    finish(canceled: boolean) {
+        if (startEls.length == 0 && !moved) return
+        if (canceled) this.write(startEls)
+        if (canceled || !moved) app.history.forget()
+        startEls = []
+        guides = []
+        moved = false
+        },
+
+    // Moving snaps the selection's edges and middle to the slide's and to
+    // everything else's, with a guide where it snapped; Option moves freely.
+
+    beginMove() { if (app.tool == "select" && app.editingId == "") this.begin() },
+    moveBy(dx: number, dy: number, free: boolean) {
+        if (startEls.length == 0) return
+        const a = startBox
+        let mx = dx
+        let my = dy
+        const found: Guide[] = []
+        if (!free) {
+            const tol = 6 / app.zoom
+            const sx = snapAxis([a.x + dx, a.x + dx + a.w / 2, a.x + dx + a.w], snapTargets(others, "x", 1280), tol)
+            const sy = snapAxis([a.y + dy, a.y + dy + a.h / 2, a.y + dy + a.h], snapTargets(others, "y", 720), tol)
+            mx = mx + sx.d
+            my = my + sy.d
+            if (!isNaN(sx.at)) found.push(({ id: "gx", axis: "x", at: sx.at }))
+            if (!isNaN(sy.at)) found.push(({ id: "gy", axis: "y", at: sy.at }))
+        }
+        guides = found
+        if (Math.abs(dx) + Math.abs(dy) > 0) moved = true
+        this.write(mapIds(startEls, app.selection, (e) => translateEl(e, mx, my)))
+        },
+    endMove(canceled: boolean) { this.finish(canceled) },
+
+    // Resizing from a handle: `hx`, `hy` say which (0, ½ or 1 across and
+    // down). The opposite edge stays put. Shift keeps the proportions, or,
+    // for things set to keep them, lets them change.
+
+    hx: number = 0,
+    hy: number = 0,
+    keeps: boolean = false,
+    beginResize(hx: number, hy: number) {
+        if (!this.begin()) return
+        this.hx = hx
+        this.hy = hy
+        const k = leaves.filter((e) => e.kind != "line")
+        keeps = k.length > 0 && k.every((e) => e.keepProportions ?? false)
+        },
+    resizeBy(dx: number, dy: number, shift: boolean) {
+        if (startEls.length == 0) return
+        const a = startBox
+        const tol = 6 / app.zoom
+        let x0 = a.x
+        let y0 = a.y
+        let x1 = a.x + a.w
+        let y1 = a.y + a.h
+        const found: Guide[] = []
+        if (hx == 0) x0 = Math.min(x1 - 1, a.x + dx)
+        if (hx == 1) x1 = Math.max(x0 + 1, a.x + a.w + dx)
+        if (hy == 0) y0 = Math.min(y1 - 1, a.y + dy)
+        if (hy == 1) y1 = Math.max(y0 + 1, a.y + a.h + dy)
+        const lock = keeps ? !shift : shift
+        if (!lock) {
+            // the edge being dragged snaps, as a move does
+            const tx = snapTargets(others, "x", 1280)
+            const ty = snapTargets(others, "y", 720)
+            if (hx != 0.5) {
+                const s = snapAxis([hx == 0 ? x0 : x1], tx, tol)
+                if (hx == 0) x0 = Math.min(x1 - 1, x0 + s.d)
+                else x1 = Math.max(x0 + 1, x1 + s.d)
+                if (!isNaN(s.at)) found.push(({ id: "gx", axis: "x", at: s.at }))
+            }
+            if (hy != 0.5) {
+                const s = snapAxis([hy == 0 ? y0 : y1], ty, tol)
+                if (hy == 0) y0 = Math.min(y1 - 1, y0 + s.d)
+                else y1 = Math.max(y0 + 1, y1 + s.d)
+                if (!isNaN(s.at)) found.push(({ id: "gy", axis: "y", at: s.at }))
+            }
+        }
+        let w = x1 - x0
+        let h = y1 - y0
+        if (lock && a.w > 0 && a.h > 0) {
+            const ratio = a.w / a.h
+            if (hx != 0.5 && hy != 0.5) {
+                if (w / a.w > h / a.h) h = w / ratio
+                else w = h * ratio
+            } else if (hx == 0.5) w = h * ratio
+            else h = w / ratio
+            x0 = hx == 0 ? x1 - w : hx == 1 ? a.x : a.x + a.w / 2 - w / 2
+            y0 = hy == 0 ? y1 - h : hy == 1 ? a.y : a.y + a.h / 2 - h / 2
+        }
+        guides = found
+        moved = true
+        const b = ({ x: x0, y: y0, w: w, h: h })
+        this.write(mapIds(startEls, app.selection, (e) => reframeEl(e, a, b)))
+        },
+    endResize(canceled: boolean) { this.finish(canceled) },
+
+    // A rectangle's corner radius, from the handle inside its corner.
+
+    startRadius: number = 0,
+    beginRadius() {
+        if (!this.begin()) return
+        startRadius = Math.min(single?.cornerRadius ?? 0, radiusMax)
+        },
+    radiusBy(d: number) {
+        const e = single
+        if (startEls.length == 0 || e == null) return
+        const r = Math.max(0, Math.min(radiusMax, startRadius + d))
+        moved = true
+        this.write(mapIds(startEls, [e.id], (x) => ({ ...x, cornerRadius: Math.round(r) })))
+        },
+
+    // One end of a line; Shift keeps it to steps of 45°.
+
+    endWhich: number = 1,
+    beginEnd(which: number) {
+        if (!this.begin()) return
+        endWhich = which
+        },
+    endBy(dx: number, dy: number, shift: boolean) {
+        const e = startEls.length == 0 ? null : findEl(startEls, app.selection[0])
+        if (e == null || e.kind != "line") return
+        const fx = endWhich == 1 ? (e.x2 ?? 0) : (e.x1 ?? 0)
+        const fy = endWhich == 1 ? (e.y2 ?? 0) : (e.y1 ?? 0)
+        let px = (endWhich == 1 ? (e.x1 ?? 0) : (e.x2 ?? 0)) + dx
+        let py = (endWhich == 1 ? (e.y1 ?? 0) : (e.y2 ?? 0)) + dy
+        if (shift) {
+            const len = Math.hypot(px - fx, py - fy)
+            const ang = Math.round(Math.atan2(py - fy, px - fx) / (Math.PI / 4)) * (Math.PI / 4)
+            px = fx + len * Math.cos(ang)
+            py = fy + len * Math.sin(ang)
+        }
+        moved = true
+        const next = endWhich == 1 ? ({ ...e, x1: px, y1: py }) : ({ ...e, x2: px, y2: py })
+        this.write(mapIds(startEls, [e.id], (x) => next))
+        },
+
+    // ── drawing
+    //
+    // With a tool chosen, a drag on the slide draws that shape from the
+    // press to the pointer; Shift makes it a square or a circle (and keeps it
+    // one), or keeps a line to 45°. A click places one at a standard size,
+    // and a text box ready to type in. Then the tool goes back to Select.
+
+    drawId: string = "",
+    drawX: number = 0,
+    drawY: number = 0,
+
+    shapeOf(kind: string, id: string, x: number, y: number, w: number, h: number) -> El {
+        if (kind == "rect") return ({ id: id, kind: "rect", x: x, y: y, width: w, height: h, fill: "#5B3DF5", stroke: null, cornerRadius: 0, keepProportions: false })
+        if (kind == "ellipse") return ({ id: id, kind: "ellipse", x: x, y: y, width: w, height: h, fill: "#FF6A4D", stroke: null, keepProportions: false })
+        if (kind == "line") return ({ id: id, kind: "line", x1: x, y1: y, x2: x + w, y2: y + h, stroke: ({ color: "#1E1A2E", width: 4 }) })
+        return ({ id: id, kind: "text", x: x, y: y, width: Math.max(w, 40), height: 40, keepProportions: false,
+            text: ({ content: "", font: "Bricolage Grotesque", size: 32, weight: 400, italic: false, color: "#1E1A2E", align: "left" }) })
+        },
+
+    beginDraw(px: number, py: number) {
+        this.endText()
+        app.history.record()
+        drawId = uid(app.tool == "text" ? "t" : "e")
+        drawX = px
+        drawY = py
+        app.scope = []
+        this.write([...els, this.shapeOf(app.tool, drawId, px, py, 0, 0)])
+        app.selection = [drawId]
+        },
+    drawBy(dx: number, dy: number, shift: boolean) {
+        if (drawId == "") return
+        const kind = app.tool
+        let next: El
+        if (kind == "line") {
+            let ex = drawX + dx
+            let ey = drawY + dy
+            if (shift) {
+                const len = Math.hypot(dx, dy)
+                const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4)
+                ex = drawX + len * Math.cos(ang)
+                ey = drawY + len * Math.sin(ang)
+            }
+            next = this.shapeOf("line", drawId, drawX, drawY, ex - drawX, ey - drawY)
+        } else {
+            let w = Math.abs(dx)
+            let h = Math.abs(dy)
+            if (shift && kind != "text") { w = Math.max(w, h); h = w }
+            const x = dx < 0 ? drawX - w : drawX
+            const y = dy < 0 ? drawY - h : drawY
+            next = ({ ...this.shapeOf(kind, drawId, x, y, w, h), keepProportions: shift && kind != "text" })
+        }
+        this.write(mapIds(els, [drawId], (e) => next))
+        },
+    endDraw(canceled: boolean) {
+        if (drawId == "") return
+        const id = drawId
+        const kind = app.tool
+        drawId = ""
+        app.tool = "select"
+        if (canceled) {
+            this.write(removeIds(els, [id]))
+            app.selection = []
+            app.history.forget()
+            return
+        }
+        const e = findEl(els, id)
+        const b = e == null ? null : boxOf(e)
+        if (b != null && b.w < 4 && b.h < 4) {
+            // a drag too small to mean a size: the standard size instead
+            app.history.forget()
+            this.write(removeIds(els, [id]))
+            this.placeAt(kind, drawX, drawY)
+            return
+        }
+        if (kind == "text") this.beginText(id, true)
+        },
+
+    placeAt(kind: string, px: number, py: number) {
+        app.history.record()
+        const id = uid(kind == "text" ? "t" : "e")
+        let e: El
+        if (kind == "text") e = this.shapeOf("text", id, px, py - 20, 480, 40)
+        else if (kind == "line") e = this.shapeOf("line", id, px - 120, py, 240, 0)
+        else if (kind == "ellipse") e = this.shapeOf("ellipse", id, px - 100, py - 100, 200, 200)
+        else e = this.shapeOf("rect", id, px - 160, py - 90, 320, 180)
+        app.scope = []
+        app.tool = "select"
+        this.write([...els, e])
+        app.selection = [id]
+        if (kind == "text") this.beginText(id, true)
+        },
+
+    // ── a marquee: everything the box touches
+
+    marquee: Box? = null,
+    mx0: number = 0,
+    my0: number = 0,
+    beginMarquee(px: number, py: number) {
+        if (app.tool != "select") return
+        mx0 = px
+        my0 = py
+        marquee = ({ x: px, y: py, w: 0, h: 0 })
+        },
+    marqueeBy(dx: number, dy: number) {
+        if (marquee == null) return
+        const m = ({ x: Math.min(mx0, mx0 + dx), y: Math.min(my0, my0 + dy), w: Math.abs(dx), h: Math.abs(dy) })
+        marquee = m
+        app.scope = []
+        app.selection = els.filter((e) => touches(boxOf(e), m)).map((e) => e.id)
+        },
+    endMarquee() { marquee = null },
+
+    // ── typing
+    //
+    // A run of typing is one step: recorded when editing begins. A text box
+    // left empty disappears, and one that was made and never typed in leaves
+    // no step behind.
+
+    textNew: boolean = false,
+    textBefore: string = "",
+    beginText(id: string, isNew: boolean) {
+        const e = findEl(els, id)
+        if (e == null || e.kind != "text") return
+        if (!isNew) app.history.record()
+        textNew = isNew
+        textBefore = e.text?.content ?? ""
+        app.selection = [id]
+        app.editingId = id
+        },
+    typeText(id: string, v: string) {
+        this.write(mapIds(els, [id], (e) => ({ ...e, text: ({ ...(e.text as TextRun), content: v }) })))
+        },
+    endText() {
+        const id = app.editingId
+        if (id == "") return
+        app.editingId = ""
+        const content = findEl(els, id)?.text?.content ?? ""
+        if (content.trim() == "") {
+            this.write(removeIds(els, [id]))
+            app.selection = app.selection.filter((i) => i != id)
+            if (textNew) app.history.forget()
+        } else if (!textNew && content == textBefore) {
+            app.history.forget()
+        }
+        textNew = false
+        },
+    settleTextHeight(id: string, h: number) {
+        const e = findEl(els, id)
+        if (e == null || Math.abs((e.height ?? 0) - h) < 0.5) return
+        this.write(mapIds(els, [id], (x) => ({ ...x, height: h })))
+        },
+
+    // ── the selection's verbs
+
+    nudge(dx: number, dy: number) -> boolean {
+        if (!any || app.editingId != "") return false
+        app.history.recordAs("nudge")
+        this.write(mapIds(els, app.selection, (e) => translateEl(e, dx, dy)))
+        return true
+        },
+    deleteSel() -> boolean {
+        if (!any || app.editingId != "") return false
+        app.history.record()
+        this.write(removeIds(els, app.selection))
+        app.selection = []
+        return true
+        },
+    duplicateSel() {
+        if (!any) return
+        this.place(picked, 20)
+        },
+    copySel() {
+        if (!any) return
+        app.clipboard = copyOf(picked)
+        app.pastes = 0
+        },
+    cutSel() {
+        this.copySel()
+        this.deleteSel()
+        },
+    paste(src: El[]) {
+        if (src.length == 0) return
+        app.pastes = app.pastes + 1
+        this.place(src, 20 * app.pastes)
+        },
+    place(src: El[], offset: number) {
+        this.endText()
+        app.history.record()
+        const copies = src.map((e) => translateEl(renewEl(copyOf(e)), offset, offset))
+        app.scope = []
+        this.write([...els, ...copies])
+        app.selection = copies.map((e) => e.id)
+        },
+    pasteText(t: string) {
+        if (t.trim() == "") return
+        app.history.record()
+        const id = uid("t")
+        const e = this.shapeOf("text", id, 160, 300, 960, 40)
+        app.scope = []
+        this.write([...els, ({ ...e, text: ({ ...(e.text as TextRun), content: t.trim() }) })])
+        app.selection = [id]
+        },
+
+    group() {
+        if (!canGroup) return
+        app.history.record()
+        const gid = uid("g")
+        this.write(groupIn(els, app.selection, gid))
+        app.selection = [gid]
+        },
+    ungroup() {
+        if (!canUngroup) return
+        app.history.record()
+        const groups = picked.filter((e) => e.kind == "group")
+        const freed = groups.flatMap((g) => (g.children ?? []).map((c) => c.id))
+        this.write(ungroupIn(els, groups.map((g) => g.id)))
+        app.selection = [...app.selection.filter((id) => !groups.some((g) => g.id == id)), ...freed]
+        },
+    align(how: string) {
+        if (!canAlign) return
+        app.history.record()
+        this.write(alignIn(els, app.selection, how))
+        },
+    distribute(axis: string) {
+        if (!canDistribute) return
+        app.history.record()
+        this.write(distributeIn(els, app.selection, axis))
+        },
+    restackSel(how: string) {
+        if (!any) return
+        app.history.record()
+        this.write(restack(els, app.selection, how))
+        },
+
+    // ── styling: each change one step, to every thing it applies to
+
+    restyle(fn: (e: El) => El) {
+        if (!any) return
+        const next = mapLeaves(els, app.selection, fn)
+        if (JSON.stringify(next) == JSON.stringify(els)) return     // nothing it applies to: no step
+        app.history.record()
+        this.write(next)
+        },
+    setFill(c: string?) {
+        this.restyle((e) => e.kind == "rect" || e.kind == "ellipse" ? ({ ...e, fill: c }) : e)
+        },
+    setStrokeColor(c: string?) {
+        this.restyle((e) => {
+            if (e.kind == "text") return e
+            if (c == null) return e.kind == "line" ? e : ({ ...e, stroke: null })
+            return ({ ...e, stroke: ({ color: c, width: e.stroke?.width ?? (e.kind == "line" ? 4 : 2) }) })
+            })
+        },
+    setStrokeWidth(w: number) {
+        this.restyle((e) => {
+            if (e.kind == "text") return e
+            if (w <= 0) return e.kind == "line" ? ({ ...e, stroke: ({ color: e.stroke?.color ?? "#1E1A2E", width: 1 }) }) : ({ ...e, stroke: null })
+            return ({ ...e, stroke: ({ color: e.stroke?.color ?? "#1E1A2E", width: w }) })
+            })
+        },
+    setRadius(r: number) {
+        this.restyle((e) => e.kind == "rect" ? ({ ...e, cornerRadius: Math.max(0, Math.round(r)) }) : e)
+        },
+    setKeep(on: boolean) {
+        this.restyle((e) => e.kind == "line" ? e : ({ ...e, keepProportions: on }))
+        },
+    restyleText(fn: (t: TextRun) => TextRun) {
+        this.restyle((e) => e.kind == "text" ? ({ ...e, text: fn(e.text as TextRun) }) : e)
+        },
+    setFont(f: string) { this.restyleText((t) => ({ ...t, font: f })) },
+    setSize(n: number) { this.restyleText((t) => ({ ...t, size: Math.max(4, Math.min(400, Math.round(n))) })) },
+    setWeight(n: number) { this.restyleText((t) => ({ ...t, weight: n })) },
+    setItalic(on: boolean) { this.restyleText((t) => ({ ...t, italic: on })) },
+    setTextColor(c: string) { this.restyleText((t) => ({ ...t, color: c })) },
+    setAlign(a: string) { this.restyleText((t) => ({ ...t, align: a == "center" ? "center" : a == "right" ? "right" : "left" })) },
+    setBackground(c: string) {
+        if (slide == null || slide.background == c) return
+        app.history.record()
+        app.deck.setBackground(app.currentId, c)
+        },
+    applyColor(target: string, c: string?) {
+        if (target == "fill") this.setFill(c)
+        else if (target == "stroke") this.setStrokeColor(c)
+        else if (target == "text" && c != null) this.setTextColor(c)
+        else if (target == "background" && c != null) this.setBackground(c)
+        },
+
+    // ── slides
+
+    goTo(id: string) {
+        if (app.deck.slide(id) == null) return
+        this.endText()
+        if (app.currentId != id) {
+            app.currentId = id
+            app.selection = []
+            app.scope = []
+        }
+        app.sync.check(id)
+        },
+    step(d: number) -> boolean {
+        const all = app.deck.slides()
+        const i = Math.max(0, Math.min(all.length - 1, index + d))
+        if (all.length == 0) return false
+        this.goTo(all[i].id)
+        return true
+        },
+    addSlide() {
+        this.endText()
+        app.history.record()
+        const s = ({ id: uid("s"), background: "#FFFFFF", elements: [] })
+        app.deck.insertSlide(index + 1, s)
+        this.goTo(s.id)
+        },
+    duplicateSlide(id: string) {
+        const s = app.deck.slide(id)
+        if (s == null) return
+        this.endText()
+        app.history.record()
+        const copy = ({ id: uid("s"), background: s.background, elements: s.elements.map((e) => renewEl(copyOf(e))) })
+        app.deck.insertSlide(app.deck.indexOf(id) + 1, copy)
+        this.goTo(copy.id)
+        },
+    deleteSlide(id: string) -> boolean {
+        if (app.deck.count <= 1 || app.deck.slide(id) == null) return false
+        this.endText()
+        app.history.record()
+        const i = app.deck.indexOf(id)
+        app.deck.removeSlide(id)
+        if (app.currentId == id) {
+            const all = app.deck.slides()
+            this.goTo(all[Math.min(i, all.length - 1)].id)
+        }
+        return true
+        },
+
+    // Reordering in the list: the slide stays put while it is dragged, a
+    // line shows where it will land, and on release it moves there.
+
+    slideFrom: number = -1,
+    dropAt: number = -1,
+    beginSlideDrag(i: number) {
+        this.endText()
+        slideFrom = i
+        dropAt = i
+        },
+    slideDragTo(y: number) {
+        if (slideFrom < 0) return
+        dropAt = Math.max(0, Math.min(app.deck.count, Math.round(y / app.railRowH)))
+        },
+    endSlideDrag(canceled: boolean) {
+        const from = slideFrom
+        const to = dropAt > from ? dropAt - 1 : dropAt
+        slideFrom = -1
+        dropAt = -1
+        if (canceled || from < 0 || to == from) return
+        app.history.record()
+        app.deck.moveSlide(from, to)
+        },
+
+    // ── presenting
+
+    present(fromStart: boolean) {
+        this.endText()
+        app.presentAt = fromStart ? 0 : index
+        app.presenting = true
+        app.fullScreen = true
+        },
+    presentStep(d: number) {
+        app.presentAt = Math.max(0, Math.min(app.deck.count - 1, app.presentAt + d))
+        },
+    stopPresenting() {
+        if (!app.presenting) return
+        app.presenting = false
+        const s = app.deck.slides()[app.presentAt]
+        if (s != null) this.goTo(s.id)
+        if (app.fullScreen) app.fullScreen = false
+        },
+
+    // ── opening and closing a presentation
+
+    openFromCard(id: string, from: View) {
+        const o = from.rootOrigin()
+        app.openFrom = ({ x: o.x, y: o.y, w: from.width, h: from.height })
+        this.open(id)
+        },
+    open(id: string) {
+        if (app.sync.deckId != "" && app.sync.deckId != id && app.sync.unsaved) {
+            // the last presentation is still saving: open this one once it has
+            app.openAfterSave = id
+            app.sync.saveNow()
+            return
+        }
+        app.location = "deck/" + id
+        },
+    close() {
+        this.endText()
+        app.tool = "select"
+        app.sync.saveNow()
+        app.location = ""
+        app.library.fetch()
+        },
+    load(id: string) {
+        if (id == "") return
+        app.deckSrc.fetch()
+        app.slidesSrc.fetch()
+        },
+
+    // Both halves of an opening have arrived. A presentation still saving
+    // here keeps what is here: it is newer than what the service has.
+
+    adopt() {
+        const id = app.openId
+        const d = app.deckSrc.value
+        const slides = app.slidesSrc.value?.slides ?? []
+        if (id == "" || d == null || d.id != id || !app.deckSrc.loaded || !app.slidesSrc.loaded) return
+        if (app.deckSrc.loading || app.slidesSrc.loading) return
+        if (slides.length > 0 && slides[0].deckId != null && slides[0].deckId != id) return
+        if (app.deck.deckId == id && app.sync.deckId == id && app.sync.unsaved) { app.loadedId = id; return }
+        const fresh = app.deck.deckId != id
+        app.deck.load(id, d.title, copyOf(slides))
+        app.sync.begin(d, slides)
+
+        // Undo starts afresh from what the service holds: a step kept from
+        // before would name slides by ids the service no longer uses.
+        app.history.clear()
+        if (fresh) {
+            app.selection = []
+            app.scope = []
+            app.editingId = ""
+            app.currentId = slides[0]?.id ?? ""
+        } else if (app.deck.slide(app.currentId) == null) {
+            app.currentId = slides[0]?.id ?? ""
+        }
+        app.loadedId = id
+        },
+    openCreated(d: DeckInfo, slides: Slide[]) {
+        app.deck.load(d.id, d.title, copyOf(slides))
+        app.sync.begin(d, slides)
+        app.history.clear()
+        app.selection = []
+        app.scope = []
+        app.editingId = ""
+        app.currentId = slides[0]?.id ?? ""
+        app.loadedId = d.id
+        app.openFrom = ({ x: app.width / 2 - 140, y: 180, w: 280, h: 158 })
+        app.location = "deck/" + d.id
+        app.nameNew = true
+        app.library.fetch()
+        }
+    ]

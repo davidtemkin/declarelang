@@ -1,0 +1,33 @@
+# eval-presentify-16
+total 26.7 min · 62 turns · output 172360 tokens (thinking 85618)
+phases: reading 10.3 · writing 13.1 · checking 3.3 min
+tool time 0.9 min · model time 25.7 min
+tokens: input 114 · cache write 377118 · cache read 13180241 · output 172360 · thinking 85618
+rate: 6697 output tokens per model-minute
+tools:
+  help      10×   0.55 min  (median 1.7 s)
+  verify    10×   0.34 min  (median 1.9 s)
+  read      17×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after write     7×   9.84 min  (median 80.0 s)
+  after verify   10×   5.20 min  (median 7.6 s)
+  after help     10×   4.01 min  (median 8.7 s)
+  after read     17×   2.21 min  (median 2.8 s)
+  after bash     13×   1.47 min  (median 2.3 s)
+  after edit      2×   1.45 min  (median 43.4 s)
+  after grep      1×   1.29 min  (median 77.6 s)
+app: 7 .declare files, 3105 non-blank lines · 19 snapshots changed them: 3685 lines added, 180 removed
+verify results mentioning accessibility: 3
+source reads: library 1 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/menu.declare
+diagnostic codes, by tool results reporting them: DECLARE4025 3, DECLARE4000 1, DECLARE5001 1, DECLARE2000 1, DECLARE4002 1, DECLARE4004 1, DECLARE4020 1, DECLARE4022 1, DECLARE4035 1, DECLARE1002 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   0.08 min     8×  compile (R1–R3)
+   0.08 min     5×  R4 boot, in all
+   0.06 min     5×  page: load, compile in the page and boot
+   0.01 min     5×  chrome: a browser (shared between calls)
+   0.01 min     5×  page: a new page
+   0.00 min     3×  program: built from the compile
+   0.00 min    10×  compile (R1–R3): the last compile, if its files are unchanged
+   0.00 min     5×  end: the browser context released
+   0.00 min     5×  serve: start the program's server

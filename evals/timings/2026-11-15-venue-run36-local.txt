@@ -1,0 +1,53 @@
+# eval-venue-36
+total 31.9 min · 119 turns · output 163185 tokens (thinking 83607)
+phases: reading 10.8 · writing 6.5 · checking 14.6 min
+tool time 6.1 min · model time 25.8 min
+tokens: input 196 · cache write 404298 · cache read 27646411 · output 163185 · thinking 83607
+rate: 6325 output tokens per model-minute
+tools:
+  verify    26×   4.57 min  (median 6.7 s)
+  look       7×   1.09 min  (median 10.0 s)
+  help      15×   0.38 min  (median 0.8 s)
+  bash      21×   0.07 min  (median 0.0 s)
+model turns, by what came before:
+  after help     15×   8.44 min  (median 4.5 s)
+  after edit      2×   4.87 min  (median 146.1 s)
+  after image    29×   3.57 min  (median 0.5 s)
+  after verify   26×   3.44 min  (median 4.1 s)
+  after bash     21×   3.09 min  (median 3.4 s)
+  after write     4×   1.45 min  (median 5.6 s)
+  after read     13×   0.44 min  (median 1.5 s)
+  after look      7×   0.37 min  (median 1.4 s)
+app: 4 .declare files, 1663 non-blank lines · 30 snapshots changed them: 2108 lines added, 135 removed
+verify results mentioning accessibility: 0
+source reads: library 5 file(s), runtime/compiler 3 — each to be audited: never a stand-in for the docs
+            library  library
+            runtime  runtime/src
+            runtime  runtime/src/purpose.ts
+            library  library/combobox.declare
+            library  library/valuecontrol.declare
+            library  library/textinput.declare
+            library  library/icons/core.declare
+            runtime  runtime
+diagnostic codes, by tool results reporting them: DECLARE1002 3, DECLARE4025 3, DECLARE5001 1, DECLARE2000 1, DECLARE4005 1, DECLARE4023 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   4.44 min    33×  R5 behavior, in all
+   3.66 min    33×  script: the assert script, in all
+   0.85 min    54×  page: load, compile in the page and boot
+   0.78 min   103×  locator.click
+   0.67 min    33×  open: the app loaded and arrived, in all
+   0.59 min    22×  drive.waitReal
+   0.46 min   321×  expect(locator), in all
+   0.43 min    69×  drive.settleData
+   0.40 min   285×  drive.key
+   0.33 min   616×  locator: wait a tick for it
+   0.31 min    35×  compile (R1–R3)
+   0.30 min   176×  check: scrolling come to rest
+   0.29 min    19×  R4 boot, in all
+   0.24 min    88×  locator.fill
+   0.23 min    82×  drive.settleMotion
+   0.20 min   239×  drive.tab
+   0.16 min  1168×  locator: query the page
+   0.11 min   176×  check: the layout questions
+   0.08 min    54×  page: a new page
+   0.06 min    25×  end: layout questions at the end of the script

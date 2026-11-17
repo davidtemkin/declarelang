@@ -1,0 +1,13 @@
+STARTED=2026-11-16T05:01:26Z
+APP=presentify
+MODEL=claude-opus-5-5
+SUBJECT=local tree at 0b31b0c9 derived artifacts + 439 changed, 32 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=minimal
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-presentify-15/work (logs outside it)
+PORT=8360 (the brief names 8360)
+DEV_PORT=8600 (the agent's dev server: PORT in its environment)
+SERVICE=node ~/Code/Declare/evals/apps/presentify/api/server.mjs --port=8360 --seed=1
+AGENT_PID=79226

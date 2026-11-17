@@ -1,0 +1,240 @@
+/*
+# Cadence: the parts
+
+The look of Cadence, kept apart from how it works: the palette, the date and
+number helpers, and the small drawn and pressable pieces the screens are made
+of. `cadence.declare` includes this file; read that one first.
+
+The palette is ink on paper with one accent, and the accent means effort: an
+easy session is a quiet grey, a hard one burns. Nothing else is coloured.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// Laid over the library's SanFrancisco preset, so the library's controls
+// (sheets, the date picker, the toast) wear the same paper and ink. The
+// library's `accent` is ink here: the one real accent is `effortHot`, and it
+// is only ever read through `effortColor` (cadence.declare).
+
+theme Paper [
+    background = #F3F0E8, surface = #FBFAF6, card = #FBFAF6,
+    text = #141414, textMuted = #5E5A52, textFaint = #8C877C,
+    line = #DCD7CB, lineStrong = #BDB7A9, hover = #ECE8DE, quiet = #E7E3D8,
+    accent = #141414, accentHovered = #2A2A2A, accentPressed = #000000, accentTextColor = #FBFAF6,
+    linkColor = #141414,
+    control = #E7E3D8, controlHovered = #DEDACE, controlPressed = #D3CEC1, controlSelected = #D3CEC1,
+    effortCool = #C9C5BB, effortHot = #FF3B12, live = #FF3B12,
+    tooltipFill = #141414, tooltipTextColor = #FBFAF6
+    ]
+
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments: dates as "YYYY-MM-DD" strings, and the
+// house formats the brief fixes — `3h 40m`, `45m`, `12.4 km`, `148 bpm`.
+
+script {
+    const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const LONGDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const LONGMONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+
+    function pad(n: number): string { return n < 10 ? "0" + n : "" + n }
+    function parts(iso: string): number[] { return iso.split("-").map(Number) }
+    function utc(iso: string): number { const p = parts(iso); return Date.UTC(p[0], p[1] - 1, p[2]) }
+    function isoOf(ms: number): string {
+        const d = new Date(ms)
+        return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate())
+    }
+    function addDays(iso: string, n: number): string { return isoOf(utc(iso) + n * 86400000) }
+    function daysFrom(a: string, b: string): number { return Math.round((utc(b) - utc(a)) / 86400000) }
+    // 0 is Monday … 6 is Sunday
+    function weekdayOf(iso: string): number { return (new Date(utc(iso)).getUTCDay() + 6) % 7 }
+    function mondayOf(iso: string): string { return addDays(iso, -weekdayOf(iso)) }
+
+    function dayMonth(iso: string): string { const p = parts(iso); return p[2] + " " + MONTHS[p[1] - 1] }
+    function monthName(iso: string): string { return MONTHS[parts(iso)[1] - 1] }
+    function yearOf(iso: string): number { return parts(iso)[0] }
+    function longDate(iso: string): string {
+        if (iso == "") return ""
+        const p = parts(iso)
+        return LONGDAYS[new Date(utc(iso)).getUTCDay()] + " " + p[2] + " " + LONGMONTHS[p[1] - 1]
+    }
+    function shortDate(iso: string): string {
+        if (iso == "") return ""
+        return WEEKDAYS[new Date(utc(iso)).getUTCDay()] + " " + dayMonth(iso)
+    }
+    // "Today", "Yesterday", "Mon 3 Aug", and the year once it is not this one
+    function whenLabel(iso: string, today: string): string {
+        if (iso == "" || today == "") return ""
+        const n = daysFrom(iso, today)
+        if (n == 0) return "Today"
+        if (n == 1) return "Yesterday"
+        if (n > 1 && n < 7) return LONGDAYS[new Date(utc(iso)).getUTCDay()]
+        return shortDate(iso) + (yearOf(iso) == yearOf(today) ? "" : " " + yearOf(iso))
+    }
+    // the period a surface shows: "12 Sep – 25 Sep 2025", "3 Mar 2025 – 4 Aug 2026"
+    function rangeLabel(a: string, b: string): string {
+        if (a == "" || b == "") return ""
+        if (a == b) return dayMonth(a) + " " + yearOf(a)
+        if (yearOf(a) == yearOf(b)) return dayMonth(a) + " – " + dayMonth(b) + " " + yearOf(b)
+        return dayMonth(a) + " " + yearOf(a) + " – " + dayMonth(b) + " " + yearOf(b)
+    }
+
+    function fmtDur(minutes: number): string {
+        const m = Math.max(0, Math.round(minutes))
+        const h = Math.floor(m / 60)
+        if (h == 0) return m + "m"
+        return h + "h " + (m % 60) + "m"
+    }
+    function fmtKm(km: number): string { return (Math.round(km * 10) / 10).toFixed(1) + " km" }
+    function fmtClock(secs: number): string {
+        const s = Math.max(0, Math.floor(secs))
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60)
+        return (h > 0 ? h + ":" + pad(m) : "" + m) + ":" + pad(s % 60)
+    }
+    function plural(n: number, one: string, many: string): string { return n == 1 ? one : many }
+    function sportName(s: string): string {
+        return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "lift" ? "Lift" : s == "swim" ? "Swim" : s
+    }
+    function median(xs: number[]): number {
+        if (xs.length == 0) return 0
+        const s = [...xs].sort((a, b) => a - b)
+        return s[Math.floor(s.length / 2)]
+    }
+    }
+
+
+// ── Small pieces ────────────────────────────────────────────────────────────
+
+// A quiet label over a figure: small, spaced capitals. The smallest text on
+// any screen is this, at 12.
+
+class Kicker extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.4,
+    textTransform = uppercase, textColor = { provided("theme").textMuted }
+    ]
+
+
+// A small chip whose fill is the effort colour, holding the effort figure.
+
+class EffortChip [ width = 30, height = 22, cornerRadius = 11,
+    effort: number = 5,
+    fill = { app.effortColor(classroot.effort) },
+    TextLabel [ x = center, fontSize = 12, fontWeight = bold, numeralWidth = tabular,
+        textColor = { app.inkOn(classroot.effort) }, text = { "" + classroot.effort } ]
+    ]
+
+
+// A press-sized button with a word on it: ink on paper, or (primary) paper on
+// ink. Used for the bars' actions and the form's chips.
+
+class Pressable extends Control [ height = { app.tap }, cornerRadius = { this.height / 2 },
+    padding = [0, 16, 0, 16],
+    label: string = "",
+    strong: boolean = false,        // ink, for the one action that matters here
+    fill = { provided("theme").control },
+    State [ applied = { hovered }, fill = { provided("theme").controlHovered } ],
+    State [ applied = { pressed }, fill = { provided("theme").controlPressed } ],
+    State [ applied = { classroot.strong }, fill = { provided("theme").text } ],
+    accessibilityLabel = { classroot.label },
+    t: TextLabel [ x = center, fontSize = 15, fontWeight = semibold, wrap = false,
+        textColor = { classroot.strong ? provided("theme").background : provided("theme").text },
+        text = { classroot.label } ]
+    ]
+
+
+// The same look, as one of several to choose between (a ChoiceControl's item).
+
+class Choice extends ChoiceItem [ height = { app.tap }, cornerRadius = { this.height / 2 },
+    padding = [0, 16, 0, 16],
+    label: string = "",
+    fill = { provided("theme").control },
+    State [ applied = { hovered }, fill = { provided("theme").controlHovered } ],
+    State [ applied = { pressed }, fill = { provided("theme").controlPressed } ],
+    State [ applied = { classroot.on }, fill = { provided("theme").text } ],
+    accessibilityLabel = { classroot.label },
+    TextLabel [ x = center, fontSize = 15, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").background : provided("theme").text },
+        text = { classroot.label } ]
+    ]
+
+
+// A round − or + that nudges a figure. Thumb-sized on a phone.
+
+class Nudge extends Control [ width = { app.touchFirst ? 48 : 40 }, height = { this.width },
+    cornerRadius = { this.width / 2 },
+    sign: number = 1,
+    accessibilityLabel = { classroot.sign > 0 ? "More" : "Less" },
+    fill = { provided("theme").control },
+    State [ applied = { hovered }, fill = { provided("theme").controlHovered } ],
+    State [ applied = { pressed }, fill = { provided("theme").controlPressed } ],
+    scale = { pressed ? 0.94 : 1 }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+    draw(d: DrawContext) {
+        const c = this.width / 2
+        d.strokeStyle = provided("theme").text
+        d.lineWidth = 2.4
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(c - 9, c); d.lineTo(c + 9, c)
+        if (sign > 0) { d.moveTo(c, c - 9); d.lineTo(c, c + 9) }
+        d.stroke()
+        }
+    ]
+
+
+// A step a figure can take, written on the button: "+5", "−15".
+
+class Step extends Control [ flexes = true, height = { app.touchFirst ? 48 : 36 }, cornerRadius = 10,
+    label: string = "",
+    fill = { provided("theme").control },
+    State [ applied = { hovered }, fill = { provided("theme").controlHovered } ],
+    State [ applied = { pressed }, fill = { provided("theme").controlPressed } ],
+    TextLabel [ x = center, fontSize = 16, fontWeight = bold, numeralWidth = tabular, text = { classroot.label } ]
+    ]
+
+
+// One step of the effort scale in the form: 1 … 10, each in its own colour,
+// so the scale reads as cool to hot before a number is read.
+
+class EffortStep extends ChoiceItem [ flexes = true, height = { app.touchFirst ? 46 : 40 }, cornerRadius = 8,
+    level: number = { Number(classroot.choice) },
+    fill = { classroot.on ? app.effortColor(classroot.level) : provided("theme").control },
+    stroke = { classroot.on ? Stroke(2, provided("theme").text) : null },
+    TextLabel [ x = center, fontSize = 15, fontWeight = bold, numeralWidth = tabular,
+        textColor = { classroot.on ? app.inkOn(classroot.level) : provided("theme").textMuted },
+        text = { classroot.choice } ]
+    ]
+
+
+// A sport, as a tile to choose in the form.
+
+class SportTile extends ChoiceItem [ flexes = true, height = { app.touchFirst ? 50 : 44 }, cornerRadius = 12,
+    fill = { classroot.on ? provided("theme").text : provided("theme").control },
+    accessibilityLabel = { sportName(classroot.choice) },
+    TextLabel [ x = center, fontSize = 16, fontWeight = bold,
+        textColor = { classroot.on ? provided("theme").background : provided("theme").text },
+        text = { sportName(classroot.choice) } ]
+    ]
+
+
+// A day, as a chip to choose in the form: "Today", "Yesterday", …
+
+class DayChip extends ChoiceItem [ height = { app.tap }, cornerRadius = { this.height / 2 }, padding = [0, 14, 0, 14],
+    word: string = "",
+    fill = { classroot.on ? provided("theme").text : provided("theme").control },
+    TextLabel [ fontSize = 15, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").background : provided("theme").text },
+        text = { classroot.word } ]
+    ]
+
+
+// The live dot: it beats once a second while a session runs, the one thing
+// on the screen that moves without being touched — because it is live.
+
+class LiveDot [ width = 14, height = 14, cornerRadius = 7,
+    fill = { provided("theme").live },
+    beat: number = 1,
+    scale = { classroot.beat }, pivotX = 7, pivotY = 7,
+    Spring [ attribute = beat, to = { app.clock.second % 2 == 0 ? 1.35 : 0.85 }, stiffness = 120, damping = 14 ]
+    ]

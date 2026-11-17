@@ -1,0 +1,624 @@
+/*
+# Presentify: the canvas
+
+The slide being edited, shown large, and everything the pointer and keys do
+to it: selecting, moving, resizing, drawing, typing, and the commands that
+act on the selection (delete, duplicate, copy and paste, group, align,
+distribute, order).
+
+It is one class, `Canvas`, which the App holds once and names `app.canvas`.
+The slide (`board`) is drawn by `SlideArt` at the scale that fits; over it,
+unscaled so they stay a constant size, lie the selection's outline and
+handles, the marquee and the snapping guides (`overlay`). Each element takes
+its own presses (render.declare) and hands them here; a press on the slide's
+empty background lands on `back`.
+
+Where the selection lives: `app.sel` holds the ids of the selected elements,
+all in one container — the slide itself, or the group the person has gone
+into with a double-click (`app.entered`). Every command reads and rewrites
+that container, and every change is one `app.hist` step.
+*/
+
+script {
+    type Seg = { x1: number, y1: number, x2: number, y2: number }
+    type Snap = { d: number, at: number }
+
+    // The nearest of `targets` to any of `vals`, within `thr`: how far to move, and where.
+    function snapTo(vals: number[], targets: number[], thr: number): Snap | null {
+        let best: Snap | null = null
+        for (const v of vals) for (const t of targets) {
+            const d = t - v
+            if (Math.abs(d) <= thr && (best == null || Math.abs(d) < Math.abs(best.d))) best = { d: d, at: t }
+        }
+        return best
+    }
+
+    // The elements with the group `gid`'s children replaced, anywhere in the tree.
+    function withKids(els: Element[], gid: string, kids: Element[]): Element[] {
+        return els.map((e) => e.id == gid ? { ...e, children: kids }
+            : e.kind == "group" ? { ...e, children: withKids(e.children ?? [], gid, kids) } : e)
+    }
+
+    // Every element that isn't a group, inside these.
+    function leavesOf(els: Element[]): Element[] {
+        const out: Element[] = []
+        for (const e of els) { if (e.kind == "group") out.push(...leavesOf(e.children ?? [])); else out.push(e) }
+        return out
+    }
+
+    // An element and its children, changed by `fn` wherever `fn` applies.
+    function deepMap(e: Element, fn: (e: Element) => Element): Element {
+        return e.kind == "group" ? { ...e, children: (e.children ?? []).map((k) => deepMap(k, fn)) } : fn(e)
+    }
+
+    // A handle's place on a box: "nw" is the top left corner, "e" the middle of the right side.
+    function handleAt(which: string, b: Box): { x: number, y: number } {
+        const x = which.includes("w") ? b.x : which.includes("e") ? b.x + b.w : b.x + b.w / 2
+        const y = which.includes("n") ? b.y : which.includes("s") ? b.y + b.h : b.y + b.h / 2
+        return { x: x, y: y }
+    }
+
+    function resizeCursor(which: string): string {
+        if (which == "n" || which == "s") return "ns-resize"
+        if (which == "e" || which == "w") return "ew-resize"
+        if (which == "nw" || which == "se") return "nwse-resize"
+        if (which == "ne" || which == "sw") return "nesw-resize"
+        return "move"
+    }
+    }
+
+
+// A handle on the selection: easy to hit (a 20-point target), drawn small,
+// white with a violet ring and a soft shadow so it shows on any slide.
+
+class Handle [ width = 20, height = 20, pointerEvents = "auto",
+    which: string = "",
+    cx: number = 0,
+    cy: number = 0,
+    round: boolean = false,
+    x = { classroot.cx - 10 }, y = { classroot.cy - 10 },
+    cursor = { resizeCursor(classroot.which) },
+    accessibilityHidden = true,
+    onDragStart(e: PointerEvent) { app.canvas?.handleStart(classroot.which, e) },
+    onDrag(e: PointerEvent) { app.canvas?.handleDrag(e) },
+    onDragEnd(e: DragEndEvent) { app.canvas?.handleEnd(e) },
+    dot: View [ x = center, y = center, width = { classroot.hovered || classroot.pressed ? 12 : 10 }, height = { this.width },
+        cornerRadius = { classroot.round ? this.width / 2 : 2.5 },
+        fill = white, stroke = { Stroke(1.5, provided("theme").pick) },
+        shadow = { Shadow(0, 1, 3, 0x1D18304D) } ]
+    ]
+
+
+class Canvas [ clip = true,
+
+    key: string = { app.current },
+    pad: number = 44,
+    s: number = { Math.max(0.05, Math.min((this.width - 2 * classroot.pad) / 1280, (this.height - 2 * classroot.pad - classroot.topRoom) / 720)) },
+
+    // Room at the top for the conflict banner, opened and closed on a spring so the slide moves aside rather than jumps.
+
+    roomTo: number = { app.conflictHere ? (app.editor?.body?.stage?.banner?.height ?? 80) + 20 : 0 },
+    topRoom: number = 0,
+    Spring [ attribute = topRoom, to = { classroot.roomTo }, stiffness = 260, damping = 28 ],
+    sx: number = { classroot.board.x },
+    sy: number = { classroot.board.y },
+
+    // ── the slide
+
+    board: View [ x = center, y = { (parent.height - this.height + classroot.topRoom) / 2 },
+        width = { 1280 * classroot.s }, height = { 720 * classroot.s },
+        accessibilityLabel = "Slide", accessibilityRole = group, focusable = quiet, clip = true,
+        shadow = { Shadow(0, 12, 32, 0x1D183024) },
+        keyBindings = { [
+            ({ key: "ArrowLeft", command: "nudge", args: [-1, 0] }), ({ key: "ArrowRight", command: "nudge", args: [1, 0] }),
+            ({ key: "ArrowUp", command: "nudge", args: [0, -1] }), ({ key: "ArrowDown", command: "nudge", args: [0, 1] }),
+            ({ key: "Shift+ArrowLeft", command: "nudge", args: [-10, 0] }), ({ key: "Shift+ArrowRight", command: "nudge", args: [10, 0] }),
+            ({ key: "Shift+ArrowUp", command: "nudge", args: [0, -10] }), ({ key: "Shift+ArrowDown", command: "nudge", args: [0, 10] }),
+            ({ key: "Delete", command: "remove", label: "Delete" }), ({ key: "Backspace", command: "remove" }),
+            ({ key: "Escape", command: "escape" }), ({ key: "Enter", command: "enter" })
+            ] },
+        nudge(dx: number, dy: number) { return classroot.nudge(dx, dy) },
+        remove() { return classroot.removeSel() },
+        escape() { return classroot.escape() },
+        enter() { return classroot.enterSel() },
+        onClipboardCopy(e: ClipboardEvent) { classroot.copyTo(e) },
+        onClipboardCut(e: ClipboardEvent) { classroot.copyTo(e); classroot.removeSel() },
+        onClipboardPaste(e: ClipboardEvent) { classroot.pasteFrom(e) },
+
+        // the slide's empty background: a press here clears, drags a marquee, or draws
+
+        back: View [ width = 100%, height = 100%,
+            cursor = { app.tool == "select" ? "default" : "crosshair" },
+            onPointerDown(e: PointerEvent) { classroot.pressBack(e) },
+            onClick(e: PointerEvent) { classroot.clickBack(e) },
+            onDragStart(e: PointerEvent) { classroot.backStart(e) },
+            onDrag(e: PointerEvent) { classroot.backDrag(e) },
+            onDragEnd(e: DragEndEvent) { classroot.backEnd(e) },
+            onContextMenu(e: PointerEvent) { app.backMenu.showAt(this, e) }
+            ],
+        art: SlideArt [ live = true, scale = { classroot.s }, datapath = { app.deck.value?.slides?.[app.deck.at(app.current)] } ],
+
+        // the drawing tool's cursor reaches past the elements too
+
+        cover: View [ width = 100%, height = 100%, visible = { app.tool != "select" }, cursor = "crosshair",
+            onPointerDown(e: PointerEvent) { classroot.pressBack(e) },
+            onClick(e: PointerEvent) { classroot.clickBack(e) },
+            onDragStart(e: PointerEvent) { classroot.backStart(e) },
+            onDrag(e: PointerEvent) { classroot.backDrag(e) },
+            onDragEnd(e: DragEndEvent) { classroot.backEnd(e) }
+            ]
+        ],
+
+    // An empty slide says what to do with it, beside it rather than on it.
+
+    hint: Text [ visible = { app.slideEmpty && app.tool == "select" && app.editingText == "" },
+        x = center, y = { classroot.board.y + classroot.board.height + 14 },
+        fontSize = 13, textColor = { provided("theme").textMuted },
+        text = "An empty slide. Pick Rectangle, Ellipse, Line or Text above, then drag on the slide." ],
+
+    // ── over the slide: the selection, the marquee, the guides
+
+    // It lets the pointer through to the slide; only the handles take it back.
+
+    overlay: View [ x = { classroot.sx }, y = { classroot.sy }, width = { classroot.board.width }, height = { classroot.board.height },
+        visible = { !app.presenting }, pointerEvents = "none",
+
+        // each selected thing's own outline, when there are several
+
+        outlines: View [ width = 100%, height = 100%, pointerEvents = "none",
+            draw(d: DrawContext) {
+                const boxes = classroot.selBoxes()
+                if (boxes.length < 2) return
+                const k = classroot.s
+                d.strokeStyle = provided("theme").pick
+                d.lineWidth = 1
+                for (const b of boxes) { d.beginPath(); d.rect(b.x * k, b.y * k, b.w * k, b.h * k); d.stroke() }
+                }
+            ],
+
+        // the frame around the selection: violet, with a white keyline outside it
+
+        frame: View [ pointerEvents = "none", visible = { classroot.showFrame },
+            x = { classroot.fb.x - 1 }, y = { classroot.fb.y - 1 }, width = { classroot.fb.w + 2 }, height = { classroot.fb.h + 2 },
+            stroke = { Stroke(3, 0xFFFFFFCC) },
+            View [ x = 1, y = 1, width = { parent.width - 2 }, height = { parent.height - 2 }, stroke = { Stroke(1.5, provided("theme").pick) } ]
+            ],
+
+        // a line's frame is the line itself
+
+        lineMark: View [ pointerEvents = "none", visible = { classroot.oneLine != null }, width = 100%, height = 100%,
+            draw(d: DrawContext) {
+                const l = classroot.oneLine
+                if (l == null) return
+                const k = classroot.s
+                d.lineCap = "round"
+                d.strokeStyle = "#FFFFFFCC"; d.lineWidth = 4
+                d.beginPath(); d.moveTo((l.x1 ?? 0) * k, (l.y1 ?? 0) * k); d.lineTo((l.x2 ?? 0) * k, (l.y2 ?? 0) * k); d.stroke()
+                d.strokeStyle = provided("theme").pick; d.lineWidth = 1.5
+                d.beginPath(); d.moveTo((l.x1 ?? 0) * k, (l.y1 ?? 0) * k); d.lineTo((l.x2 ?? 0) * k, (l.y2 ?? 0) * k); d.stroke()
+                }
+            ],
+
+        // the group the person has gone into, dashed
+
+        groupMark: View [ pointerEvents = "none", visible = { app.entered != "" },
+            x = { classroot.gb.x - 4 }, y = { classroot.gb.y - 4 }, width = { classroot.gb.w + 8 }, height = { classroot.gb.h + 8 },
+            draw(d: DrawContext) {
+                d.strokeStyle = provided("theme").pick; d.lineWidth = 1; d.setLineDash([4, 3])
+                d.beginPath(); d.rect(0.5, 0.5, d.w - 1, d.h - 1); d.stroke()
+                }
+            ],
+
+        guidesView: View [ width = 100%, height = 100%, pointerEvents = "none",
+            draw(d: DrawContext) {
+                const k = classroot.s
+                d.strokeStyle = provided("theme").accent
+                d.lineWidth = 1
+                for (const g of classroot.guides) { d.beginPath(); d.moveTo(g.x1 * k, g.y1 * k); d.lineTo(g.x2 * k, g.y2 * k); d.stroke() }
+                }
+            ],
+
+        marqueeView: View [ pointerEvents = "none", visible = { classroot.marquee != null },
+            x = { (classroot.marquee?.x ?? 0) * classroot.s }, y = { (classroot.marquee?.y ?? 0) * classroot.s },
+            width = { (classroot.marquee?.w ?? 0) * classroot.s }, height = { (classroot.marquee?.h ?? 0) * classroot.s },
+            fill = { provided("theme").pickGlow }, stroke = { Stroke(1, provided("theme").pick) } ],
+
+        // the eight handles of a box, the two of a line, the corner radius dot
+
+        boxHandles: View [ width = 100%, height = 100%, pointerEvents = "none", visible = { classroot.showFrame && app.editingText == "" },
+            nw: Handle [ which = "nw", cx = { classroot.fb.x }, cy = { classroot.fb.y } ],
+            n: Handle [ which = "n", visible = { !classroot.allText }, cx = { classroot.fb.x + classroot.fb.w / 2 }, cy = { classroot.fb.y } ],
+            ne: Handle [ which = "ne", cx = { classroot.fb.x + classroot.fb.w }, cy = { classroot.fb.y } ],
+            e: Handle [ which = "e", cx = { classroot.fb.x + classroot.fb.w }, cy = { classroot.fb.y + classroot.fb.h / 2 } ],
+            se: Handle [ which = "se", cx = { classroot.fb.x + classroot.fb.w }, cy = { classroot.fb.y + classroot.fb.h } ],
+            s: Handle [ which = "s", visible = { !classroot.allText }, cx = { classroot.fb.x + classroot.fb.w / 2 }, cy = { classroot.fb.y + classroot.fb.h } ],
+            sw: Handle [ which = "sw", cx = { classroot.fb.x }, cy = { classroot.fb.y + classroot.fb.h } ],
+            w: Handle [ which = "w", cx = { classroot.fb.x }, cy = { classroot.fb.y + classroot.fb.h / 2 } ],
+            radiusHandle: Handle [ which = "radius", round = true, visible = { classroot.oneRect != null && classroot.fb.w > 40 && classroot.fb.h > 40 },
+                tooltipLabel = "Drag to round the corners",
+                cursor = "pointer",
+                cx = { classroot.fb.x + classroot.radiusInset }, cy = { classroot.fb.y + classroot.radiusInset } ]
+            ],
+        lineHandles: View [ width = 100%, height = 100%, pointerEvents = "none", visible = { classroot.oneLine != null },
+            enda: Handle [ which = "a", round = true, cursor = "crosshair",
+                cx = { (classroot.oneLine?.x1 ?? 0) * classroot.s }, cy = { (classroot.oneLine?.y1 ?? 0) * classroot.s } ],
+            endb: Handle [ which = "b", round = true, cursor = "crosshair",
+                cx = { (classroot.oneLine?.x2 ?? 0) * classroot.s }, cy = { (classroot.oneLine?.y2 ?? 0) * classroot.s } ]
+            ]
+        ],
+
+    // ── what the overlay reads
+
+    selBoxes() -> Box[] { return app.selEls().map((e) => boxOf(e)) },
+    box: Box = { unionOf(classroot.selBoxes()) },
+    fb: Box = { { x: classroot.box.x * classroot.s, y: classroot.box.y * classroot.s, w: classroot.box.w * classroot.s, h: classroot.box.h * classroot.s } },
+    gb: Box = { app.entered == "" ? ({ x: 0, y: 0, w: 0, h: 0 }) : classroot.scaled(boxOf(app.deck.el(app.current, app.entered) ?? ({ id: "", kind: "group" }))) },
+    scaled(b: Box) -> Box { return ({ x: b.x * s, y: b.y * s, w: b.w * s, h: b.h * s }) },
+    single: Element? = { app.sel.length == 1 ? app.selEls()[0] ?? null : null },
+    oneLine: Element? = { classroot.single?.kind == "line" ? classroot.single : null },
+    oneRect: Element? = { classroot.single?.kind == "rect" ? classroot.single : null },
+    showFrame: boolean = { app.sel.length > 0 && classroot.oneLine == null },
+    allText: boolean = { app.sel.length > 0 && leavesOf(app.selEls()).every((e) => e.kind == "text") },   // its height is its lines
+    radiusInset: number = { Math.min(Math.max((classroot.oneRect?.cornerRadius ?? 0) * classroot.s, 14),
+        Math.min(classroot.fb.w, classroot.fb.h) / 2) },
+
+    guides: Seg[] = [],
+    marquee: Box? = null,
+
+    // ── where a pointer is, in slide points
+
+    at(e: PointerEvent) -> Point {
+        const o = board.rootOrigin()
+        return ({ x: (e.rootX - o.x) / s, y: (e.rootY - o.y) / s })
+        },
+
+    // At a drag's start, the event is where the press began.
+
+    pressedAt(e: PointerEvent) -> Point { return at(e) },
+
+    // ── pressing
+
+    // What a press on an element selects: the outermost thing it belongs to,
+    // or, inside a group the person has gone into, that group's own child.
+
+    resolve(eid: string) -> string {
+        const line = lineage(app.deck.els(key), eid)
+        if (line.length == 0) return ""
+        const inside = line.indexOf(app.entered)
+        if (app.entered != "" && inside >= 0 && inside < line.length - 1) return line[inside + 1]
+        app.entered = ""
+        return line[0]
+        },
+
+    pressEl(eid: string, e: PointerEvent) {
+        if (app.editingText != "" && app.editingText != eid) endText()
+        Focus.focus(board)
+        const id = resolve(eid)
+        if (id == "") return
+        if (e.shift || e.meta) app.sel = app.sel.includes(id) ? app.sel.filter((s) => s != id) : [...app.sel, id]
+        else if (!app.sel.includes(id)) app.sel = [id]
+        },
+
+    doubleEl(eid: string) {
+        const line = lineage(app.deck.els(key), eid)
+        const id = resolve(eid)
+        const e = app.deck.el(key, id)
+        if (e == null) return
+        if (e.kind == "group") {
+            // go into the group, choosing the thing that was double-clicked at its next level
+            app.entered = id
+            app.sel = [line[line.indexOf(id) + 1]]
+        } else if (e.kind == "text") {
+            editText(id)
+        }
+        },
+
+    contextEl(eid: string, v: View, e: PointerEvent) {
+        const id = resolve(eid)
+        if (id != "" && !app.sel.includes(id)) app.sel = [id]
+        app.elMenu.showAt(v, e)
+        },
+
+    pressBack(e: PointerEvent) {
+        if (app.editingText != "") endText()
+        Focus.focus(board)
+        if (app.tool == "select" && !e.shift) { app.sel = []; app.entered = "" }
+        },
+
+    clickBack(e: PointerEvent) {
+        // a click with a drawing tool makes the thing at its usual size
+        if (app.tool == "select") return
+        const p = at(e)
+        const kind = app.tool
+        const w = kind == "text" ? 420 : kind == "line" ? 240 : 240
+        const h = kind == "ellipse" ? 240 : kind == "line" ? 0 : 160
+        app.hist.begin()
+        const el = app.fresh(kind, p.x - (kind == "text" ? 0 : w / 2), p.y - (kind == "text" ? 0 : h / 2), w, h, false)
+        app.deck.setEls(key, [...app.deck.els(key), el])
+        app.entered = ""
+        app.sel = [el.id]
+        app.tool = "select"
+        if (kind == "text") editText(el.id)
+        app.hist.end()
+        },
+
+    // ── dragging on the background: a marquee, or drawing a new thing
+
+    mode: string = "",
+    p0: Point = { { x: 0, y: 0 } },
+    base: string[] = [],
+    drawId: string = "",
+
+    backStart(e: PointerEvent) {
+        p0 = pressedAt(e)
+        if (app.tool == "select") {
+            mode = "marquee"
+            base = e.shift ? [...app.sel] : []
+            return
+        }
+        mode = "draw"
+        app.hist.begin()
+        const el = app.fresh(app.tool, p0.x, p0.y, 0, 0, false)
+        drawId = el.id
+        app.deck.setEls(key, [...app.deck.els(key), el])
+        app.entered = ""
+        app.sel = [el.id]
+        },
+
+    backDrag(e: PointerEvent) {
+        const p = at(e)
+        if (mode == "marquee") {
+            const m = ({ x: Math.min(p0.x, p.x), y: Math.min(p0.y, p.y), w: Math.abs(p.x - p0.x), h: Math.abs(p.y - p0.y) })
+            marquee = m
+            const hit = app.containerEls().filter((el) => touches(boxOf(el), m)).map((el) => el.id)
+            app.sel = [...base, ...hit.filter((id) => !base.includes(id))]
+        } else if (mode == "draw") {
+            const el = app.deck.el(key, drawId)
+            if (el == null) return
+            if (el.kind == "line") {
+                let x2 = p.x, y2 = p.y
+                if (e.shift) {
+                    // shift keeps a line to the nearest 45°
+                    const a = Math.round(Math.atan2(p.y - p0.y, p.x - p0.x) / (Math.PI / 4)) * (Math.PI / 4)
+                    const len = Math.hypot(p.x - p0.x, p.y - p0.y)
+                    x2 = p0.x + Math.cos(a) * len; y2 = p0.y + Math.sin(a) * len
+                }
+                app.deck.setEl(key, ({ ...el, x2: r2(x2), y2: r2(y2) }))
+            } else {
+                let w = Math.abs(p.x - p0.x), h = Math.abs(p.y - p0.y)
+                if (e.shift && el.kind != "text") { const m = Math.max(w, h); w = m; h = m }
+                const x = p.x < p0.x ? p0.x - w : p0.x
+                const y = p.y < p0.y ? p0.y - h : p0.y
+                app.deck.setEl(key, ({ ...el, x: r2(x), y: r2(y), width: r2(w), height: r2(el.kind == "text" ? el.height ?? 0 : h),
+                    keepProportions: e.shift && el.kind != "text" }))
+            }
+        }
+        },
+
+    backEnd(e: DragEndEvent) {
+        if (mode == "marquee") {
+            marquee = null
+            if (e.canceled) app.sel = base
+        } else if (mode == "draw") {
+            const el = app.deck.el(key, drawId)
+            if (e.canceled || el == null) {
+                app.deck.setEls(key, app.deck.els(key).filter((x) => x.id != drawId))
+                app.sel = []
+            } else {
+                const b = boxOf(el)
+                if (el.kind == "line" && b.w < 3 && b.h < 3) app.deck.setEl(key, ({ ...el, x2: (el.x1 ?? 0) + 240, y2: el.y1 ?? 0 }))
+                else if (el.kind != "line" && b.w < 3) app.deck.setEl(key, ({ ...el, width: 240, height: el.kind == "text" ? el.height ?? 0 : 160 }))
+                app.tool = "select"
+                if (el.kind == "text") editText(el.id)
+            }
+            app.hist.end()
+        }
+        mode = ""
+        },
+
+    // ── moving the selection, with snapping to the slide and the other things on it
+
+    start: Element[] = [],
+    box0: Box = { { x: 0, y: 0, w: 0, h: 0 } },
+    xs: number[] = [],
+    ys: number[] = [],
+
+    snapTargets() {
+        const others = app.containerEls().filter((el) => !app.sel.includes(el.id)).map((el) => boxOf(el))
+        xs = [0, 640, 1280, ...others.flatMap((b) => [b.x, b.x + b.w / 2, b.x + b.w])]
+        ys = [0, 360, 720, ...others.flatMap((b) => [b.y, b.y + b.h / 2, b.y + b.h])]
+        },
+
+    moveStart(e: PointerEvent) {
+        if (app.sel.length == 0 || app.editingText != "") return
+        mode = "move"
+        app.hist.begin()
+        start = structuredClone(app.selEls()) as Element[]
+        box0 = unionOf(start.map((el) => boxOf(el)))
+        snapTargets()
+        },
+
+    moveDrag(e: PointerEvent) {
+        if (mode != "move") return
+        let dx = e.deltaX / s, dy = e.deltaY / s
+        const b = box0
+        const thr = 6 / s
+        const g: Seg[] = []
+        const sx = snapTo([b.x + dx, b.x + dx + b.w / 2, b.x + dx + b.w], xs, thr)
+        if (sx != null) { dx = dx + sx.d; g.push(({ x1: sx.at, y1: 0, x2: sx.at, y2: 720 })) }
+        const sy = snapTo([b.y + dy, b.y + dy + b.h / 2, b.y + dy + b.h], ys, thr)
+        if (sy != null) { dy = dy + sy.d; g.push(({ x1: 0, y1: sy.at, x2: 1280, y2: sy.at })) }
+        guides = g
+        dx = Math.round(dx); dy = Math.round(dy)
+        start.forEach((el) => app.deck.setEl(key, moved(el, dx, dy)))
+        },
+
+    moveEnd(e: DragEndEvent) {
+        if (mode != "move") return
+        if (e.canceled) start.forEach((el) => app.deck.setEl(key, el))
+        guides = []
+        mode = ""
+        app.hist.end()
+        },
+
+    // ── resizing by a handle
+
+    handle: string = "",
+    r0: number = 0,
+
+    handleStart(which: string, e: PointerEvent) {
+        if (app.sel.length == 0) return
+        mode = "resize"
+        handle = which
+        app.hist.begin()
+        start = structuredClone(app.selEls()) as Element[]
+        box0 = unionOf(start.map((el) => boxOf(el)))
+        r0 = start[0]?.cornerRadius ?? 0
+        snapTargets()
+        },
+
+    handleDrag(e: PointerEvent) {
+        if (mode != "resize") return
+        const p = at(e)
+        const b = box0
+        if (handle == "radius") {
+            const el = start[0]
+            const r = Math.max(0, Math.min(Math.min(b.w, b.h) / 2, r0 + (e.deltaX + e.deltaY) / 2 / s))
+            app.deck.setEl(key, ({ ...el, cornerRadius: Math.round(r) }))
+            return
+        }
+        if (handle == "a" || handle == "b") {
+            const el = start[0]
+            const fx = handle == "a" ? el.x2 ?? 0 : el.x1 ?? 0, fy = handle == "a" ? el.y2 ?? 0 : el.y1 ?? 0
+            let x = p.x, y = p.y
+            if (e.shift) {
+                const a = Math.round(Math.atan2(y - fy, x - fx) / (Math.PI / 4)) * (Math.PI / 4)
+                const len = Math.hypot(x - fx, y - fy)
+                x = fx + Math.cos(a) * len; y = fy + Math.sin(a) * len
+            } else {
+                const sx = snapTo([x], xs, 6 / s), sy = snapTo([y], ys, 6 / s)
+                if (sx != null) x = x + sx.d
+                if (sy != null) y = y + sy.d
+            }
+            app.deck.setEl(key, handle == "a" ? ({ ...el, x1: r2(x), y1: r2(y) }) : ({ ...el, x2: r2(x), y2: r2(y) }))
+            return
+        }
+        // the box the handle pulls, its opposite side held still
+        let x0 = b.x, y0 = b.y, x1 = b.x + b.w, y1 = b.y + b.h
+        const g: Seg[] = []
+        const thr = 6 / s
+        if (handle.includes("w")) { x0 = Math.min(p.x, x1 - 1); const t = snapTo([x0], xs, thr); if (t != null && !lock(e)) { x0 = t.at; g.push(({ x1: t.at, y1: 0, x2: t.at, y2: 720 })) } }
+        if (handle.includes("e")) { x1 = Math.max(p.x, x0 + 1); const t = snapTo([x1], xs, thr); if (t != null && !lock(e)) { x1 = t.at; g.push(({ x1: t.at, y1: 0, x2: t.at, y2: 720 })) } }
+        if (handle.includes("n")) { y0 = Math.min(p.y, y1 - 1); const t = snapTo([y0], ys, thr); if (t != null && !lock(e)) { y0 = t.at; g.push(({ x1: 0, y1: t.at, x2: 1280, y2: t.at })) } }
+        if (handle.includes("s")) { y1 = Math.max(p.y, y0 + 1); const t = snapTo([y1], ys, thr); if (t != null && !lock(e)) { y1 = t.at; g.push(({ x1: 0, y1: t.at, x2: 1280, y2: t.at })) } }
+        let nb: Box = ({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 })
+        if (lock(e) && b.w > 0 && b.h > 0) {
+            // keeping proportions: the larger pull decides, about the held side or the middle
+            const corner = handle.length == 2
+            const k = corner ? Math.max(nb.w / b.w, nb.h / b.h) : (handle == "e" || handle == "w") ? nb.w / b.w : nb.h / b.h
+            const w = Math.max(1, b.w * k), h = Math.max(1, b.h * k)
+            const nx = handle.includes("w") ? b.x + b.w - w : handle.includes("e") ? b.x : b.x + (b.w - w) / 2
+            const ny = handle.includes("n") ? b.y + b.h - h : handle.includes("s") ? b.y : b.y + (b.h - h) / 2
+            nb = ({ x: nx, y: ny, w: w, h: h })
+            g.length = 0
+        }
+        guides = g
+        start.forEach((el) => app.deck.setEl(key, mapped(el, b, nb)))
+        },
+
+    // Proportions hold when anything selected keeps them, or shift is held — not both.
+
+    lock(e: PointerEvent) -> boolean {
+        const keeps = leavesOf(start).some((el) => el.keepProportions ?? false)
+        return keeps != e.shift
+        },
+
+    handleEnd(e: DragEndEvent) {
+        if (mode != "resize") return
+        if (e.canceled) start.forEach((el) => app.deck.setEl(key, el))
+        else app.fitText(app.sel)
+        guides = []
+        mode = ""
+        app.hist.end()
+        },
+
+    // ── text, in place
+
+    editText(id: string) {
+        if (app.editingText == id) return
+        if (app.editingText != "") endText()
+        app.hist.begin()
+        app.sel = [id]
+        app.editingText = id
+        },
+
+    typed(id: string, v: string) {
+        const el = app.deck.el(key, id)
+        if (el == null || el.text == null) return
+        app.deck.setEl(key, ({ ...el, text: ({ ...el.text, content: v }) }))
+        },
+
+    // Editing ends: a text box left empty goes, a full one keeps the height it laid out at.
+
+    endText() {
+        const id = app.editingText
+        if (id == "") return
+        app.editingText = ""
+        const el = app.deck.el(key, id)
+        if (el != null && (el.text?.content ?? "").trim() == "") {
+            app.deck.setEls(key, app.removeFrom(app.deck.els(key), [id]))
+            app.sel = app.sel.filter((s) => s != id)
+        } else {
+            app.fitText([id])
+        }
+        app.hist.end()
+        afterSettle(() => Focus.focus(board))
+        },
+
+    // ── keys on the slide
+
+    nudge(dx: number, dy: number) -> boolean {
+        if (app.sel.length == 0) return false
+        app.hist.step(() => app.selEls().forEach((el) => app.deck.setEl(key, moved(el, dx, dy))))
+        return true
+        },
+    escape() -> boolean {
+        if (app.entered != "") { app.sel = [app.entered]; app.entered = ""; return true }
+        if (app.tool != "select") { app.tool = "select"; return true }
+        if (app.sel.length > 0) { app.sel = []; return true }
+        return false
+        },
+    enterSel() -> boolean {
+        const one = single
+        if (one?.kind == "text") { editText(one.id); return true }
+        if (one?.kind == "group") { app.entered = one.id; app.sel = [(one.children ?? [])[0]?.id ?? ""]; return true }
+        return false
+        },
+    removeSel() -> boolean {
+        if (app.sel.length == 0) return false
+        app.deleteSel()
+        return true
+        },
+
+    // ── the clipboard: our own type for Presentify, plain words for everything else
+
+    copyTo(e: ClipboardEvent) {
+        const els = app.selEls()
+        if (els.length == 0) return
+        app.copyEls(els)
+        e.put("application/x-presentify", JSON.stringify(els))
+        e.put(leavesOf(els).map((el) => el.text?.content ?? "").filter((t) => t != "").join("\n"))
+        },
+    pasteFrom(e: ClipboardEvent) {
+        const ours = e.get("application/x-presentify")
+        if (ours != null && ours != "") {
+            const els = JSON.parse(ours) as Element[]
+            if (JSON.stringify(els) != JSON.stringify(app.copied)) { app.copied = els; app.pasteN = 0 }
+            app.paste()
+        } else if (app.copied.length > 0) {
+            app.paste()
+        } else if (e.text.trim() != "") {
+            app.pasteText(e.text.trim())
+        }
+        }
+    ]

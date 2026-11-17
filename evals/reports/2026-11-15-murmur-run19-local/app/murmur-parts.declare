@@ -1,0 +1,288 @@
+/*
+# Murmur: the parts
+
+The look of Murmur, kept apart from how it works: the palette, the helpers
+that turn times into words, and the small pieces every screen is built from
+(avatars, the day heads, the reaction chips, the voice scrubber). The
+messages themselves and the App are in `murmur.declare`, which includes this.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's SanFrancisco preset, so library controls (the
+// field, the popover, the dialog) read the same palette. `inks` gives each
+// person a colour of their own, by their place in the people list; it signs
+// their name and their run of messages in a group.
+
+theme Paper [
+    background = #F7F4EE, surface = #FFFDF9, card = #FFFFFF, sidebar = #EFEAE1,
+    line = #E4DED3, lineStrong = #D2CABC, hover = #ECE6DC, selection = #E4DCCD,
+    text = #1E1B17, textMuted = #6D665C, textFaint = #9A9184,
+    accent = #2F4B7C, accentHovered = #284270, accentPressed = #1F3559, accentTextColor = #FFFFFF,
+    mine = #2F4B7C, mineText = #F8F6F1, theirs = #FFFFFF, theirsLine = #E6E0D5,
+    unread = #C2410C, chip = #FFFFFF, chipMine = #E3E9F4,
+    wave = #CFC6B8, waveMine = #6F86AE,
+    inks = [#2F4B7C, #B4532A, #2E7D5B, #8A3FA0, #B0851C, #1F7A8C, #A33A55, #5A6B2F]
+    ]
+
+
+// ── Words for times ─────────────────────────────────────────────────────────
+//
+// Plain functions of their arguments. A constraint that calls one depends on
+// what it passes, so a label that names "Today" passes the clock's day.
+
+script {
+    const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    function clockOf(iso: string): string {
+        if (iso == "") return ""
+        const d = new Date(iso)
+        return pad2(d.getHours()) + ":" + pad2(d.getMinutes())
+    }
+
+    function dayKey(iso: string): number {
+        const d = new Date(iso)
+        return d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate()
+    }
+
+    function daysBetween(a: string, b: string): number {
+        const x = new Date(a), y = new Date(b)
+        const ax = Date.UTC(x.getFullYear(), x.getMonth(), x.getDate())
+        const by = Date.UTC(y.getFullYear(), y.getMonth(), y.getDate())
+        return Math.round((by - ax) / 86400000)
+    }
+
+    function minutesBetween(a: string, b: string): number {
+        return Math.abs(new Date(b).getTime() - new Date(a).getTime()) / 60000
+    }
+
+    // A day as a heading in the history: "Today", "Yesterday", a weekday
+    // this week, the date this year, the date and year before that.
+
+    function dayHead(iso: string, today: string): string {
+        if (iso == "") return ""
+        const n = daysBetween(iso, today)
+        if (n == 0) return "Today"
+        if (n == 1) return "Yesterday"
+        const d = new Date(iso)
+        if (n > 1 && n < 7) return DAYS[d.getDay()]
+        const date = DAYS[d.getDay()] + ", " + d.getDate() + " " + MONTHS[d.getMonth()]
+        return d.getFullYear() == new Date(today).getFullYear() ? date : date + " " + d.getFullYear()
+    }
+
+    // A time in the conversation list: the clock today, the weekday this
+    // week, the short date otherwise.
+
+    function listStamp(iso: string, today: string): string {
+        if (iso == "") return ""
+        const n = daysBetween(iso, today)
+        if (n == 0) return clockOf(iso)
+        if (n == 1) return "Yesterday"
+        const d = new Date(iso)
+        if (n > 1 && n < 7) return DAYS[d.getDay()].slice(0, 3)
+        const short = d.getDate() + " " + MONTHS[d.getMonth()].slice(0, 3)
+        return d.getFullYear() == new Date(today).getFullYear() ? short : short + " " + d.getFullYear()
+    }
+
+    function duration(seconds: number): string {
+        const s = Math.max(0, Math.round(seconds))
+        return Math.floor(s / 60) + ":" + pad2(s % 60)
+    }
+
+    function initials(name: string): string {
+        const parts = name.trim().split(/\s+/)
+        const first = parts[0]?.[0] ?? "?"
+        const last = parts.length > 1 ? parts[parts.length - 1][0] : ""
+        return (first + last).toUpperCase()
+    }
+    }
+
+
+// ── A person's face ─────────────────────────────────────────────────────────
+//
+// Their picture, or their initials on their own ink when they have none.
+// `person` is an id; the App answers who that is.
+
+class Avatar [ width = 32, height = { this.width }, cornerRadius = { this.width / 2 }, clip = true,
+    person: string = "",
+    who: Person? = { app.convos.person(classroot.person) },
+    src: string = { classroot.who?.avatar ?? "" },
+    fill = { app.inkOf(classroot.person) },
+    accessibilityRole = image,
+    accessibilityLabel = { classroot.who?.name ?? "" },
+    TextLabel [ x = center, y = center, exists = { classroot.src == "" || !classroot.pic.loaded },
+        fontSize = { classroot.width * 0.38 }, fontWeight = semibold, textColor = white,
+        text = { initials(classroot.who?.name ?? "?") } ],
+    pic: Image [ width = 100%, height = 100%, fit = cover, visible = { classroot.src != "" },
+        source = { classroot.src == "" ? "" : app.media(classroot.src) } ]
+    ]
+
+
+// A conversation's face: the other person in a pair; in a group, two of
+// the others, one tucked behind the other.
+
+class ThreadFace [ width = 48, height = 48,
+    others: string[] = [],
+    group: boolean = { classroot.others.length > 1 },
+    Avatar [ exists = { !classroot.group }, width = 48, person = { classroot.others[0] ?? "" } ],
+    Avatar [ exists = { classroot.group }, width = 34, person = { classroot.others[1] ?? "" } ],
+    View [ exists = { classroot.group }, x = 12, y = 12, width = 36, height = 36, cornerRadius = 18,
+        fill = { provided("theme").background },
+        Avatar [ x = 2, y = 2, width = 32, person = { classroot.others[0] ?? "" } ]
+        ]
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A round button holding a drawn glyph: send, photo, back, play, close.
+
+class RoundButton extends Control [ width = 40, height = 40, cornerRadius = { this.width / 2 },
+    shape: string = "",
+    tone: Color = { provided("theme").accent },
+    solid: boolean = false,
+    glyphInk: Color = { classroot.solid ? 0xFFFFFF : classroot.tone },
+    fill = { classroot.solid ? classroot.tone : (hovered || pressed ? provided("theme").hover : null) },
+    opacity = { disabled ? 0.4 : 1 },
+    scale = { pressed ? 0.94 : 1 }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+    Glyph [ x = center, y = center, iconSize = { classroot.width * 0.5 }, shape = { classroot.shape },
+        ink = { classroot.glyphInk } ]
+    ]
+
+
+// Every icon is drawn with one pen on the library's 16-unit grid.
+
+class Glyph extends Icon [ weight = 1.8,
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "send") {               // an arrow, up
+            d.moveTo(8, 13.5); d.lineTo(8, 2.8); d.moveTo(3.6, 7.2); d.lineTo(8, 2.8); d.lineTo(12.4, 7.2); d.stroke()
+        } else if (shape == "photo") {       // a frame with a hill and a sun
+            d.roundRect(1.8, 3, 12.4, 10, 2); d.moveTo(2.2, 11.5); d.lineTo(6, 7.6); d.lineTo(9, 10.4)
+            d.lineTo(10.6, 8.9); d.lineTo(14, 12); d.stroke(); d.beginPath(); d.arc(10.6, 6, 1.2, 0, 6.3); d.fill()
+        } else if (shape == "back") {        // a chevron, left
+            d.moveTo(10, 2.5); d.lineTo(4.5, 8); d.lineTo(10, 13.5); d.stroke()
+        } else if (shape == "close") {       // a cross
+            d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke()
+        } else if (shape == "play") {        // a triangle, filled
+            d.moveTo(4.5, 2.6); d.lineTo(13.2, 8); d.lineTo(4.5, 13.4); d.closePath(); d.fill()
+        } else if (shape == "pause") {       // two bars, filled
+            d.roundRect(3.6, 2.8, 3, 10.4, 1); d.roundRect(9.4, 2.8, 3, 10.4, 1); d.fill()
+        } else if (shape == "down") {        // a chevron, down
+            d.moveTo(3, 6); d.lineTo(8, 11); d.lineTo(13, 6); d.stroke()
+        } else if (shape == "react") {       // a smile with a plus
+            d.arc(7, 9, 5.4, 0, 6.3); d.moveTo(4.6, 10.4); d.quadraticCurveTo(7, 12.8, 9.4, 10.4)
+            d.moveTo(13, 1.5); d.lineTo(13, 5.5); d.moveTo(11, 3.5); d.lineTo(15, 3.5); d.stroke()
+            d.beginPath(); d.arc(5.2, 7.6, 0.8, 0, 6.3); d.arc(8.8, 7.6, 0.8, 0, 6.3); d.fill()
+        }
+        }
+    ]
+
+
+// ── The history's day heads ─────────────────────────────────────────────────
+//
+// Reading back through six years of a group reads like a journal, so a new
+// day is a heading set in the serif, with a hairline, not a grey pill.
+
+class DayHead [ width = 100%, padding = [26, 0, 10, 0],
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    View [ flexes = true, height = 1, fill = { provided("theme").line } ],
+    Text [ fontFamily = { app.serif }, fontSize = 15, fontWeight = medium, italic = true, wrap = false,
+        textColor = { provided("theme").textMuted }, accessibilityRole = heading, text = { classroot.label } ],
+    View [ flexes = true, height = 1, fill = { provided("theme").line } ]
+    ]
+
+
+// ── Reactions ───────────────────────────────────────────────────────────────
+//
+// A message's reactions, one chip per mark with how many attached it. A chip
+// the person using the app is part of is tinted; pressing a chip adds theirs.
+
+schema Tally [ id: string, emoji: string, count: number, mine: boolean, names: string ]
+
+class ReactionChip extends Control [ height = 26, cornerRadius = 13, padding = [0, 8, 0, 7],
+    emoji: string = "",
+    count: number = 0,
+    mine: boolean = false,
+    names: string = "",
+    accessibilityLabel = { classroot.emoji + " " + classroot.names },
+    tooltipLabel = { classroot.names },
+    fill = { classroot.mine ? provided("theme").chipMine : provided("theme").chip },
+    stroke = { Stroke(1, classroot.mine ? provided("theme").accent : provided("theme").theirsLine) },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    Text [ fontSize = 13, wrap = false, text = { classroot.emoji } ],
+    Text [ exists = { classroot.count > 1 }, fontSize = 12, fontWeight = semibold, wrap = false,
+        textColor = { classroot.mine ? provided("theme").accent : provided("theme").textMuted },
+        text = { "" + classroot.count } ]
+    ]
+
+
+// The marks a person may attach: a small fixed set.
+
+class ReactionPick extends Control [ width = 44, height = 44, cornerRadius = 22,
+    emoji: string = "",
+    accessibilityLabel = { "React " + classroot.emoji },
+    fill = { hovered || pressed ? provided("theme").hover : null },
+    scale = { pressed ? 1.25 : hovered ? 1.12 : 1 }, pivotX = 22, pivotY = 22,
+    TextLabel [ x = center, y = center, fontSize = 24, text = { classroot.emoji } ]
+    ]
+
+
+// ── The voice scrubber ──────────────────────────────────────────────────────
+//
+// The clip's loudness, drawn as bars, is the track itself. What has played is
+// set in full ink, what is still to come in a faint one, and the boundary is
+// a thin playhead. Press anywhere on it to go there; drag to scrub. It claims
+// only sideways drags, so a finger moving up the conversation still scrolls.
+
+class Scrubber extends Control [ height = 34,
+    peaks: number[] = [],
+    progress: number = 0,          // 0–1, what has played
+    played: Color = gray,
+    rest: Color = lightgray,
+    seek(f: number) { },           // the use site says what a point means
+    accessibilityRole = slider,
+    accessibilityLabel = "Position",
+    accessibilityValue = { Math.round(classroot.progress * 100) },
+    accessibilityMin = 0,
+    accessibilityMax = 100,
+    accessibilityIncrement() { this.nudge(0.1) },
+    accessibilityDecrement() { this.nudge(-0.1) },
+    claim = x,
+    at(x: number) -> number { return Math.max(0, Math.min(1, x / Math.max(1, this.width))) },
+    onPointerDown(e: PointerEvent) { this.seek(this.at(e.x)) },
+    onDrag(e: PointerEvent) { this.seek(this.at(e.x)) },
+    keyBindings = { [ ({ key: "ArrowLeft", command: "nudge", args: [-0.1] }),
+        ({ key: "ArrowRight", command: "nudge", args: [0.1] }) ] },
+    nudge(by: number) { this.seek(Math.max(0, Math.min(1, progress + by))) },
+    draw(d: DrawContext) {
+        const n = Math.max(1, peaks.length)
+        const step = width / n
+        const bar = Math.max(1.5, step * 0.56)
+        const mid = height / 2
+        for (let i = 0; i < n; i++) {
+            const h = Math.max(3, (peaks[i] ?? 0) * (height - 4))
+            const x = i * step + (step - bar) / 2
+            d.fillStyle = (i + 0.5) / n <= progress ? played : rest
+            d.beginPath()
+            d.roundRect(x, mid - h / 2, bar, h, bar / 2)
+            d.fill()
+        }
+        if (progress > 0 && progress < 1) {
+            d.fillStyle = played
+            d.fillRect(progress * width - 1, 1, 2, height - 2)
+        }
+        }
+    ]

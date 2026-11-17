@@ -1,0 +1,321 @@
+/*
+# The Venue: signing in and paying
+
+- **`SignInForm`** — an email and a password, sent to the service; its refusal
+  ("That email and password don't match.") is the form's own error. It opens
+  in a popover from wherever the person is (a sheet, on a phone), so nothing
+  behind it is touched: what they chose and typed is still there when it
+  closes.
+- **`Checkout`** — the payment form. Its values are its own attributes, and
+  the ones an account can supply are computed defaults: they follow the
+  account until the person types, and then they are the person's, so signing
+  in halfway through fills only what was empty. The form judges every field
+  (on leaving it, and all at once on Pay), sends once, and puts each refusal
+  where it belongs: a declined card in a sentence by the Pay button with the
+  security code emptied, a wrong code or postcode on its field, a lost seat
+  back in the hall.
+- **`Basket`** — the seats being bought, each with its price and fee, and the
+  total: beside the form on a desk, above it on a phone.
+*/
+
+// ── Signing in ──────────────────────────────────────────────────────────────
+
+class SignInForm extends Form [ source = { classroot.session },
+    email: string = "",
+    password: string = "",
+    showPassword: boolean = false,
+
+    session: DataSource [ url = { app.api + "/api/session" }, method = "POST", credentials = include,
+        body = { { email: classroot.email.trim(), password: classroot.password } },
+        onLoad() { app.signedIn() }
+        ],
+
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    Text [ accessibilityRole = heading, accessibilityLevel = 2, fontFamily = { app.displayFace }, fontSize = 24,
+        fontWeight = semibold, text = "Sign in" ],
+    Text [ width = 100%, fontSize = 14, textColor = { provided("theme").textMuted },
+        text = "Use your saved cards and address. Nothing you've chosen is lost." ],
+    Field [ width = 100%, label = "Email", stacked = true,
+        TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, name = "email", purpose = email,
+            required = "Enter your email address.", value <-> classroot.email,
+            validate(v: string) -> string { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "" : "Enter an email address like name@example.com." }
+            ]
+        ],
+    Field [ width = 100%, label = "Password", stacked = true,
+        TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, name = "password", purpose = password,
+            concealed = { !classroot.showPassword },
+            required = "Enter your password.", value <-> classroot.password ]
+        ],
+    Checkbox [ label = "Show password", checked <-> classroot.showPassword ],
+    Notice [ width = 100%, message = { classroot.error } ],
+    Button [ width = 100%, primary = true, label = { classroot.pending ? "Signing in…" : "Sign in" },
+        onClick() { classroot.submit() }
+        ]
+    ]
+
+
+// ── A sentence that needs attention ─────────────────────────────────────────
+//
+// A declined card, a seat someone else took: a tinted band with the service's
+// own words. It is a live region, so a screen reader hears it arrive.
+
+class Notice [ height = { classroot.message == "" ? 0 : this.contentHeight },
+    message: string = "",
+    visible = { classroot.message != "" },
+    accessibilityRole = status, accessibilityLive = assertive,
+    cornerRadius = 10, padding = [12, 14, 12, 14], fill = { provided("theme").errorTint },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = start ],
+    View [ width = 4, height = 18, cornerRadius = 2, fill = { provided("theme").error } ],
+    Text [ flexes = true, wrap = true, fontSize = 15, fontWeight = medium,
+        textColor = { provided("theme").text }, text = { classroot.message } ]
+    ]
+
+
+// ── The basket ──────────────────────────────────────────────────────────────
+
+// One seat being bought: where it is, and what it costs. In checkout its fee
+// is on a second line.
+
+class BasketLine [ width = 100%,
+    seatId: string = "",
+    withFee: boolean = false,
+    info: SeatInfo? = { app.seatMap.info(classroot.seatId) },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ flexes = true, fontSize = 15, fontWeight = medium, wrap = true,
+            text = { classroot.info == null ? "" : classroot.info.section + " · Row " + classroot.info.row + " · Seat " + classroot.info.number } ],
+        Text [ fontSize = 15, numeralWidth = tabular, text = { money(classroot.info?.priceCents ?? 0) } ]
+        ],
+    fee: View [ width = 100%, visible = { classroot.withFee },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ flexes = true, fontSize = 13, textColor = { provided("theme").textMuted }, text = "Booking fee" ],
+        Text [ fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+            text = { money(classroot.info?.feeCents ?? 0) } ]
+        ]
+    ]
+
+
+class Basket [ width = 100%,
+    withFees: boolean = false,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    lines: View [ width = 100%, datapath = { app.basket.value },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        BasketLine [ datapath = :ids[], seatId = { :@ }, withFee = { classroot.withFees } ]
+        ],
+    View [ width = 100%, height = 1, fill = { provided("theme").line } ],
+    total: View [ width = 100%, visible = { classroot.withFees },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ flexes = true, fontSize = 16, fontWeight = semibold, text = "Total" ],
+        Text [ fontSize = 20, fontWeight = bold, numeralWidth = tabular, text = { money(app.totalCents) } ]
+        ]
+    ]
+
+
+// ── Paying ──────────────────────────────────────────────────────────────────
+
+// A heading for one part of the form.
+
+class Part extends Text [ accessibilityRole = heading, accessibilityLevel = 3, padding = [10, 0, 0, 0],
+    fontSize = 13, fontWeight = semibold, letterSpacing = 1.2, textColor = { provided("theme").textMuted }
+    ]
+
+
+class Checkout extends Form [ width = 100%, source = { classroot.placeOrder },
+    enterMoves = { app.touchFirst },
+
+    // ── what the person has typed and chosen. The account supplies the
+    //    defaults; a person's own write replaces the formula for good.
+
+    email: string = { app.account?.email ?? "" },
+    cardName: string = { app.account?.name ?? "" },
+    number: string = "",
+    expiry: string = "",
+    cvc: string = "",
+    savedCvc: string = "",
+    line1: string = { app.account?.billing?.line1 ?? "" },
+    line2: string = { app.account?.billing?.line2 ?? "" },
+    city: string = { app.account?.billing?.city ?? "" },
+    postal: string = { app.account?.billing?.postalCode ?? "" },
+    country: string = { app.account?.billing?.country ?? "US" },
+
+    // A saved card when there is one to use, unless a new one is already being typed.
+
+    method: string = { classroot.number == "" ? app.firstUsableCard : "new" },
+    paysNew: boolean = { classroot.method == "new" || app.account == null },
+
+    digits: string = { digitsOf(classroot.number) },
+    brand: string = { brandOf(classroot.digits) },
+    savedCard: SavedCard? = { app.cards.find((c) => c.id == classroot.method) ?? null },
+    codeLen: number = { classroot.paysNew ? codeLength(classroot.brand) : codeLength(classroot.savedCard?.brand ?? "") },
+
+    countries: array = { [ ({ id: "US", label: "United States" }), ({ id: "CA", label: "Canada" }), ({ id: "GB", label: "United Kingdom" }) ] },
+
+    // ── the order, as the service takes it
+
+    orderBody() -> object {
+        const payment = paysNew
+            ? ({ card: ({ number: digits, expMonth: expiryMonth(expiry), expYear: expiryYear(expiry), cvc: cvc, name: cardName.trim() }),
+                 billing: ({ line1: line1.trim(), line2: line2.trim() == "" ? null : line2.trim(), city: city.trim(),
+                             postalCode: postal.trim().toUpperCase(), country: country }) })
+            : ({ savedCardId: method, cvc: savedCvc })
+        return ({ performanceId: app.perfId, seatIds: app.chosen,
+                  email: paysNew ? email.trim() : (app.account?.email ?? ""), payment: payment })
+        },
+    placeOrder: DataSource [ url = { app.api + "/api/orders" }, method = "POST", credentials = include,
+        timeout = 30, schema = Order, errorSchema = Refusal,
+        body = { classroot.orderBody() },
+        onLoad() { app.delivered(this.value) }
+        ],
+
+    // A lost seat is answered in the hall, not on a field.
+
+    refusal(body: Refusal) -> FormProblem[] {
+        if (body.error == "unavailable") return []
+        return super.refusal(body)
+        },
+    refusedWith(body: Refusal) {
+        if (body.error == "card_declined" || body.error == "insufficient_funds") {
+            // everything stays but the security code, which reads as new
+            if (paysNew) { cvc = ""; cardPart.codes.cvcField.code.judged = false }
+            else { savedCvc = ""; savedCode.code.judged = false }
+            }
+        if (body.error == "unavailable") app.seatsLost(body.conflicts ?? [], body.message)
+        if (body.error == "signed_out") app.me.fetch()
+        },
+
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    // ── who is paying
+
+    account: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ visible = { app.account == null }, flexes = true, wrap = true, fontSize = 15,
+            textColor = { provided("theme").textMuted }, text = "Have an account? Your saved cards and address are a sign-in away." ],
+        signIn: Button [ visible = { app.account == null }, label = "Sign in",
+            onClick() { app.openSignIn(this) }
+            ],
+        Text [ visible = { app.account != null }, flexes = true, wrap = true, fontSize = 15,
+            text = { "Signed in as " + (app.account?.name ?? "") + " · " + (app.account?.email ?? "") } ]
+        ],
+
+    // ── how they pay: a saved card, or a new one
+
+    Part [ visible = { app.account != null && app.cards.length > 0 }, text = "PAY WITH" ],
+    payWith: RadioGroup [ visible = { app.account != null && app.cards.length > 0 }, width = 100%,
+        accessibilityLabel = "Pay with", value <-> classroot.method,
+        datapath = { app.me.value },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        Radio [ datapath = :cards[], choice = { :id ?? "" },
+            disabled = { app.isExpired(:expMonth ?? 0, :expYear ?? 0) },
+            label = { app.cardLine(:brand ?? "", :last4 ?? "", :expMonth ?? 0, :expYear ?? 0) } ],
+        Radio [ choice = "new", label = "A new card" ]
+        ],
+    savedCode: Field [ visible = { !classroot.paysNew }, width = 100%, label = "Security code", stacked = true,
+        code: TextInput [ width = 140, height = { app.fieldH }, fontSize = 16, numeralWidth = tabular,
+            name = "cvc", purpose = cardCode, placeholder = { classroot.codeLen == 4 ? "4 digits" : "3 digits" },
+            required = "Enter the security code from the card.",
+            value <-> classroot.savedCvc,
+            admit(t: string) -> string | null { return /^\d*$/.test(t) && t.length <= classroot.codeLen ? t : null },
+            validate(v: string) -> string { return v.length == classroot.codeLen ? "" : "Enter the " + classroot.codeLen + "-digit code from the card." }
+            ]
+        ],
+
+    // ── a new card: where the tickets go, the card, and its billing address
+
+    contactPart: Part [ visible = { classroot.paysNew }, text = "YOUR TICKETS" ],
+    contact: Field [ visible = { classroot.paysNew }, width = 100%, label = "Email", stacked = true,
+        TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, name = "email", purpose = email,
+            required = "Enter the email address to send the tickets to.", value <-> classroot.email,
+            validate(v: string) -> string { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "" : "Enter an email address like name@example.com." }
+            ]
+        ],
+
+    Part [ visible = { classroot.paysNew }, text = "CARD" ],
+    cardPart: View [ visible = { classroot.paysNew }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Field [ width = 100%, label = "Name on card", stacked = true,
+            TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, name = "name", purpose = cardName,
+                required = "Enter the name as it's printed on the card.", value <-> classroot.cardName ]
+            ],
+        Field [ width = 100%, label = "Card number", stacked = true,
+            entry: View [ width = 100%,
+                TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, numeralWidth = tabular,
+                    padding = [0, 110, 0, 12],
+                    name = "number", purpose = cardNumber, placeholder = "1234 1234 1234 1234",
+                    required = "Enter the card number.",
+                    value <-> classroot.number,
+
+                    // digits only, grouped as the card prints them, never longer than its kind allows
+
+                    admit(t: string) -> string | null {
+                        if (!/^[\d ]*$/.test(t)) return null
+                        const d = digitsOf(t)
+                        return d.length > maxDigits(brandOf(d)) ? null : groupCard(d)
+                        },
+                    validate(v: string) -> string { return cardProblem(digitsOf(v)) }
+                    ],
+
+                // the kind of card, recognised from its first digits
+
+                brandMark: Text [ x = { parent.width - this.width - 14 }, y = center, accessibilityLive = polite,
+                    visible = { classroot.brand != "" }, fontSize = 13, fontWeight = bold, letterSpacing = 0.8,
+                    textColor = { provided("theme").textMuted }, text = { brandName(classroot.brand).toUpperCase() } ]
+                ]
+            ],
+        codes: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 14, align = start ],
+            Field [ flexes = true, label = "Expiry", stacked = true,
+                TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, numeralWidth = tabular,
+                    name = "expiry", purpose = cardExpiry, placeholder = "MM / YY",
+                    required = "Enter the expiry date.", value <-> classroot.expiry,
+                    admit(t: string) -> string | null { return /^[\d /]*$/.test(t) ? groupExpiry(t) : null },
+                    validate(v: string) -> string { return expiryProblem(v, app.clock.year, app.clock.month) }
+                    ]
+                ],
+            cvcField: Field [ flexes = true, label = "Security code", stacked = true,
+                code: TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, numeralWidth = tabular,
+                    name = "cvc", purpose = cardCode, placeholder = { classroot.codeLen == 4 ? "4 digits" : "3 digits" },
+                    required = "Enter the security code.", value <-> classroot.cvc,
+                    admit(t: string) -> string | null { return /^\d{0,4}$/.test(t) ? t : null },
+                    validate(v: string) -> string {
+                        return v.length == classroot.codeLen ? "" : "Enter the " + classroot.codeLen + "-digit code" + (classroot.codeLen == 4 ? " on the front of the card." : " on the back of the card.")
+                        }
+                    ]
+                ]
+            ]
+        ],
+
+    Part [ visible = { classroot.paysNew }, text = "BILLING ADDRESS" ],
+    address: View [ visible = { classroot.paysNew }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Field [ width = 100%, label = "Street address", stacked = true,
+            TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, name = "line1", purpose = addressLine1,
+                required = "Enter the street address.", value <-> classroot.line1 ]
+            ],
+        Field [ width = 100%, label = "Apartment, suite, etc. (optional)", stacked = true,
+            TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, name = "line2", purpose = addressLine2,
+                value <-> classroot.line2 ]
+            ],
+        cityRow: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 14, align = start ],
+            Field [ flexes = 3, label = "City", stacked = true,
+                TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, name = "city", purpose = city,
+                    required = "Enter the city.", value <-> classroot.city ]
+                ],
+            Field [ flexes = 2, label = "Postal code", stacked = true,
+                TextInput [ width = 100%, height = { app.fieldH }, fontSize = 16, name = "postalCode", purpose = postalCode,
+                    required = "Enter the postal code.", value <-> classroot.postal,
+                    validate(v: string) -> string { return postalProblem(v, classroot.country) }
+                    ]
+                ]
+            ],
+        Field [ width = 100%, label = "Country", stacked = true,
+            Combobox [ width = 100%, name = "country", purpose = country, required = "Choose the country.",
+                items = { classroot.countries },
+                value = { classroot.countries.find((c) => c.id == classroot.country) ?? null },
+                commit(v: object) { classroot.country = (v as { id: string } | null)?.id ?? "" }
+                ]
+            ]
+        ]
+    ]

@@ -1,0 +1,598 @@
+/*
+# Presentify: editing a slide
+
+`Editor` is the machinery the slide, its handles, the toolbar, the inspector
+and the keyboard all drive: what is selected, which tool is in the hand, the
+drag under way, the text being typed. It has no view; every view of the
+editor reads it and calls its verbs.
+
+Every verb that changes the presentation is one undo step. A step opens
+before the change and closes after it (`app.deck.begin` / `commit`), so a
+drag of a hundred frames, or a run of typing, is still one step, and undoing
+it puts the selection back as it was.
+
+Positions arrive from the pointer in root space and become slide points
+through the canvas (`toSlide`); everything else here is in slide points.
+*/
+
+schema Snapped [ dx: number, dy: number, gx[]: number, gy[]: number ]
+
+class Editor extends Node [
+
+    // ── where the person is on the slide
+
+    tool: "select" | "rect" | "ellipse" | "line" | "text" = "select",
+    selection: string[] = [],
+    scope: string = "",                  // the group the person has gone into, or ""
+    editingId: string = "",              // the text box being typed in, or ""
+
+    // what the pointer is over, outlined before it is pressed
+
+    hoverId: string = "",
+    hoverBox: Box? = { classroot.hoverBoxOf(classroot.hoverId) },
+    hoverBoxOf(id: string) -> Box? {
+        if (id == "" || tool != "select" || mode != "" || selection.includes(this.target(id))) return null
+        const e = findElem(elements, this.target(id))
+        return e == null ? null : boundsOf(e)
+        },
+    hoverOn(id: string, over: boolean) {
+        if (over) hoverId = id
+        else if (hoverId == id) hoverId = ""
+        },
+
+    // what a drag shows while it lasts
+
+    guidesX: number[] = [],
+    guidesY: number[] = [],
+    marquee: Box? = null,
+
+    // ── what the current slide holds
+
+    slide: Slide? = { app.deck.slide(app.cur) },
+    elements: Elem[] = { classroot.slide?.elements ?? [] },
+    selElems: Elem[] = { classroot.selection.map((id) => findElem(classroot.elements, id)).filter((e) => e != null) as Elem[] },
+    selBox: Box? = { classroot.selElems.length == 0 ? null : unionOf(classroot.selElems.map((e) => boundsOf(e))) },
+    count: number = { classroot.selElems.length },
+    single: Elem? = { classroot.count == 1 ? classroot.selElems[0] : null },
+    singleLine: boolean = { classroot.single?.kind == "line" },
+    singleRect: boolean = { classroot.single?.kind == "rect" },
+
+    // The things a style applies to: the selection, with groups opened up.
+
+    leaves: Elem[] = { leavesOf(classroot.selElems) },
+    canGroup: boolean = { classroot.count >= 2 },
+    canUngroup: boolean = { classroot.selElems.some((e) => e.kind == "group") },
+
+    place() -> Place { return ({ cur: app.cur, sel: [...selection], scope: scope }) },
+
+    // One undo step around a change.
+
+    act(change: () => void) {
+        app.deck.begin(this.place())
+        change()
+        app.deck.commit(this.place())
+        },
+
+    setElements(list: Elem[]) { if (slide != null) app.deck.setElements(slide.id, list) },
+    replaceEach(changed: Elem[]) {
+        const byId: Record<string, Elem> = {}
+        changed.forEach((e) => { byId[e.id] = e })
+        this.setElements(replaceElems(elements, byId))
+        },
+
+    // ── coordinates
+
+    toSlide(rx: number, ry: number) -> number[] {
+        const c = app.canvas
+        const o = c.rootOrigin()
+        const s = c.scale
+        return [round2((rx - o.x) / s), round2((ry - o.y) / s)]
+        },
+    snapRange() -> number { return 6 / Math.max(0.05, app.canvas.scale) },
+
+    // The boxes a drag snaps to: the other things at the selection's level.
+
+    others() -> Box[] {
+        const sibs = scope == "" ? elements : (findElem(elements, scope)?.children ?? [])
+        const skip = [...selection, editingId]
+        return sibs.filter((e) => !skip.includes(e.id)).map((e) => boundsOf(e))
+        },
+
+    // ── choosing tools, selecting
+
+    choose(t: "select" | "rect" | "ellipse" | "line" | "text") {
+        this.endEditing()
+        tool = t
+        },
+    select(ids: string[]) { selection = ids },
+    clear() {
+        this.endEditing()
+        selection = []
+        scope = ""
+        },
+    selectAll() {
+        this.endEditing()
+        scope = ""
+        selection = elements.map((e) => e.id)
+        tool = "select"
+        },
+
+    // Escape: out of typing, then out of a group, then nothing selected.
+
+    escape() {
+        if (editingId != "") { this.endEditing(); return }
+        if (scope != "") { selection = [scope]; scope = ""; return }
+        if (tool != "select") { tool = "select"; return }
+        selection = []
+        },
+
+    // Which thing a press on `id` means: the outermost thing at the level the
+    // person is working at — a whole group, until they have gone into it.
+
+    target(id: string) -> string {
+        const p = pathTo(elements, id)
+        if (p.length == 0) return id
+        const at = p.indexOf(scope)
+        if (scope != "" && at >= 0 && at + 1 < p.length) return p[at + 1]
+        return p[0]
+        },
+
+    // ── drags
+    //
+    // One drag at a time: `mode` says which, and what it started from is kept
+    // so each move is worked out from the start, not added up.
+
+    mode: "" | "move" | "resize" | "draw" | "marquee" | "radius" | "end1" | "end2" = "",
+    dragging: boolean = { classroot.mode != "" },
+    _x0: number = 0,
+    _y0: number = 0,
+    _orig: Elem[] = [],
+    _box0: Box? = null,
+    _handle: string = "",
+    _keep: boolean = false,
+    _newId: string = "",
+    _base: string[] = [],
+    _moved: boolean = false,
+    _narrowTo: string = "",       // a press on one of several selected: just it, unless it drags
+
+    startFrom(rx: number, ry: number) {
+        const p = this.toSlide(rx, ry)
+        _x0 = p[0]
+        _y0 = p[1]
+        _moved = false
+        _orig = selElems
+        _box0 = selBox
+        },
+
+    pressElem(id: string, rx: number, ry: number, shift: boolean) {
+        if (editingId == id) return
+        this.endEditing()
+        Focus.focus(app.stageView)
+        const t = this.target(id)
+        if (scope != "" && !pathTo(elements, id).includes(scope)) scope = ""
+        _narrowTo = ""
+        if (shift) {
+            selection = selection.includes(t) ? selection.filter((s) => s != t) : [...selection, t]
+            if (!selection.includes(t)) return
+            } else if (!selection.includes(t)) {
+            selection = [t]
+            } else if (selection.length > 1) {
+            _narrowTo = t
+            }
+        this.startFrom(rx, ry)
+        mode = "move"
+        app.deck.begin(this.place())
+        },
+
+    pressSurface(rx: number, ry: number, shift: boolean) {
+        this.endEditing()
+        Focus.focus(app.stageView)
+        this.startFrom(rx, ry)
+        if (tool == "select") {
+            if (!shift) { selection = []; scope = "" }
+            _base = [...selection]
+            mode = "marquee"
+            return
+            }
+        app.deck.begin(this.place())
+        const e = newElem(tool, _x0, _y0, inkAt(elements, slide?.background ?? "#FFFFFF", _x0, _y0))
+        _newId = e.id
+        this.setElements([...elements, e])
+        selection = [e.id]
+        scope = ""
+        mode = "draw"
+        },
+
+    pressHandle(handle: string, rx: number, ry: number) {
+        this.startFrom(rx, ry)
+        _handle = handle
+        _keep = selElems.some((e) => e.keepProportions ?? false)
+        mode = handle == "radius" ? "radius" : handle == "end1" ? "end1" : handle == "end2" ? "end2" : "resize"
+        app.deck.begin(this.place())
+        },
+
+    dragTo(rx: number, ry: number, shift: boolean) {
+        if (mode == "") return
+        const p = this.toSlide(rx, ry)
+        const dx = p[0] - _x0
+        const dy = p[1] - _y0
+        if (Math.abs(dx) + Math.abs(dy) > 0.5) _moved = true
+        if (mode == "move") this.moveBy(dx, dy)
+        else if (mode == "marquee") this.marqueeTo(p[0], p[1])
+        else if (mode == "draw") this.drawTo(p[0], p[1], shift)
+        else if (mode == "resize") this.resizeBy(dx, dy, shift)
+        else if (mode == "radius") this.radiusTo(p[0])
+        else this.endTo(p[0], p[1], shift)
+        },
+
+    moveBy(dx: number, dy: number) {
+        const b = _box0
+        if (b == null) return
+        const s = snapMove(({ x: b.x + dx, y: b.y + dy, w: b.w, h: b.h }), this.others(), this.snapRange())
+        this.showGuides(s)
+        this.replaceEach(_orig.map((e) => translate(e, dx + s.dx, dy + s.dy)))
+        },
+
+    marqueeTo(x: number, y: number) {
+        const m = boxFromPoints(_x0, _y0, x, y)
+        marquee = m
+        const hit = elements.filter((e) => touches(boundsOf(e), m)).map((e) => e.id)
+        selection = [..._base, ...hit.filter((id) => !_base.includes(id))]
+        },
+
+    drawTo(x: number, y: number, shift: boolean) {
+        const e = findElem(elements, _newId)
+        if (e == null) return
+        const s = snapPoint(x, y, this.others(), this.snapRange())
+        this.showGuides(s)
+        let px = x + s.dx
+        let py = y + s.dy
+        if (e.kind == "line") {
+            const q = shift ? snapAngle(_x0, _y0, x, y) : [round2(px), round2(py)]
+            this.replaceEach([({ ...e, x2: q[0], y2: q[1] })])
+            return
+            }
+        if (shift) {
+            const side = Math.max(Math.abs(x - _x0), Math.abs(y - _y0))
+            px = _x0 + Math.sign(x - _x0 || 1) * side
+            py = _y0 + Math.sign(y - _y0 || 1) * side
+            }
+        const b = boxFromPoints(_x0, _y0, px, py)
+        this.replaceEach([({ ...e, x: round2(b.x), y: round2(b.y), width: Math.max(1, round2(b.w)), height: Math.max(1, round2(b.h)),
+            keepProportions: e.kind == "text" ? false : shift })])
+        },
+
+    resizeBy(dx: number, dy: number, shift: boolean) {
+        const b0 = _box0
+        if (b0 == null) return
+        const keep = _keep != shift
+        // the edges being dragged snap
+        const ex = _handle.includes("r") ? b0.x + b0.w + dx : _handle.includes("l") ? b0.x + dx : NaN
+        const ey = _handle.includes("b") ? b0.y + b0.h + dy : _handle.includes("t") ? b0.y + dy : NaN
+        const s = keep ? ({ dx: 0, dy: 0, gx: [], gy: [] }) : snapPoint(isNaN(ex) ? -1e6 : ex, isNaN(ey) ? -1e6 : ey, this.others(), this.snapRange())
+        this.showGuides(s)
+        const b1 = resizeBox(b0, _handle, dx + s.dx, dy + s.dy, keep)
+        this.replaceEach(_orig.map((e) => remap(e, b0, b1)))
+        this.touch(_orig)
+        },
+
+    radiusTo(x: number) {
+        const e = _orig[0]
+        if (e == null || e.kind != "rect") return
+        const r = Math.max(0, Math.min((e.cornerRadius ?? 0) + x - _x0, Math.min(e.width ?? 0, e.height ?? 0) / 2))
+        this.replaceEach([({ ...e, cornerRadius: Math.round(r) })])
+        },
+
+    endTo(x: number, y: number, shift: boolean) {
+        const e = _orig[0]
+        if (e == null || e.kind != "line") return
+        const first = mode == "end1"
+        const ox = first ? e.x2 ?? 0 : e.x1 ?? 0
+        const oy = first ? e.y2 ?? 0 : e.y1 ?? 0
+        const s = snapPoint(x, y, this.others(), this.snapRange())
+        this.showGuides(s)
+        const q = shift ? snapAngle(ox, oy, x, y) : [round2(x + s.dx), round2(y + s.dy)]
+        this.replaceEach([first ? ({ ...e, x1: q[0], y1: q[1] }) : ({ ...e, x2: q[0], y2: q[1] })])
+        },
+
+    showGuides(s: Snapped) {
+        guidesX = s.gx
+        guidesY = s.gy
+        },
+
+    endDrag(canceled: boolean) {
+        const m = mode
+        mode = ""
+        guidesX = []
+        guidesY = []
+        marquee = null
+        if (m == "" || m == "marquee") return
+        if (m == "move" && !_moved && _narrowTo != "") selection = [_narrowTo]
+        if (canceled) {
+            app.deck.cancel()
+            if (m == "draw") selection = []
+            return
+            }
+        if (m == "draw") {
+            const e = findElem(elements, _newId)
+            tool = "select"
+            if (e != null && !_moved) {
+                // a click with a tool: a thing of a pleasant size, there
+                this.replaceEach([defaultSized(e)])
+                }
+            if (e != null && e.kind == "text") {
+                this.touch([e])
+                editingId = e.id
+                afterSettle(() => { this.focusField() })
+                return              // the step stays open through the typing
+                }
+            }
+        app.deck.commit(this.place())
+        },
+
+    // ── double-click: into a group, or into a text box's words
+
+    doubleElem(id: string) {
+        if (tool != "select") return
+        const p = pathTo(elements, id)
+        const t = this.target(id)
+        const e = findElem(elements, t)
+        if (e == null) return
+        if (e.kind == "group") {
+            const at = p.indexOf(t)
+            scope = t
+            selection = [p[at + 1]]
+            const inner = findElem(elements, p[at + 1])
+            if (inner?.kind == "text" && p.length == at + 2) this.startEditing(inner.id)
+            } else if (e.kind == "text") {
+            this.startEditing(e.id)
+            }
+        },
+
+    // ── typing in place
+
+    startEditing(id: string) {
+        if (editingId == id) return
+        this.endEditing()
+        selection = [id]
+        editingId = id
+        app.deck.begin(this.place())
+        afterSettle(() => { this.focusField() })
+        },
+    focusField() { if (app.textField != null) Focus.focus(app.textField) },
+    typed(v: string) {
+        const e = findElem(elements, editingId)
+        if (e == null || e.text == null) return
+        this.replaceEach([({ ...e, text: ({ ...e.text, content: v }) })])
+        this.touch([e])
+        },
+    endEditing() {
+        if (editingId == "") return
+        const id = editingId
+        editingId = ""
+        const e = findElem(elements, id)
+        if (e != null && (e.text?.content ?? "").trim() == "") {
+            // a text box left empty goes away
+            this.setElements(removeElems(elements, [id]))
+            selection = selection.filter((s) => s != id)
+            }
+        app.deck.commit(this.place())
+        Focus.focus(app.stageView)
+        },
+
+    // A text box the person has changed keeps its stored height equal to its
+    // laid-out lines. It rides along in whatever step is open.
+
+    touchedText: string[] = [],
+    touch(list: Elem[]) {
+        const ids = leavesOf(list).filter((e) => e.kind == "text").map((e) => e.id).filter((id) => !touchedText.includes(id))
+        if (ids.length > 0) touchedText = [...touchedText, ...ids]
+        },
+    noteTextHeight(id: string, h: number) {
+        if (!touchedText.includes(id)) return
+        const e = findElem(elements, id)
+        if (e == null || Math.abs((e.height ?? 0) - h) < 0.5) return
+        this.replaceEach([({ ...e, height: round2(h) })])
+        },
+
+    // ── changes to the selection, each one step
+
+    nudge(dx: number, dy: number) {
+        if (count == 0 || editingId != "") return
+        this.act(() => { this.replaceEach(selElems.map((e) => translate(e, dx, dy))) })
+        },
+
+    deleteSelection() {
+        if (count == 0) return
+        this.act(() => {
+            this.setElements(removeElems(elements, selection))
+            selection = []
+            })
+        },
+
+    duplicate() {
+        if (count == 0) return
+        this.act(() => { this.placeCopies(selElems, 20) })
+        },
+
+    // Copies go in front of everything at the top level, offset, selected.
+
+    placeCopies(list: Elem[], offset: number) {
+        const copies = list.map((e) => translate(withNewIds(e), offset, offset))
+        this.setElements([...elements, ...copies])
+        scope = ""
+        selection = copies.map((e) => e.id)
+        },
+
+    // The clipboard holds copies of elements; it works across slides and
+    // presentations in this window, and through the system clipboard
+    // between windows.
+
+    clipboard: Elem[] = [],
+    pastes: number = 0,
+    copy() -> Elem[] {
+        clipboard = selElems
+        pastes = 0
+        return clipboard
+        },
+    cut() {
+        this.copy()
+        this.deleteSelection()
+        },
+    paste(list: Elem[]) {
+        if (list.length == 0 || slide == null) return
+        pastes = pastes + 1
+        this.act(() => { this.placeCopies(list, 20 * pastes) })
+        },
+
+    group() {
+        if (count < 2) return
+        this.act(() => {
+            // the group takes the place of the frontmost of its parts
+            const g: Elem = ({ id: newId(), kind: "group", children: elements.filter((e) => selection.includes(e.id)) })
+            if ((g.children ?? []).length < 2) return
+            const top = Math.max(...selection.map((id) => elements.findIndex((e) => e.id == id)))
+            const out: Elem[] = []
+            elements.forEach((e, i) => {
+                if (i == top) out.push(g)
+                else if (!selection.includes(e.id)) out.push(e)
+                })
+            this.setElements(out)
+            scope = ""
+            selection = [g.id]
+            })
+        },
+
+    ungroup() {
+        if (!canUngroup) return
+        this.act(() => {
+            const parts: string[] = []
+            const out: Elem[] = []
+            elements.forEach((e) => {
+                if (e.kind == "group" && selection.includes(e.id)) {
+                    out.push(...(e.children ?? []))
+                    parts.push(...(e.children ?? []).map((c) => c.id))
+                    } else out.push(e)
+                })
+            this.setElements(out)
+            scope = ""
+            selection = parts
+            })
+        },
+
+    align(how: string) {
+        if (count < 2) return
+        const all = selBox
+        if (all == null) return
+        this.act(() => {
+            this.replaceEach(selElems.map((e) => {
+                const d = alignShift(boundsOf(e), all, how)
+                return translate(e, d[0], d[1])
+                }))
+            })
+        },
+
+    distribute(across: boolean) {
+        if (count < 3) return
+        this.act(() => {
+            const d = distributeShifts(selElems.map((e) => boundsOf(e)), across)
+            this.replaceEach(selElems.map((e, i) => translate(e, d[i][0], d[i][1])))
+            })
+        },
+
+    arrange(how: "front" | "forward" | "backward" | "back") {
+        if (count == 0) return
+        this.act(() => {
+            const sibs = siblingsOf(elements, selection[0])
+            if (sibs == null) return
+            const ids = selection.filter((id) => sibs.some((e) => e.id == id))
+            const moved = reorder(sibs, ids, how)
+            if (scope == "" || sibs === elements) this.setElements(moved)
+            else {
+                const g = findElem(elements, scope)
+                if (g != null) this.replaceEach([({ ...g, children: moved })])
+                }
+            })
+        },
+
+    // ── styling (the inspector's verbs): each change is one step, and
+    //    applies to everything selected, inside groups too.
+
+    styleEach(change: (e: Elem) => Elem) {
+        if (count == 0) return
+        this.act(() => {
+            this.replaceEach(selElems.map((e) => restyle(e, change)))
+            this.touch(selElems)
+            })
+        },
+    setFill(c: string?) { this.styleEach((e) => e.kind == "line" || e.kind == "text" ? e : ({ ...e, fill: c })) },
+    setStrokeColor(c: string) {
+        this.styleEach((e) => e.kind == "text" ? e : ({ ...e, stroke: ({ color: c, width: e.stroke?.width ?? 2 }) }))
+        },
+    setStrokeWidth(w: number) {
+        this.styleEach((e) => {
+            if (e.kind == "text") return e
+            if (w <= 0 && e.kind != "line") return ({ ...e, stroke: null })
+            return ({ ...e, stroke: ({ color: e.stroke?.color ?? "#1F2328", width: Math.max(e.kind == "line" ? 0.5 : 0, w) }) })
+            })
+        },
+    setNoStroke() { this.styleEach((e) => e.kind == "text" || e.kind == "line" ? e : ({ ...e, stroke: null })) },
+    setRadius(r: number) { this.styleEach((e) => e.kind == "rect" ? ({ ...e, cornerRadius: Math.max(0, Math.round(r)) }) : e) },
+    setKeep(on: boolean) { this.styleEach((e) => e.kind == "line" || e.kind == "group" ? e : ({ ...e, keepProportions: on })) },
+    setText(change: (t: TextSpec) => TextSpec) {
+        this.styleEach((e) => e.kind == "text" && e.text != null ? ({ ...e, text: change(e.text) }) : e)
+        },
+    setBackground(c: string) {
+        if (slide == null) return
+        this.act(() => { app.deck.setBackground(app.cur, c) })
+        },
+
+    // ── a menu on the thing pressed with the secondary button
+
+    contextElem(id: string, v: View, e: PointerEvent) {
+        const t = this.target(id)
+        if (!selection.includes(t)) selection = [t]
+        app.elemMenu.showAt(v, e)
+        }
+    ]
+
+
+script {
+    // Words start in an ink that reads on whatever they are typed over.
+    function inkAt(list: Elem[], background: string, x: number, y: number): string {
+        const under = leavesOf(list).reverse().find((e) => (e.kind == "rect" || e.kind == "ellipse") && e.fill != null
+            && x >= (e.x ?? 0) && x <= (e.x ?? 0) + (e.width ?? 0) && y >= (e.y ?? 0) && y <= (e.y ?? 0) + (e.height ?? 0))
+        return luminance(under?.fill ?? background) < 0.45 ? "#FFFFFF" : "#1F2328"
+    }
+
+    function newElem(tool: string, x: number, y: number, ink: string): Elem {
+        const id = newId()
+        if (tool == "line") return { id: id, kind: "line", x1: x, y1: y, x2: x, y2: y, stroke: { color: "#1F2328", width: 4 } }
+        if (tool == "text") return { id: id, kind: "text", x: x, y: y, width: 1, height: 1, keepProportions: false,
+            text: { content: "", font: "Helvetica Neue", size: 32, weight: 400, italic: false, color: ink, align: "left" } }
+        const shape: Elem = { id: id, kind: tool == "ellipse" ? "ellipse" : "rect", x: x, y: y, width: 1, height: 1,
+            fill: "#5B5BD6", stroke: null, keepProportions: false }
+        if (tool == "rect") shape.cornerRadius = 0
+        return shape
+    }
+
+    // What a click with a tool makes: the thing at a useful size, centred
+    // on the click (a text box starts there, ready to type).
+    function defaultSized(e: Elem): Elem {
+        if (e.kind == "line") return { ...e, x1: (e.x1 ?? 0) - 120, x2: (e.x1 ?? 0) + 120, y2: e.y1 }
+        if (e.kind == "text") return { ...e, width: 480, height: 40 }
+        return { ...e, x: (e.x ?? 0) - 120, y: (e.y ?? 0) - 80, width: 240, height: 160 }
+    }
+
+    function leavesOf(list: Elem[]): Elem[] {
+        const out: Elem[] = []
+        for (const e of list) { if (e.kind == "group") out.push(...leavesOf(e.children ?? [])); else out.push(e) }
+        return out
+    }
+
+    // A style change reaches through groups to every part.
+    function restyle(e: Elem, change: (e: Elem) => Elem): Elem {
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => restyle(c, change)) }
+        return change(e)
+    }
+    }

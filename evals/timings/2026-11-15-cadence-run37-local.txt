@@ -1,0 +1,45 @@
+# eval-cadence-37
+total 13.6 min · 72 turns · output 75961 tokens (thinking 25784)
+phases: reading 3.4 · writing 3.9 · checking 6.2 min
+tool time 1.9 min · model time 11.6 min
+tokens: input 108 · cache write 286722 · cache read 11886061 · output 75961 · thinking 25784
+rate: 6540 output tokens per model-minute
+tools:
+  verify    13×   1.20 min  (median 3.7 s)
+  look       7×   0.46 min  (median 4.2 s)
+  help       9×   0.17 min  (median 0.9 s)
+  bash      12×   0.09 min  (median 0.0 s)
+model turns, by what came before:
+  after help      9×   5.32 min  (median 6.4 s)
+  after image    13×   2.25 min  (median 4.4 s)
+  after write     2×   1.42 min  (median 42.6 s)
+  after verify   13×   1.29 min  (median 3.9 s)
+  after bash     11×   0.39 min  (median 1.7 s)
+  after read     15×   0.32 min  (median 0.6 s)
+  after look      7×   0.26 min  (median 1.9 s)
+app: 2 .declare files, 1088 non-blank lines · 15 snapshots changed them: 1397 lines added, 117 removed
+verify results mentioning accessibility: 3
+source reads: library 1 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/toast.declare
+diagnostic codes, by tool results reporting them: DECLARE1002 3, DECLARE4022 2, DECLARE4025 2, DECLARE4005 1, DECLARE4035 1, DECLARE4026 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   1.01 min    22×  R5 behavior, in all
+   0.78 min    22×  script: the assert script, in all
+   0.30 min    76×  drive.click
+   0.23 min   135×  check: scrolling come to rest
+   0.23 min    92×  drive.settleMotion
+   0.19 min    33×  page: load, compile in the page and boot
+   0.18 min    13×  compile (R1–R3)
+   0.16 min    22×  open: the app loaded and arrived, in all
+   0.08 min     9×  R4 boot, in all
+   0.08 min    24×  drive.settleData
+   0.05 min     5×  drive.drag
+   0.05 min     4×  drive.pinch
+   0.04 min    33×  page: a new page
+   0.04 min     7×  drive.device
+   0.03 min    19×  end: layout questions at the end of the script
+   0.02 min   135×  check: the layout questions
+   0.01 min    10×  program: built from the compile
+   0.01 min    19×  end: the network quiet after the script
+   0.01 min    13×  screenshot: capture and write
+   0.01 min    31×  chrome: a browser (shared between calls)

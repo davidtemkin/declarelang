@@ -1,0 +1,13 @@
+STARTED=2026-11-17T08:51:24Z
+APP=venue
+MODEL=claude-opus-5-5
+SUBJECT=043fffe9 v0.4.1 — resolution (and the derived outputs that carry it) (GitHub, evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=standard
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-venue-0901/work (logs outside it)
+PORT=8350 (the brief names 8350)
+DEV_PORT=8600 (the agent's dev server: PORT in its environment)
+SERVICE=node ~/Code/Declare/evals/apps/venue/api/server.mjs --port=8350 --seed=1
+AGENT_PID=76655

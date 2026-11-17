@@ -1,0 +1,186 @@
+/*
+# The Venue: the tickets
+
+What a person holds up at the door with a queue behind them: one ticket at a
+time, the seat in figures you can read at arm's length, when to arrive, and a
+code to scan. They come in a carousel — swipe, or the arrows, or the
+buttons — and the confirmation and where they were sent sit above.
+*/
+
+// A scannable-looking square code, drawn from the ticket's own code: the same
+// ticket always draws the same pattern.
+
+script {
+    function codeBits(code: string, n: number): boolean[] {
+        let h = 2166136261
+        for (let i = 0; i < code.length; i++) { h = Math.imul(h ^ code.charCodeAt(i), 16777619) }
+        const out: boolean[] = []
+        for (let i = 0; i < n * n; i++) {
+            h ^= h << 13; h ^= h >>> 17; h ^= h << 5
+            out.push((h & 1) == 1)
+        }
+        return out
+    }
+    function inFinder(r: number, c: number, n: number): number {
+        // 0: not in a finder; 1: dark; 2: light — the three corner targets
+        const corners = [[0, 0], [0, n - 7], [n - 7, 0]]
+        for (const [r0, c0] of corners) {
+            const dr = r - r0, dc = c - c0
+            if (dr >= -1 && dr <= 7 && dc >= -1 && dc <= 7) {
+                if (dr < 0 || dc < 0 || dr > 6 || dc > 6) return 2
+                const ring = Math.min(dr, dc, 6 - dr, 6 - dc)
+                return ring == 1 ? 2 : 1
+            }
+        }
+        return 0
+    }
+    }
+
+class ScanCode [ width = 184, height = 184,
+    code: string = "",
+    accessibilityRole = image,
+    accessibilityLabel = { "Code to scan: " + classroot.code },
+    draw(d: DrawContext) {
+        const n = 25
+        const cell = this.width / n
+        const bits = codeBits(code, n)
+        d.fillStyle = "#FFFFFF"
+        d.fillRect(0, 0, this.width, this.height)
+        d.fillStyle = "#1F1B17"
+        for (let r = 0; r < n; r++) {
+            for (let c = 0; c < n; c++) {
+                const f = inFinder(r, c, n)
+                const dark = f == 1 || (f == 0 && bits[r * n + c])
+                if (dark) d.fillRect(c * cell, r * cell, cell + 0.4, cell + 0.4)
+            }
+        }
+        }
+    ]
+
+
+// One fact on a ticket: a small caption over a figure.
+
+class Fact [
+    caption: string = "",
+    value: string = "",
+    big: number = 34,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.4, textColor = { provided("theme").textMuted },
+        text = { classroot.caption.toUpperCase() } ],
+    Text [ fontSize = { classroot.big }, fontWeight = bold, numeralWidth = tabular, wrap = false,
+        text = { classroot.value } ]
+    ]
+
+
+class TicketCard [
+    index: number = { rowIndex },
+    of: number = 1,
+    section: string = { :section ?? "" },
+    row: string = { :row ?? "" },
+    seat: string = { "" + (:number ?? 0) },
+    barcode: string = { :barcode ?? "" },
+
+    accessibilityRole = group,
+    accessibilityLabel = { "Ticket " + (classroot.index + 1) + " of " + classroot.of + ": " + classroot.section + ", row " + classroot.row + ", seat " + classroot.seat },
+
+    card: View [ x = center, width = { Math.min(parent.width - 8, 400) }, cornerRadius = 18, clip = true,
+        fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
+        shadow = { Shadow(0, 10, 30, 0x2A25201F) },
+        layout: SimpleLayout [ axis = y ],
+
+        // the production, on the house's dark
+
+        head: View [ width = 100%, padding = [20, 22, 18, 22], fill = { provided("theme").stage },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ fontFamily = { app.displayFace }, fontSize = 24, fontWeight = semibold, textColor = #FAF7F2,
+                width = 100%, wrap = true, text = { app.title } ],
+            Text [ fontSize = 14, textColor = #D9D0C2,
+                text = { app.hallName + " · Ticket " + (classroot.index + 1) + " of " + classroot.of } ]
+            ],
+
+        // when
+
+        when: View [ width = 100%, padding = [18, 22, 0, 22],
+            layout: SimpleLayout [ axis = x, spacing = 18 ],
+            Fact [ flexes = true, caption = { app.orderPerf == null ? "" : weekday(app.orderPerf.startsAt) },
+                big = 26, value = { app.orderPerf == null ? "" : dayLabel(app.orderPerf.startsAt).split(" ").slice(1).join(" ") } ],
+            Fact [ flexes = true, caption = "Curtain", big = 26, value = { app.orderPerf == null ? "" : timeLabel(app.orderPerf.startsAt) } ],
+            Fact [ flexes = true, caption = "Doors", big = 26, value = { app.orderPerf == null ? "" : timeLabel(app.orderPerf.doorsAt) } ]
+            ],
+        Text [ width = 100%, padding = [6, 22, 0, 22], wrap = true, fontSize = 14, textColor = { provided("theme").textMuted },
+            text = { app.orderPerf == null ? "" : "Arrive by " + timeLabel(app.orderPerf.doorsAt) + ", when the doors open." } ],
+
+        // the tear line
+
+        View [ width = 100%, height = 26,
+            View [ y = center, x = 22, width = { parent.width - 44 }, height = 1, fill = { provided("theme").lineStrong } ]
+            ],
+
+        // where
+
+        Text [ padding = [0, 22, 0, 22], fontSize = 13, fontWeight = semibold, letterSpacing = 1.4,
+            textColor = { provided("theme").textMuted }, text = { classroot.section.toUpperCase() } ],
+        whereRow: View [ width = 100%, padding = [4, 22, 0, 22],
+            layout: SimpleLayout [ axis = x, spacing = 28 ],
+            Fact [ caption = "Row", big = 52, value = { classroot.row } ],
+            Fact [ caption = "Seat", big = 52, value = { classroot.seat } ]
+            ],
+
+        // the code
+
+        scan: View [ width = 100%, padding = [18, 0, 22, 0],
+            layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+            ScanCode [ code = { classroot.barcode } ],
+            Text [ fontSize = 15, fontWeight = semibold, letterSpacing = 1.5, numeralWidth = tabular, text = { classroot.barcode } ]
+            ]
+        ]
+    ]
+
+
+// The whole screen: what happened, then the tickets.
+
+class TicketsScreen [ width = 100%,
+    page: number = 0,
+    count: number = { app.order?.tickets.length ?? 0 },
+    arrive: number = 0,
+    Spring [ attribute = arrive, to = 1, stiffness = 120, damping = 20 ],
+
+    layout: SimpleLayout [ axis = y, spacing = 18, align = center ],
+
+    top: View [ width = { Math.min(parent.width, 440) }, padding = [0, 4, 0, 4],
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        heading: Text [ accessibilityRole = heading, accessibilityLevel = 1, focusable = quiet,
+            fontFamily = { app.displayFace }, fontSize = 32, fontWeight = semibold, letterSpacing = -0.4,
+            text = "You're going." ],
+        Text [ fontSize = 16, fontWeight = medium, text = { "Sent to " + (app.order?.email ?? "") } ],
+        Text [ width = 100%, wrap = true, fontSize = 14, textColor = { provided("theme").textMuted },
+            text = { "Confirmation " + (app.order?.code ?? "") + " · " + money(app.order?.totalCents ?? 0) + " paid with " + brandName(app.order?.brand ?? "") + " ending " + (app.order?.last4 ?? "") } ]
+        ],
+
+    // one ticket at a time; they rise in as they arrive
+
+    deck: Carousel [ width = { Math.min(parent.width, 440) }, height = { app.ticketH },
+        datapath = { app.order },
+        opacity = { classroot.arrive },
+        page = { classroot.page },
+        commit(p: number) { classroot.page = p },
+        accessibilityRole = region, accessibilityLabel = "Your tickets",
+        TicketCard [ datapath = :tickets[], of = { classroot.count } ]
+        ],
+
+    pager: View [ visible = { classroot.count > 1 },
+        layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+        Button [ label = "Previous ticket", disabled = { classroot.page <= 0 },
+            onClick() { classroot.page = classroot.page - 1 }
+            ],
+        Text [ fontSize = 15, fontWeight = semibold, numeralWidth = tabular, accessibilityLive = polite,
+            text = { "" + (classroot.page + 1) + " of " + classroot.count } ],
+        Button [ label = "Next ticket", disabled = { classroot.page >= classroot.count - 1 },
+            onClick() { classroot.page = classroot.page + 1 }
+            ]
+        ],
+
+    Button [ label = "Book another performance",
+        onClick() { app.startAgain() }
+        ]
+    ]

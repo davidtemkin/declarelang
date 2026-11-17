@@ -1,0 +1,199 @@
+/*
+# 7. Cells
+
+A spreadsheet of 26 columns (A–Z) by 100 rows (0–99), in three parts:
+
+- **The formula language** — `formula.ts`: parsing a formula, the cells it
+  refers to, and its value given the values of others. Plain functions; it
+  knows nothing of views.
+- **The sheet** — `Workbook`, a dataset class: every cell's formula, the cells
+  it reads and its current value. Editing a formula recomputes that cell and
+  then the cells that depend on it, and theirs in turn, in dependency order —
+  only those. Each value is written in place, so only the views showing a
+  cell that changed are woken.
+- **The widget** — `Spreadsheet`, built here from views: a header row of
+  column letters, then a row per sheet row, scrolling both ways. Only the
+  rows near the screen are built (`virtualize`). Double-clicking a cell opens
+  an editor on its formula; when the edit ends (Return, or leaving the
+  field), the formula goes to the sheet. Escape abandons the edit.
+*/
+
+script [ "formula.ts" ]
+
+script {
+    // An empty sheet: every row, every cell.
+    function blankSheet(): object[] {
+        const rows: object[] = []
+        for (let r = 0; r < SHEET_ROWS; r++) {
+            const cells: object[] = []
+            for (let c = 0; c < SHEET_COLS; c++)
+                cells.push({ id: cellId(c, r), formula: "", kind: "empty", num: 0, shown: "", refs: [] })
+            rows.push({ id: r, cells: cells })
+        }
+        return rows
+    }
+    function columnLetters(): object[] {
+        const cols: object[] = []
+        for (let c = 0; c < SHEET_COLS; c++) cols.push({ id: colName(c) })
+        return cols
+    }
+    }
+
+
+schema SheetCell [ id: string, formula: string, kind: "empty" | "number" | "text" | "error",
+    num: number, shown: string, refs[]: string ]
+schema SheetRow [ id: number, cells[]: SheetCell ]
+
+
+class Workbook extends Dataset [ schema = [ rows[]: SheetRow ],
+
+    onInit() { this.set(["rows"], blankSheet()) },
+
+    path(id: string) -> array {
+        const at = parseRef(id)!
+        return ["rows", at.row, "cells", at.col]
+        },
+    cell(id: string) -> SheetCell {
+        const at = parseRef(id)!
+        return this.value.rows[at.row].cells[at.col]
+        },
+    cellValue(id: string) -> CellValue {
+        const c = this.cell(id)
+        return ({ kind: c.kind, num: c.num, shown: c.shown })
+        },
+
+    // For every cell, the cells whose formulas read it.
+
+    dependents() -> Map<string, string[]> {
+        const map = new Map<string, string[]>()
+        for (const row of this.value.rows)
+            for (const c of row.cells)
+                for (const r of c.refs) map.set(r, [...(map.get(r) ?? []), c.id])
+        return map
+        },
+
+    edit(id: string, formula: string) {
+        if (this.cell(id).formula == formula) return
+        const p = this.path(id)
+        this.set([...p, "formula"], formula)
+        this.set([...p, "refs"], formulaRefs(formula))
+        this.recompute(id)
+        },
+
+    // Recomputes `start` and everything downstream of it, each cell after
+    // the cells it reads. Cells that read one another in a circle never
+    // become ready, and are marked as such.
+
+    recompute(start: string) {
+        const deps = this.dependents()
+        const affected = new Set<string>([start])
+        const queue = [start]
+        while (queue.length > 0) {
+            for (const d of deps.get(queue.shift()!) ?? []) {
+                if (!affected.has(d)) { affected.add(d); queue.push(d) }
+                }
+            }
+        const waiting = new Map<string, number>()
+        for (const id of affected) waiting.set(id, this.cell(id).refs.filter((r) => affected.has(r)).length)
+        const ready = [...affected].filter((id) => waiting.get(id) == 0)
+        while (ready.length > 0) {
+            const id = ready.shift()!
+            affected.delete(id)
+            this.store(id, evaluateFormula(this.cell(id).formula, (r) => this.cellValue(r)))
+            for (const d of deps.get(id) ?? []) {
+                if (!affected.has(d)) continue
+                const n = waiting.get(d)! - 1
+                waiting.set(d, n)
+                if (n == 0) ready.push(d)
+                }
+            }
+        for (const id of affected) this.store(id, errorValue("#CYCLE"))
+        },
+
+    store(id: string, v: CellValue) {
+        const c = this.cell(id), p = this.path(id)
+        if (c.kind != v.kind) this.set([...p, "kind"], v.kind)
+        if (c.num != v.num) this.set([...p, "num"], v.num)
+        if (c.shown != v.shown) this.set([...p, "shown"], v.shown)
+        }
+    ]
+
+
+class Spreadsheet [ scrolls = both, clip = true,
+    accessibilityRole = grid, accessibilityLabel = "Spreadsheet",
+    fill = { provided("theme").field }, stroke = { Stroke(1, provided("theme").line) },
+    sheet: Workbook? = null,
+    editing: string = "",                    // the cell being edited, "" for none
+    colWidth: number = 90,
+    rowHeight: number = 24,
+    headWidth: number = 40,
+
+    columns: Dataset [ contents = { { cols: columnLetters() } } ],
+
+    grid: View [
+        layout: SimpleLayout [ axis = y ],
+
+        head: View [ accessibilityRole = row, datapath = { classroot.columns.value },
+            layout: SimpleLayout [ axis = x ],
+            View [ width = { classroot.headWidth }, height = { classroot.rowHeight }, fill = { provided("theme").gridHeader },
+                stroke = { [null, Stroke(1, provided("theme").gridLine), Stroke(1, provided("theme").gridLine), null] } ],
+            View [ datapath = :cols[], accessibilityRole = columnHeader, accessibilityLabel = :id,
+                width = { classroot.colWidth }, height = { classroot.rowHeight }, fill = { provided("theme").gridHeader },
+                stroke = { [null, Stroke(1, provided("theme").gridLine), Stroke(1, provided("theme").gridLine), null] },
+                TextLabel [ x = center, y = center, fontSize = 12, fontWeight = semibold,
+                    textColor = { provided("theme").textMuted }, text = :id ]
+                ]
+            ],
+
+        body: View [ datapath = { classroot.sheet?.value },
+            layout: SimpleLayout [ axis = y ],
+            View [ datapath = :rows[], virtualize = true, accessibilityRole = row,
+                layout: SimpleLayout [ axis = x ],
+                View [ accessibilityRole = rowHeader, accessibilityLabel = { "" + :id },
+                    width = { classroot.headWidth }, height = { classroot.rowHeight }, fill = { provided("theme").gridHeader },
+                    stroke = { [null, Stroke(1, provided("theme").gridLine), Stroke(1, provided("theme").gridLine), null] },
+                    TextLabel [ x = center, y = center, fontSize = 12, fontWeight = semibold,
+                        textColor = { provided("theme").textMuted }, text = { "" + :id } ]
+                    ],
+
+                // A cell: its value, and while it is being edited, its formula.
+
+                View [ datapath = :cells[], accessibilityRole = cell, accessibilityLabel = { :id + " " + :shown },
+                    width = { classroot.colWidth }, height = { classroot.rowHeight }, clip = true,
+                    stroke = { [null, Stroke(1, provided("theme").gridLine), Stroke(1, provided("theme").gridLine), null] },
+                    onDoubleClick() { classroot.editing = :id },
+                    TextLabel [ x = 5, y = center, width = { classroot.colWidth - 10 }, wrap = false, fontSize = 13,
+                        textAlign = { :kind == "number" ? "end" : "start" },
+                        textColor = { :kind == "error" ? provided("theme").gridError : provided("theme").text },
+                        text = :shown ],
+                    TextInput [ exists = { classroot.editing == :id }, width = 100%, height = 100%,
+                        fontSize = 13, cornerRadius = 0, accessibilityLabel = { "Formula of " + :id },
+                        commitOn = "end",
+                        value = :formula,
+                        commit(t: string) {
+                            classroot.sheet?.edit(:id, t)
+                            classroot.editing = ""
+                            },
+                        keyBindings = { [ ({ key: "Escape", command: "abandon" }) ] },
+                        abandon() {
+                            this.cancelEdit()
+                            classroot.editing = ""
+                            },
+
+                        // Closing the editor ends the edit, which commits it.
+
+                        onEnter() { classroot.editing = "" },
+                        onBlur() { classroot.editing = "" },
+                        onInit() { afterSettle(() => Focus.focus(this)) }
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+class CellsTask [ width = 100%, height = 100%,
+    sheet: Workbook { { "rows": [] } },
+    Spreadsheet [ width = 100%, height = 100%, sheet = { classroot.sheet } ]
+    ]

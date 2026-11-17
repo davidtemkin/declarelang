@@ -1,0 +1,50 @@
+/*
+# 2. Temperature Converter
+
+Two fields, Celsius and Fahrenheit. The text in each is the person's, kept as
+typed; a change to one that reads as a number writes the other, converted, and
+one that doesn't leaves the other alone. Neither field's text is derived from
+the other's, so there is no loop to break: each `commit` writes its own text,
+and the other's only when there is a number to convert.
+*/
+
+script {
+    // A number as a person types one: digits, an optional sign and point, no
+    // blanks. `Number("")` is 0, which is not what an empty field means.
+    function parseTemperature(t: string): number | null {
+        return /^\s*[-+]?(\d+\.?\d*|\.\d+)\s*$/.test(t) ? Number(t) : null
+    }
+
+    // At most two decimals, with no trailing zeros: 37.78, 100, -40.
+    function formatTemperature(n: number): string {
+        return String(Math.round(n * 100) / 100)
+    }
+    }
+
+class TemperatureTask [
+    celsius: string = "",
+    fahrenheit: string = "",
+
+    fromCelsius(t: string) {
+        celsius = t
+        const c = parseTemperature(t)
+        if (c != null) fahrenheit = formatTemperature(c * 9 / 5 + 32)
+        },
+    fromFahrenheit(t: string) {
+        fahrenheit = t
+        const f = parseTemperature(t)
+        if (f != null) celsius = formatTemperature((f - 32) * 5 / 9)
+        },
+
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    TextInput [ width = 110, accessibilityLabel = "Celsius", purpose = decimal,
+        value = { classroot.celsius },
+        commit(t: string) { classroot.fromCelsius(t) }
+        ],
+    Text [ text = "Celsius =" ],
+    TextInput [ width = 110, accessibilityLabel = "Fahrenheit", purpose = decimal,
+        value = { classroot.fahrenheit },
+        commit(t: string) { classroot.fromFahrenheit(t) }
+        ],
+    Text [ text = "Fahrenheit" ]
+    ]

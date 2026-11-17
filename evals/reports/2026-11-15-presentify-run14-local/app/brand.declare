@@ -1,0 +1,241 @@
+/*
+# Presentify: the brand
+
+The look, kept apart from how the app works: the palette (a theme laid over
+the library's `SanFrancisco`, so library controls wear it too), the drawn
+icons, the wordmark, and the small controls the screens are made of.
+
+The identity in a sentence: warm paper chrome, an ink-violet accent, a coral
+spark for the one action that matters most (Present), and Bricolage Grotesque
+for the wordmark and headings. The chrome stays quiet so the slide is always the
+brightest thing on screen.
+*/
+
+theme Presentify [
+    background = #F4F1EC, surface = #FFFFFF, card = #FFFFFF, panel = #FBFAF7,
+    stage = #E6E2EC, stageDot = #DAD5E3,
+    line = #E4DFD6, lineStrong = #D3CCC0, quiet = #F0ECE5, hover = #EEEAE3, selection = #E7E1F7,
+    text = #1D1A2E, textMuted = #6A6578, textFaint = #9A95A6,
+    accent = #5B3DF5, accentHovered = #4E31E6, accentPressed = #4126CC, accentTextColor = #FFFFFF, accentSoft = #EEEAFE,
+    spark = #FF6A4D, sparkHovered = #F55A3C, sparkPressed = #E04C2F,
+    control = #F0ECE5, controlHovered = #E8E3DA, controlPressed = #DED8CD, controlSelected = #E7E1F7,
+    linkColor = #5B3DF5,
+    danger = #D63A2F, warn = #B86A00, warnSoft = #FFF3DD, good = #1E8E5A,
+    handle = #5B3DF5, guide = #FF4F8B,
+    tooltipFill = #1D1A2E, tooltipTextColor = #FFFFFF
+    ]
+
+
+// The colours offered for fills, outlines, text and backgrounds: the brand's
+// own first, then a calm range, then greys.
+
+script {
+    const PALETTE: string[] = [
+        "#FFFFFF", "#F6F4EF", "#E9DFC9", "#CBD5E1", "#94A3B8", "#475569", "#1F2328", "#000000",
+        "#5B3DF5", "#7C6CF7", "#2F6F8F", "#0E3B43", "#1E8E5A", "#8CC2C9", "#24596F", "#163F4D",
+        "#FF6A4D", "#E07A5F", "#F2B33D", "#FFD166", "#D63A2F", "#C2457A", "#F9C6D3", "#FCE7DE"
+    ]
+    function palette(): string[] { return PALETTE }
+
+    const FONTS: string[] = ["Helvetica Neue", "Avenir Next", "Georgia", "Gill Sans", "Futura", "Baskerville", "Menlo"]
+    function fontNames(): string[] { return FONTS }
+    }
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// One pen draws them all: a 1.6 stroke with round ends on the library's
+// 16-unit grid. Shapes fill only to say a state.
+
+class Glyph extends Icon [ weight = 1.6,
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "select") {             // an arrow pointer
+            d.moveTo(4, 2.5); d.lineTo(4, 13); d.lineTo(6.8, 10.4); d.lineTo(8.8, 14.2); d.lineTo(10.4, 13.4)
+            d.lineTo(8.5, 9.7); d.lineTo(12.2, 9.4); d.closePath(); d.stroke()
+        } else if (shape == "rect") {
+            d.roundRect(2, 3.5, 12, 9, 1.6); d.stroke()
+        } else if (shape == "ellipse") {
+            d.ellipse(8, 8, 6, 5, 0, 0, Math.PI * 2); d.stroke()
+        } else if (shape == "line") {
+            d.moveTo(2.5, 13.5); d.lineTo(13.5, 2.5); d.stroke()
+        } else if (shape == "text") {        // a T
+            d.moveTo(3, 3.5); d.lineTo(13, 3.5); d.moveTo(8, 3.5); d.lineTo(8, 13.5); d.moveTo(6, 13.5); d.lineTo(10, 13.5); d.stroke()
+        } else if (shape == "undo") {
+            d.moveTo(5, 3.5); d.lineTo(2.5, 6); d.lineTo(5, 8.5); d.moveTo(2.5, 6); d.lineTo(10, 6)
+            d.arc(10, 9.25, 3.25, -Math.PI / 2, Math.PI / 2); d.lineTo(6, 12.5); d.stroke()
+        } else if (shape == "redo") {
+            d.moveTo(11, 3.5); d.lineTo(13.5, 6); d.lineTo(11, 8.5); d.moveTo(13.5, 6); d.lineTo(6, 6)
+            d.arc(6, 9.25, 3.25, -Math.PI / 2, Math.PI / 2, true); d.lineTo(10, 12.5); d.stroke()
+        } else if (shape == "play") {
+            d.moveTo(5, 3); d.lineTo(13, 8); d.lineTo(5, 13); d.closePath(); d.fill()
+        } else if (shape == "plus") {
+            d.moveTo(8, 3); d.lineTo(8, 13); d.moveTo(3, 8); d.lineTo(13, 8); d.stroke()
+        } else if (shape == "more") {
+            for (const x of [3.5, 8, 12.5]) { d.moveTo(x + 1.1, 8); d.arc(x, 8, 1.1, 0, Math.PI * 2) }
+            d.fill()
+        } else if (shape == "back") {
+            d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (shape == "grid") {        // the presentations
+            d.roundRect(2, 2.5, 5, 4.5, 1); d.roundRect(9, 2.5, 5, 4.5, 1); d.roundRect(2, 9, 5, 4.5, 1); d.roundRect(9, 9, 5, 4.5, 1); d.stroke()
+        } else if (shape == "check") {
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (shape == "cloud-off") {   // a cloud with a slash
+            d.moveTo(4.5, 12.5); d.arc(4.5, 10, 2.5, Math.PI / 2, Math.PI * 1.5); d.arc(8.5, 7.5, 3.5, Math.PI, 0)
+            d.arc(11.5, 10, 2.5, -Math.PI / 2, Math.PI / 2); d.closePath(); d.stroke()
+            d.beginPath(); d.moveTo(2.5, 2.5); d.lineTo(13.5, 13.5); d.stroke()
+        } else if (shape == "sync") {        // two arcs chasing
+            d.arc(8, 8, 5, Math.PI * 0.15, Math.PI * 0.95); d.stroke(); d.beginPath()
+            d.arc(8, 8, 5, Math.PI * 1.15, Math.PI * 1.95); d.stroke(); d.beginPath()
+            d.moveTo(12.6, 3.2); d.lineTo(12.9, 6.1); d.lineTo(10.1, 5.6); d.stroke()
+        } else if (shape == "alignLeft") {
+            d.moveTo(2.5, 2); d.lineTo(2.5, 14); d.stroke(); d.beginPath()
+            d.roundRect(4.5, 4, 9, 3, 0.8); d.roundRect(4.5, 9, 5.5, 3, 0.8); d.fill()
+        } else if (shape == "alignCenter") {
+            d.moveTo(8, 2); d.lineTo(8, 14); d.stroke(); d.beginPath()
+            d.roundRect(3, 4, 10, 3, 0.8); d.roundRect(5, 9, 6, 3, 0.8); d.fill()
+        } else if (shape == "alignRight") {
+            d.moveTo(13.5, 2); d.lineTo(13.5, 14); d.stroke(); d.beginPath()
+            d.roundRect(2.5, 4, 9, 3, 0.8); d.roundRect(6, 9, 5.5, 3, 0.8); d.fill()
+        } else if (shape == "alignTop") {
+            d.moveTo(2, 2.5); d.lineTo(14, 2.5); d.stroke(); d.beginPath()
+            d.roundRect(4, 4.5, 3, 9, 0.8); d.roundRect(9, 4.5, 3, 5.5, 0.8); d.fill()
+        } else if (shape == "alignMiddle") {
+            d.moveTo(2, 8); d.lineTo(14, 8); d.stroke(); d.beginPath()
+            d.roundRect(4, 3, 3, 10, 0.8); d.roundRect(9, 5, 3, 6, 0.8); d.fill()
+        } else if (shape == "alignBottom") {
+            d.moveTo(2, 13.5); d.lineTo(14, 13.5); d.stroke(); d.beginPath()
+            d.roundRect(4, 2.5, 3, 9, 0.8); d.roundRect(9, 6, 3, 5.5, 0.8); d.fill()
+        } else if (shape == "distributeX") {
+            d.moveTo(2, 2.5); d.lineTo(2, 13.5); d.moveTo(14, 2.5); d.lineTo(14, 13.5); d.stroke(); d.beginPath()
+            d.roundRect(6.5, 4.5, 3, 7, 0.8); d.fill()
+        } else if (shape == "distributeY") {
+            d.moveTo(2.5, 2); d.lineTo(13.5, 2); d.moveTo(2.5, 14); d.lineTo(13.5, 14); d.stroke(); d.beginPath()
+            d.roundRect(4.5, 6.5, 7, 3, 0.8); d.fill()
+        } else if (shape == "front") {       // a square over another
+            d.roundRect(2.5, 2.5, 7.5, 7.5, 1); d.stroke(); d.beginPath(); d.roundRect(6, 6, 7.5, 7.5, 1); d.fill()
+        } else if (shape == "back2") {
+            d.roundRect(6, 6, 7.5, 7.5, 1); d.stroke(); d.beginPath(); d.roundRect(2.5, 2.5, 7.5, 7.5, 1); d.fill()
+        } else if (shape == "forward") {
+            d.roundRect(2.5, 2.5, 7.5, 7.5, 1); d.stroke(); d.beginPath(); d.roundRect(6, 6, 7.5, 7.5, 1); d.stroke()
+            d.beginPath(); d.roundRect(6, 6, 4, 4, 0.5); d.fill()
+        } else if (shape == "backward") {
+            d.roundRect(6, 6, 7.5, 7.5, 1); d.stroke(); d.beginPath(); d.roundRect(2.5, 2.5, 7.5, 7.5, 1); d.stroke()
+            d.beginPath(); d.roundRect(6, 6, 4, 4, 0.5); d.fill()
+        } else if (shape == "group") {
+            d.setLineDash([1.5, 1.6]); d.roundRect(1.5, 1.5, 13, 13, 2); d.stroke(); d.setLineDash([]); d.beginPath()
+            d.roundRect(4, 4, 4.5, 4.5, 0.8); d.fill(); d.beginPath(); d.arc(10.5, 10.5, 2.4, 0, Math.PI * 2); d.fill()
+        } else if (shape == "ungroup") {
+            d.roundRect(2, 2, 6, 6, 1); d.stroke(); d.beginPath(); d.arc(11, 11, 3, 0, Math.PI * 2); d.stroke()
+        } else if (shape == "lock") {
+            d.roundRect(3.5, 7, 9, 6.5, 1.5); d.moveTo(5.5, 7); d.lineTo(5.5, 5); d.arc(8, 5, 2.5, Math.PI, 0); d.lineTo(10.5, 7); d.stroke()
+        } else if (shape == "textLeft") {
+            for (const [y, w] of [[3.5, 11], [6.5, 7], [9.5, 11], [12.5, 6]]) { d.moveTo(2.5, y); d.lineTo(2.5 + w, y) }
+            d.stroke()
+        } else if (shape == "textCenter") {
+            for (const [y, w] of [[3.5, 11], [6.5, 7], [9.5, 11], [12.5, 6]]) { d.moveTo(8 - w / 2, y); d.lineTo(8 + w / 2, y) }
+            d.stroke()
+        } else if (shape == "textRight") {
+            for (const [y, w] of [[3.5, 11], [6.5, 7], [9.5, 11], [12.5, 6]]) { d.moveTo(13.5 - w, y); d.lineTo(13.5, y) }
+            d.stroke()
+        } else if (shape == "italic") {
+            d.moveTo(6.5, 3); d.lineTo(11.5, 3); d.moveTo(4.5, 13); d.lineTo(9.5, 13); d.moveTo(9.5, 3); d.lineTo(6.5, 13); d.stroke()
+        } else if (shape == "trash") {
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke()
+        } else if (shape == "copy") {
+            d.roundRect(5, 5, 8.5, 8.5, 1.4); d.moveTo(3, 10.5); d.lineTo(2.5, 10.5); d.lineTo(2.5, 2.5); d.lineTo(10.5, 2.5); d.lineTo(10.5, 3); d.stroke()
+        } else if (shape == "pencil") {
+            d.moveTo(3, 13); d.lineTo(3.6, 10.2); d.lineTo(10.8, 3); d.lineTo(13, 5.2); d.lineTo(5.8, 12.4); d.closePath(); d.stroke()
+        } else if (shape == "warning") {
+            d.moveTo(8, 2.2); d.lineTo(14.2, 13.2); d.lineTo(1.8, 13.2); d.closePath(); d.stroke(); d.beginPath()
+            d.moveTo(8, 6.3); d.lineTo(8, 9.3); d.stroke(); d.beginPath(); d.arc(8, 11.3, 0.8, 0, Math.PI * 2); d.fill()
+        } else if (shape == "none") {        // no colour: a slashed square
+            d.roundRect(2.5, 2.5, 11, 11, 2); d.moveTo(3.5, 12.5); d.lineTo(12.5, 3.5); d.stroke()
+        } else if (shape == "chevron") {
+            d.moveTo(4, 6); d.lineTo(8, 10); d.lineTo(12, 6); d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(4, 4); d.lineTo(12, 12); d.moveTo(12, 4); d.lineTo(4, 12); d.stroke()
+        } else if (shape == "slides") {      // a stack of slides
+            d.roundRect(2, 5, 10, 7, 1.2); d.stroke(); d.beginPath(); d.moveTo(4.5, 3); d.lineTo(14, 3); d.lineTo(14, 9.5); d.stroke()
+        }
+        }
+    ]
+
+
+// The wordmark: a play-shaped spark and the name in the brand face.
+
+class Spark [ width = 26, height = 26,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        d.beginPath(); d.roundRect(0, 0, 26, 26, 8); d.fillStyle = t.accent; d.fill()
+        d.beginPath(); d.moveTo(10, 7.5); d.lineTo(19, 13); d.lineTo(10, 18.5); d.closePath()
+        d.fillStyle = t.spark; d.fill()
+        d.beginPath(); d.arc(19.5, 7, 2.2, 0, Math.PI * 2); d.fillStyle = "#FFFFFF"; d.fill()
+        }
+    ]
+
+
+class Wordmark [
+    size: number = 19,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Spark [ width = { classroot.size + 7 }, height = { this.width }, scale = { classroot.size / 19 } ],
+    Text [ fontFamily = { app.brandFace }, fontSize = { classroot.size }, fontWeight = 800, letterSpacing = -0.4,
+        textColor = { provided("theme").text }, text = "Presentify" ]
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A square icon button: undo, redo, the tools.
+
+class IconButton extends Control [ width = 34, height = 34, cornerRadius = 9,
+    shape: string = "",
+    tone: Color = { provided("theme").text },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    Glyph [ x = center, y = center, iconSize = 17, shape = { classroot.shape },
+        ink = { classroot.disabled ? provided("theme").textFaint : classroot.tone } ]
+    ]
+
+
+// An icon button that is on or off: italic, a text alignment.
+
+class ToggleButton extends IconButton [
+    on: boolean = false,
+    accessibilityPressed = { this.on },
+    tone = { this.on ? provided("theme").accent : provided("theme").text },
+    State [ applied = { classroot.on }, fill = { provided("theme").selection } ]
+    ]
+
+
+// A pill-shaped labelled button with an optional glyph.
+
+class PillButton extends Control [ height = 34, cornerRadius = 17, padding = [0, 16, 0, 13],
+    label: string = "",
+    shape: string = "",
+    tone: "accent" | "spark" | "quiet" = "quiet",
+    base: Color = { tone == "accent" ? provided("theme").accent : tone == "spark" ? provided("theme").spark : provided("theme").control },
+    over: Color = { tone == "accent" ? provided("theme").accentHovered : tone == "spark" ? provided("theme").sparkHovered : provided("theme").controlHovered },
+    down: Color = { tone == "accent" ? provided("theme").accentPressed : tone == "spark" ? provided("theme").sparkPressed : provided("theme").controlPressed },
+    ink: Color = { tone == "quiet" ? provided("theme").text : provided("theme").accentTextColor },
+    fill = { pressed ? this.down : hovered ? this.over : this.base },
+    opacity = { disabled ? 0.45 : 1 },
+    accessibilityLabel = { label },
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+    Glyph [ visible = { classroot.shape != "" }, iconSize = 15, weight = 1.9, shape = { classroot.shape }, ink = { classroot.ink } ],
+    TextLabel [ fontSize = 14, fontWeight = 600, wrap = false, textColor = { classroot.ink }, text = { classroot.label } ]
+    ]
+
+
+// A section heading in the inspector.
+
+class SectionTitle extends Text [ fontSize = 11, fontWeight = 700, letterSpacing = 0.6,
+    textTransform = uppercase, textColor = { provided("theme").textFaint }
+    ]

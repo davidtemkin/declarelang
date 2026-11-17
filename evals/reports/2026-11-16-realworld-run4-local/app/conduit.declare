@@ -1,0 +1,405 @@
+/*
+# Conduit
+
+The RealWorld example app: a Medium-like place to publish articles, read
+them, comment on them, favorite them, follow their authors and filter them by
+tag. Every record lives behind the RealWorld API service (see `api`, below);
+this program never stores one of its own.
+
+How to read it:
+
+- **Where the user is** is the URL. `location` is the fragment —
+  `#/article/<slug>`, `#/profile/<name>/favorites`, `#/editor` — and the page,
+  the slug and the profile all derive from it. Links write it; Back writes
+  it back. The feed tab, the chosen tag and the page of a list are ordinary
+  attributes beside it.
+- **The records** are `DataSource`s on the App, each a request whose `url`
+  derives from where the user is: `articles` (the list a feed or profile
+  shows), `article`, `comments`, `profile`, `tags`, and `me` (the signed-in
+  account). With `autoFetch`, going somewhere *is* loading it. A source whose
+  url is "" is idle.
+- **Writes** are `DataSource`s too. Favoriting and following are one request
+  each, and their replies are written into whichever sources show the same
+  article or person, so every view of it follows. Each form carries the request
+  it sends (`conduit-pages.declare`).
+- **The session** is the token. It is kept in the browser's localStorage (a
+  small `script [ host = browser ]` block), sent as `Authorization: Token …`
+  by every source, and dropped when the service calls it invalid.
+
+The files: this one holds the data's shapes, the helpers and the App;
+`conduit-pages.declare` the pages; `conduit-parts.declare` the theme, icons
+and small parts.
+*/
+
+include [ "conduit-parts.declare" ]
+
+include [ "conduit-pages.declare" ]
+
+// ── The shape of the data ───────────────────────────────────────────────────
+//
+// The RealWorld API's records, as far as this program relies on them.
+
+schema Profile [ username: string, bio?: string, image?: string, following: boolean ]
+schema Article [ slug: string, title: string, description: string, body?: string, tagList[]: string,
+    createdAt: string, updatedAt: string, favorited: boolean, favoritesCount: number, author: Profile ]
+schema Comment [ id: number, createdAt: string, body: string, author: Profile ]
+schema User [ email: string, token: string, username: string, bio?: string, image?: string ]
+
+schema UserReply [ user: User ]
+schema ProfileReply [ profile: Profile ]
+schema ArticleReply [ article: Article ]
+schema ArticlesReply [ articles[]: Article, articlesCount: number ]
+schema CommentReply [ comment: Comment ]
+schema CommentsReply [ comments[]: Comment ]
+schema TagsReply [ tags[]: string ]
+schema PageNo [ id: number ]
+schema Pages [ pages[]: PageNo ]
+
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+script {
+    // The location's segments, decoded: "/profile/ana%20b/favorites" is
+    // ["profile", "ana b", "favorites"].
+    function pathParts(loc: string): string[] {
+        return loc.split("/").filter((p) => p != "").map((p) => {
+            try { return decodeURIComponent(p) } catch (e) { return p }
+        })
+    }
+
+    // "2026-07-02T14:31:05.000Z" is "July 2, 2026".
+    function longDate(iso: string): string {
+        if (iso == "") return ""
+        const d = new Date(iso)
+        if (isNaN(d.getTime())) return ""
+        return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })
+    }
+
+    // A person's picture, or the theme's default face.
+    function avatarUrl(image: string): string { return image == "" ? "default-avatar.svg" : image }
+
+    // A RealWorld refusal, { "errors": { "email": ["has already been taken"] } },
+    // as lines: "email has already been taken". `fallback` is said when the
+    // body names nothing (the request never reached the service).
+    function errorLines(body: unknown, fallback: string): string[] {
+        const lines: string[] = []
+        const errors = (body as { errors?: unknown } | null)?.errors
+        if (errors != null && typeof errors == "object") {
+            for (const [field, said] of Object.entries(errors as Record<string, unknown>)) {
+                for (const m of Array.isArray(said) ? said : [said]) lines.push(field + " " + String(m))
+            }
+        }
+        if (lines.length == 0 && fallback != "") lines.push(fallback)
+        return lines
+    }
+    }
+
+// The session token outlives the page, so it is kept in localStorage.
+
+script [ host = browser ] {
+    const TOKEN_KEY = "conduit.token"
+    function storedToken(): string {
+        try { return localStorage.getItem(TOKEN_KEY) ?? "" } catch (e) { return "" }
+    }
+    function storeToken(token: string) {
+        try {
+            if (token == "") localStorage.removeItem(TOKEN_KEY)
+            else localStorage.setItem(TOKEN_KEY, token)
+        } catch (e) { }
+    }
+    }
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = { app.pageTitle() }, minWidth = 320,
+    theme = { { ...SanFrancisco, ...Conduit } },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    // ── type: Source Sans Pro for everything, Lora for the logo and articles
+
+    sans: Font [
+        FontFace [ weight = light, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwlxdu3cOWxw.woff2" ],
+        FontFace [ weight = regular, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xK3dSBYKcSV-LCoeQqfX1RYOo3qOK7lujVj9w.woff2" ],
+        FontFace [ weight = semibold, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xKydSBYKcSV-LCoeQqfX1RYOo3i54rwlxdu3cOWxw.woff2" ],
+        FontFace [ weight = bold, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwlxdu3cOWxw.woff2" ]
+        ],
+    lora: Font [
+        FontFace [ weight = range(400, 700), src = "https://fonts.gstatic.com/s/lora/v37/0QIvMX1D_JOuMwr7I_FMl_E.woff2" ]
+        ],
+    serif: array = { [app.lora, "Georgia", "serif"] },
+    fontFamily = { [app.sans, "Helvetica Neue", "sans-serif"] },
+    fontSize = 16,
+
+    // ── sizes: the theme's container widths and its one breakpoint
+
+    md: boolean = { app.width >= 768 },
+    containerW: number = { app.containerWidth(app.width) },
+    containerWidth(w: number) -> number {
+        if (w >= 1200) return 1140
+        if (w >= 992) return 940
+        if (w >= 768) return 720
+        if (w >= 544) return 576
+        return w
+        },
+
+    // ── where the user is: the location, parsed
+
+    location = "/",
+    parts: string[] = { pathParts(app.location) },
+    page: string = { app.pageOf(app.parts[0] ?? "") },
+    pageOf(first: string) -> string {
+        return ["login", "register", "settings", "editor", "article", "profile"].includes(first) ? first : "home"
+        },
+    slug: string = { app.page == "article" || app.page == "editor" ? app.parts[1] ?? "" : "" },
+    profileName: string = { app.page == "profile" ? app.parts[1] ?? "" : "" },
+    profileTab: "articles" | "favorites" = { app.parts[2] == "favorites" ? "favorites" : "articles" },
+
+    // The settings and the editor need an account; signed out, the sign-in
+    // form shows at their address, and signing in reveals the page asked for.
+
+    needsAccount: boolean = { app.page == "settings" || app.page == "editor" },
+    showSignIn: boolean = { app.page == "login" || (app.needsAccount && !app.signedIn) },
+
+    // The home feed and the page of a list: not worth an address.
+
+    feedTab: "feed" | "global" | "tag" = "global",
+    tag: string = "",
+    listPage: number = 1,
+    pageSize: number = 10,
+    showFeed(tab: "feed" | "global" | "tag", tag: string) {
+        app.feedTab = tab
+        app.tag = tag
+        app.listPage = 1
+        },
+
+    // A new place starts on the first page of its list.
+
+    trackChanges = ["location"],
+    onChange() { app.listPage = 1 },
+
+    pageTitle() -> string {
+        if (app.page == "article" && app.currentArticle != null) return app.currentArticle.title + " — Conduit"
+        if (app.page == "profile") return app.profileName + " — Conduit"
+        return "Conduit"
+        },
+
+    // Addresses, written once. A path is a location; a ref is a link to it.
+
+    articlePath(slug: string) -> string { return "/article/" + encodeURIComponent(slug) },
+    profilePath(name: string) -> string { return "/profile/" + encodeURIComponent(name) },
+    editorPath(slug: string) -> string { return "/editor/" + encodeURIComponent(slug) },
+    articleRef(slug: string) -> string { return "#" + app.articlePath(slug) },
+    profileRef(name: string) -> string { return "#" + app.profilePath(name) },
+
+    // ── the session
+
+    api: string = "http://127.0.0.1:8380/api",
+    token: string = { storedToken() },
+    signedIn: boolean = { app.token != "" },
+    authHeaders: object = { { Authorization: app.token == "" ? "" : "Token " + app.token } },
+
+    me: DataSource [ schema = UserReply, autoFetch = true,
+        url = { app.token == "" ? "" : app.api + "/user" },
+        headers = { app.authHeaders },
+        onError() { if (this.statusCode == 401) app.forgetSession() }
+        ],
+    user: User? = { app.signedIn ? app.me.value?.user ?? null : null },
+    myName: string = { app.user?.username ?? "" },
+    myImage: string = { app.user?.image ?? "" },
+
+    // Signed in or up, or settings saved: the reply is the account, with a
+    // fresh token. From the sign-in pages, home; from a page that needed an
+    // account, that page.
+
+    signIn(u: User) {
+        const leave = app.page == "login" || app.page == "register"
+        app.token = u.token
+        storeToken(u.token)
+        app.me.set([], ({ user: u }))
+        if (leave) app.location = "/"
+        },
+    signOut() {
+        app.forgetSession()
+        app.location = "/"
+        },
+
+    // The token is gone (signed out, or refused by the service): the lists
+    // are asked again, now without it.
+
+    forgetSession() {
+        app.token = ""
+        storeToken("")
+        app.me.clear()
+        if (app.feedTab == "feed") app.feedTab = "global"
+        if (app.articles.url != "") app.articles.fetch()
+        if (app.article.url != "") app.article.fetch()
+        if (app.profile.url != "") app.profile.fetch()
+        },
+
+    // ── the records
+
+    tags: DataSource [ schema = TagsReply, autoFetch = true, url = { app.api + "/tags" } ],
+
+    // The list a feed or a profile shows, a page at a time.
+
+    articles: DataSource [ schema = ArticlesReply, autoFetch = true,
+        url = { app.listUrl() },
+        headers = { app.authHeaders } ],
+    listUrl() -> string {
+        const q = "limit=" + app.pageSize + "&offset=" + (app.listPage - 1) * app.pageSize
+        if (app.page == "home") {
+            if (app.feedTab == "feed" && app.signedIn) return app.api + "/articles/feed?" + q
+            if (app.feedTab == "tag") return app.api + "/articles?tag=" + encodeURIComponent(app.tag) + "&" + q
+            return app.api + "/articles?" + q
+        }
+        if (app.page == "profile" && app.profileName != "") {
+            const by = app.profileTab == "favorites" ? "favorited=" : "author="
+            return app.api + "/articles?" + by + encodeURIComponent(app.profileName) + "&" + q
+        }
+        return ""
+        },
+    articleCount: number = { app.articles.value?.articles.length ?? 0 },
+    pageCount: number = { Math.ceil((app.articles.value?.articlesCount ?? 0) / app.pageSize) },
+    pager: Dataset [ schema = Pages, contents = { app.pageNumbers() } ],
+    pageNumbers() -> Pages {
+        const pages: PageNo[] = []
+        for (let n = 1; n <= app.pageCount; n++) pages.push(({ id: n }))
+        return ({ pages: pages })
+        },
+    listMessage() -> string {
+        if (app.articles.loading) return "Loading articles..."
+        if (app.articles.failed) return "Could not load articles."
+        return app.articleCount == 0 ? "No articles are here... yet." : ""
+        },
+
+    // One article, for its page and for the editor; and its comments.
+
+    articleUrl(slug: string) -> string { return app.api + "/articles/" + encodeURIComponent(slug) },
+    article: DataSource [ schema = ArticleReply, autoFetch = true,
+        url = { app.slug == "" ? "" : app.articleUrl(app.slug) },
+        headers = { app.authHeaders } ],
+    loadedArticle(slug: string) -> Article? {
+        const a = app.article.value?.article ?? null
+        return a != null && slug != "" && a.slug == slug ? a : null
+        },
+    currentArticle: Article? = { app.loadedArticle(app.slug) },
+
+    commentsUrl: string = { app.page == "article" && app.slug != "" ? app.articleUrl(app.slug) + "/comments" : "" },
+    comments: DataSource [ schema = CommentsReply, autoFetch = true,
+        url = { app.commentsUrl },
+        headers = { app.authHeaders } ],
+
+    // One person, for their profile.
+
+    profile: DataSource [ schema = ProfileReply, autoFetch = true,
+        url = { app.profileName == "" ? "" : app.api + "/profiles/" + encodeURIComponent(app.profileName) },
+        headers = { app.authHeaders } ],
+    loadedProfile() -> Profile? {
+        const p = app.profile.value?.profile ?? null
+        return p != null && p.username == app.profileName ? p : null
+        },
+
+    // ── the writes
+    //
+    // Each is a request aimed by an attribute (which article, which person)
+    // and sent from a verb. A reader who is signed out is sent to sign up.
+
+    favSlug: string = "",
+    favOn: boolean = false,
+    favorite: DataSource [ schema = ArticleReply,
+        url = { app.favSlug == "" ? "" : app.articleUrl(app.favSlug) + "/favorite" },
+        method = { app.favOn ? "DELETE" : "POST" },
+        headers = { app.authHeaders },
+        onLoad() { const a = this.value?.article; if (a != null) app.merge(a) }
+        ],
+    toggleFavorite(a: Article) {
+        if (!app.signedIn) { app.location = "/register"; return }
+        app.favSlug = a.slug
+        app.favOn = a.favorited
+        app.favorite.fetch()
+        },
+
+    // A favorite's reply is the article as it now stands: written into the
+    // list and the open article wherever they show it.
+
+    merge(a: Article) {
+        const list = app.articles.value?.articles ?? []
+        const i = list.findIndex((x) => x.slug == a.slug)
+        if (i >= 0) {
+            app.articles.set(["articles", i, "favorited"], a.favorited)
+            app.articles.set(["articles", i, "favoritesCount"], a.favoritesCount)
+        }
+        if (app.article.value?.article.slug == a.slug) {
+            app.article.set(["article", "favorited"], a.favorited)
+            app.article.set(["article", "favoritesCount"], a.favoritesCount)
+        }
+        },
+
+    followName: string = "",
+    followOn: boolean = false,
+    follow: DataSource [ schema = ProfileReply,
+        url = { app.followName == "" ? "" : app.api + "/profiles/" + encodeURIComponent(app.followName) + "/follow" },
+        method = { app.followOn ? "DELETE" : "POST" },
+        headers = { app.authHeaders },
+        onLoad() { const p = this.value?.profile; if (p != null) app.followed(p) }
+        ],
+    toggleFollow(name: string, following: boolean) {
+        if (!app.signedIn) { app.location = "/register"; return }
+        app.followName = name
+        app.followOn = following
+        app.follow.fetch()
+        },
+    followed(p: Profile) {
+        if (app.profile.value?.profile.username == p.username) app.profile.set(["profile", "following"], p.following)
+        if (app.article.value?.article.author.username == p.username) app.article.set(["article", "author", "following"], p.following)
+        },
+
+    // Published or updated: the reply is the article, shown at its (perhaps
+    // new) address.
+
+    published(a: Article) {
+        app.article.set([], ({ article: a }))
+        app.location = app.articlePath(a.slug)
+        },
+
+    dropArticle: DataSource [ method = "DELETE", format = "text",
+        url = { app.slug == "" ? "" : app.articleUrl(app.slug) },
+        headers = { app.authHeaders },
+        onLoad() { app.location = "/" }
+        ],
+    deleteArticle() { if (app.slug != "") app.dropArticle.fetch() },
+
+    dropCommentId: number = 0,
+    dropComment: DataSource [ method = "DELETE", format = "text",
+        url = { app.dropCommentId == 0 || app.commentsUrl == "" ? "" : app.commentsUrl + "/" + app.dropCommentId },
+        headers = { app.authHeaders },
+        onLoad() {
+            const i = (app.comments.value?.comments ?? []).findIndex((c) => c.id == app.dropCommentId)
+            if (i >= 0) app.comments.removeAt(["comments"], i)
+            }
+        ],
+    deleteComment(id: number) {
+        app.dropCommentId = id
+        app.dropComment.fetch()
+        },
+
+    // ── the screen: the navbar, the page, the footer. The page area is at
+    //    least as tall as the window leaves it, so the footer sits at the foot.
+
+    layout: SimpleLayout [ axis = y ],
+    header: NavBar [ ],
+    main: View [ width = 100%, accessibilityRole = main, padding = [0, 0, 42, 0],
+        height = { Math.max(this.contentHeight, app.height - app.header.height - app.footer.height) },
+        layout: SimpleLayout [ axis = y ],
+        HomePage [ exists = { app.page == "home" } ],
+        AuthPage [ exists = { app.showSignIn } ],
+        AuthPage [ exists = { app.page == "register" }, register = true ],
+        SettingsPage [ exists = { app.page == "settings" && app.signedIn } ],
+        EditorPage [ exists = { app.page == "editor" && app.signedIn && app.slug == "" } ],
+        EditorPage [ exists = { app.page == "editor" && app.signedIn && app.slug != "" }, editSlug = { app.slug } ],
+        ArticlePage [ exists = { app.page == "article" } ],
+        ProfilePage [ exists = { app.page == "profile" } ]
+        ],
+    footer: Footer [ ]
+    ]

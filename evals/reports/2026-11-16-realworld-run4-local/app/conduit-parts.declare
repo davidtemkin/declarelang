@@ -1,0 +1,342 @@
+/*
+# Conduit: the parts
+
+The look of Conduit, kept apart from how it works: the shared Conduit theme as
+tokens, the icons the templates use (drawn, in place of the Ionicons font), and
+the small pieces every page is made of — buttons, avatars, tag pills, tabs, the
+pager, text fields, an article's byline and its preview in a list.
+`conduit.declare` includes this file; the pages are in `conduit-pages.declare`.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// The values of the shared theme (styles.css, "Conduit Minimal CSS v4"). The
+// App lays this record over the library's `SanFrancisco` preset, so library
+// controls read the same palette (`accent`, `text`, `line`, …) and the parts
+// below read Conduit's own names: `provided("theme").brand`.
+
+theme Conduit [
+    brand = #33AA44, brandHovered = #2B8E3A, brandPressed = #237630,
+    accent = #33AA44, accentHovered = #2B8E3A, accentPressed = #237630, linkColor = #33AA44,
+    danger = #B85C5C, secondary = #CCCCCC, actionInk = #999999,
+    text = #373A3C, ink = #222222, inputText = #55595C,
+    textMuted = #999999, textLight = #BBBBBB, textLighter = #AAAAAA, textHover = #555555,
+    background = #FFFFFF, surface = #FFFFFF, border = #EEEEEE, line = #EEEEEE,
+    cardFooter = #F5F5F5, pageActive = #EEEEEE, pageHover = #ECEEEF, tagHover = #EEEEEE,
+    previewHover = #00000003, cardShadow = #0000000A,
+    navLink = #0000004D, navLinkHovered = #00000099, navLinkActive = #000000CC
+    ]
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// The templates name seven Ionicons (heart, compose, gear, plus, edit, trash,
+// close). Each is drawn here on the library's 16-unit grid; `ink` is its
+// color and `iconSize` its size.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "heart") {
+            d.moveTo(8, 14.2)
+            d.bezierCurveTo(3, 10.8, 1, 8.2, 1, 5.4)
+            d.bezierCurveTo(1, 3.2, 2.7, 1.6, 4.7, 1.6)
+            d.bezierCurveTo(6.1, 1.6, 7.3, 2.4, 8, 3.7)
+            d.bezierCurveTo(8.7, 2.4, 9.9, 1.6, 11.3, 1.6)
+            d.bezierCurveTo(13.3, 1.6, 15, 3.2, 15, 5.4)
+            d.bezierCurveTo(15, 8.2, 13, 10.8, 8, 14.2)
+            d.closePath()
+            d.fill()
+        } else if (shape == "compose") {            // a page with a pencil across it
+            d.moveTo(9, 2.5); d.lineTo(2.5, 2.5); d.lineTo(2.5, 13.5); d.lineTo(13.5, 13.5); d.lineTo(13.5, 7)
+            d.moveTo(12.2, 1.6); d.lineTo(14.4, 3.8); d.lineTo(8, 10.2); d.lineTo(5.6, 10.4); d.lineTo(5.8, 8); d.closePath()
+            d.stroke()
+        } else if (shape == "edit") {               // a pencil
+            d.moveTo(11, 2); d.lineTo(14, 5); d.lineTo(5.5, 13.5); d.lineTo(2, 14); d.lineTo(2.5, 10.5); d.closePath()
+            d.moveTo(9.5, 3.5); d.lineTo(12.5, 6.5)
+            d.stroke()
+        } else if (shape == "gear") {               // a cog: eight teeth around a ring
+            for (let i = 0; i < 8; i++) {
+                const a = i * Math.PI / 4
+                d.moveTo(8 + Math.cos(a) * 4.8, 8 + Math.sin(a) * 4.8)
+                d.lineTo(8 + Math.cos(a) * 7, 8 + Math.sin(a) * 7)
+            }
+            d.stroke()
+            d.beginPath(); d.arc(8, 8, 4.8, 0, 6.3); d.stroke()
+            d.beginPath(); d.arc(8, 8, 1.9, 0, 6.3); d.stroke()
+        } else if (shape == "plus") {
+            d.moveTo(8, 2.5); d.lineTo(8, 13.5); d.moveTo(2.5, 8); d.lineTo(13.5, 8); d.stroke()
+        } else if (shape == "trash") {              // a bin
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4)
+            d.moveTo(6.6, 6.5); d.lineTo(6.8, 11.5); d.moveTo(9.4, 6.5); d.lineTo(9.2, 11.5)
+            d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke()
+        }
+        }
+    ]
+
+
+// ── Layout pieces ───────────────────────────────────────────────────────────
+
+// The theme's `.container`: centered, as wide as the window allows up to the
+// theme's breakpoints, with 15px gutters.
+
+class Container [ x = center, width = { app.containerW }, padding = [0, 15, 0, 15] ]
+
+// A centered column a fraction of its container wide on a wide screen (the
+// templates' `col-md-6 offset-md-3` and their kin), the whole width on a narrow one.
+
+class Column [ x = center,
+    share: number = 1,
+    width = { app.md ? Math.round(parent.contentBox("width") * classroot.share) : parent.contentBox("width") }
+    ]
+
+
+// A horizontal rule (`<hr>`).
+
+class Rule [ width = 100%, height = 1, fill = { provided("theme").border } ]
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+// The theme's `.btn`, in its sizes and kinds. `tone` is the button's color:
+// a primary button is filled with it; an outline button is drawn in it and
+// fills with it under the pointer, or while it is `on` (favorited, followed).
+
+class Btn extends Control [
+    label: string = "",
+    counter: string = "",
+    icon: string = "",
+    kind: "primary" | "outline" = "outline",
+    size: "sm" | "md" | "lg" = "sm",
+    bold: boolean = false,
+    on: boolean = false,
+    tone: Color = { provided("theme").brand },
+    accessibilityLabel = { classroot.label + classroot.counter },
+    accessibilityPressed = { classroot.on },
+
+    big: boolean = { classroot.size == "lg" },
+    small: boolean = { classroot.size == "sm" },
+    textSize: number = { classroot.big ? 20 : classroot.small ? 14 : 16 },
+    lit: boolean = { classroot.kind == "primary" || classroot.on || classroot.hovered || classroot.pressed },
+    shade: Color = { classroot.kind == "primary" && (classroot.hovered || classroot.pressed) ? provided("theme").brandHovered : classroot.tone },
+    ink: Color = { classroot.lit ? 0xFFFFFF : classroot.tone },
+
+    cornerRadius = { classroot.big ? 10 : classroot.small ? 6 : 8 },
+    padding = { classroot.big ? [12, 24, 12, 24] : classroot.small ? [4, 8, 4, 8] : [8, 16, 8, 16] },
+    fill = { classroot.lit ? classroot.shade : null },
+    stroke = { Stroke(1, classroot.shade) },
+    opacity = { classroot.disabled ? 0.65 : 1 },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    Glyph [ visible = { classroot.icon != "" }, shape = { classroot.icon }, iconSize = { classroot.textSize * 0.85 },
+        ink = { classroot.ink } ],
+    Text [ wrap = false, fontSize = { classroot.textSize }, fontWeight = { classroot.bold ? "bold" : "regular" },
+        textColor = { classroot.ink }, text = { classroot.label } ],
+    Text [ visible = { classroot.counter != "" }, wrap = false, fontSize = 12.8, textColor = { classroot.ink },
+        text = { classroot.counter } ]
+    ]
+
+
+// A bare icon that is pressed: the trash mark on one's own comment.
+
+class IconBtn extends Control [ width = 20, height = 20,
+    shape: string = "",
+    opacity = { hovered ? 1 : 0.6 },
+    Glyph [ x = center, y = center, iconSize = 14, shape = { classroot.shape }, ink = #333333 ]
+    ]
+
+
+// A tab in a feed or profile toggle (`.nav-pills.outline-active`): one item
+// of the ChoiceControl that holds which list is showing.
+
+class TabItem extends ChoiceItem [ padding = [8, 16, 8, 16],
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    stroke = { classroot.on ? [null, null, Stroke(2, provided("theme").brand), null] : null },
+    Text [ wrap = false, text = { classroot.label },
+        textColor = { classroot.on ? provided("theme").brand : classroot.hovered ? provided("theme").textHover : provided("theme").textLighter } ]
+    ]
+
+
+// A tag. Outlined in a preview or under an article; a control in the
+// sidebar (it picks the tag's feed) and in the editor (it removes the tag).
+
+class TagPill [ cornerRadius = { this.height / 2 },
+    label: string = "",
+    compact: boolean = false,
+    height = { classroot.compact ? 20 : 31 },
+    padding = { classroot.compact ? [0, 8, 0, 8] : [0, 12, 0, 12] },
+    stroke = { Stroke(1, provided("theme").border) },
+    TextLabel [ y = center, fontSize = 12.8, wrap = false, fontWeight = { classroot.compact ? "light" : "regular" },
+        textColor = { provided("theme").textLighter }, text = { classroot.label } ]
+    ]
+
+
+class TagButton extends Control [ height = 31, cornerRadius = 16, padding = [0, 12, 0, 12],
+    label: string = "",
+    removable: boolean = false,
+    accessibilityLabel = { (classroot.removable ? "Remove tag " : "") + classroot.label },
+    stroke = { Stroke(1, provided("theme").border) },
+    fill = { classroot.hovered || classroot.pressed ? provided("theme").tagHover : null },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Glyph [ visible = { classroot.removable }, shape = "close", iconSize = 9.6, weight = 1.8, ink = { provided("theme").ink } ],
+    TextLabel [ fontSize = 12.8, wrap = false, textColor = { provided("theme").ink }, text = { classroot.label } ]
+    ]
+
+
+// One page in the pager (`.pagination`): squares joined edge to edge, the
+// ends rounded, the current page grey. An item of the ChoiceControl that holds
+// which page is showing.
+
+class PageLink extends ChoiceItem [ padding = [8, 12, 8, 12],
+    first: boolean = false,
+    last: boolean = false,
+    accessibilityLabel = { "Page " + classroot.choice },
+    cornerRadius = { [classroot.first ? 8 : 0, classroot.last ? 8 : 0, classroot.last ? 8 : 0, classroot.first ? 8 : 0] },
+    stroke = { Stroke(1, provided("theme").border) },
+    fill = { classroot.on ? provided("theme").pageActive : classroot.hovered ? provided("theme").pageHover : provided("theme").background },
+    Text [ text = { classroot.choice },
+        textColor = { classroot.on ? provided("theme").ink : classroot.hovered ? provided("theme").brandPressed : provided("theme").brand } ]
+    ]
+
+
+// A text field (`.form-control`, and `.form-control-lg` when `large`). A field
+// several `rows` tall is a textarea.
+
+class Input extends TextInput [ width = 100%,
+    large: boolean = true,
+    rows: number = 1,
+    multiline = { classroot.rows > 1 },
+    wrap = { classroot.rows > 1 },
+    textSize: number = { classroot.large ? 20 : 16 },
+    fontSize = { classroot.textSize },
+    padding = { classroot.large ? [12, 24, 12, 24] : [8, 12, 8, 12] },
+    height = { classroot.rows * classroot.textSize * 1.25 + (classroot.large ? 26 : 18) },
+    cornerRadius = { classroot.large ? 10 : 8 },
+    textColor = { provided("theme").inputText },
+    fill = { provided("theme").background },
+    stroke = { Stroke(1, classroot.focused ? provided("theme").brand : provided("theme").border) },
+    accessibilityLabel = { classroot.placeholder }
+    ]
+
+
+// What a service refused, one line per problem (`.error-messages`).
+
+class ErrorList [ width = 100%, padding = [0, 0, 0, 24],
+    lines: string[] = [],
+    visible = { classroot.lines.length > 0 },
+    Text [ width = 100%, fontWeight = bold, textColor = { provided("theme").danger },
+        text = { classroot.lines.map((l) => "•  " + l).join("\n") } ]
+    ]
+
+
+// ── People ──────────────────────────────────────────────────────────────────
+
+// A round picture of a person; the default face when they have none.
+
+class Avatar [ clip = true,
+    size: number = 32,
+    image: string = "",
+    width = { classroot.size },
+    height = { classroot.size },
+    cornerRadius = { classroot.size / 2 },
+    fill = { provided("theme").border },
+    Image [ width = 100%, height = 100%, fit = cover, source = { avatarUrl(classroot.image) } ]
+    ]
+
+
+// An author's name above a date (`.article-meta .info`).
+
+class Byline [
+    name: string = "",
+    date: string = "",
+    nameInk: Color = { provided("theme").brand },
+    layout: SimpleLayout [ axis = y ],
+    Text [ wrap = false, fontWeight = medium, link = { app.profileRef(classroot.name) },
+        textColor = { classroot.nameInk }, underline = { hovered }, text = { classroot.name } ],
+    Text [ wrap = false, fontSize = 12.8, fontWeight = light, textColor = { provided("theme").textLight },
+        text = { longDate(classroot.date) } ]
+    ]
+
+
+// ── Article lists ───────────────────────────────────────────────────────────
+
+// One article in a feed (`.article-preview`): who wrote it and when, a
+// favorite button with its count, then the title, description and tags as
+// one link to the article.
+
+class ArticlePreview [ width = 100%, padding = [24, 0, 24, 0],
+    slug: string = { :slug ?? "" },
+    author: string = { :author.username ?? "" },
+    stroke = { [Stroke(1, provided("theme").border), null, null, null] },
+    fill = { hovered ? provided("theme").previewHover : null },
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    meta: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Avatar [ link = { app.profileRef(classroot.author) }, accessibilityLabel = { classroot.author },
+            image = { :author.image ?? "" } ],
+        Byline [ name = { classroot.author }, date = { :createdAt ?? "" } ],
+        Spacer [ ],
+        Btn [ icon = "heart", label = { "" + (:favoritesCount ?? 0) }, on = { :favorited ?? false },
+            accessibilityLabel = { ((:favorited ?? false) ? "Unfavorite, " : "Favorite, ") + (:favoritesCount ?? 0) },
+            press() { app.toggleFavorite(:@) }
+            ]
+        ],
+
+    preview: View [ width = 100%, link = { app.articleRef(classroot.slug) },
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        Text [ width = 100%, fontSize = 24, fontWeight = semibold, lineHeight = 1.1, text = { :title ?? "" } ],
+        Text [ width = 100%, padding = [0, 0, 12, 0], fontWeight = light, lineHeight = 1.3,
+            textColor = { provided("theme").textMuted }, text = { :description ?? "" } ],
+        foot: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 12 ],
+            Text [ wrap = false, fontSize = 12.8, fontWeight = light, textColor = { provided("theme").textLight },
+                text = "Read more..." ],
+            Spacer [ ],
+            tags: View [ width = { parent.width * 0.5 },
+                layout: WrappingLayout [ spacing = 8, rowSpacing = 6, justify = end ],
+                TagPill [ datapath = :tagList[], compact = true, label = { :@ } ]
+                ]
+            ]
+        ]
+    ]
+
+
+// The pager under a list, when there is more than one page.
+
+class Pager extends ChoiceControl [ padding = [16, 0, 16, 0], accessibilityLabel = "Pages",
+    visible = { app.pageCount > 1 },
+    value = { "" + app.listPage },
+    commit(v: string) { app.listPage = Number(v) },
+    datapath = { app.pager.value },
+    layout: WrappingLayout [ spacing = -1, rowSpacing = 4 ],
+    PageLink [ datapath = :pages[], choice = { "" + (:id ?? 1) },
+        first = { :id == 1 }, last = { :id == app.pageCount } ]
+    ]
+
+
+// The list of articles a feed or a profile shows: whatever `app.articles`
+// holds, with its loading, empty and failed states, then the pager.
+
+class ArticleList [ width = 100%,
+    layout: SimpleLayout [ axis = y ],
+    note: Text [ width = 100%, padding = [24, 0, 24, 0],
+        stroke = { [Stroke(1, provided("theme").border), null, null, null] },
+        visible = { classroot.message != "" },
+        text = { classroot.message } ],
+    message: string = { app.listMessage() },
+    rows: View [ width = 100%, visible = { !app.articles.loading }, datapath = { app.articles.value },
+        layout: SimpleLayout [ axis = y ],
+        ArticlePreview [ datapath = :articles[], identityKey = :slug ]
+        ],
+    Pager [ ]
+    ]

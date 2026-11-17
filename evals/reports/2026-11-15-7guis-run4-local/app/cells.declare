@@ -1,0 +1,296 @@
+/*
+# 7. Cells
+
+A spreadsheet of rows 0–99 and columns A–Z, built here from views rather than
+from a grid in the library.
+
+- **The formula language** — parsing, which cells a formula reads, evaluation
+  — is plain TypeScript in `formula.ts`, and knows nothing of this file.
+- **The sheet** is `Spreadsheet`, a dataset class: one record per cell holding its
+  formula and what it shows, and an index of who reads whom. Setting a
+  formula recomputes that cell and then the cells that read it, and theirs in
+  turn, in an order where each comes after what it reads — only those, never
+  the whole sheet. A dependency that comes back round to itself is a cycle,
+  and every cell on or after it shows #CYCLE!. Each recompute writes only its
+  own cell's record, so only that cell's view changes.
+- **The widget** is the task's views: a body that scrolls both ways, with the
+  column letters and row numbers outside it, following its scroll. Rows are
+  built only near the screen (`virtualize`). Click selects a cell, the arrows
+  move the selection, a double-click (or Enter, or F2) edits a formula in
+  place, and Return or leaving the field ends the edit; Escape abandons it.
+*/
+
+script [ "formula.ts" ]
+
+script {
+    // The empty sheet: 100 rows of 26 blank cells.
+    function blankSheetRows(): object[] {
+        const rows: object[] = []
+        for (let r = 0; r < SHEET_ROWS; r++) {
+            const cells: object[] = []
+            for (let c = 0; c < SHEET_COLUMNS.length; c++) cells.push({ id: cellName(c, r), f: "", refs: [], shown: "" })
+            rows.push({ id: r, cells: cells })
+        }
+        return rows
+    }
+    function sheetColumnLetters(): object[] { return SHEET_COLUMNS.split("").map((c) => ({ id: c })) }
+    }
+
+schema SheetCell [ id: string, f: string, refs[]: string, shown: string,
+    num?: number, text?: string, error?: string, message?: string ]
+schema SheetRow [ id: number, cells[]: SheetCell ]
+
+
+class Spreadsheet extends Dataset [ schema = [ rows[]: SheetRow ],
+
+    // Who reads whom: for each cell, the cells whose formulas read it. Kept
+    // in step with every formula's `refs`; read only by the recompute, so it
+    // is plain bookkeeping, not something any view follows.
+
+    readers: Map<string, string[]> = { new Map() },
+
+    // The cells the last change recomputed, in the order it did them.
+
+    lastRecomputed: string[] = [],
+
+    onInit() { this.set(["rows"], blankSheetRows()) },
+
+    cell(id: string) -> SheetCell? {
+        const p = cellPosition(id)
+        return p == null ? null : this.value?.rows[p.row]?.cells[p.col] ?? null
+        },
+    cellValue(id: string) -> CellValue {
+        const c = this.cell(id)
+        return c == null ? ({}) : ({ num: c.num, text: c.text, error: c.error, message: c.message })
+        },
+
+    setFormula(id: string, f: string) {
+        const p = cellPosition(id)
+        const old = this.cell(id)
+        if (p == null || old == null) return
+        if (old.f == f) return
+        const refs = formulaRefs(parseFormula(f))
+        for (const r of old.refs) this.readers.set(r, (this.readers.get(r) ?? []).filter((x) => x != id))
+        for (const r of refs) this.readers.set(r, [...(this.readers.get(r) ?? []).filter((x) => x != id), id])
+        this.set(["rows", p.row, "cells", p.col], ({ ...old, f: f, refs: refs }))
+        this.recompute(id)
+        },
+
+    // The changed cell and everything downstream of it, each after the cells
+    // it reads (Kahn's order over just that part of the graph).
+
+    recompute(start: string) {
+        const affected = new Set<string>([start])
+        const queue = [start]
+        while (queue.length > 0) {
+            for (const r of this.readers.get(queue.shift()!) ?? []) {
+                if (!affected.has(r)) { affected.add(r); queue.push(r) }
+            }
+        }
+        const waiting = new Map<string, number>()
+        for (const id of affected) waiting.set(id, (this.cell(id)?.refs ?? []).filter((r) => affected.has(r)).length)
+        const ready = [...affected].filter((id) => waiting.get(id) == 0)
+        const order: string[] = []
+        while (ready.length > 0) {
+            const id = ready.shift()!
+            order.push(id)
+            this.store(id, evaluateFormula(parseFormula(this.cell(id)?.f ?? ""), (r) => this.cellValue(r)))
+            for (const r of this.readers.get(id) ?? []) {
+                if (!affected.has(r)) continue
+                const n = (waiting.get(r) ?? 0) - 1
+                waiting.set(r, n)
+                if (n == 0) ready.push(r)
+            }
+        }
+        for (const id of affected) {
+            if (!order.includes(id)) {
+                order.push(id)
+                this.store(id, ({ error: "#CYCLE!", message: "This formula depends on itself" }))
+            }
+        }
+        this.lastRecomputed = order
+        },
+
+    store(id: string, v: CellValue) {
+        const p = cellPosition(id)
+        const c = this.cell(id)
+        if (p == null || c == null) return
+        this.set(["rows", p.row, "cells", p.col], ({ id: c.id, f: c.f, refs: c.refs, shown: displayValue(v),
+            num: v.num, text: v.text, error: v.error, message: v.message }))
+        }
+    ]
+
+
+// A column letter or a row number, in the sheet's margins.
+
+class SheetHead [ fill = { provided("theme").control },
+    stroke = { [null, Stroke(1, provided("theme").line), Stroke(1, provided("theme").line), null] },
+    label: string = "",
+    TextLabel [ x = center, y = center, fontSize = 12, textColor = { provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// One cell: what its formula comes to, right-aligned when it is a number, in
+// the error color when it is an error.
+
+class CellBox [ padding = [0, 5, 0, 5], accessibilityRole = cell,
+    selected: boolean = false,
+    isNumber: boolean = { :num != null },
+    isError: boolean = { :error != null },
+    accessibilityLabel = { :id + (:shown == "" ? "" : ", " + :shown) },
+    tooltipLabel = { :message ?? "" },
+    stroke = { [null, Stroke(1, provided("theme").line), Stroke(1, provided("theme").line), null] },
+    State [ applied = { classroot.selected }, fill = { provided("theme").controlSelected },
+        stroke = { Stroke(2, provided("theme").accent) } ],
+    TextLabel [ y = center, width = 100%, fontSize = 13, wrap = false, maxLines = 1,
+        textAlign = { classroot.isNumber || classroot.isError ? "end" : "start" },
+        numeralWidth = tabular,
+        textColor = { classroot.isError ? provided("theme").error : provided("theme").text },
+        text = { :shown } ]
+    ]
+
+
+class CellsTask [
+    sheet: Spreadsheet { { "rows": [] } },
+    columns: Dataset [ contents = { { cols: sheetColumnLetters() } } ],
+
+    colW: number = 84,
+    rowH: number = 24,
+    headW: number = 44,
+
+    // ── where the person is
+
+    selected: string = "A0",
+    editing: string = "",
+    selectedCell: SheetCell? = { classroot.sheet.cell(classroot.selected) },
+
+    select(id: string) { selected = id; if (editing != "" && editing != id) editing = "" },
+    edit(id: string) { selected = id; editing = id },
+    stopEditing() {
+        editing = ""
+        afterSettle(() => Focus.focus(grid.body))
+        },
+    move(dc: number, dr: number) {
+        const p = cellPosition(selected)
+        if (p == null) return
+        const col = Math.max(0, Math.min(SHEET_COLUMNS.length - 1, p.col + dc))
+        const row = Math.max(0, Math.min(SHEET_ROWS - 1, p.row + dr))
+        selected = cellName(col, row)
+        reveal(col, row)
+        },
+
+    // Bring a cell into the body's view, scrolling only as far as needed.
+
+    reveal(col: number, row: number) {
+        const b = grid.body
+        const left = col * colW, top = row * rowH
+        let x = b.scrollX, y = b.scrollY
+        if (left < x) x = left
+        else if (left + colW > x + b.width) x = left + colW - b.width
+        if (top < y) y = top
+        else if (top + rowH > y + b.height) y = top + rowH - b.height
+        if (x != b.scrollX || y != b.scrollY) b.scrollTo(({ x: x, y: y }))
+        },
+
+    // A small worked example, so the sheet opens showing what formulas do.
+
+    onInit() {
+        const seed: string[][] = [
+            ["A0", "Item"], ["B0", "Qty"], ["C0", "Price"], ["D0", "Total"],
+            ["A1", "Apples"], ["B1", "3"], ["C1", "0.5"], ["D1", "=B1*C1"],
+            ["A2", "Pears"], ["B2", "2"], ["C2", "0.75"], ["D2", "=B2*C2"],
+            ["A3", "Plums"], ["B3", "10"], ["C3", "0.2"], ["D3", "=B3*C3"],
+            ["A4", "Sum"], ["B4", "=SUM(B1:B3)"], ["D4", "=SUM(D1:D3)"]
+        ]
+        for (const s of seed) sheet.setFormula(s[0], s[1])
+        },
+
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+    // The selected cell's name and formula.
+
+    formulaBar: View [ width = 100%, height = 30, cornerRadius = 7, padding = [0, 10, 0, 10],
+        fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        TextLabel [ width = 36, fontWeight = semibold, text = { classroot.selected } ],
+        View [ width = 1, height = 18, fill = { provided("theme").line } ],
+        TextLabel [ flexes = true, wrap = false, maxLines = 1, selectable = true, fontSize = 13,
+            textColor = { provided("theme").textMuted },
+            text = { (classroot.selectedCell?.f ?? "") == "" ? "Double-click a cell, or press Enter, to edit its formula" : classroot.selectedCell!.f } ]
+        ],
+
+    // ── the sheet: a corner, the column letters, the row numbers, and the
+    //    scrolling body. The margins are placed against the body and move
+    //    with its scroll, so they stay put on the axis they label.
+
+    grid: View [ width = 100%, flexes = true, clip = true, cornerRadius = 7,
+        fill = { provided("theme").surface }, stroke = { Stroke(1, provided("theme").line) },
+
+        body: View [ x = { classroot.headW }, y = { classroot.rowH },
+            width = { parent.width - classroot.headW }, height = { parent.height - classroot.rowH },
+            scrolls = both, focusable = true,
+            accessibilityRole = grid, accessibilityLabel = "Spreadsheet",
+            keyBindings = { [ ({ key: "ArrowUp", command: "step", args: [0, -1] }),
+                              ({ key: "ArrowDown", command: "step", args: [0, 1] }),
+                              ({ key: "ArrowLeft", command: "step", args: [-1, 0] }),
+                              ({ key: "ArrowRight", command: "step", args: [1, 0] }),
+                              ({ key: "Tab", command: "step", args: [1, 0] }),
+                              ({ key: "Shift+Tab", command: "step", args: [-1, 0] }),
+                              ({ key: "Enter", command: "begin", label: "Edit cell" }),
+                              ({ key: "F2", command: "begin", label: "Edit cell" }),
+                              ({ key: "Delete", command: "clear", label: "Clear cell" }),
+                              ({ key: "Backspace", command: "clear", label: "Clear cell" }) ] },
+            step(dc: number, dr: number) { classroot.move(dc, dr) },
+            begin() { classroot.edit(classroot.selected) },
+            clear() { classroot.sheet.setFormula(classroot.selected, "") },
+            datapath = { classroot.sheet.value },
+            layout: SimpleLayout [ axis = y ],
+
+            View [ datapath = :rows[], virtualize = true, accessibilityRole = row,
+                layout: SimpleLayout [ axis = x ],
+                CellBox [ datapath = :cells[], width = { classroot.colW }, height = { classroot.rowH },
+                    selected = { classroot.selected == :id },
+                    onClick() { classroot.select(:id) },
+                    onDoubleClick() { classroot.edit(:id) },
+
+                    // The editor, in the cell, while it is the one being edited.
+
+                    editor: TextInput [ exists = { classroot.editing == :id }, ignoreLayout = true,
+                        x = -4, y = -1, width = { Math.max(parent.width + 3, 240) }, height = { parent.height + 1 },
+                        fontSize = 13, accessibilityLabel = { "Formula of " + :id },
+                        commitOn = "end",
+                        value = { :f },
+                        commit(t: string) { classroot.sheet.setFormula(:id, t) },
+
+                        // Wider than its cell, so the cell paints above the cells after it.
+
+                        onInit() { parent.raise(); afterSettle(() => Focus.focus(this)) },
+                        onEnter() { classroot.stopEditing(); classroot.move(0, 1) },
+                        onBlur() { if (classroot.editing == :id) classroot.stopEditing() },
+                        keyBindings = { [ ({ key: "Escape", command: "abandon" }) ] },
+                        abandon() { this.cancelEdit(); classroot.stopEditing() }
+                        ]
+                    ]
+                ]
+            ],
+
+        corner: View [ width = { classroot.headW }, height = { classroot.rowH }, fill = { provided("theme").control },
+            stroke = { [null, Stroke(1, provided("theme").line), Stroke(1, provided("theme").line), null] } ],
+
+        colHeads: View [ x = { classroot.headW }, width = { parent.width - classroot.headW }, height = { classroot.rowH }, clip = true,
+            strip: View [ x = { -parent.parent.body.scrollX }, datapath = { classroot.columns.value },
+                layout: SimpleLayout [ axis = x ],
+                SheetHead [ datapath = :cols[], accessibilityRole = columnHeader,
+                    width = { classroot.colW }, height = { classroot.rowH }, label = :id ]
+                ]
+            ],
+
+        rowHeads: View [ y = { classroot.rowH }, width = { classroot.headW }, height = { parent.height - classroot.rowH }, clip = true,
+            strip: View [ y = { -parent.parent.body.scrollY }, datapath = { classroot.sheet.value },
+                layout: SimpleLayout [ axis = y ],
+                SheetHead [ datapath = :rows[], accessibilityRole = rowHeader,
+                    width = { classroot.headW }, height = { classroot.rowH }, label = { "" + :id } ]
+                ]
+            ]
+        ]
+    ]
