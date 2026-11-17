@@ -15,7 +15,7 @@ interface StyleFields {
     lineHeight?: unknown;
     textTransform?: unknown;
     smallCaps?: unknown;
-    numerals?: unknown;
+    numeralStyle?: unknown;
     numeralWidth?: unknown;
     slashedZero?: unknown;
 }

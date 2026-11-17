@@ -27,8 +27,10 @@ export function islandProvision(island, name) {
     const v = island.$provided(name, undefined);
     // the overlay layer goes on up the chain: nothing in this program provides
     // one, so the one this program's own host provides (planes.md §12)
-    if (v === undefined && name === OVERLAYS)
-        return island.$hostProvided(name, undefined);
+    if (v === undefined && name === OVERLAYS) {
+        const app = island.$root;
+        return app?.hostProvided?.(name, undefined);
+    }
     return v;
 }
 /** Everything an island provides right now, by name — what a host passes as
@@ -100,7 +102,7 @@ export class Island extends View {
      *  it). What a hosted side's read resolves to. */
     $providedValue(name) {
         if (!providesOf(this).includes(name)) {
-            console.warn(`[Declare] hostProvided("${name}"): this island does not list '${name}' in its provides (${providesOf(this).join(", ") || "none"})`);
+            console.warn(`[Declare] app.hostProvided("${name}"): this island does not list '${name}' in its provides (${providesOf(this).join(", ") || "none"})`);
             return undefined;
         }
         return islandProvision(this, name);

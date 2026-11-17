@@ -1,9 +1,4 @@
 import { Node } from "./node.js";
-/** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.
- *  Returns null (never throws) on a miss — the caller owns the message. A step
- *  is a member's name, a child's index, or what a view says — its label, its
- *  accessible name or its text (`app.seg.Two`), quoted when it holds a dot or a
- *  space (`app.menu."Save As…"`). */
 export declare function find(root: Node, path: string): Node | null;
 /** Where a path is ambiguous: the first step that names two or more views
  *  alike (said), with their addresses — what a tool says instead of "no node",

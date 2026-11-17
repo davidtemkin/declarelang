@@ -27,6 +27,7 @@ const showPtr = (segs) => "/" + segs.map((t) => String(t).replace(/~/g, "~0").re
 function typeOk(type, v) {
     if (type === "any")
         return v !== undefined;
+    // a color as data carries it: its number, or the "#RRGGBB" string JSON writes
     return typeof v === type;
 }
 /** A field's scalar expectation. A literal union (`status: "open" |

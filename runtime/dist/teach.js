@@ -15,15 +15,15 @@ export { nearestName };
  *  Declare slot, because "has no attribute" alone states the rule and not the
  *  fix. Evidence-driven — entries earn their place by appearing in eval
  *  failures or having one true equivalent; vague CSS concepts stay out. */
-const FONT_FEATURES_HINT = "a face's features are Text's own attributes: 'numeralWidth = tabular' (tnum: digits of one width, for columns and counters that do not jitter), 'numerals = oldstyle' or 'lining' (onum, lnum), 'slashedZero = true' (zero), 'smallCaps = true' (smcp)";
+const FONT_FEATURES_HINT = "a face's features are Text's own attributes: 'numeralWidth = tabular' (tnum: digits of one width, for columns and counters that do not jitter), 'numeralStyle = oldstyle' or 'lining' (onum, lnum), 'slashedZero = true' (zero), 'smallCaps = true' (smcp)";
 const READONLY_HINT = "a value to read and select but not change is a Text with 'selectable = true' (a TextInput is for editing); 'disabled = true' dims a field and takes it out of Tab, and an 'admit(t)' that returns null refuses every change while the field stays live";
 export const CSS_ATTRIBUTE_HINTS = {
-    border: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' — drawn inside the box",
-    borderWidth: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' — width and color travel together",
-    borderColor: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' — width and color travel together",
-    borderStyle: "a border is 'stroke = { stroke(width, color) }' — solid only",
-    boxShadow: "a shadow is 'shadow = { shadow(dx, dy, blur, 0x00000040) }'",
-    background: "the paint slot is 'fill' (a color or gradient(…))",
+    border: "a border is 'stroke = { Stroke(1, 0xE2E5E9) }' — drawn inside the box",
+    borderWidth: "a border is 'stroke = { Stroke(1, 0xE2E5E9) }' — width and color travel together",
+    borderColor: "a border is 'stroke = { Stroke(1, 0xE2E5E9) }' — width and color travel together",
+    borderStyle: "a border is 'stroke = { Stroke(width, color) }' — solid only",
+    boxShadow: "a shadow is 'shadow = { Shadow(dx, dy, blur, 0x00000040) }'",
+    background: "the paint slot is 'fill' (a color or Gradient.linear(…))",
     backgroundColor: "the paint slot is 'fill'",
     borderRadius: "rounding is 'cornerRadius'",
     color: "text color is 'textColor' (a provided value — set it on a container to cascade)",
@@ -51,17 +51,17 @@ export const CSS_ATTRIBUTE_HINTS = {
     backfaceVisibility: "'backface = hidden' hides a view turned past 90° about X or Y",
     scaleX: "per-axis scale is 'scaleX' / 'scaleY' (multiplied with the uniform 'scale')",
     perspective: "'perspective = 700' on the PARENT is the eye its children's 'rotateX'/'rotateY'/'translateZ' are seen through (px; 0 = orthographic)",
-    blur: "blur is a visual filter — 'visualFilter = blur(4)' blurs this view's own paint as a group (a list composes: 'visualFilter = [blur(4), brightness(0.8)]'); 'backdrop = blur(20)' blurs what lies BENEATH; inside a drawing, d.filter",
-    dropShadow: "a shadow of the painted ALPHA is 'visualFilter = shadow(dx, dy, blur, color)' (the box's own shadow is the 'shadow' attribute; glyphs take 'textShadow')",
+    blur: "blur is a visual filter — 'visualFilter = VisualFilter.blur(4)' blurs this view's own paint as a group (a list composes: 'visualFilter = [VisualFilter.blur(4), VisualFilter.brightness(0.8)]'); 'backdrop = VisualFilter.blur(20)' blurs what lies BENEATH; inside a drawing, d.filter",
+    dropShadow: "a shadow of the painted ALPHA is 'visualFilter = Shadow(dx, dy, blur, color)' (the box's own shadow is the 'shadow' attribute; glyphs take 'textShadow')",
     // `filter` is also the name an earlier Declare gave the attribute; it is the
     // CSS name all the same, so it keeps the CSS label. It is free for a member
     // of a program's own — a list's filter, a filter() method — and this
     // answers only where nothing declares it.
-    filter: "a view's own effects are 'visualFilter' — 'visualFilter = blur(4)' or a list, 'visualFilter = [grayscale(1), brightness(0.8)]', over its painted subtree as a group; 'backdrop' filters what lies beneath",
+    filter: "a view's own effects are 'visualFilter' — 'visualFilter = VisualFilter.blur(4)' or a list, 'visualFilter = [VisualFilter.grayscale(1), VisualFilter.brightness(0.8)]', over its painted subtree as a group; 'backdrop' filters what lies beneath",
     mixBlendMode: "compositing is the 'blendMode' attribute — 'blendMode = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
     blend: "compositing is the 'blendMode' attribute — 'blendMode = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
-    backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' — or any filter list, 'backdrop = [blur(20), saturate(1.4)]' — sampled beneath the view's own shape",
-    maskImage: "a soft mask is 'mask = gradient(…)' (its alpha over the box) or 'mask = { stencil }' (another view's painted alpha); a hard edge is 'clip' — true for the box, or a path",
+    backdropFilter: "the frost is 'backdrop = VisualFilter.frost(radius, saturation)' — or any filter list, 'backdrop = [VisualFilter.blur(20), VisualFilter.saturate(1.4)]' — sampled beneath the view's own shape",
+    maskImage: "a soft mask is 'mask = Gradient.linear(…)' (its alpha over the box) or 'mask = { stencil }' (another view's painted alpha); a hard edge is 'clip' — true for the box, or a path",
     objectPosition: "where a contain/cover fit sits is 'alignX' / 'alignY' on the Image — start, center, end",
     // The 2026-08-08 foreign-reach audit (HTML/CSS · React · native-mobile, read against the
     // whole reference): the attribute-position instincts a newcomer actually
@@ -78,15 +78,15 @@ export const CSS_ATTRIBUTE_HINTS = {
     animation: "there is no animation property — motion is a member: an 'Animator' (timed, from→to), a 'Spring' (chases a live target), an 'AnimatorGroup' (sequence)",
     keyframes: "there are no keyframes — an 'Animator' drives one attribute from→to through a motion curve; sequence several with 'AnimatorGroup'",
     fontStyle: "italics are Text's 'italic = true'",
-    fontVariantNumeric: "figures are Text's own attributes: 'numeralWidth = tabular' (digits of one width, for columns and counters that do not jitter) or 'proportional', 'numerals = oldstyle' or 'lining', 'slashedZero = true'",
+    fontVariantNumeric: "figures are Text's own attributes: 'numeralWidth = tabular' (digits of one width, for columns and counters that do not jitter) or 'proportional', 'numeralStyle = oldstyle' or 'lining', 'slashedZero = true'",
     fontFeatureSettings: FONT_FEATURES_HINT,
     fontFeatures: FONT_FEATURES_HINT,
     // `blend`, `stretches` and `outline` are also names an earlier Declare used
     // (see MEMBER_HINTS) — each answered with the attribute that holds it now.
     objectFit: "image fitting is 'fit' on an Image or Video — 'cover' fills and crops, 'contain' letterboxes",
     stretches: "image fitting is 'fit' on an Image or Video — 'cover' fills and crops, 'contain' letterboxes, 'both' stretches to the box",
-    outline: "a stroke along the glyphs' edges is Text's 'textStroke = stroke(1, #C0392B)', painted under the fill; a box's edge is 'stroke', drawn inside the box",
-    webkitTextStroke: "a stroke along the glyphs' edges is Text's 'textStroke = stroke(1, #C0392B)', painted under the fill",
+    outline: "a stroke along the glyphs' edges is Text's 'textStroke = Stroke(1, #C0392B)', painted under the fill; a box's edge is 'stroke', drawn inside the box",
+    webkitTextStroke: "a stroke along the glyphs' edges is Text's 'textStroke = Stroke(1, #C0392B)', painted under the fill",
     // `onDblClick` and `motion` are names an earlier Declare used (see MEMBER_HINTS),
     // answered where they are written; `ondblclick` (the DOM's spelling) routes here too.
     onDblClick: "the double-click event is 'onDoubleClick' — 'onDoubleClick(e: PointerEvent) { … }'; the first click still reaches onClick at once",
@@ -94,7 +94,7 @@ export const CSS_ATTRIBUTE_HINTS = {
     // for a member of a program's own — this answers only where nothing declares
     // it (and check.ts names the field on a replicated node).
     key: "a replicated record's identity is its 'id' field, with nothing declared; when it lives under another name, 'identityKey = :field' beside the many-path datapath names it",
-    motion: "an Animator's curve is 'easing' — 'easing = cubicOut' (a token, or cubicBezier(…), back(…), steps(…), laszlo(…)); a scroll glide takes it too, '{ duration: 260, easing: \"cubicOut\" }'",
+    motion: "an Animator's curve is 'easing' — 'easing = cubicOut' (a token, or Easing.cubicBezier(…), Easing.back(…), Easing.steps(…), Easing.laszlo(…)); a scroll glide takes it too, '{ duration: 260, easing: \"cubicOut\" }'",
     // a field to read, not edit (HTML's, AppKit's and UIKit's readOnly)
     readOnly: READONLY_HINT,
     // the ring set per view, as if each control drew its own
@@ -141,10 +141,10 @@ export const MEMBER_HINTS = {
     // (the attribute table above answers them where they are written)
     blend: "a view's compositing operator is 'blendMode' ('multiply', 'screen', … or 'normal')",
     stretches: "how an Image or Video fits its box is 'fit' ('cover', 'contain', 'both', …)",
-    outline: "a Text's glyph stroke is 'textStroke', a stroke(width, color) or null",
+    outline: "a Text's glyph stroke is 'textStroke', a Stroke(width, color) or null",
     // names an earlier Declare used for an event, an attribute and a method, met in a body
     onDblClick: "the double-click event is 'onDoubleClick'",
-    motion: "the curve an Animator or AnimatorGroup follows is 'easing' (a token like 'cubicOut', or cubicBezier(…)); a scroll glide names it too — scrollTo(y, { duration: 260, easing: \"cubicOut\" })",
+    motion: "the curve an Animator or AnimatorGroup follows is 'easing' (a token like 'cubicOut', or Easing.cubicBezier(…)); a scroll glide names it too — scrollTo(y, { duration: 260, easing: \"cubicOut\" })",
     navigate: "leaving the app for another address is app.openURL(to) (app.openWindow(to) for a window of its own); moving within the app is a write to app.location",
     // a menu's verbs an earlier Declare used: every overlay opens with show(), showFor(v), showAt(v, e)
     openFor: "a menu opens below a view with showFor(v) — the overlays' one verb (show(), showFor(v), showAt(v, e)); it flips above when there is no room below",
@@ -176,7 +176,7 @@ const MENU_METRICS = "the menu's column metrics are its own — a 'kind' row's c
  *  hint says what IS. */
 export const RENAMED_CLASS_MEMBERS = {
     View: {
-        filter: "a view's own visual effects are 'visualFilter' — one function or a list, 'visualFilter = [blur(4), brightness(0.8)]', over its painted subtree as a group",
+        filter: "a view's own visual effects are 'visualFilter' — one function or a list, 'visualFilter = [VisualFilter.blur(4), VisualFilter.brightness(0.8)]', over its painted subtree as a group",
     },
     Segmented: {
         choices: "the segments are 'items' — records { id, label } or { id, icon }, as a Menu's items are",

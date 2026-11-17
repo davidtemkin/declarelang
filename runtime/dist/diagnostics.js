@@ -173,6 +173,21 @@ export function nearestName(name, candidates, budget) {
     const cap = budget ?? (name.length >= 5 ? 2 : 1);
     return best !== null && !tie && bestD <= cap ? best : null;
 }
+/** Declare's names that are no class, as a tag would misuse them: what each is. */
+const NOT_A_CLASS = {
+    Focus: "Focus is a service, asked in a { } body (Focus.focus(this)); where focus is, is a state: app.focusedView, a view's containsFocus",
+    Keyboard: "Keyboard is a service, asked in a { } body (Keyboard.isDown(\"ShiftLeft\")); a KeyListener [ … ] member hears the keys",
+    Clipboard: "Clipboard is a service, asked in a { } body (Clipboard.copy(text))",
+    Commands: "Commands is a service, asked in a { } body (Commands.run(name))",
+    FilePicker: "FilePicker is a service, asked in a { } body (FilePicker.pick(), FilePicker.save(contents, { name }))",
+    Accessibility: "Accessibility is a service, asked in a { } body (Accessibility.announce(text))",
+    Stroke: "Stroke is a type, built in a value: stroke = Stroke(1, #DBE1E9)",
+    Shadow: "Shadow is a type, built in a value: shadow = Shadow(0, 2, 8, #00000033)",
+    Gradient: "Gradient is a type, built in a value: fill = Gradient.linear(#F8F8F8, #D8D8D8)",
+    VisualFilter: "VisualFilter is a type, built in a value: visualFilter = VisualFilter.blur(4)",
+    Easing: "Easing is a type: easing = quadOut, or a curve built in a value, Easing.steps(4)",
+    Color: "Color is a type: a value like #336699, and its operations in a { } body (Color.mix(a, b, 0.5))",
+};
 export const Diag = {
     // 1xxx syntax — the parser throws one at a time; a single family code, the
     // grammar message carrying the specifics.
@@ -186,6 +201,10 @@ export const Diag = {
     // appends a calibrated near-miss ("did you mean 'Text'?") — the fix, named
     // (diagnostics.md §4); the rule rides the hint.
     unknownClass: (tag, pos, candidates = []) => {
+        // one of Declare's names that is no class: say what it is, and how it is used
+        const kind = Object.hasOwn(NOT_A_CLASS, tag) ? NOT_A_CLASS[tag] : undefined;
+        if (kind !== undefined)
+            return err(code4(2001), `'${tag} [ … ]' places nothing — ${kind}`, pos);
         // A name that other names EXTEND is offered whole — see extensionsOf. This
         // replaces a table of former spellings: the language ships one current
         // surface, so a diagnostic states what IS, never what a name used to be.
@@ -271,7 +290,7 @@ export const Diag = {
     // that name, so `this` inside a class of that name is the value type — the
     // errors would say "'root' is not a member of Backdrop" at every use, or
     // nothing at all where TypeScript merges the two.
-    shadowsDeclareType: (kind, name, rename, pos) => err(code4(4015), `${kind} ${name} takes the name of one of Declare's own types (npx declare-help ${name} says what it is) — the { } bodies typecheck with that type under the name, so inside yours '${name}' would mean Declare's, not your ${kind}. Rename yours, as '${rename}'`, pos),
+    shadowsDeclareType: (kind, name, rename, pos, what = "one of Declare's own types") => err(code4(4015), `${kind} ${name} takes the name of ${what} (npx declare-help ${name} says what it is) — the { } bodies know it under the name, so inside yours '${name}' would mean Declare's, not your ${kind}. Rename yours, as '${rename}'`, pos),
     // A Spring owns its slot for as long as it lives — it never finishes — so a
     // slot its view also binds ({ }, :path or a percent) has two owners, and the
     // boot refuses it. (An Animator may drive a bound slot: it takes the slot for
@@ -328,6 +347,9 @@ export const Diag = {
         ? `Give it a label ("Mute"), or, where the words that name it are shown apart from it (a Text beside it in a row), set accessibilityLabel to them (accessibilityLabel = :title)`
         : `Set accessibilityLabel to what it is called ("Volume", "Close")`}`, pos),
     accessibilityControlInControl: (inner, innerRole, outer, outerRole, pos) => err(code4(4020), `${inner} (${/^[aeiou]/i.test(innerRole) ? "an" : "a"} ${innerRole}) is inside ${outer} (${/^[aeiou]/i.test(outerRole) ? "an" : "a"} ${outerRole}): the inner is read as part of the outer's name, and a screen reader that takes the outer as one element (VoiceOver does) never reaches it. Make them siblings in a plain View, or, if only ${inner} is meant to be pressed, make ${outer} a plain View`, pos),
+    // A WARNING: a view written inside a Button, which lays out its own icon and
+    // label and places nothing else — the child lands at its top-left.
+    viewInsideButton: (owner, child, pos) => err(code4(4043), `${child} is inside ${owner}, a Button, which lays out its own icon and label and nothing else — ${child} is placed at its top-left, over them. An icon is the Button's iconLeft or iconRight (iconLeft = "PlusIcon"); for other content, make your own control: class … extends Control [ … ]`, pos),
     accessibilityCollapsedRead: (owner, axis, pos) => err(code4(4021), `${owner} hides what it holds by clipping it to a ${axis} of 0, but a screen reader still reads it and Tab still reaches it: absence is visible, not geometry. Add visible = { this.${axis} > 0 }, or the condition that collapses it`, pos),
     accessibilityUnreportedChoice: (owner, flag, pos) => err(code4(4022), `${owner} shows whether it is the one chosen ('${flag}'), but tells a screen reader nothing — a row of them reads as plain buttons, none of them picked. Keep it as you draw it and set accessibilityPressed = { ${flag} }: a pressed control is the one that is in. Where it is one of several, the row can instead be ChoiceItems (each with a \`choice\`), the direct children of a ChoiceControl, which says the choice as one of N and adds nothing to how they look`, pos),
     // A WARNING: toggles used as one of several — sibling controls of one class,
@@ -363,9 +385,6 @@ export const Diag = {
     // what the runtime drew, not the program's: it differs by renderer and does not
     // exist on the Mac, and what a script reaches into it for is a Declare word.
     scriptSearchesPage: (lookup, pos) => err(code4(4033), `this script looks up elements in the page (${lookup}) — the views a program draws belong to the runtime: they differ between renderers and are not there on the Mac, so a lookup finds nothing, or the wrong thing, as the program changes. What a script reaches into the page for — focus, a field's value or autofill, scrolling, a size, a form — is a Declare attribute or class: ask npx declare-help <what you need> first. A script that hosts something of its own takes the element it is given (DOMIsland), never one it looks up`, pos),
-    // A WARNING: colorWithAlpha given a fraction for its alpha, which is a byte —
-    // 0.5 of 255 paints next to nothing, and nothing says so.
-    alphaAsFraction: (written, pos) => err(code4(4034), `colorWithAlpha's alpha is a byte, 0 to 255, so ${written} is all but transparent — half is 128, or write the color as an 0xRRGGBBAA literal (0x00000080)`, pos),
     // A WARNING: a label on a view that has no role. A name belongs to a role —
     // ARIA forbids naming a plain group of nothing — so the label reaches no
     // screen reader and no locator, and nothing said so.
@@ -388,9 +407,9 @@ export const Diag = {
     // is meaningful ONLY inside a class body. `where` names the non-class body the
     // code is actually in ("the App", "a style bundle").
     classrootOutsideClass: (where, pos) => err(code4(4003), `'classroot' is the root of a class you define — valid only inside a class body. This code is in ${where}, not a class. Reach values here by a bare name, 'this', or 'app'.`, pos),
-    // A CSS color NAME resolved as a bare identifier inside { } — the name form is
-    // a bare-slot literal, not an identifier the { } world knows, so name the 0x form.
-    namedColorInExpr: (name, hex, pos) => err(code4(4004), `'${name}' is a named color — the name form works only as a bare value; inside { } write it as ${hex}.`, pos),
+    // A CSS color NAME written as a bare identifier inside { } — a bare word is a
+    // bare-slot literal; inside { } the same name is a string.
+    namedColorInExpr: (name, hex, pos) => err(code4(4004), `'${name}' is a named color — inside { } a color is a string or a number: write "${name}" (or ${hex}).`, pos),
     // 5xxx module / include
     includeCollision: (message, pos) => err(code4(5001), message, pos),
     missingInclude: (path, pos) => err(code4(5002), `cannot find include "${path}"`, pos),
@@ -528,9 +547,9 @@ export const DIAGNOSTIC_CATALOG = [
     { code: code4(4032), phase: "name", summary: "a radio whose parent is no RadioGroup — no group to be one of (warning)" },
     { code: code4(4033), phase: "name", summary: "a browser script that looks up elements in the page — the views belong to the runtime (warning)" },
     { code: code4(4035), phase: "name", summary: "an accessibilityLabel on a view with no role — nothing reads it (warning)" },
-    { code: code4(4034), phase: "name", summary: "colorWithAlpha given an alpha between 0 and 1 — the alpha is a byte, 0 to 255 (warning)" },
     { code: code4(4031), phase: "name", summary: "an onKeyDown on a Control that never calls super.onKeyDown — Space, Enter and the arrows stop (warning)" },
     { code: code4(4041), phase: "name", summary: "an onChange on a node that tracks nothing — it never runs (warning)" },
+    { code: code4(4043), phase: "name", summary: "a view written inside a Button, which places only its own icon and label (warning)" },
     { code: code4(4042), phase: "name", summary: "a method under a delivery hook's former name (input for commit, sortInput for applySort, expandInput for applyExpanded, …) — never called (warning)" },
     { code: code4(4027), phase: "name", summary: "a control hidden from a screen reader that the keyboard still reaches (warning)" },
     { code: code4(4025), phase: "name", summary: "a constraint whose decisions are nested three deep, or one condition with four or more parts (warning)" },

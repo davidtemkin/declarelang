@@ -30,29 +30,33 @@ import { phasesOn, phased } from "./phase-timer.js"; // dependency-free: the mea
 import { rewriteDatapaths } from "./datapath.js";
 import { diag } from "./errors.js";
 import { keysCaller } from "./keys.js";
-import { colorWithAlpha, gradient, shadow, colorStop, stroke } from "./value.js";
+import { gradient, shadow, colorStop, stroke } from "./value.js";
+import { ColorOps } from "./color.js";
 import { blur, brightness, conicGradient, contrast, frost, grayscale, hueRotate, invert, radialGradient, saturate, sepia, colorize } from "./effects.js";
-// The ruled value constructors, in scope inside every `{ }` body — the "one
-// vocabulary, two lexical homes" ruling: the same names the literal grammar
-// admits (`stroke = stroke(1, #B0B0B0)`) are ordinary functions in TS
-// position (`shadow(0, 1, hover ? 6 : 2, 0x222222)`). They enter through a
-// leading hidden argument (never globals); the compile layer leaves
-// CALLEE-position uses of these names unresolved so `stroke(…)` is the
-// constructor while bare `stroke` stays the slot.
-const DECOR = { gradient, radialGradient, conicGradient, stroke, shadow, colorStop, frost, blur, brightness, contrast, saturate, grayscale, invert, sepia, hueRotate, colorize };
-// The lowering target for `0xRRGGBBAA` literals (compile.ts rewrites each 8-hex
-// color literal to a colorWithAlpha(…) call): in scope so the resolved body can
-// call it, but NOT a user-written value constructor — kept out of DECOR so
-// CONSTRUCTOR_NAMES stays the five the grammar names.
-const LOWERED = { colorWithAlpha };
+// The platform's builders, in scope inside every `{ }` body, each reached
+// through the type it builds (global-names.md): `Stroke(1, 0xB0B0B0)`,
+// `Shadow(…)`, `Gradient.linear(…)`, `VisualFilter.blur(3)`, `Easing.steps(4)`.
+// The same spellings are the literal grammar's (`stroke = Stroke(1, #B0B0B0)`),
+// so a value reads the same in `[ ]` and in `{ }`. They enter through a leading
+// hidden argument (never globals).
+const Gradient = Object.freeze({ linear: gradient, radial: radialGradient, conic: conicGradient, stop: colorStop });
+const VisualFilter = Object.freeze({ frost, blur, brightness, contrast, saturate, grayscale, invert, sepia, hueRotate, colorize });
+const Easing = Object.freeze({
+    cubicBezier: (x1, y1, x2, y2) => Object.freeze({ k: "bezier", x1, y1, x2, y2 }),
+    back: (overshoot) => Object.freeze({ k: "back", dir: "both", overshoot }),
+    steps: (n, jump) => Object.freeze({ k: "steps", n, jump: jump === "jumpStart" ? "start" : "end" }),
+    laszlo: (beginPole, endPole) => Object.freeze({ k: "laszlo", beginPole, endPole }),
+});
+// …and the operations on a Color (color.ts): `Color.withAlpha(c, 0.25)`, `Color.mix(…)`
+const DECOR = { Stroke: stroke, Shadow: shadow, Gradient, VisualFilter, Easing, Color: ColorOps };
 // Runtime SERVICES in body scope — `Focus.focus(this)` in a click handler is
 // the canonical use. Injected by index.ts at load through this registry (not
 // an import: expr.ts sits below focus.ts in the module graph). The scope
 // object and prelude are rebuilt on injection, never per body evaluation.
-let SCOPE = { ...DECOR, ...LOWERED };
+let SCOPE = { ...DECOR };
 let PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
 export function setBodyServices(services) {
-    SCOPE = { ...DECOR, ...LOWERED, ...services };
+    SCOPE = { ...DECOR, ...services };
     PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
 }
 /** The names every body has in scope from the runtime (the prelude's list) —
@@ -136,16 +140,9 @@ function scriptPrelude(scope) {
     const names = Object.keys(scope).filter((n) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(n));
     return names.length > 0 ? `const { ${names.join(", ")} } = $s;` : "";
 }
-/** The value-constructor names — the compile layer (compile.ts) skips these
- *  in callee position, and the checker reserves the two that are not already
- *  attribute names. */
+/** The builders' names in body scope (`Stroke`, `Gradient`, …): known to the
+ *  compile layer as globals a body may name. */
 export const CONSTRUCTOR_NAMES = Object.keys(DECOR);
-/** The filter functions (graphics-pass.md §1) — plain words (`blur`,
- *  `contrast`, `invert`…) a program may well want as ATTRIBUTE names, so they
- *  are reserved as method names only: an attribute called `blur` shadows the
- *  constructor inside that node's own `{ }` bodies and nowhere else, and the
- *  bare-slot call form (`visualFilter = blur(3)`) is unaffected by any member. */
-export const FILTER_FN_NAMES = ["blur", "brightness", "contrast", "saturate", "grayscale", "invert", "sepia", "hueRotate", "colorize"];
 /** Compile a body's source to a function, or say why it can't be. The
  *  error text is a fragment ("is not a valid expression — …") for callers
  *  to prefix with the slot's name; one wording, used by check() at check
@@ -317,7 +314,7 @@ function refineBodyError(src, raw, expression, slot = "") {
     // (#f00, #ff0000) lexes as a private identifier — both are the same color mistake.
     const hash = src.match(/#([0-9a-fA-F]{3,8})(?![0-9a-fA-F])/);
     if (hash && /invalid character|private identifier/i.test(raw)) {
-        return diag `${head} — inside { } a color is written ${hashToOx(hash[1])}, not ${hash[0]} (the #… and named-color forms work only as bare values)`;
+        return diag `${head} — inside { } a color is a string or a number: write "${hash[0]}" (or ${hashToOx(hash[1])}), not a bare ${hash[0]}`;
     }
     // A CSS percentage. `width = { 100% }` is the mistake the language map itself
     // highlights, and TS answers it with "Expression expected" — true, and useless.

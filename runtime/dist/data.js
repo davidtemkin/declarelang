@@ -929,20 +929,21 @@ export class DataSource extends Dataset {
     $maybeAuto() {
         if (!this.autoFetch)
             return;
-        // Inside a settle the decision waits for its close: the same assignment that
-        // changes the address can take the view holding this source away (`exists`
-        // turning false as the location empties the slug), and a source that is
-        // leaving must not fetch on its way out. A source discarded before the settle
-        // closes drops the step ($afterSettle); one still alive decides on the
-        // address as the settle left it.
-        if (isSettling()) {
-            if (!this.$autoQueued) {
-                this.$autoQueued = true;
-                this.$afterSettle(() => { this.$autoQueued = false; this.$autoNow(); });
-            }
-            return;
+        // The decision waits for the settle's close, always: the request is made from
+        // the source as the whole tree settled it. Within a settle, the same assignment
+        // that changes the address can take the view holding this source away (`exists`
+        // turning false as the location empties the slug), and a source that is leaving
+        // must not fetch on its way out. While the tree is being built, `url` takes its
+        // value before the attributes declared after it are bound: a request made then
+        // went out without its `headers` (RealWorld run 3: a signed-in reload sent
+        // GET /user with no Authorization and was answered 401), or on a first value a
+        // later attribute was about to change (Front page run 4: the phone ad sizes at
+        // a desk width). A source discarded before the settle closes drops the step
+        // (Node.afterSettle); one still alive decides on the address as it was left.
+        if (!this.$autoQueued) {
+            this.$autoQueued = true;
+            this.afterSettle(() => { this.$autoQueued = false; this.$autoNow(); });
         }
-        this.$autoNow();
     }
     $autoQueued = false;
     $autoNow() {

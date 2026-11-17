@@ -251,7 +251,7 @@ export class Text extends View {
                 textStroke: this.textStroke,
                 textTransform: this.textTransform,
                 smallCaps: this.smallCaps,
-                numerals: this.numerals,
+                numeralStyle: this.numeralStyle,
                 numeralWidth: this.numeralWidth,
                 slashedZero: this.slashedZero,
                 underline: this.underline,
@@ -324,7 +324,7 @@ defineAttributes(Text, {
     smallCaps: { def: false },
     // OpenType figures: `normal` on either axis is the face's own default, which
     // is why both tabular and proportional are sayable (schema.ts says the rest).
-    numerals: { def: "normal" },
+    numeralStyle: { def: "normal" },
     numeralWidth: { def: "normal" },
     slashedZero: { def: false },
     underline: { def: false },

@@ -127,6 +127,8 @@ export declare class Cell {
  *  re-records — so a draw body always records against settled attributes. */
 export type Phase = 0 | 1;
 export declare function setAddressOf(f: (o: object) => string | null): void;
+/** A node's address for a message (its path), when the tree has given one. */
+export declare function addressFor(o: object): string | null;
 /** A standing computation: `compute` runs with read-tracking on, `apply`
  *  lands the result with tracking off (its writes *invalidate* dependents;
  *  they must never register as dependencies). On the tracking path the
@@ -379,4 +381,4 @@ export declare function retireValue(v: unknown): void;
 export declare function settle(): void;
 /** attributes.ts installs the push sweep (it knows cell → view, slot). */
 export declare function setPushHook(fn: (cells: Uint32Array) => void): void;
-export declare function observe<T>(read: () => T, onChange: (value: T) => void, label?: string): () => void;
+export declare function observe<T>(read: () => T, onChange: (value: T) => void, label?: string, atEnd?: boolean): () => void;

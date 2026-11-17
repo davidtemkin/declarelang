@@ -21,7 +21,7 @@
 // So a run asking for features resolves to a DERIVED family name, and the name
 // is what travels:
 //
-//   fontFamily = [Hoefler, "Georgia"] + numerals = lining
+//   fontFamily = [Hoefler, "Georgia"] + numeralStyle = lining
 //     → "Hoefler--ot--lnum, Hoefler, Georgia--ot--lnum, Georgia"
 //
 // Every base family stays in the list right behind its derived twin, so a
@@ -37,9 +37,9 @@ import { derivedName, ensureDerived } from "./font-derive.js";
 /** A style's OpenType feature tags, sorted so one combination has one name. */
 export function featureTags(style) {
     const tags = [];
-    if (style.numerals === "lining")
+    if (style.numeralStyle === "lining")
         tags.push("lnum");
-    else if (style.numerals === "oldstyle")
+    else if (style.numeralStyle === "oldstyle")
         tags.push("onum");
     if (style.numeralWidth === "tabular")
         tags.push("tnum");

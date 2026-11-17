@@ -1,6 +1,6 @@
 import { type FontWeight, type TextTransform } from "./measure.js";
 import { type Color, type Shadow } from "./value.js";
-import type { Numerals, NumeralWidth } from "./font-features.js";
+import type { NumeralStyle, NumeralWidth } from "./font-features.js";
 /** The style of one drawn run — a `style` bundle or an inline record of `Text`
  *  attribute names (text-measure.ts takes the same). A field left out takes its
  *  plain default, never an inherited value. */
@@ -14,7 +14,7 @@ export interface DrawTextStyle {
     textShadow?: Shadow | null;
     textTransform?: TextTransform;
     smallCaps?: boolean;
-    numerals?: Numerals;
+    numeralStyle?: NumeralStyle;
     numeralWidth?: NumeralWidth;
     slashedZero?: boolean;
     textFill?: unknown;

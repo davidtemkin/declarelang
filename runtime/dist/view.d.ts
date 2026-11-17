@@ -228,6 +228,12 @@ export declare class View extends Node {
      *  coordinates (default the top-left corner); 1 = no transform. Spring it for
      *  zoom effects — it never affects layout, exactly like opacity. */
     scale: number;
+    /** The range `scale` stays in — `minWidth`/`maxWidth` for a scale: a scale written or
+     *  computed outside it is held at the nearer bound. How the scale changes (a pinch,
+     *  buttons) is the program's; this says only how far it may go, and tells the
+     *  checking tools how large what is inside can become. null = no bound. */
+    minScale: number | null;
+    maxScale: number | null;
     pivotX: number;
     pivotY: number;
     /** Where this view's center is, in its own coordinates — the point that
@@ -638,6 +644,8 @@ export declare class View extends Node {
     /** True while this view holds keyboard focus — a reactive, read-only fact on
      *  every view, set by the focus service (`Focus.focus(v)` moves it). */
     get focused(): boolean;
+    /** Focus is on this view or anything inside it. */
+    get containsFocus(): boolean;
     get pressed(): boolean;
     /** Is this view ON SCREEN — inside the viewport, not scrolled away, not in
      *  a hidden subtree? A COARSE fact that flips at threshold crossings, so
@@ -1027,6 +1035,15 @@ export interface KeyLayer {
 }
 export declare function setKeyDefaultHook(fn: (view: View, e: unknown) => void): void;
 export declare function noteFocused(now: View | null, byKeyboard?: boolean): void;
+export declare function readContainsFocus(v: View): boolean;
+export declare function readFocusedView(app: View): View | null;
+/** The focus service hands the focused control's live outline here (focus.ts). */
+export declare function noteFocusGeometry(g: {
+    readonly root?: unknown;
+} | null): void;
+export declare function provideGeometryDemand(fn: () => void): void;
+export declare function readFocusGeometry(app: View): unknown;
+export declare function readTooltipRequest(app: View): unknown;
 /** A node's address for an error message: its authored-name path up the tree
  *  (`app.pulse.card`), or its class when anonymous. Cheap, and built only once
  *  a handler has already thrown. */
@@ -1045,6 +1062,12 @@ export declare function withStartingHost<T>(size: {
     height: number;
 } | null, build: () => T): T;
 export declare class App extends View {
+    /** The view that holds keyboard focus in this program, or null. */
+    get focusedView(): View | null;
+    /** The focused control's live outline — what a focus ring follows — or null. */
+    get focusGeometry(): unknown;
+    /** The tooltip a view in this program is asking for now, or null. */
+    get tooltipRequest(): unknown;
     constructor();
     /** At build, when the boot knows the host's size: an unset width and height
      *  START at the host's (a runtime write — not a binding, not the program's
@@ -1106,6 +1129,9 @@ export declare class App extends View {
     /** Whether the app fills the screen — read it to follow the platform (Esc
      *  leaves full screen), write it to enter or leave. */
     fullScreen: boolean;
+    /** Whether the app holds changes it hasn't saved yet: the host asks before the
+     *  app goes while it is true (schema.ts). */
+    unsavedChanges: boolean;
     /** "Is this device built for touch?" — true when the device's primary pointer
      *  is coarse (`pointer: coarse`): a phone or tablet, keyboard or not. A stable device fact fed
      *  live by the runtime, to size from; a hover reveal keys on `lastPointerType`, and
@@ -1200,6 +1226,9 @@ export declare class App extends View {
      *  or leave full screen when the attribute is written. Null in a host that
      *  has none — the attribute then only records what was asked. */
     $fullScreenHost: ((on: boolean) => void) | null;
+    /** @internal the native host's edited mark, told as `unsavedChanges` changes
+     *  (the browser reads the attribute when the page is about to go). */
+    $unsavedHost: ((on: boolean) => void) | null;
     /** @internal an EMBEDDED tenant's line to its host island (linkIslandTenant
      *  installs it). Null = not linked (a top-level app, or never linked) —
      *  send() says so instead of vanishing. */
@@ -1300,19 +1329,27 @@ export declare class App extends View {
      *  it (a computed-location family, or the bare ""). Resolved at dispatch
      *  time, off the settled tree. */
     private $destinationView;
-    /** @internal the values the host provides, by name (Node.$hostProvided reads).
+    /** @internal the values the host provides, by name (`hostProvided` reads).
      *  Seeded from build's `provides` when there are any, so the app's very
      *  first evaluation — at instantiate, before any settle or link — reads them.
      *  Null in a build without host values (boundary.ts): no read could reach them. */
     readonly $hostValues: BoundaryValues | null;
     /** The HOST's write: make `value` available to this app under `name` — what
-     *  a `hostProvided("name", …)` read in the program returns. Called by the
+     *  an `app.hostProvided("name", …)` read in the program returns. Called by the
      *  island bridge for each name the island `provides`, by a page embedding
      *  this app (its tenant handle's `provide(…)`, or `boot({ provides })`), and by
      *  the native host for its launch parameters. Internal: the page's door is the
      *  tenant handle, so the name stays the program's. Equality-gated; a change
      *  re-derives every reader. `undefined` withdraws the value (readers fall to
      *  their defaults). Data only — a host never hands over a node. */
+    /** A value this program's HOST makes available under `name`: an island's
+     *  `provides` name, a page's `tenant.provide(…)`, the native host's launch
+     *  parameters. A fact of the program, so it is the App's, read the same from
+     *  anywhere: `app.hostProvided("theme", SanFrancisco)`. The default types the
+     *  read and stands in when nothing is provided (running standalone, or the
+     *  host did not list the name); with no default an absent value throws,
+     *  naming it. */
+    hostProvided(name: string, fallback?: unknown): unknown;
     $provideHostValue(name: string, value: unknown): void;
     /** The value this app exposes under `name` — one of its `exposes` names — or
      *  undefined when it exposes no such name. Behind the page's read (the tenant

@@ -1,5 +1,5 @@
 class Swatch extends ChoiceItem [ width = 40, height = 40, cornerRadius = 20,
-    stroke = { on ? stroke(3, 0x1E2A38) : null },
+    stroke = { on ? Stroke(3, 0x1E2A38) : null },
     accessibilityLabel = { choice }
     ]
 

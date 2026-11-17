@@ -6,6 +6,9 @@ import { type Where } from "./errors.js";
  *  equality, not identity). */
 export interface AttrSpec<S, V> {
     def: V;
+    /** A Color slot: a CSS hex string written to it is stored as its number
+     *  (value.ts toColor), so a read gives the number however it was written. */
+    color?: true;
     /** A NULLABLE number ("n") or boolean ("b") — a declared `number | null`:
      *  a table slot whatever its default, its null carried by the cell's flag. */
     nullable?: "n" | "b";
@@ -54,6 +57,10 @@ export interface AttrSpec<S, V> {
      *  no carrier of this hook follows or defBinds. */
     tracked?: (self: S, v: V) => V;
 }
+/** The built-in color attributes, by name: a name means one thing on every
+ *  class (a program cannot redeclare `fill` as a string). Pinned against the
+ *  schemas' color and fill attributes by test/color-strings.test.mjs. */
+export declare const BUILTIN_COLOR_ATTRS: ReadonlySet<string>;
 /** The instance and slot a kernel cell belongs to, when it is a numeric block
  *  slot — the push sweep's lookup, exposed for tooling that names cells (the
  *  wake trace). null for a cell that is no instance slot. */
@@ -177,7 +184,7 @@ export declare function providedDefault(name: string, def: unknown): (this: unkn
  *  into a `TextStyle`. They cannot drift, which matters because a measurement
  *  taken with different defaults than the run it is measuring is silently wrong.
  *  Only these five are provided; the rest of `TextStyle` (italic, small caps,
- *  numerals, the treatments) is per-run and nobody provides it. */
+ *  numeralStyle, the treatments) is per-run and nobody provides it. */
 export declare const PROVIDED_FACE: readonly (readonly [string, unknown])[];
 /** The face table as `defineAttributes` entries — what a text leaf declares. */
 export declare function faceSlots(): Record<string, {

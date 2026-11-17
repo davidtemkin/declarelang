@@ -19,7 +19,7 @@ export declare function untrackNode(node: object): void;
  *  names were written. Returns whether anything fired, so the loop knows to run
  *  another pass for whatever the handlers wrote. */
 export declare function fireChanges(): boolean;
-/** The settle chain is over (reactive.ts, in its cleanup): a value may be
- *  delivered again in the next chain. */
+export declare function chainRunners(): string;
+/** The settle is over (reactive.ts, in its cleanup): the counts start again. */
 export declare function endChangeChain(): void;
 export {};

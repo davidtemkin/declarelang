@@ -7,12 +7,6 @@ export { coerceToken };
  *  `app` is the running-App noun (compiles to `this.$root`); reserving it here
  *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
 export declare const NOUNS: string[];
-/** The value-constructor names are reserved as member names:
- *  in call position a body's `gradient(…)` is always the constructor, so a
- *  member wearing the name would be unreachable there. (`fill`/`stroke`/
- *  `shadow` are already View attributes — the ordinary collision rules cover
- *  them; this catches the two that are not.) */
-export declare const RESERVED: readonly string[];
 /** The other node reference the scaffold declares on every View, beside the
  *  §11 nouns above: `children`, Node's own child list. It is not a scope noun
  *  and not a schema attribute either, so the ordinary "a child may not take an

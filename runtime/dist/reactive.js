@@ -25,7 +25,7 @@
 // before that (a module-level Cell) allocate their ids lazily.
 import { phasesOn, phased, registerPhaseHooks, wrapMethods } from "./phase-timer.js";
 import { DeclareError } from "./errors.js";
-import { endChangeChain, fireChanges } from "./change-event.js";
+import { chainRunners, endChangeChain, fireChanges } from "./change-event.js";
 import { instantiateKernel, instantiateKernelSync, instantiateKernelNative, hasNativeKernel, decodeWasm, emptyImage, KERNEL_ERR, KERNEL_KIND, KERNEL_FLAG, KERNEL_STATE, KERNEL_TRACK, CELL_KIND, } from "./kernel-loader.js";
 import { KERNEL_WASM_B64 } from "./kernel-wasm.js";
 import { instantiateKernelJS as kernelJS } from "./kernel-js.js";
@@ -298,12 +298,13 @@ const HOST = {
             const owner = RULES[rule]?.owner;
             const at = owner != null ? addressOf?.(owner) ?? null : null;
             const loop = cycleLoop(rule);
-            pendingError = new DeclareError(`constraint cycle: ${label}${at !== null ? ` (at ${at})` : ""} re-evaluated ${CYCLE_LIMIT} times in one update — it (transitively) depends on its own output${loop !== null ? `. The loop: ${loop}` : ""}`);
+            pendingError = new DeclareError(`constraint cycle: ${label}${at !== null ? ` (at ${at})` : ""} re-evaluated ${CYCLE_LIMIT} times in one settle — it (transitively) depends on its own output${loop !== null ? `. The loop: ${loop}` : ""}`);
         }
         else if (code === KERNEL_ERR.AFTER) {
+            const runners = chainRunners();
             pendingError = new DeclareError(stepsRan
-                ? `afterSettle: steps re-armed ${AFTER_LIMIT} times in one settle — a step (transitively) registers itself again`
-                : `onChange: handlers re-armed ${AFTER_LIMIT} settles in one chain`);
+                ? `afterSettle: steps kept one settle going for ${AFTER_LIMIT} rounds — a step (transitively) registers itself again`
+                : `onChange: change handlers kept one settle going for ${AFTER_LIMIT} rounds — ${runners !== "" ? runners : "a handler"}: what a handler assigns keeps changing what it tracks. The settle stopped; what was assigned so far stands`);
         }
         else if (code !== KERNEL_ERR.ABORT) {
             pendingError = new DeclareError(`kernel: settle failed (${code}) at ${RULES[rule]?.label ?? `rule ${rule}`}`);
@@ -850,6 +851,8 @@ const AFTER_LIMIT = 100;
  *  rule is; set by node-path.ts, which this module cannot import. */
 let addressOf = null;
 export function setAddressOf(f) { addressOf = f; }
+/** A node's address for a message (its path), when the tree has given one. */
+export function addressFor(o) { return addressOf?.(o) ?? null; }
 /** Where a rule failed, said on the error itself, once, at the innermost rule
  *  — the node's place in the program's tree. A failure inside the library's
  *  own code (a calendar given a date that is not one) otherwise names only the
@@ -1543,6 +1546,14 @@ export function settle() {
         if (d.length > 0)
             pushHook(d);
     }
+    // the observers that wait for the whole settle; anything they write is a settle of its own
+    if (ended.length > 0) {
+        const batch = ended.splice(0);
+        for (const fn of batch)
+            fn();
+        if (K.pending() || after.length > 0)
+            schedule();
+    }
 }
 let pushHook = null;
 /** attributes.ts installs the push sweep (it knows cell → view, slot). */
@@ -1560,27 +1571,48 @@ export function setPushHook(fn) { pushHook = fn; }
 //
 // Not language surface — a `{ }` body needs no subscription because the whole
 // language is the subscription. This is for the JS on the far side of an App.
-export function observe(read, onChange, label = "observe") {
+//
+// `atEnd`: deliver once the whole settle has ended — every round of it — rather
+// than at the close of the round that changed it. The history mirror uses it, so
+// a settle in which a handler moves `location` again is still one entry.
+export function observe(read, onChange, label = "observe", atEnd = false) {
     let last;
+    let told;
     let first = true;
     let armed = false;
+    let live = true;
+    const deliver = () => {
+        armed = false;
+        if (!live || (atEnd && sameResult(told, last)))
+            return; // moved and moved back over the settle's rounds
+        told = last;
+        onChange(last);
+    };
     const c = new Constraint(label, read, (v) => {
         if (first) {
             first = false;
-            last = v;
+            last = told = v;
             return;
         }
         if (sameResult(last, v))
             return;
         last = v;
         if (armed)
-            return; // one call per settle, with the settle-final value
+            return; // one call per settle (per round, unless atEnd), with the final value
         armed = true;
-        afterSettle(() => { armed = false; onChange(last); });
+        if (atEnd) {
+            ended.push(deliver);
+            if (!inSettle)
+                schedule();
+        }
+        else
+            afterSettle(deliver);
     });
     c.run();
-    return () => c.dispose();
+    return () => { live = false; c.dispose(); };
 }
+/** The `atEnd` observers armed in this settle, run once it has ended (settle()). */
+const ended = [];
 /** observe's result equality: Object.is, plus one level of array shallow-compare. */
 function sameResult(a, b) {
     if (Object.is(a, b))

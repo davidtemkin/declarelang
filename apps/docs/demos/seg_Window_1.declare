@@ -1,6 +1,6 @@
 App [ width = 560, height = 260, fill = #E6E9EE,
     Window [ x = 40, y = 40, width = 240, height = 160, rotation = -4, frame = false, title = "Tilted",
-        cornerRadius = 10, fill = white, shadow = { shadow(0, 6, 20, 0x00000033) },
+        cornerRadius = 10, fill = white, shadow = { Shadow(0, 6, 20, 0x00000033) },
         Text [ x = 16, y = 16, text = "A window of its own design" ],
         TextInput [ x = 16, y = 52, width = 200, accessibilityLabel = "Note" ]
         ]

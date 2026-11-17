@@ -1,8 +1,16 @@
 import { type Program } from "../../runtime/dist/parser.js";
 import { DeclareError } from "../../runtime/dist/errors.js";
+/** A string literal in a body that TypeScript types as a color, by its holder:
+ *  its place in the body as checked and the number that replaces it. */
+export type ColorLiteral = {
+    start: number;
+    end: number;
+    text: string;
+};
 export declare function typecheckBodies(text: string, program: Program, mainStart?: number, prefix?: string): {
     errors: DeclareError[];
     oracle: TypeOracle | null;
+    colors?: Map<object, ColorLiteral[]>;
 };
 /** The L-21 TYPE ORACLE (RULED 2026-09-01: method calls resolve with TS
  *  semantics, no deviation). Dependency extraction asks, for a { } body it is

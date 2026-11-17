@@ -36,7 +36,7 @@ export declare const HOST_VALUE_GLOBALS: ReadonlySet<string>;
 export declare function tsType(t: AttrType): string;
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
- *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the
+ *  declarable value vocabulary (`number`, `string`, `array`, `LayoutAxis`, …) and the
  *  classes, every one of which is emitted here as a peer
  *  `declare class`. Returns null when the name is neither, so the caller can
  *  report it positioned against the author's text.

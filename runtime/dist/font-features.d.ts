@@ -1,10 +1,10 @@
 /** The shape of the digits: `normal` is whatever the face does by default. */
-export type Numerals = "normal" | "lining" | "oldstyle";
+export type NumeralStyle = "normal" | "lining" | "oldstyle";
 /** The advance of the digits: `tabular` = every digit the same width. */
 export type NumeralWidth = "normal" | "tabular" | "proportional";
 /** A style's OpenType feature tags, sorted so one combination has one name. */
 export declare function featureTags(style: {
-    numerals?: Numerals;
+    numeralStyle?: NumeralStyle;
     numeralWidth?: NumeralWidth;
     slashedZero?: boolean;
 }): string[];

@@ -1045,6 +1045,8 @@ export class View extends Node {
     /** True while this view holds keyboard focus — a reactive, read-only fact on
      *  every view, set by the focus service (`Focus.focus(v)` moves it). */
     get focused() { return readFocused(this); }
+    /** Focus is on this view or anything inside it. */
+    get containsFocus() { return readContainsFocus(this); }
     get pressed() { return (!isDisabled(this) && readPressed(this)) || this.flash === true; }
     /** The default focus-traversal members of this view: its visible View
      *  children in source order (docs/system-design/input.md, Layer 2). The focus
@@ -1939,6 +1941,15 @@ export class View extends Node {
  *  backend keeps a single transform and never sees a half-updated pivot. */
 /** A filter list at the seam is null when empty — a backend keys "none" on null. */
 const nullIfEmpty = (l) => (l.length === 0 ? null : l);
+/** A bound moved: a constraint over the scale asks again (what it wants may now be
+ *  reachable — 5 under a max raised from 2 to 3 is 3), and a written scale is held anew. */
+const reholdScale = (v) => {
+    const o = ownerOf(v, "scale");
+    if (o !== null && typeof o.run === "function")
+        o.run();
+    else
+        setBound(v, "scale", v.scale);
+};
 const pushTransform = (v) => {
     const s = v.$surface;
     if (s === null)
@@ -2098,7 +2109,19 @@ defineAttributes(View, {
     // re-pushes the combined value (transform + transform-origin on the DOM).
     // setScale always accompanies setRotation so a backend can keep ONE
     // composed transform without ordering questions.
-    scale: { def: 1, push: pushTransform },
+    // a constraint's scale lands in the kernel's table without passing the write path's hold
+    // (attributes.ts write): one outside minScale/maxScale is held here, before it is shown
+    scale: { def: 1, push: (v, k) => {
+            const lo = v.minScale, hi = v.maxScale;
+            if (typeof k === "number" && ((hi != null && k > hi) || (lo != null && k < lo))) {
+                setBound(v, "scale", hi != null && k > hi ? hi : lo);
+                return;
+            }
+            pushTransform(v);
+        } },
+    // a bound that moves holds the scale it now excludes (attributes.ts write, the one door)
+    minScale: { def: null, push: (v, _b) => reholdScale(v) },
+    maxScale: { def: null, push: (v, _b) => reholdScale(v) },
     pivotX: { def: 0, push: pushTransform },
     pivotY: { def: 0, push: pushTransform },
     // unset: the middle of the box, read live (no rule per view); set: where
@@ -2316,11 +2339,93 @@ export function noteFocused(now, byKeyboard = false) {
         focusedCells.get(old)?.changed();
     if (now !== null)
         focusedCells.get(now)?.changed();
+    // what holds focus, at each level: the views around the old focus and the new
+    for (const end of [old, now])
+        for (let v = end; v !== null; v = holderOf(v))
+            containsCells.get(v)?.changed();
+    FOCUS_MOVED.changed();
     // a tip shows for the keyboard's focus as for the pointer's hover, and goes when it leaves
     if (old !== null && old.tooltipLabel !== "")
         Tooltips.out(old);
     if (now !== null && byKeyboard && now.tooltipLabel !== "")
         Tooltips.over(now);
+}
+// ── the focus facts: containsFocus, and the App's focusedView, focusGeometry
+// and tooltipRequest — states read as any attribute is, where a placed relay
+// once handed them to a handler
+/** The view a view sits in, across a hosted program's island. */
+function holderOf(v) {
+    if (v.parent instanceof View)
+        return v.parent;
+    const host = v.$hostIsland ?? null;
+    return host instanceof View ? host : null;
+}
+const containsCells = new WeakMap();
+/** Any focus move: what an App's focusedView reads. */
+const FOCUS_MOVED = new Cell();
+export function readContainsFocus(v) {
+    let c = containsCells.get(v);
+    if (c === undefined) {
+        const cell = (c = new Cell());
+        containsCells.set(v, cell);
+        onDiscard(v, () => { cell.free(); containsCells.delete(v); });
+    }
+    c.track();
+    for (let n = FOCUSED; n !== null; n = holderOf(n))
+        if (n === v)
+            return true;
+    return false;
+}
+function programOf(v) { let n = v; while (n.parent instanceof View)
+    n = n.parent; return n; }
+export function readFocusedView(app) {
+    FOCUS_MOVED.track();
+    return FOCUSED !== null && programOf(FOCUSED) === app ? FOCUSED : null;
+}
+let GEOMETRY = null;
+const GEOMETRY_MOVED = new Cell();
+/** The focus service hands the focused control's live outline here (focus.ts). */
+export function noteFocusGeometry(g) {
+    // the follower re-reports an outline on every settle that might have moved it;
+    // the fact changes only when the outline did, so a watcher hears one change per move
+    if (g !== null && GEOMETRY !== null && sameFields(g, GEOMETRY))
+        return;
+    GEOMETRY = g;
+    GEOMETRY_MOVED.changed();
+}
+function sameFields(a, b) {
+    const ka = Object.keys(a), kb = Object.keys(b);
+    if (ka.length !== kb.length)
+        return false;
+    for (const k of ka)
+        if (!Object.is(a[k], b[k]))
+            return false;
+    return true;
+}
+/** The focus service's follower runs only while something wants the outline:
+ *  the first read of focusGeometry asks for it (focus.ts provides the ask). */
+let wantGeometry = null;
+export function provideGeometryDemand(fn) { wantGeometry = fn; }
+export function readFocusGeometry(app) {
+    if (wantGeometry !== null) {
+        const w = wantGeometry;
+        wantGeometry = null;
+        w();
+    }
+    GEOMETRY_MOVED.track();
+    FOCUS_MOVED.track();
+    return FOCUSED !== null && programOf(FOCUSED) === app ? GEOMETRY : null;
+}
+let TIP = null;
+const TIP_MOVED = new Cell();
+let tipWired = false;
+export function readTooltipRequest(app) {
+    if (!tipWired) {
+        tipWired = true;
+        Tooltips.onTooltip((e) => { TIP = e; TIP_MOVED.changed(); });
+    }
+    TIP_MOVED.track();
+    return TIP !== null && (TIP.root === app || (TIP.root instanceof View && programOf(TIP.root) === app)) ? TIP : null;
 }
 function readFocused(v) {
     let c = focusedCells.get(v);
@@ -2519,6 +2624,12 @@ export function withStartingHost(size, build) {
     }
 }
 export class App extends View {
+    /** The view that holds keyboard focus in this program, or null. */
+    get focusedView() { return readFocusedView(this); }
+    /** The focused control's live outline — what a focus ring follows — or null. */
+    get focusGeometry() { return readFocusGeometry(this); }
+    /** The tooltip a view in this program is asking for now, or null. */
+    get tooltipRequest() { return readTooltipRequest(this); }
     constructor() {
         super();
         if (startingHost !== null && startingHost.width > 0) {
@@ -2586,6 +2697,9 @@ export class App extends View {
      *  or leave full screen when the attribute is written. Null in a host that
      *  has none — the attribute then only records what was asked. */
     $fullScreenHost = null;
+    /** @internal the native host's edited mark, told as `unsavedChanges` changes
+     *  (the browser reads the attribute when the page is about to go). */
+    $unsavedHost = null;
     /** @internal an EMBEDDED tenant's line to its host island (linkIslandTenant
      *  installs it). Null = not linked (a top-level app, or never linked) —
      *  send() says so instead of vanishing. */
@@ -2843,19 +2957,36 @@ export class App extends View {
         walk(this);
         return found ?? this;
     }
-    /** @internal the values the host provides, by name (Node.$hostProvided reads).
+    /** @internal the values the host provides, by name (`hostProvided` reads).
      *  Seeded from build's `provides` when there are any, so the app's very
      *  first evaluation — at instantiate, before any settle or link — reads them.
      *  Null in a build without host values (boundary.ts): no read could reach them. */
     $hostValues = hostValuesFor(SEED_PROVIDES);
     /** The HOST's write: make `value` available to this app under `name` — what
-     *  a `hostProvided("name", …)` read in the program returns. Called by the
+     *  an `app.hostProvided("name", …)` read in the program returns. Called by the
      *  island bridge for each name the island `provides`, by a page embedding
      *  this app (its tenant handle's `provide(…)`, or `boot({ provides })`), and by
      *  the native host for its launch parameters. Internal: the page's door is the
      *  tenant handle, so the name stays the program's. Equality-gated; a change
      *  re-derives every reader. `undefined` withdraws the value (readers fall to
      *  their defaults). Data only — a host never hands over a node. */
+    /** A value this program's HOST makes available under `name`: an island's
+     *  `provides` name, a page's `tenant.provide(…)`, the native host's launch
+     *  parameters. A fact of the program, so it is the App's, read the same from
+     *  anywhere: `app.hostProvided("theme", SanFrancisco)`. The default types the
+     *  read and stands in when nothing is provided (running standalone, or the
+     *  host did not list the name); with no default an absent value throws,
+     *  naming it. */
+    hostProvided(name, fallback) {
+        const has = arguments.length > 1;
+        const hv = this.$hostValues;
+        if (hv === null) {
+            if (has)
+                return fallback;
+            throw new Error(`hostProvided("${name}"): this program has no host values`);
+        }
+        return hv.read(name, has, fallback);
+    }
     $provideHostValue(name, value) {
         if (value === undefined)
             this.$hostValues?.clear(name);
@@ -3066,6 +3197,8 @@ defineAttributes(App, {
     pageVisible: { def: true },
     // full screen, both ways: the host feeds it, and a write asks the host
     fullScreen: { def: false, push: (v, on) => v.$fullScreenHost?.(on) },
+    // unsaved work: the native host marks its window (the browser asks on leaving)
+    unsavedChanges: { def: false, push: (v, on) => v.$unsavedHost?.(on) },
     touchFirst: { def: false },
     hasTouch: { def: false },
     hasMouse: { def: true }, // a plain desktop until the profile says otherwise
@@ -3133,18 +3266,8 @@ defineAttributes(App, {
     language: { def: "en", push: (a, l) => a.$surface?.setLanguage?.(l) },
 });
 // THE CHANGE EVENT's delivery (change-event.ts wakes and batches; this module owns
-// the handler door). The node remembers which values it is being called for, so
-// attributes.ts can refuse the handler writing one of them back.
-setChangeDispatcher((node, changed) => {
-    const n = node;
-    n.$changing = new Set(changed.map((c) => c.name));
-    try {
-        fireEvent(node, "change", { changed });
-    }
-    finally {
-        n.$changing = undefined;
-    }
-});
+// the handler door).
+setChangeDispatcher((node, changed) => { fireEvent(node, "change", { changed }); });
 // THE CURSOR READ (node.ts holds the seam; the walk lives here because it is a
 // fact about views). `inheritedCursor` climbs from ANY node — so a Spring two
 // levels inside an AnimatorGroup resolves to the same view its siblings do —

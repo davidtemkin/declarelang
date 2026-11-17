@@ -137,6 +137,8 @@ export declare class FocusService {
      *  the ring's coordinate space stands still) stays subtracted. Hand-rolled
      *  x/y accumulation here was the scroll-blind focus ring (found 2026-07-31,
      *  the same missing term as the pointer walk's — ONE WALK, everywhere). */
+    /** Restart the follower: a reader of the geometry has arrived. */
+    refollow(): void;
     private retargetFollower;
     blur(): void;
     /** Focus does not stay on what the person can no longer reach. A standing

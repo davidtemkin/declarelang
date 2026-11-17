@@ -103,8 +103,15 @@ export function contractGaps(role, sets, has) {
 export function contractMessage(owner, role, gaps) {
     const k = ROLE_CONTRACTS[role];
     const reads = [...k.needs.map((n) => n), ...k.methods.map((m) => m + "()")].join(", ");
+    const attrs = gaps.filter((g) => !g.endsWith("()")), methods = gaps.filter((g) => g.endsWith("()"));
+    const fixes = [];
+    if (attrs.length > 0)
+        fixes.push(`Bind ${attrs.length === 1 ? "it" : "each"} to the class's own fact (${attrs[0]} = { … }).`);
+    if (methods.length > 0)
+        fixes.push(`Define ${methods.join(" and ")}: what the ${role} does when it is used.`);
+    if (methods.includes("press()"))
+        fixes.push(`A view that only goes somewhere is a link, not a ${role}: give it link and leave the role off.`);
     return `${owner} declares accessibilityRole = ${role}, and the ${role} role reads ${reads}; ` +
-        `${owner} has no ${gaps.join(" and no ")}. Set each one, usually by binding the class's own fact ` +
-        `(accessibilityValue = { value }), or define the method.`;
+        `${owner} has no ${gaps.join(" and no ")}. ${fixes.join(" ")}`;
 }
 //# sourceMappingURL=a11y-roles.js.map

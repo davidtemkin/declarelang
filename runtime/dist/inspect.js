@@ -18,6 +18,18 @@ import { findPath, pathOf, indexStep } from "./node-path.js";
  *  is a member's name, a child's index, or what a view says — its label, its
  *  accessible name or its text (`app.seg.Two`), quoted when it holds a dot or a
  *  space (`app.menu."Save As…"`). */
+/** A view a script's lookup can neither find nor be stopped by: it takes no
+ *  presses (pointerEvents "none", here or above) and holds nothing the semantic
+ *  tree reads (no role, no text) — chrome such as the focus ring. Its motion
+ *  never explains a lookup that failed. */
+function lookupBlind(o) {
+    if (!(o instanceof View))
+        return false;
+    let passes = false;
+    for (let a = o; a !== null && !passes; a = a.parent instanceof View ? a.parent : null)
+        passes = a.pointerEvents === "none";
+    return passes && semanticTree(o).children.length === 0;
+}
 export function find(root, path) {
     // the page API's calls take an address; a script that hands one an answer
     // (at()'s `{ path, kind }`, a view, null) is told what it holds and what to
@@ -639,7 +651,7 @@ export function bridgeFor(root) {
         ambiguity: (path) => ambiguity(root, path),
         /** The finite motion in flight now, named (`Spring (x) on app.panel`) — what
          *  clock.settling is true for; a Time or a looping animator is never listed. */
-        moving: () => motionInFlight((n) => `${profileName(root, n)}${n instanceof Node && authoredName(n) === null ? `, a ${declareName(n)}` : ""}`),
+        moving: (findable = false) => motionInFlight((n) => `${profileName(root, n)}${n instanceof Node && authoredName(n) === null ? `, a ${declareName(n)}` : ""}`, findable ? (o) => !lookupBlind(o) : undefined),
         /** Rung 4's questions of the booted program (boot-check.ts): what it can
          *  see wrong in reach and layout, which classes were never built, the
          *  answers to reads, an outline and the semantic tree. */
@@ -771,7 +783,7 @@ export function bridgeFor(root) {
 const BRIDGE_HELP = {
     inspect: "inspect(path?) — the node as data: kind, attrs summary, shown (no hidden ancestor) and inView (not clipped away either), children. Start here; paths look like 'app.sidebar.list'",
     find: "find(path) — the live node object itself (attributes readable/writable directly)",
-    moving: "moving() — the finite motion in flight now, each named by what it moves and where ('Spring (x) on app.panel'); what clock.settling is true for",
+    moving: "moving(findable?) — the finite motion in flight now, each named by what it moves and where ('Spring (x) on app.panel'); what clock.settling is true for. moving(true) leaves out motion on views a lookup can neither find nor be blocked by — no role or text in them, and no presses taken (the focus ring)",
     ambiguity: "ambiguity(path) — where a path names nothing because a step names two or more views alike: { at, step, matches } (their addresses), else null",
     explain: "explain(path, attr) — the slot's value AND its provenance: owning constraint or declaration default, source text, line, extracted deps. THE 'why is this value what it is' call",
     slots: "slots(path) — every slot on the node: written, constraint-owned, and author-declared (with origin). Enumeration — how you discover what to assert on",

@@ -68,14 +68,14 @@ export class Node {
     $provided(name, ...dflt) {
         return providedRead(this, name, dflt.length > 0, dflt[0]);
     }
-    /** The call behind `afterDelay(ms, fn)` — run `fn` once, `ms` milliseconds from
-     *  now. The compiler rewrites the callee to `this.$afterDelay`, so the wait
-     *  belongs to the node whose handler asked: discarding the node cancels it,
+    /** Run `fn` once, `ms` milliseconds from now. A method of the node, so a bare
+     *  `afterDelay(…)` in a body is its own node's, as a bare `width` is, and the
+     *  wait belongs to the node that asked: discarding the node cancels it,
      *  and the handle's `cancel()` drops it sooner. It never runs inside the
      *  frame that asked — the frame is shown first, so `afterDelay(0, fn)` is "next
      *  frame" — and it reads the wall clock through the one test seam
      *  (wallclock.ts), so a driver that advances Time advances this too. */
-    $afterDelay(ms, fn) {
+    afterDelay(ms, fn) {
         // asked by a node already discarded (its handler went on after discarding
         // it): nothing is left to run it on
         if (this.$tornDown)
@@ -123,16 +123,14 @@ export class Node {
         frame = host.frame !== undefined ? host.frame(afterFrame) : host.setTimeout(afterFrame, 0);
         return { cancel };
     }
-    /** The call behind `afterSettle(fn)` in a handler — run `fn` at the close of
-     *  the current settle. The compiler rewrites the callee to
-     *  `this.$afterSettle`, so the step belongs to the node whose handler asked,
-     *  as `afterDelay`'s wait does: a node discarded before the settle closes
+    /** Run `fn` at the close of the current settle. A method of the node, so the
+     *  step belongs to the node that asked, as `afterDelay`'s wait does: a node discarded before the settle closes
      *  drops it, and its step never reads a node that is gone (a form leaving
      *  the screen inside its own refusal handler threw from its deferred
      *  `showProblems()`). A node discarded before it asks — its handler discarded
      *  it and went on, as a refusal handler that leaves the screen does — has no
      *  step to take. */
-    $afterSettle(fn) {
+    afterSettle(fn) {
         if (this.$tornDown)
             return;
         let done = false;
@@ -149,27 +147,7 @@ export class Node {
             fn();
         });
     }
-    /** The read behind `hostProvided("name", default)` — a value this program's
-     *  HOST makes available: an island's `provides` name, a page's
-     *  a page's `tenant.provide(…)`, the native host's launch parameters. The compiler
-     *  rewrites the callee to `this.$hostProvided`; the value lives on the
-     *  running App (its host values), so every node in the program reads the
-     *  same one. The default types the read and stands in when nothing is
-     *  provided (running standalone, or the host did not list the name); with
-     *  no default an absent value throws, naming it. */
-    $hostProvided(name, ...dflt) {
-        let top = this;
-        while (top.parent !== null)
-            top = top.parent;
-        const hv = top.$hostValues;
-        if (hv == null) {
-            if (dflt.length > 0)
-                return dflt[0];
-            throw new Error(`hostProvided("${name}"): this node is not in a running app`);
-        }
-        return hv.read(name, dflt.length > 0, dflt[0]);
-    }
-    /** The read behind `providedTextStyle(overrides?)` — the `TextStyle` in force
+    /** The `TextStyle` in force
      *  at THIS node: the five provided face names, each falling to the same default
      *  a `Text` would (attributes.ts PROVIDED_FACE, the one table), with the
      *  caller's fields replacing any of them.
@@ -181,7 +159,7 @@ export class Node {
      *  value is a property of the node, not of where it is read: a value slot and
      *  that same view's `draw()` get the same record, and a drawing's own `d.font`
      *  state is unrelated to it. */
-    $providedTextStyle(overrides) {
+    providedTextStyle(overrides) {
         const out = {};
         for (const [name, def] of PROVIDED_FACE)
             out[name] = providedRead(this, name, true, def);

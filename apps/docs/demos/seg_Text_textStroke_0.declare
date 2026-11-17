@@ -1,3 +1,3 @@
 App [ fill = #1E293B,
-    Text [ x = 20, y = 20, fontSize = 28, textColor = white, fontWeight = bold, textStroke = stroke(1, #C0392B), text = "ringed" ]
+    Text [ x = 20, y = 20, fontSize = 28, textColor = white, fontWeight = bold, textStroke = Stroke(1, #C0392B), text = "ringed" ]
     ]

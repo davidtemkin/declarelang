@@ -187,13 +187,32 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
     // an App held wider than the window (a minWidth) is panned by the browser:
     // its edge is the frame's, which a person can reach
     const hostW = Math.max(app.hostWidth, app instanceof View ? app.width : 0);
+    // …or takes its size from a parent that is: the content sizing reaches it
+    // (a popover sized by its body's content, the body as wide as the popover)
     const sizedByContent = (v, size) => {
         if (isSet(v, size))
             return false;
+        if (percentOwned(v, size))
+            return v.parent instanceof View && sizedByContent(v.parent, size);
         const o = ownerOf(v, size);
-        return o === null || o.isAutoExtent === true || /content(Height|Width)/.test(o.source ?? "");
+        // a size that follows its content UP TO A LIMIT (`Math.min(contentHeight + 10, app.height - 8)`,
+        // a menu's panel) is room given: past the limit, what it holds scrolls
+        const src = o?.source ?? "";
+        return o === null || o.isAutoExtent === true || (/content(Height|Width)/.test(src) && !/\bMath\.min\(/.test(src));
     };
     const touchSmall = [];
+    // how much larger a view can become than it is now: each view above it (and it) whose
+    // scale the person can raise to a `maxScale` — a control is a finger's target if it
+    // reaches 44 points within reach, since a person enlarges before tapping something small
+    const reach = (v) => {
+        let k = 1;
+        for (let a = v; a !== null; a = a.parent instanceof View ? a.parent : null) {
+            const m = a.maxScale;
+            if (m != null && a.scale > 0 && m > a.scale)
+                k *= m / a.scale;
+        }
+        return k;
+    };
     const covered = [];
     const hostH = Math.max(app.hostHeight ?? 0, app instanceof View ? app.height : 0);
     const offEdge = new Set();
@@ -220,12 +239,20 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
         for (const size of ["height", "width"]) {
             if (!sizedByContent(v, size))
                 continue;
+            // the view whose content decides the size — the one to give a size
+            let from = v;
+            while (percentOwned(from, size) && from.parent instanceof View)
+                from = from.parent;
             for (const c of v.children) {
                 if (!(c instanceof View) || !c.visible || !percentOwned(c, size))
                     continue;
                 const end = (size === "height" ? c.y : c.x) + c[size];
-                if (end > v[size] + 1) {
-                    out.push(`${pathOf(app, v)} is ${Math.round(v[size])} ${size === "height" ? "tall" : "wide"}, sized by its content — but ${pathOf(app, c)} (${Math.round(c[size])}) takes its ${size} from it, so it is not counted, and spills out. Give ${pathOf(app, v)} a ${size}, or size the child from something else.`);
+                if (c[size] < 1) {
+                    // nothing else gave the parent room: the child is a share of nothing
+                    out.push(`${pathOf(app, c)} takes its ${size} from ${pathOf(app, from)}, which is sized by its content — and a child that takes its ${size} from it is not counted, so it collapses to nothing (${size} ${Math.round(c[size])}). Give ${pathOf(app, from)} a ${size}, or size the child from something else.`);
+                }
+                else if (end > v[size] + 1) {
+                    out.push(`${pathOf(app, from)} is ${Math.round(from[size])} ${size === "height" ? "tall" : "wide"}, sized by its content — but ${pathOf(app, c)} (${Math.round(c[size])}) takes its ${size} from it, so it is not counted, and spills out. Give ${pathOf(app, from)} a ${size}, or size the child from something else.`);
                 }
             }
         }
@@ -408,7 +435,7 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
             && shown !== null && !passes && inView && v.width > 0 && v.height > 0
             // (a twentieth of a point short is a scale's rounding, not a smaller target: the
             // finding says sizes to that precision, so it never names a 44 × 44 as too small)
-            && (shown.width < 43.95 || shown.height < 43.95) && fresh("small", pathOf(app, v)))
+            && (shown.width * reach(v) < 43.95 || shown.height * reach(v) < 43.95) && fresh("small", pathOf(app, v)))
             touchSmall.push(`${pathOf(app, v)} ${size1(shown.width)}×${size1(shown.height)}`);
         const across = scrollsAcross || v.scrolls === "x" || v.scrolls === "both";
         for (const c of v.children)
@@ -540,6 +567,9 @@ function sampleOf(fields, depth, index = 0) {
                 return f.name === "id" ? i + 1 : 1;
             if (f.type === "boolean")
                 return false;
+            // a color as data carries it, which a color slot reads
+            if (f.type === "Color")
+                return "#808080";
             if (f.name === "id")
                 return `id${i + 1}`;
             return stringFor(f.name, i);

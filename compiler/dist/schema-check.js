@@ -16,6 +16,7 @@
 // the typo'd `:labell` dies at compile time, which is the promise.
 import { DeclareError } from "../../runtime/dist/errors.js";
 import { splitPath } from "../../runtime/dist/datapath.js";
+import { shapeFieldTsType, shapeObjectText } from "./scaffold.js";
 const OPEN = { kind: "open" };
 const fieldList = (fields) => fields.map((f) => f.name + (f.array ? "[]" : "")).join(", ");
 const describeCtx = (ctx) => ctx.kind === "record" ? "a record" : ctx.kind === "array" ? "an array" : ctx.kind === "scalar" ? `a ${ctx.field.type}` : "unchecked";
@@ -24,6 +25,8 @@ const describeCtx = (ctx) => ctx.kind === "record" ? "a record" : ctx.kind === "
 function walkPlan(start, plan, spelled) {
     let ctx = start;
     let plural = false;
+    let last;
+    let indexed = false;
     const enter = (f) => f.fields !== undefined ? { kind: "record", fields: f.fields }
         : f.type === "any" ? OPEN
             : { kind: "scalar", field: f };
@@ -42,12 +45,15 @@ function walkPlan(start, plan, spelled) {
                 return { error: `':${spelled}' — '${seg}' is not in the schema here; fields: ${fieldList(ctx.fields)}` };
             }
             ctx = f.array ? { kind: "array", field: f } : enter(f);
+            last = f;
+            indexed = false;
         }
         else if ("i" in seg) {
             if (ctx.kind !== "array") {
                 return { error: `':${spelled}' — [${seg.i}] indexes an array, and the schema says this is ${describeCtx(ctx)}` };
             }
             ctx = enter(ctx.field);
+            indexed = true;
         }
         else {
             // Slice / wildcard — a selection over the array's elements; further
@@ -64,7 +70,33 @@ function walkPlan(start, plan, spelled) {
             plural = true;
         }
     }
-    return { ctx, plural };
+    return { ctx, plural, last, indexed };
+}
+/** The TypeScript type a read reaches, or null where it is open (data of no declared shape)
+ *  or plural (a selection over an array). An optional field, read directly, may be null or
+ *  absent; an index into an array may land past its end. */
+function tsOfRead(r) {
+    if (r.plural || r.ctx.kind === "open")
+        return null;
+    const base = r.ctx.kind === "scalar" ? shapeFieldTsType({ ...r.ctx.field, array: false })
+        : r.ctx.kind === "record" ? shapeObjectText(r.ctx.fields)
+            : shapeFieldTsType(r.ctx.field);
+    const maybe = r.indexed === true || (r.last?.optional === true);
+    return maybe ? `(${base}) | null | undefined` : base;
+}
+/** Each body's `:path` reads, by the body's owner, with the type its schema gives: what the
+ *  type check gives each read in place of `any` (typecheck.ts). */
+let COLLECT = null;
+export function pathReadTypes(program) {
+    const out = new Map();
+    COLLECT = out;
+    try {
+        schemaCheck(program);
+    }
+    finally {
+        COLLECT = null;
+    }
+    return out;
 }
 /** Check a program's path literals against its datasets' schemas. */
 export function schemaCheck(program) {
@@ -259,7 +291,7 @@ export function schemaCheck(program) {
                     : `declare a member on an element above, where that record is current (${decl}), and read that member here`;
                 return `${error} — '${attr}' is written on the element whose datapath is '${via}', and an element's own attributes read its own record; '${spelled}' is in the record above. To pass it down, ${pass}`;
             };
-            const islands = (src, pos, attr) => {
+            const islands = (src, pos, attr, owner) => {
                 if (here.kind === "open")
                     return;
                 for (const m of src.matchAll(/this\.\$(?:data|cell)\(\[((?:\s*"(?:[^"\\]|\\.)*"\s*,?)*)\]\)/g)) {
@@ -267,15 +299,25 @@ export function schemaCheck(program) {
                     if (segs.length === 0)
                         continue;
                     const r = walkPlan(here, segs, segs.join("."));
-                    if ("error" in r)
+                    if ("error" in r) {
                         push(new DeclareError(ownRecord(attr, segs, r.error), pos));
+                        continue;
+                    }
+                    if (COLLECT !== null && owner !== undefined && m[0].startsWith("this.$data(")) {
+                        const type = tsOfRead(r);
+                        if (type !== null)
+                            (COLLECT.get(owner) ?? (COLLECT.set(owner, []), COLLECT.get(owner))).push({ text: m[0], type });
+                    }
                 }
             };
             for (const m of el.methods)
-                islands(m.body, m.bodyPos);
+                islands(m.body, m.bodyPos, undefined, m);
+            for (const d of el.decls)
+                if (d.def?.kind === "code")
+                    islands(d.def.src, d.def.pos, d.name, d.def);
             for (const a of el.attrs) {
                 if (a.name !== "datapath" && a.value.kind === "code")
-                    islands(a.value.src, a.value.pos, a.name);
+                    islands(a.value.src, a.value.pos, a.name, a.value);
                 if (a.name === "datapath" || a.value.kind !== "path")
                     continue;
                 const v = a.value;

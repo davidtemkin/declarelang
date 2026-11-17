@@ -95,9 +95,9 @@ function assignRunField(rs, name, val) {
         case "smallCaps":
             rs.smallCaps = val === true;
             break;
-        case "numerals":
+        case "numeralStyle":
             if (typeof val === "string")
-                rs.numerals = val;
+                rs.numeralStyle = val;
             break;
         case "numeralWidth":
             if (typeof val === "string")
@@ -132,7 +132,7 @@ function assignRunField(rs, name, val) {
     }
 }
 const TEXT_ATTR = new Set(["fontSize", "fontFamily", "fontWeight", "italic", "textColor", "textFill", "letterSpacing",
-    "textShadow", "textStroke", "textTransform", "smallCaps", "numerals", "numeralWidth", "slashedZero",
+    "textShadow", "textStroke", "textTransform", "smallCaps", "numeralStyle", "numeralWidth", "slashedZero",
     "underline", "strike"]);
 /** A `style` bundle's text attributes read into a RunStyle — from the bundle's
  *  record (style-bundles.ts), the same values a drawing or a body reads by name. */
@@ -576,8 +576,8 @@ function applyStyle(style, rs) {
         s.transform = rs.textTransform;
     if (rs.smallCaps !== undefined)
         s.smallCaps = rs.smallCaps;
-    if (rs.numerals !== undefined)
-        s.numerals = rs.numerals;
+    if (rs.numeralStyle !== undefined)
+        s.numeralStyle = rs.numeralStyle;
     if (rs.numeralWidth !== undefined)
         s.numeralWidth = rs.numeralWidth;
     if (rs.slashedZero !== undefined)

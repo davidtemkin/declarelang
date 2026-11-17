@@ -1,5 +1,5 @@
 import type { Color, Fill, Shadow, Stroke } from "./value.js";
-import { type Numerals, type NumeralWidth } from "./font-features.js";
+import { type NumeralStyle, type NumeralWidth } from "./font-features.js";
 export type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black" | number;
 /** A content transform applied to a run's text (CSS text-transform). */
 export type TextTransform = "none" | "uppercase" | "lowercase" | "capitalize";
@@ -49,7 +49,7 @@ export interface TextStyle {
     /** OpenType figures (font-features.ts). They reach the renderers through the
      *  family NAME, so a backend that wants the painted family asks
      *  `effectiveFamily(style)` rather than reading `fontFamily` raw. */
-    readonly numerals?: Numerals;
+    readonly numeralStyle?: NumeralStyle;
     readonly numeralWidth?: NumeralWidth;
     readonly slashedZero?: boolean;
 }
@@ -75,7 +75,7 @@ export interface FaceStyle {
     fontWeight: FontWeight;
     italic?: boolean;
     smallCaps?: boolean;
-    numerals?: Numerals;
+    numeralStyle?: NumeralStyle;
     numeralWidth?: NumeralWidth;
     slashedZero?: boolean;
 }

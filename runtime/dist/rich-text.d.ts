@@ -2,7 +2,7 @@ import { View } from "./view.js";
 import { type RenderBackend, type RichBlock, type RichNode, type RichRun, type SlotBox, type Surface } from "./backend.js";
 import { Layout, type Box } from "./layout.js";
 import { type FontWeight, type TextTransform } from "./measure.js";
-import { type Numerals, type NumeralWidth } from "./font-features.js";
+import { type NumeralStyle, type NumeralWidth } from "./font-features.js";
 import { type FamilyValue } from "./font-value.js";
 import type { Block, Inline, ReadOptions } from "./md.js";
 import type { Unsupported } from "./html.js";
@@ -49,7 +49,7 @@ export interface RunStyle {
     textStroke?: Stroke | null;
     textTransform?: TextTransform;
     smallCaps?: boolean;
-    numerals?: Numerals;
+    numeralStyle?: NumeralStyle;
     numeralWidth?: NumeralWidth;
     slashedZero?: boolean;
     underline?: boolean;
@@ -109,7 +109,7 @@ export interface Style {
     outline?: Stroke | null;
     transform?: TextTransform;
     smallCaps?: boolean;
-    numerals?: Numerals;
+    numeralStyle?: NumeralStyle;
     numeralWidth?: NumeralWidth;
     slashedZero?: boolean;
     underline?: boolean;

@@ -8,28 +8,28 @@
 // stays in value.ts.
 import { diag } from "./errors.js";
 import { argColor, argNumber, coerceShadow, coerceStops, FILL } from "./literal-parse.js";
-import {} from "./value.js";
+import { toColor } from "./value.js";
 const ok = (value) => ({ ok: true, value });
 const fail = (expected, found) => ({ ok: false, expected, found });
 function gradientStops(args, who) {
     if (args.length < 2)
         throw new Error(`${who} needs at least two stops`);
     return Object.freeze(args.map((a) => {
-        if (typeof a === "number")
-            return Object.freeze({ offset: null, color: a });
+        if (typeof a === "number" || typeof a === "string")
+            return Object.freeze({ offset: null, color: toColor(a) });
         if (typeof a === "object" && a !== null && "color" in a)
             return a;
-        throw new Error(diag `a gradient stop is a color or colorStop(offset, color)`);
+        throw new Error(diag `a gradient stop is a color or Gradient.stop(offset, color)`);
     }));
 }
 /** `radialGradient(cx, cy, r, stops…)` — centre as fractions of the box, reach
  *  as a fraction of the farthest-corner distance (graphics-pass.md §3). */
 export function radialGradient(cx, cy, r, ...args) {
-    return Object.freeze({ kind: "radial", angle: 0, cx, cy, r, stops: gradientStops(args, "radialGradient") });
+    return Object.freeze({ kind: "radial", angle: 0, cx, cy, r, stops: gradientStops(args, "Gradient.radial") });
 }
 /** `conicGradient(cx, cy, angleDeg, stops…)` — a sweep from `angle` (CSS `from`, 0 = up, clockwise). */
 export function conicGradient(cx, cy, angle, ...args) {
-    return Object.freeze({ kind: "conic", angle, cx, cy, stops: gradientStops(args, "conicGradient") });
+    return Object.freeze({ kind: "conic", angle, cx, cy, stops: gradientStops(args, "Gradient.conic") });
 }
 export const blur = (radius) => Object.freeze({ fn: "blur", radius: Math.max(0, radius) });
 export const brightness = (amount) => Object.freeze({ fn: "brightness", amount: Math.max(0, amount) });
@@ -41,23 +41,23 @@ export const sepia = (amount) => Object.freeze({ fn: "sepia", amount: Math.min(1
 export const hueRotate = (degrees) => Object.freeze({ fn: "hueRotate", degrees });
 /** `colorize(color)`: the group's alpha in one colour (template-image rendering) —
  *  what `Image.tint` is sugar for. (`tint(…)` is the theme helper's name.) */
-export const colorize = (color) => Object.freeze({ fn: "colorize", color });
+export const colorize = (color) => Object.freeze({ fn: "colorize", color: toColor(color) });
 /** The frost: blur + saturate, the material pair every platform's menus wear. */
 export const frost = (radius, saturation = 1) => Object.freeze(saturation === 1 ? [blur(radius)] : [blur(radius), saturate(saturation)]);
 /** A written `radialGradient(…)` / `conicGradient(…)` fill. */
 export function coerceRadialConic(lit) {
     const geo = lit.args.slice(0, 3).map(argNumber);
     if (geo.length < 3 || geo.some((g) => g === null)) {
-        return fail(FILL, diag `${lit.name}(cx, cy, ${lit.name === "radialGradient" ? "r" : "angle"}, stops…) — three numbers, then the stops`);
+        return fail(FILL, diag `${lit.name}(cx, cy, ${lit.name === "Gradient.radial" ? "r" : "angle"}, stops…) — three numbers, then the stops`);
     }
     const stops = coerceStops(lit.args.slice(3));
     if (typeof stops === "string")
         return fail(FILL, stops);
-    return ok(lit.name === "radialGradient"
+    return ok(lit.name === "Gradient.radial"
         ? radialGradient(geo[0], geo[1], geo[2], ...stops)
         : conicGradient(geo[0], geo[1], geo[2], ...stops));
 }
-const FILTER = diag `a filter — blur(radius), brightness(k), contrast(k), saturate(k), grayscale(k), invert(k), sepia(k), hueRotate(deg), colorize(color), shadow(dx, dy, blur, color), or frost(radius, saturation) — one, a list [ … ] of them, or null`;
+const FILTER = diag `a VisualFilter — VisualFilter.blur(radius), .brightness(k), .contrast(k), .saturate(k), .grayscale(k), .invert(k), .sepia(k), .hueRotate(deg), .colorize(color), Shadow(dx, dy, blur, color), or VisualFilter.frost(radius, saturation) — one, a list [ … ] of them, or null`;
 /** One filter function from its written call, or null when the call is not one. */
 function coerceFilterFn(lit) {
     if (lit.kind !== "call")
@@ -65,43 +65,43 @@ function coerceFilterFn(lit) {
     const n = lit.args.length;
     const one = () => (n === 1 ? argNumber(lit.args[0]) : null);
     switch (lit.name) {
-        case "blur": {
+        case "VisualFilter.blur": {
             const r = one();
             return r === null || r < 0 ? null : blur(r);
         }
-        case "brightness": {
+        case "VisualFilter.brightness": {
             const k = one();
             return k === null || k < 0 ? null : brightness(k);
         }
-        case "contrast": {
+        case "VisualFilter.contrast": {
             const k = one();
             return k === null || k < 0 ? null : contrast(k);
         }
-        case "saturate": {
+        case "VisualFilter.saturate": {
             const k = one();
             return k === null || k < 0 ? null : saturate(k);
         }
-        case "grayscale": {
+        case "VisualFilter.grayscale": {
             const k = one();
             return k === null || k < 0 || k > 1 ? null : grayscale(k);
         }
-        case "invert": {
+        case "VisualFilter.invert": {
             const k = one();
             return k === null || k < 0 || k > 1 ? null : invert(k);
         }
-        case "sepia": {
+        case "VisualFilter.sepia": {
             const k = one();
             return k === null || k < 0 || k > 1 ? null : sepia(k);
         }
-        case "hueRotate": {
+        case "VisualFilter.hueRotate": {
             const d = one();
             return d === null ? null : hueRotate(d);
         }
-        case "colorize": {
+        case "VisualFilter.colorize": {
             const c = n === 1 ? argColor(lit.args[0]) : null;
             return c === null ? null : colorize(c);
         }
-        case "shadow": {
+        case "Shadow": {
             const r = coerceShadow(lit);
             return r.ok ? r.value : null;
         }
@@ -112,7 +112,7 @@ function coerceFilterFn(lit) {
 export function coerceFilter(lit) {
     if (lit.kind === "ident" && lit.name === "null")
         return ok(null);
-    if (lit.kind === "call" && lit.name === "frost") {
+    if (lit.kind === "call" && lit.name === "VisualFilter.frost") {
         if (lit.args.length < 1 || lit.args.length > 2)
             return fail(FILTER);
         const radius = argNumber(lit.args[0]);
@@ -124,7 +124,7 @@ export function coerceFilter(lit) {
     const items = lit.kind === "list" ? lit.items : [lit];
     const out = [];
     for (const item of items) {
-        if (item.kind === "call" && item.name === "frost") {
+        if (item.kind === "call" && item.name === "VisualFilter.frost") {
             const r = coerceFilter(item);
             if (!r.ok)
                 return r;

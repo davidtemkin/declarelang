@@ -4,100 +4,100 @@
     "code": 596,
     "comment": 572,
     "blank": 359,
-    "wireGzip": 244737,
-    "programGzip": 16154
+    "wireGzip": 246834,
+    "programGzip": 16199
   },
   "calendar": {
-    "total": 939,
-    "code": 545,
-    "comment": 216,
-    "blank": 178,
-    "wireGzip": 179733,
-    "programGzip": 13285
+    "total": 932,
+    "code": 540,
+    "comment": 215,
+    "blank": 177,
+    "wireGzip": 182135,
+    "programGzip": 13377
   },
   "tracker": {
     "total": 1508,
     "code": 983,
     "comment": 251,
     "blank": 274,
-    "wireGzip": 198898,
-    "programGzip": 19673
+    "wireGzip": 200396,
+    "programGzip": 19746
   },
   "desktop": {
     "total": 3504,
     "code": 1996,
     "comment": 933,
     "blank": 575,
-    "wireGzip": 270698,
-    "programGzip": 23763
+    "wireGzip": 272992,
+    "programGzip": 23890
   },
   "todo": {
     "total": 1078,
     "code": 663,
     "comment": 238,
     "blank": 177,
-    "wireGzip": 200704,
-    "programGzip": 22361,
+    "wireGzip": 201935,
+    "programGzip": 22424,
     "codeWithParts": 848
   },
   "calendarParts": {
     "calDom": {
-      "app": 12.9,
+      "app": 12.8,
       "lib": 13.4,
-      "core": 45.4,
-      "view": 12.9,
+      "core": 46.9,
+      "view": 13.5,
       "backend": 16.1,
-      "input": 22.7,
-      "draw": 16.4,
+      "input": 23,
+      "draw": 16.5,
       "anim": 3.2,
       "text": 5,
-      "boot": 5.9,
+      "boot": 6,
       "layout": 2.4,
-      "themes": 0.2,
+      "themes": 0.1,
       "a11y": 3.7,
       "ker": 15.3
     },
     "calCanvas": {
-      "app": 12.9,
+      "app": 12.8,
       "lib": 13.4,
-      "core": 44.8,
-      "view": 12.7,
-      "backend": 36.5,
-      "input": 26.2,
+      "core": 46.2,
+      "view": 13.3,
+      "backend": 36.6,
+      "input": 26.5,
       "draw": 18.3,
       "anim": 3.9,
       "text": 5,
-      "boot": 5.8,
+      "boot": 5.9,
       "layout": 2.3,
       "themes": 0.1,
       "a11y": 3.6,
       "ker": 15.2
     },
     "calMac": {
-      "app": 12.9,
+      "app": 12.8,
       "lib": 13.4,
-      "core": 45.4,
-      "view": 12.9,
-      "backend": 8.8,
-      "input": 22.7,
-      "draw": 16.4,
+      "core": 46.9,
+      "view": 13.5,
+      "backend": 8.9,
+      "input": 23,
+      "draw": 16.5,
       "anim": 3.2,
       "text": 5,
-      "boot": 5.9,
+      "boot": 6,
       "layout": 2.4,
-      "themes": 0.2,
+      "themes": 0.1,
       "a11y": 0.9,
       "ker": 0
     },
     "totals": {
-      "calDom": 175.5,
-      "calCanvas": 200.9,
-      "calMac": 150.3
+      "calDom": 177.9,
+      "calCanvas": 203.2,
+      "calMac": 152.6
     },
-    "runtimeKB": 133.9,
+    "runtimeKB": 136.4,
     "kernelWasmGzipKB": 12.7,
     "kernelWasmRawKB": 23,
     "kernelLoaderKB": 2.6,
-    "canvasCarriesDomBackendKB": 15.5
+    "canvasCarriesDomBackendKB": 15.6
   }
 }

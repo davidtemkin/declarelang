@@ -13,6 +13,16 @@ import type { Motion } from "./animate.js";
 export type Color = number | null;
 /** Encode rgb (0xRRGGBB) + alpha (0…255) as one Color number. */
 export declare function colorWithAlpha(rgb: number, a: number): number;
+/** A `#RGB`, `#RGBA`, `#RRGGBB` or `#RRGGBBAA` string as its Color number, or
+ *  undefined when it is not one. Short forms double their digits, as in CSS. */
+export declare function hexColor(s: string): number | undefined;
+/** A color as it may be written in code — a number, `null`, or a CSS hex
+ *  string — as the number the runtime holds. A string that arrives at run time
+ *  (from data, or a value the compile could not see) is parsed here; a CSS name
+ *  is not, since its table stays out of a running program: the compile turns
+ *  each name it sees into its number, and one it cannot see is said, loudly,
+ *  and paints nothing. */
+export declare function toColor(v: unknown, where?: () => string): Color;
 /** A gradient stop: an explicit 0…1 offset, or null for even spacing. */
 export interface GradientStop {
     readonly offset: number | null;
@@ -296,7 +306,7 @@ export declare function numericEnumType(name: string, range: readonly [number, n
  *  the name is not in the declarable vocabulary. */
 /** An AUTHORED literal union (`"idle" | "loading"`) is an enum whose NAME is
  *  the written union text — that text is the discriminator between it and a
- *  built-in vocabulary (Axis, Easing), whose name is an identifier. Every
+ *  built-in vocabulary (LayoutAxis, Easing), whose name is an identifier. Every
  *  consumer asks this one question here, not with its own `startsWith('"')`. */
 export declare const isAuthoredUnion: (name: string) => boolean;
 /** The members of a written string-literal union, or null when `text` is not

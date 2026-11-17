@@ -2,7 +2,7 @@ import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
 import { type Fill, type Shadow, type Stroke, type Color } from "./value.js";
 import { type TextTransform, type FontWeight } from "./measure.js";
-import type { Numerals, NumeralWidth } from "./font-features.js";
+import type { NumeralStyle, NumeralWidth } from "./font-features.js";
 import { type FamilyValue } from "./font-value.js";
 /** A Text's alignment on the page: `start` and `end` by the run's direction,
  *  `left`, `center` and `right` as written. */
@@ -40,7 +40,7 @@ export declare class Text extends View {
     textStroke: Stroke | null;
     textTransform: TextTransform;
     smallCaps: boolean;
-    numerals: Numerals;
+    numeralStyle: NumeralStyle;
     numeralWidth: NumeralWidth;
     slashedZero: boolean;
     underline: boolean;

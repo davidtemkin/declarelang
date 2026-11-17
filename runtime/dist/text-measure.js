@@ -28,7 +28,7 @@ export function measureText(text, style, width) {
         fontWeight: (typeof s.fontWeight === "string" || typeof s.fontWeight === "number" ? s.fontWeight : "normal"),
         italic: s.italic === true,
         smallCaps: s.smallCaps === true,
-        numerals: s.numerals,
+        numeralStyle: s.numeralStyle,
         numeralWidth: s.numeralWidth,
         slashedZero: s.slashedZero === true,
     });

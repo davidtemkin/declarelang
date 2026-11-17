@@ -36,7 +36,7 @@ const VALUE_INSTINCTS = {
 // opaque — the R2 ruling intact; see the Color doc). A decimal number is
 // rejected on purpose: the doc's forms are closed, and `fill = 6702939`
 // hides its channels.
-const COLOR = diag `a Color (a name like navy, #RGB, #RRGGBB, #RGBA, #RRGGBBAA, 0xRRGGBB, or null)`;
+const COLOR = diag `a Color (a name like navy, #RGB, #RRGGBB, #RGBA, #RRGGBBAA, 0xRRGGBB, any of them in quotes, or null)`;
 export function coerceColor(lit) {
     switch (lit.kind) {
         case "number":
@@ -71,6 +71,15 @@ export function coerceColor(lit) {
                 return ok(CSS_COLORS[key]);
             return fail(COLOR, diag `'${lit.name}' (not a CSS color name)`);
         }
+        case "string": {
+            // a color in quotes, as a { } body writes it: the same color as unquoted
+            const v = lit.value.trim();
+            if (v.startsWith("#"))
+                return coerceColor({ ...lit, kind: "hexColor", raw: v });
+            if (Object.hasOwn(CSS_COLORS, v.toLowerCase()))
+                return ok(CSS_COLORS[v.toLowerCase()]);
+            return fail(COLOR, diag `the string "${v}" (not a color: write "#RRGGBB" or a CSS name)`);
+        }
         default:
             return fail(COLOR);
     }
@@ -82,10 +91,10 @@ export function coerceColor(lit) {
 // literals (colors in any Color form, numbers, nested `colorStop(…)`). The same
 // names are ordinary functions inside `{ }` bodies (expr.ts puts them in
 // scope), so one vocabulary serves both lexical homes.
-export const FILL = diag `a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
+export const FILL = diag `a Fill (a Color, Gradient.linear(#F8F8F8, #D8D8D8), Gradient.linear(angle, …stops), or null)`;
 const STROKE = strokeShapeMessage(); // errors.ts — one sentence, shared with the typecheck's report of the same mistake made inside a { }
-const GLYPH_STROKE = diag `a Stroke along the glyphs' edges (stroke(width, color), painted under the fill), or null`;
-const SHADOW = diag `a Shadow (shadow(dx, dy, blur, color), or null)`;
+const GLYPH_STROKE = diag `a Stroke along the glyphs' edges (Stroke(width, color), painted under the fill), or null`;
+const SHADOW = diag `a Shadow (Shadow(dx, dy, blur, color), or null)`;
 /** A constructor argument as a plain color number (no null). */
 export function argColor(lit) {
     const c = coerceColor(lit);
@@ -98,17 +107,17 @@ export function argNumber(lit) {
 export function coerceStops(args) {
     const stops = [];
     for (const a of args) {
-        if (a.kind === "call" && a.name === "colorStop") {
+        if (a.kind === "call" && a.name === "Gradient.stop") {
             const offset = a.args.length === 2 ? argNumber(a.args[0]) : null;
             const color = a.args.length === 2 ? argColor(a.args[1]) : null;
             if (offset === null || color === null)
-                return diag `a stop is colorStop(offset, color) — offset 0…1, color a Color`;
+                return diag `a stop is Gradient.stop(offset, color) — offset 0…1, color a Color`;
             stops.push(Object.freeze({ offset, color }));
             continue;
         }
         const color = argColor(a);
         if (color === null)
-            return diag `a gradient stop is a color or colorStop(offset, color)`;
+            return diag `a gradient stop is a color or Gradient.stop(offset, color)`;
         stops.push(Object.freeze({ offset: null, color }));
     }
     if (stops.length < 2)
@@ -116,15 +125,15 @@ export function coerceStops(args) {
     return stops;
 }
 function coerceGradientCall(lit) {
-    return lit.name === "radialGradient" || lit.name === "conicGradient" ? coerceRadialConic(lit) : null;
+    return lit.name === "Gradient.radial" || lit.name === "Gradient.conic" ? coerceRadialConic(lit) : null;
 }
 export function coerceFill(lit) {
     if (lit.kind === "call") {
         const rc = coerceGradientCall(lit);
         if (rc !== null)
             return rc;
-        if (lit.name !== "gradient")
-            return fail(FILL, diag `'${lit.name}(…)' (not a fill constructor)`);
+        if (lit.name !== "Gradient.linear")
+            return fail(FILL, diag `'${lit.name}(…)' (not a fill builder)`);
         const args = [...lit.args];
         // An optional leading DECIMAL number is the angle (degrees, CSS compass —
         // 0 up, clockwise; default 180 = top → bottom). Hex-written numbers are
@@ -148,18 +157,18 @@ export function coerceFill(lit) {
         }
         const stops = [];
         for (const a of args) {
-            if (a.kind === "call" && a.name === "colorStop") {
+            if (a.kind === "call" && a.name === "Gradient.stop") {
                 const offset = a.args.length === 2 ? argNumber(a.args[0]) : null;
                 const color = a.args.length === 2 ? argColor(a.args[1]) : null;
                 if (offset === null || color === null) {
-                    return fail(FILL, diag `a stop is colorStop(offset, color) — offset 0…1, color a Color`);
+                    return fail(FILL, diag `a stop is Gradient.stop(offset, color) — offset 0…1, color a Color`);
                 }
                 stops.push({ offset, color });
                 continue;
             }
             const color = argColor(a);
             if (color === null)
-                return fail(FILL, diag `${describeLiteral(a)} (a gradient stop is a Color or colorStop(offset, color))`);
+                return fail(FILL, diag `${describeLiteral(a)} (a gradient stop is a Color or Gradient.stop(offset, color))`);
             stops.push({ offset: null, color });
         }
         if (stops.length < 2)
@@ -180,7 +189,7 @@ export function coerceStroke(lit) {
 function oneStroke(lit) {
     if (lit.kind === "ident" && lit.name === "null")
         return ok(null);
-    if (lit.kind !== "call" || lit.name !== "stroke")
+    if (lit.kind !== "call" || lit.name !== "Stroke")
         return fail(STROKE);
     const width = lit.args.length === 2 ? argNumber(lit.args[0]) : null;
     const color = lit.args.length === 2 ? argColor(lit.args[1]) : null;
@@ -199,7 +208,7 @@ export function coerceGlyphStroke(lit) {
 export function coerceShadow(lit) {
     if (lit.kind === "ident" && lit.name === "null")
         return ok(null);
-    if (lit.kind !== "call" || lit.name !== "shadow")
+    if (lit.kind !== "call" || lit.name !== "Shadow")
         return fail(SHADOW);
     if (lit.args.length !== 4)
         return fail(SHADOW);
@@ -209,7 +218,7 @@ export function coerceShadow(lit) {
         return fail(SHADOW);
     return ok(shadow(dx, dy, blur, color));
 }
-const MASK = diag `a mask — a gradient (gradient(…), radialGradient(…), conicGradient(…); its alpha masks the view), a stencil view from a { } constraint (mask = { stencil }), or null`;
+const MASK = diag `a mask — a gradient (Gradient.linear(…), Gradient.radial(…), Gradient.conic(…); its alpha masks the view), a stencil view from a { } constraint (mask = { stencil }), or null`;
 // ── Easing (animation.md §1) ──────────────────────────────────────────────────
 //
 // A named token OR a value constructor — both forms already in the grammar,
@@ -218,7 +227,7 @@ const MASK = diag `a mask — a gradient (gradient(…), radialGradient(…), co
 // (cubicBezier / back / steps / laszlo) validate their args here, next to the
 // stroke/shadow coercers whose shape they share.
 const MOTION = `an Easing (a named curve like easeBoth, quartOut, expoIn, or laszloBoth; or a constructor: ` +
-    `cubicBezier(x1, y1, x2, y2), back(overshoot), steps(n[, jumpStart | jumpEnd]), laszlo(beginPole, endPole))`;
+    `Easing.cubicBezier(x1, y1, x2, y2), Easing.back(overshoot), Easing.steps(n[, jumpStart | jumpEnd]), Easing.laszlo(beginPole, endPole))`;
 export function coerceMotion(lit) {
     if (lit.kind === "ident") {
         const m = motionToken(lit.name);
@@ -227,47 +236,47 @@ export function coerceMotion(lit) {
     if (lit.kind !== "call")
         return fail(MOTION);
     switch (lit.name) {
-        case "cubicBezier": {
+        case "Easing.cubicBezier": {
             if (lit.args.length !== 4)
-                return fail(MOTION, diag `cubicBezier(x1, y1, x2, y2) takes four numbers`);
+                return fail(MOTION, diag `Easing.cubicBezier(x1, y1, x2, y2) takes four numbers`);
             const [x1, y1, x2, y2] = lit.args.map(argNumber);
             if (x1 === null || y1 === null || x2 === null || y2 === null)
-                return fail(MOTION, diag `cubicBezier(x1, y1, x2, y2) — four numbers`);
+                return fail(MOTION, diag `Easing.cubicBezier(x1, y1, x2, y2) — four numbers`);
             if (x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1)
-                return fail(MOTION, diag `cubicBezier x-coordinates must be in [0, 1] (time is monotonic)`);
+                return fail(MOTION, diag `Easing.cubicBezier x-coordinates must be in [0, 1] (time is monotonic)`);
             return ok({ k: "bezier", x1, y1, x2, y2 });
         }
-        case "back": {
+        case "Easing.back": {
             const s = lit.args.length === 1 ? argNumber(lit.args[0]) : null;
             if (s === null)
-                return fail(MOTION, diag `back(overshoot) — one number (try back(1.7))`);
+                return fail(MOTION, diag `Easing.back(overshoot) — one number (try Easing.back(1.7))`);
             return ok({ k: "back", dir: "both", overshoot: s });
         }
-        case "steps": {
+        case "Easing.steps": {
             if (lit.args.length < 1 || lit.args.length > 2)
-                return fail(MOTION, diag `steps(n[, jumpStart | jumpEnd])`);
+                return fail(MOTION, diag `Easing.steps(n[, jumpStart | jumpEnd])`);
             const n = argNumber(lit.args[0]);
             if (n === null || !Number.isInteger(n) || n < 1)
-                return fail(MOTION, diag `steps(n, …) — n a positive integer`);
+                return fail(MOTION, diag `Easing.steps(n, …) — n a positive integer`);
             let jump = "end";
             if (lit.args.length === 2) {
                 const j = lit.args[1];
                 if (j.kind !== "ident" || (j.name !== "jumpStart" && j.name !== "jumpEnd"))
-                    return fail(MOTION, diag `steps' second argument is jumpStart or jumpEnd`);
+                    return fail(MOTION, diag `Easing.steps' second argument is jumpStart or jumpEnd`);
                 jump = j.name === "jumpStart" ? "start" : "end";
             }
             return ok({ k: "steps", n, jump });
         }
-        case "laszlo": {
+        case "Easing.laszlo": {
             if (lit.args.length !== 2)
-                return fail(MOTION, diag `laszlo(beginPole, endPole) — two numbers`);
+                return fail(MOTION, diag `Easing.laszlo(beginPole, endPole) — two numbers`);
             const [bp, ep] = lit.args.map(argNumber);
             if (bp === null || ep === null || bp <= 0 || ep <= 0)
-                return fail(MOTION, diag `laszlo(beginPole, endPole) — two positive numbers`);
+                return fail(MOTION, diag `Easing.laszlo(beginPole, endPole) — two positive numbers`);
             return ok({ k: "laszlo", beginPole: bp, endPole: ep });
         }
         default:
-            return fail(MOTION, diag `'${lit.name}(…)' (not an easing constructor)`);
+            return fail(MOTION, diag `'${lit.name}(…)' (not an Easing builder)`);
     }
 }
 // A Shape's literal is SVG path *data* carried in a string (the `d`
@@ -401,7 +410,7 @@ export function parseLiteral(type, lit) {
             }
             if (type.boolean === true && lit.kind === "ident" && (lit.name === "true" || lit.name === "false"))
                 return ok(lit.name === "true");
-            // Vowel-aware article: R7's Axis is the first enum that needs "an".
+            // Vowel-aware article: R7's LayoutAxis is the first enum that needs "an".
             return fail(diag `${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")}${type.numeric !== undefined ? `, or a number ${type.numeric[0]}–${type.numeric[1]}` : ""}${type.boolean === true ? ", or true | false" : ""})`, lit.kind === "ident" ? VALUE_INSTINCTS[`${type.name}.${lit.name}`] : undefined);
         case "fn":
             // Like a class slot: `null` is the one literal form ("no callback").

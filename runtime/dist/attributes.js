@@ -24,9 +24,10 @@
 // Ownership is the other half: an author `{ }` constraint owns its slot and a
 // direct write to it is an error (one declarative owner — the silent-clobber
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
-import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, nulls, retireValue, setPushHook, table, touchCell, trackCell, untracked, setOwnershipCheck } from "./reactive.js";
+import { ACTIVE, Cell, addressFor, Constraint, S, isSettling, isTracking, kernel, noteWrite, nulls, retireValue, setPushHook, table, touchCell, trackCell, untracked, setOwnershipCheck } from "./reactive.js";
 import { DeclareError, at, layoutConflictMessage } from "./errors.js";
 import { THEME_PRESETS, withThemeDefaults } from "./themes.js";
+import { toColor } from "./value.js";
 import { declareName } from "./declare-name.js";
 // Class → its attribute tables. All are prototype-chained objects mirroring
 // the class hierarchy (Text's defaults chain to View's), so "nearest declared
@@ -38,6 +39,11 @@ const DEFAULTS = new WeakMap();
 const DEF_RULES = new WeakMap();
 const PUSHERS = new WeakMap();
 const EQUALS = new WeakMap();
+const COLORS = new WeakMap();
+/** The built-in color attributes, by name: a name means one thing on every
+ *  class (a program cannot redeclare `fill` as a string). Pinned against the
+ *  schemas' color and fill attributes by test/color-strings.test.mjs. */
+export const BUILTIN_COLOR_ATTRS = new Set(["fill", "textColor", "textFill", "tint"]);
 /** Per class, each attribute's once-per-instance `onTrack` hook, as a tracked
  *  read would fire it — for readers that never call the getter (noteStaticRead). */
 const TRACK_HOOKS = new WeakMap();
@@ -391,6 +397,7 @@ export function defineAttributes(ctor, specs) {
     const defaults = Object.create(tableFor(DEFAULTS, parent));
     const pushers = Object.create(tableFor(PUSHERS, parent));
     const equals = Object.create(tableFor(EQUALS, parent));
+    const colors = Object.create(tableFor(COLORS, parent));
     const trackHooks = Object.create(tableFor(TRACK_HOOKS, parent));
     const parentLayout = tableFor(LAYOUT, parent);
     const layout = {
@@ -408,6 +415,8 @@ export function defineAttributes(ctor, specs) {
         defaults[name] = spec.def;
         pushers[name] = spec.push;
         equals[name] = spec.equal;
+        if (spec.color === true || BUILTIN_COLOR_ATTRS.has(name))
+            colors[name] = true;
         const plainSlot = (spec.defBinding === undefined || spec.defRule === true) && spec.live === undefined && spec.tracked === undefined && spec.equal === undefined;
         // a NULLABLE number or boolean (`number | null`) is a table slot too, its
         // null carried by the cell's flag — whatever its default
@@ -586,6 +595,7 @@ export function defineAttributes(ctor, specs) {
     DEFAULTS.set(ctor, defaults);
     PUSHERS.set(ctor, pushers);
     EQUALS.set(ctor, equals);
+    COLORS.set(ctor, colors);
     TRACK_HOOKS.set(ctor, trackHooks);
     layout.defaults = Float64Array.from(layoutDefaults);
     for (let i = 0; i < layout.count; i++) {
@@ -701,7 +711,7 @@ export function providedDefault(name, def) {
  *  into a `TextStyle`. They cannot drift, which matters because a measurement
  *  taken with different defaults than the run it is measuring is silently wrong.
  *  Only these five are provided; the rest of `TextStyle` (italic, small caps,
- *  numerals, the treatments) is per-run and nobody provides it. */
+ *  numeralStyle, the treatments) is per-run and nobody provides it. */
 export const PROVIDED_FACE = [
     ["textColor", 0x000000],
     ["fontSize", 16],
@@ -889,6 +899,16 @@ export function providedRead(self, name, hasDefault, dflt) {
 /** The one write path (public setters and setBound both land here):
  *  equality-gate, store, push the slot's Surface call, wake dependents. */
 function write(self, name, v, deep = false) {
+    if (typeof v === "string" && tableFor(COLORS, self.constructor)?.[name] === true)
+        v = toColor(v, () => `${addressFor(self) ?? declareName(self)}.${name}`);
+    // `minScale`/`maxScale` hold a view's scale, however it is written (view.ts)
+    else if (name === "scale" && typeof v === "number") {
+        const b = self;
+        if (b.maxScale != null && v > b.maxScale)
+            v = b.maxScale;
+        if (b.minScale != null && v < b.minScale)
+            v = b.minScale;
+    }
     const carrier = self;
     const L = tableFor(LAYOUT, self.constructor);
     const slot = L?.index[name];
@@ -903,9 +923,6 @@ function write(self, name, v, deep = false) {
             const c = ensureBase(carrier) + slot;
             if (nulls[c] === 1)
                 return;
-            if (carrier.$changing?.has(name) === true) {
-                throw new DeclareError(`onChange assigned '${name}', which is one of the values it was called for — a change handler may not write what it was told changed`);
-            }
             table[c] = 0;
             nulls[c] = 1;
             touchCell(c);
@@ -926,9 +943,6 @@ function write(self, name, v, deep = false) {
         const wasNull = L.nullable[slot] && nulls[c] === 1;
         if (table[c] === nv && !wasNull)
             return;
-        if (carrier.$changing?.has(name) === true) {
-            throw new DeclareError(`onChange assigned '${name}', which is one of the values it was called for — a change handler may not write what it was told changed`);
-        }
         table[c] = nv;
         if (wasNull)
             nulls[c] = 0;
@@ -971,11 +985,6 @@ function writeRef(carrier, name, v, deep = false) {
     const eq = tableFor(EQUALS, self.constructor)?.[name];
     if (eq !== undefined && eq(cur, v))
         return;
-    // THE CHANGE EVENT (reactive.ts wakes, fires at the settle's close): a change
-    // handler may not write a value it was called for — a loop with a name.
-    if (carrier.$changing?.has(name) === true) {
-        throw new DeclareError(`onChange assigned '${name}', which is one of the values it was called for — a change handler may not write what it was told changed`);
-    }
     (carrier.$attrs ??= Object.create(defaults))[name] = v;
     tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
     carrier.$cells?.[name]?.changed();

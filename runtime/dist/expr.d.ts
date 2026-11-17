@@ -16,16 +16,9 @@ export declare function withScriptScope<T>(scope: Record<string, unknown>, build
  *  says it does; the block runs one function in, so its own declarations
  *  shadow those names rather than collide with them. */
 export declare function evalScript(js: string): Record<string, unknown>;
-/** The value-constructor names — the compile layer (compile.ts) skips these
- *  in callee position, and the checker reserves the two that are not already
- *  attribute names. */
+/** The builders' names in body scope (`Stroke`, `Gradient`, …): known to the
+ *  compile layer as globals a body may name. */
 export declare const CONSTRUCTOR_NAMES: readonly string[];
-/** The filter functions (graphics-pass.md §1) — plain words (`blur`,
- *  `contrast`, `invert`…) a program may well want as ATTRIBUTE names, so they
- *  are reserved as method names only: an attribute called `blur` shadows the
- *  constructor inside that node's own `{ }` bodies and nowhere else, and the
- *  bare-slot call form (`visualFilter = blur(3)`) is unaffected by any member. */
-export declare const FILTER_FN_NAMES: readonly string[];
 /** A compiled body. Called with `this` bound to the owning node and its
  *  parent and classroot as arguments, so all three scope nouns resolve
  *  naturally. */

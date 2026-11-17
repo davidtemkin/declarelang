@@ -20,9 +20,9 @@
 // only, minus `constructor` and `$`-names) and fails on any drift.
 import { SCHEMAS, RichTextSchema } from "./schema.js";
 export const RUNTIME_METHODS = {
-    Node: ["discard"],
+    Node: ["discard", "afterDelay", "afterSettle", "providedTextStyle"],
     View: ["contentBox", "bounds", "footprint", "tabDefault", "viewAt", "containsPoint", "rootBounds", "rootTransform", "transformTo", "rootOrigin", "scrollIntoView", "scrollTo", "scrollToX", "scrollBy", "createView", "raise", "onKeyDown"],
-    App: ["postToHost", "openURL", "destinationOf", "followLink", "inspect", "openWindow", "reveal"],
+    App: ["hostProvided", "postToHost", "openURL", "destinationOf", "followLink", "inspect", "openWindow", "reveal"],
     Text: [],
     Image: [],
     Media: ["play"],
@@ -47,9 +47,6 @@ export const RUNTIME_METHODS = {
     Font: [],
     FontFace: [],
     KeyListener: [],
-    Keyboard: [],
-    Focus: [],
-    Tooltips: [],
     Stream: [],
     EventStream: [],
     Socket: ["send"],
@@ -79,9 +76,6 @@ export const RUNTIME_FIELDS = {
     AnimatorGroup: ["active", "autoStarted", "cyclesLeft", "grouped", "live"],
     Spring: ["arriving", "primed", "slotWatch", "springLastNow", "springRunning", "vel"],
     KeyListener: ["wired"],
-    Keyboard: [],
-    Focus: ["wired"],
-    Tooltips: ["wired"],
     Stream: ["gen", "handle", "timer", "wasOpen", "wired", "attempts", "openedAt", "heardAt", "connectTimer", "idleTimer"],
     Socket: ["drainTimer"],
     State: ["builtChildren", "childTemplates", "installed", "materialize", "overrides", "priority", "retired"],

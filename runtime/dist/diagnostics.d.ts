@@ -101,7 +101,7 @@ export declare const Diag: {
     showsUnreachable: (name: string, initial: string, names: readonly string[], pos: Pos) => DeclareError;
     literalDatapath: (pos: Pos) => DeclareError;
     shadowsTsGlobal: (kind: string, name: string, lib: string, rename: string, pos: Pos) => DeclareError;
-    shadowsDeclareType: (kind: string, name: string, rename: string, pos: Pos) => DeclareError;
+    shadowsDeclareType: (kind: string, name: string, rename: string, pos: Pos, what?: string) => DeclareError;
     springsBoundSlot: (owner: string, slot: string, spring: string, pos: Pos) => DeclareError;
     centersByHand: (axis: "x" | "y", pos: Pos) => DeclareError;
     animatorNeverStarts: (tag: string, name: string | null, pos: Pos) => DeclareError;
@@ -115,6 +115,7 @@ export declare const Diag: {
     versionOlder: (wrote: string, have: string, file: string, pos: Pos) => DeclareError;
     accessibilityNoName: (owner: string, role: string, pos: Pos, labelled?: boolean) => DeclareError;
     accessibilityControlInControl: (inner: string, innerRole: string, outer: string, outerRole: string, pos: Pos) => DeclareError;
+    viewInsideButton: (owner: string, child: string, pos: Pos) => DeclareError;
     accessibilityCollapsedRead: (owner: string, axis: string, pos: Pos) => DeclareError;
     accessibilityUnreportedChoice: (owner: string, flag: string, pos: Pos) => DeclareError;
     accessibilityTogglesAsOneOf: (count: number, cls: string, flag: string, subject: string, pos: Pos) => DeclareError;
@@ -126,7 +127,6 @@ export declare const Diag: {
     tangledConstraint: (attr: string, depth: number, parts: number, pos: Pos) => DeclareError;
     rangeWithoutEffect: (owner: string, range: string, size: string, pos: Pos, bound?: string | null) => DeclareError;
     scriptSearchesPage: (lookup: string, pos: Pos) => DeclareError;
-    alphaAsFraction: (written: string, pos: Pos) => DeclareError;
     accessibilityLabelUnread: (owner: string, pos: Pos) => DeclareError;
     accessibilityRadioAlone: (owner: string, pos: Pos) => DeclareError;
     choiceItemAlone: (owner: string, pos: Pos) => DeclareError;

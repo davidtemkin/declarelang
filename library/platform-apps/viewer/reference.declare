@@ -11,16 +11,16 @@ script {
         "Carousel", "CarouselLayout", "CheckIcon", "Checkbox", "ChevronIcon", "ChoiceControl", "ChoiceItem", "CloseIcon",
         "Combobox", "ContextMenu", "Control", "DOMIsland", "DataGrid", "DataGridCell", "DataGridEdit", "DataGridHeading",
         "DataGridHeadingRow", "DataGridRow", "DataGridText", "DataSource", "Dataset", "DatePicker", "Dialog", "Disclosure",
-        "Divider", "EventStream", "Field", "FieldLayout", "Floating", "Focus", "FocusRing", "Font",
-        "FontFace", "Form", "Gauge", "HTMLText", "Icon", "IconHost", "Image", "KeyListener",
-        "Layout", "LightbulbIcon", "Markdown", "Menu", "MenuBar", "MinusIcon", "MonthCalendar", "MonthCalendarArrow",
-        "MonthCalendarDay", "MoonIcon", "NativeText", "Node", "OverlayStrata", "PlusIcon", "Popover", "ProgressBar",
-        "Radio", "RadioGroup", "RangeSlider", "RangeThumb", "ResponsiveLayout", "SearchField", "Segmented", "SegmentedItem",
-        "SendHold", "Sheet", "Shortcuts", "ShortcutsPanel", "ShortcutsPanelHead", "ShortcutsPanelLine", "ShortcutsPanelRow", "SimpleLayout",
-        "Slider", "Socket", "Spacer", "Splitter", "Spring", "State", "Stepper", "SunIcon",
-        "Switch", "TabBar", "TabBarTab", "Table", "TableRow", "Text", "TextInput", "TextLabel",
-        "TextLargeIcon", "TextMediumIcon", "TextSizeIcon", "TextSizeSwitch", "TextSmallIcon", "Time", "Toast", "ToolButton",
-        "Toolbar", "ToolbarDivider", "Tooltip", "Tooltips", "Tree", "TreeRow", "TweenLayout", "ValueControl",
-        "Video", "View", "Window", "WrappingLayout"
+        "Divider", "EventStream", "Field", "FieldLayout", "Floating", "FocusRing", "Font", "FontFace",
+        "Form", "Gauge", "HTMLText", "Icon", "IconHost", "Image", "KeyListener", "Layout",
+        "LightbulbIcon", "Markdown", "Menu", "MenuBar", "MinusIcon", "MonthCalendar", "MonthCalendarArrow", "MonthCalendarDay",
+        "MoonIcon", "NativeText", "Node", "OverlayStrata", "PlusIcon", "Popover", "ProgressBar", "Radio",
+        "RadioGroup", "RangeSlider", "RangeThumb", "ResponsiveLayout", "SearchField", "Segmented", "SegmentedItem", "SendHold",
+        "Sheet", "Shortcuts", "ShortcutsPanel", "ShortcutsPanelHead", "ShortcutsPanelLine", "ShortcutsPanelRow", "SimpleLayout", "Slider",
+        "Socket", "Spacer", "Splitter", "Spring", "State", "Stepper", "SunIcon", "Switch",
+        "TabBar", "TabBarTab", "Table", "TableRow", "Text", "TextInput", "TextLabel", "TextLargeIcon",
+        "TextMediumIcon", "TextSizeIcon", "TextSizeSwitch", "TextSmallIcon", "Time", "Toast", "ToolButton", "Toolbar",
+        "ToolbarDivider", "Tooltip", "Tree", "TreeRow", "TweenLayout", "ValueControl", "Video", "View",
+        "Window", "WrappingLayout"
         ]
     }

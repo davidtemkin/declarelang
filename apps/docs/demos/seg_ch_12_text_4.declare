@@ -1,4 +1,4 @@
-class Hero extends Text [ fontSize = 40, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
+class Hero extends Text [ fontSize = 40, textFill = { Gradient.linear("90deg", 0x4C8DFF, 0x37E0C8) } ]
 
 style Keyword [ textColor = #C678DD, fontWeight = bold ]
 

@@ -192,7 +192,7 @@ export declare class DataSource extends Dataset {
     get loaded(): boolean;
     /** `autoFetch = true`: fetch whenever a NON-EMPTY url arrives or changes — the
      *  reactive-address case, where the url derives from late-landing state
-     *  (`url = { hostProvided("program", "") != "" ? … : "" }`) and no handler exists to call
+     *  (`url = { app.hostProvided("program", "") != "" ? … : "" }`) and no handler exists to call
      *  fetch() at the right moment. Push-driven off the url/autoFetch slots; a
      *  re-derive to the SAME address never refetches. Resolves the recorded
      *  auto-fetch question: explicit fetch() stays the default, autoFetch is opt-in. */
