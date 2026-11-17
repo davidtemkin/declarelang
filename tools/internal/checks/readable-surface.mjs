@@ -21,7 +21,7 @@ const { parseProgram } = await import(`file://${ROOT}/runtime/dist/parser.js`);
 // output, per-run eval artifacts, the vendored React comparison's node_modules.
 const SKIP = new Set([
   "node_modules", ".git", "dist", "runs", "browser", "bundles", "assets",
-  "baselines", "artifacts", "fixtures", "screenshots", "shots",
+  "baselines", "artifacts", "fixtures", "screenshots", "shots", "my-apps", "nyt-declare",
 ]);
 
 function walk(dir, out = []) {

@@ -127,3 +127,6 @@ evals/**/*.woff2
 evals/**/*.woff
 evals/**/*.ttf
 evals/**/*.otf
+
+# the NYT front-page eval package: licensed content, never in the repository
+nyt-declare/
