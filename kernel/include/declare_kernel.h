@@ -232,6 +232,9 @@ int kernel_rewire(dk_kernel *k, uint32_t rule, const uint32_t *edges, uint32_t n
 /* A rule's dependency cells (static edges, then dynamic ones): fills `out`
  * up to `cap`, returns how many there are. Tooling and tests. */
 uint32_t kernel_deps(dk_kernel *k, uint32_t rule, uint32_t *out, uint32_t cap);
+/* How many times a rule has run in the current (or last) settle: a cycle's
+ * report finds the loop among the rules that kept running. Tooling. */
+uint32_t kernel_runs(dk_kernel *k, uint32_t rule);
 /* Rule state bits: 1 queued · 2 dead · 4 suspended · 8 needs rewire · 16 unlanded. */
 uint32_t kernel_state(dk_kernel *k, uint32_t rule);
 /* The rules' state bytes as an array the host VIEWS (no call per check):

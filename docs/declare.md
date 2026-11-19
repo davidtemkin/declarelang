@@ -300,7 +300,7 @@ A `{ }` as an attribute's value is a **constraint**: re-evaluated when, and only
 ```declare-fragment
 x    = { parent.width - width - 20 },               // stays 20 from the right edge
 fill = { selected ? 0x4169E1 : 0x191970 },           // royalblue / midnightblue
-text = { data.failed ? data.error : "Loading…" }
+text = { data.failed ? "Couldn’t load" : "Loading…" }
 ```
 
 **Dependencies are extracted by the compiler.** It reads your expression, reads *through* what

@@ -276,8 +276,11 @@ weather: DataSource [ url = { `/data/weather/${app.zip}.json` }, autoFetch = tru
 splash: View [ visible = { !app.weather.loaded } ],       // nothing has arrived yet
 report: View [ visible = { app.weather.loaded } ],        // stays up while a refresh runs
 spinner: View [ visible = { app.weather.loading } ],      // a request is in flight
-notice: Text [ visible = { app.weather.failed }, text = { app.weather.error } ]
+notice: Text [ visible = { app.weather.failed },
+    text = { app.weather.failure == "offline" ? "You’re offline." : "The forecast didn’t load." } ]
 ```
+
+What a person reads is the program’s own words, chosen by [`failure`](declare-docs:DataSource.failure): why the request failed, as one of a closed set. [`error`](declare-docs:DataSource.error) is the platform’s account for a developer, and in a production build it is a code with its values (`declare-help` turns it back into the sentence), never words to show.
 
 `loaded` is about the *value*: true from the first arrival until [`clear()`](declare-docs:DataSource.method.clear) empties the
 source, and still true while a refresh runs. [`loading`](declare-docs:DataSource.loading) and `failed` are about the
@@ -324,7 +327,7 @@ Button [ label = { app.create.loading ? "Saving…" : "Add" },
     disabled = { app.create.loading || app.draft == "" },
     onClick() { app.create.fetch() }
     ],
-Text [ visible = { app.create.failed }, text = { "Not saved: " + app.create.error } ]
+Text [ visible = { app.create.failed }, text = { "Not saved: " + (app.create.failure == "offline" ? "you’re offline." : "try again.") } ]
 ```
 
 Four facts make this work without choreography:

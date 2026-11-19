@@ -118,6 +118,13 @@ wanders, it is a drag, and the view hears it in three moments:
   window losing focus, the system interrupting a touch. The place to commit, or to put
   things back.
 
+Each event carries the pointer in two frames: `e.x`/`e.y` in the view's own coordinates, and
+`e.rootX`/`e.rootY` in the app's. For the point in some other view's frame (the slot under
+the pointer on a board the card is dragged across), subtract that view's
+[`rootOrigin()`](declare-docs:View.method.rootOrigin), its origin in the app's frame:
+`e.rootX - board.rootOrigin().x`. It accounts for every scroll between, which adding up the
+ancestors' `x` and `y` doesn't.
+
 ```declare
 App [ width = 320, height = 160, fill = white,
     card: View [ x = 20, y = 40, width = 120, height = 80, cornerRadius = 10, fill = 0x4C8DFF,

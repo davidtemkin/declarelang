@@ -9,8 +9,8 @@ handful of ideas — a view that is as large as its content unless it says other
 `layout` that places a view's children, a size that comes from the parent or from what a
 view holds — and they cover a page frame, a scrolling list, a responsive split and a grid
 of squares. Nothing in it is special to the platform: the layouts the library ships are
-written in Declare, in a few lines each, and when none of them says what you mean, you
-write your own with one method and it is exactly as capable as theirs. A layout is an
+written in Declare, each one method, `place()`, and when none of them says what you mean,
+you write your own the same way and it is exactly as capable as theirs. A layout is an
 attribute, so it can be swapped, driven by a constraint, or animated. And because every
 size and place has a single decider, you can always ask why a view is where it is, and get
 one answer.

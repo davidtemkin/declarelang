@@ -24,7 +24,7 @@ write, then check it to the level the request asks for (§ Checking).
    decides each size and place, and how a child asks its layout. Every program has layout,
    and it is not CSS, even where it looks like it.
 3. **The to-do app, whole** — `apps/todo/todo.declare` and the parts it includes,
-   `apps/todo/todo-parts.declare`, read together: <!--stat:todo.codeWithParts-->848<!--/stat--> lines of code, with
+   `apps/todo/todo-parts.declare`, read together: <!--stat:todo.codeWithParts-->845<!--/stat--> lines of code, with
    comments written for a first reader. It is a familiar program written in the grain
    Declare is designed for, one program for phone and desktop. Read it for how the work
    divides — the tasks as a dataset class that makes every write, the user's place on the
@@ -125,7 +125,7 @@ Then check every need in the plan against
     springs that every cell reads, records edited in place. Its month surface is a scene
     whose geometry is mapped through those springs, which is where hand-written `x` and
     `y` belong; an ordinary page's cards and rows are a layout's job (see the drift
-    check). It is <!--stat:calendar.code-->540<!--/stat--> lines of code.
+    check). It is <!--stat:calendar.code-->549<!--/stat--> lines of code.
   - **Status to take in at a glance, on phone and desktop alike** — conditions, a dashboard
     of instruments, a list whose rows open into pages. → `apps/weather/weather.declare` and
     its drawn instruments in `weather-art.declare`: one program in two designs, a row that

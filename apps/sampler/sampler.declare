@@ -246,6 +246,8 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     barH: number = { app.compact ? 92 : 52 },    // fixed for a width — on a narrow one the page switch takes a second row
 
     page: "controls" | "forms" | "table" | "grid" | "overlays" | "more" = "controls",      // the center switch
+    pages: array = { [ ({ id: "controls", label: "Controls" }), ({ id: "forms", label: "Forms" }), ({ id: "table", label: "Table" }),
+        ({ id: "grid", label: "DataGrid" }), ({ id: "overlays", label: "Overlays" }), ({ id: "more", label: "More" }) ] },
 
     // the Forms page's specimens of editing, one fact each
 
@@ -359,6 +361,16 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // ── the STYLING menu — the styling rig as records: styling rows, the
     //    tint dots (the Finder idiom), the flourish. Light/dark is the bar's
     //    own switch, beside it. ───────────────────────────────────────────
+
+    // On a narrow bar six pages don't fit side by side with room around their
+    // names, so the page switch becomes a button that opens them as a list.
+    // the six tabs side by side, from x 200, need the bar less the Styling door and the switch
+
+    tabsFit: boolean = { app.width >= 980 },
+    pageMenu: Menu [
+        items = { app.pages.map((p) => ({ ...p, group: "page", checked: app.page == p.id })) },
+        picked(id: string) { app.page = id as "controls" | "forms" | "table" | "grid" | "overlays" | "more" }
+        ],
 
     stylingMenu: Menu [
         width = 240,
@@ -514,18 +526,28 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
         // the page switch is the library's TabBar: a Segmented that acts as tabs
 
-        pageSwitch: TabBar [ y = { app.compact ? 52 : 11 },
-            x = { app.compact ? (app.width - this.width) / 2 : Math.max(200, (app.width - this.width) / 2) },
-            segmentMinWidth = { app.compact ? Math.min(92, (app.width - 32) / 6) : 92 },
+        pageSwitch: TabBar [ visible = { app.tabsFit }, y = 11,
+            x = { Math.max(200, (app.width - this.width) / 2) },
             value = { app.page },
             commit(v: object) { app.page = v as "controls" | "forms" | "table" | "grid" | "overlays" | "more" },
-            items = { [ ({ id: "controls", label: "Controls" }),
-                        ({ id: "forms",    label: "Forms" }),
-                        ({ id: "table",    label: "Table" }),
-                        ({ id: "grid",     label: "DataGrid" }),
-                        ({ id: "overlays", label: "Overlays" }),
-                        ({ id: "more",     label: "More" }) ] }
+            items = { app.pages }
             ],
+
+        // …and where they don't fit beside the Styling door, the pages as a list behind one
+        // button: in the bar's middle, or on a second row when the bar is narrow
+
+        pagePicker: Button [ visible = { !app.tabsFit }, y = { app.compact ? 52 : 11 }, height = 30,
+            x = { app.compact ? (app.width - this.width) / 2 : Math.max(200, (app.width - this.width) / 2) },
+            label = { app.pages.find((p) => p.id == app.page)?.label ?? "" }, menu = { app.pageMenu } ],
+
+        // On a narrow bar the page button sits on a second row, below the Styling door, so
+        // Tab reaches it last there; in the bar's middle it comes in the order declared.
+
+        tabOrder() -> array {
+            const d = this.tabDefault()
+            if (!app.compact) return d
+            return [...d.filter((v) => v != this.pagePicker), this.pagePicker]
+            },
 
         // at the right end: the STYLING door — a button with a menu (the
         // chevron and the anchored open come with Control's `menu` role),
@@ -568,18 +590,20 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                     Specimen [ label = "Buttons",
                         row: View [
                             layout: SimpleLayout [ axis = x, spacing = 12 ],
-                            Button [ width = { app.compact ? 94 : 110 }, label = "Primary", primary = true, tooltipLabel = "The accent action" ],
-                            Button [ width = { app.compact ? 94 : 110 }, label = "Secondary", primary = false ],
-                            Button [ width = { app.compact ? 94 : 110 }, label = "Disabled", disabled = true, tooltipLabel = "Disabled — but the tip still shows" ]
+                            Button [ label = "Primary", primary = true, tooltipLabel = "The accent action" ],
+                            Button [ label = "Secondary", primary = false ],
+                            Button [ label = "Disabled", disabled = true, tooltipLabel = "Disabled — but the tip still shows" ]
                             ]
                         ],
 
                     Specimen [ label = "Checkbox · Switch · Radio",
                         row: View [
-                            layout: SimpleLayout [ axis = x, spacing = 24 ],
-                            Checkbox [ label = "Notifications", checked = true ],
-                            Switch [ checked = true, accessibilityLabel = "Wi-Fi" ],
-                            Switch [ accessibilityLabel = "Bluetooth" ],
+                            layout: SimpleLayout [ axis = x, spacing = 32 ],
+                            toggles: View [ layout: SimpleLayout [ axis = y, spacing = 10 ],
+                                Checkbox [ label = "Notifications", checked = true ],
+                                Switch [ label = "Wi-Fi", checked = true ],
+                                Switch [ label = "Bluetooth" ]
+                                ],
                             RadioGroup [ value = "m",
                                 Radio [ choice = "s", label = "S" ],
                                 Radio [ choice = "m", label = "M" ],

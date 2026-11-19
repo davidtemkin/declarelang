@@ -5,6 +5,29 @@ A boolean control with a sliding thumb — same value contract as Checkbox (`che
 `commit` owns the destination), different body language: the thumb **springs**
 between its two rest points, so toggling moves rather than jumps.
 
+Its `label` comes first and the switch after it, as on every platform's settings; given a
+width wider than both, the switch keeps to the trailing edge, so a full-width switch is a
+settings row:
+
+```declare
+App [ width = 320, height = 120,
+    View [ x = 20, y = 20, width = 280, layout: SimpleLayout [ axis = y, spacing = 12 ],
+        wifi: Switch [ label = "Wi-Fi", checked = true, width = 100% ],
+        Switch [ label = "Bluetooth", width = 100% ] ] ]
+```
+
+## label
+The words before the switch: what it turns on, shown, part of what a press reaches, and its
+name to a screen reader. `""` (the default) is the switch alone, named at its use site with
+`accessibilityLabel`, or by a `Field` around it.
+
+## baseline
+The baseline a row aligns this control by — the label's, so its words sit on the line of
+their neighbors'.
+
+## focusShape()
+Rings the switch alone, not the switch and its label — as a Checkbox rings its box.
+
 ## checked
 Whether the switch is on. Constrain it (`checked = { app.muted }`) and override `commit`
 to own the destination — or write `checked <-> app.muted` — or leave it and read it back:
@@ -63,29 +86,32 @@ canceled drag puts the thumb back.
 An override calls `super.onDragEnd(e)`: it is what ends the drag.
 
 ## width
-A theme with a native switch size says so (`provided("theme").switchWidth`); otherwise 44, the common pill.
+Content-sized: the label, a gap and the switch, or the switch alone. The switch's own size is
+the theme's (`provided("theme").switchWidth` and `switchHeight`), 44 by 24 otherwise. Given a
+wider width, the switch keeps to the trailing edge.
 
 ## height
-A theme with a native switch size says so (`provided("theme").switchHeight`); otherwise 24.
-
-## cornerRadius
-Always a pill — half the height, whatever the height is.
+The switch's height: a theme with a native switch size says so (`provided("theme").switchHeight`); otherwise 24.
 
 ## opacity
 Disabled dims the whole control — every part alike, never a recolour — to the theme's `disabledOpacity`, or 0.45 when the theme states none: the one place the number lives.
 
-## fill
-The track's ladder for a toggle: checked takes the accent; unchecked shows the selected tint while hovered or pressed and the quiet control tint at rest — so the track answers the pointer before the value flips.
+## _track
+**Internal.** The pill the thumb slides in, a pill whatever its height: checked, it takes the
+accent; unchecked, the selected tint while hovered or pressed and the quiet control tint at
+rest, so it answers the pointer before the value flips. A hairline in the accent or the
+theme's line keeps its edge on light and dark surfaces alike.
 
-## stroke
-A hairline in the accent when checked, in the theme's line colour otherwise, so the track keeps an edge on light and dark surfaces alike.
+## _cap
+**Internal.** The label's words.
 
 ## accessibilityChecked
-Follows `checked`. A switch shows no label of its own, so **its use site names it** with `accessibilityLabel` — unnamed, the compiler warns.
+Follows `checked`.
 
 ## accessibilityLabel
-The caption of a `Field` around it, unless the use site names the switch: its name to a screen
-reader.
+The caption of a `Field` around it, unless the use site names the switch; with neither, its
+`label` is its name. A switch with no `label` is named at its use site
+(`accessibilityLabel = "Wi-Fi"`) — unnamed, the compiler warns.
 
 ## fieldValue
 Follows `checked`: what `required` and `validate` judge (see `ValueControl`).
@@ -94,15 +120,22 @@ Follows `checked`: what `required` and `validate` judge (see `ValueControl`).
 include [ "valuecontrol.declare" ]
 
 class Switch extends ValueControl [
-    // a switch shows no label of its own, so its use site names it
-    // (accessibilityLabel = "Wi-Fi"); it tells a screen reader whether it is on
+    // a switch, named by its label, telling a screen reader whether it is on
 
     accessibilityRole = switch,
     accessibilityChecked = { checked },
     accessibilityLabel = { provided("fieldLabel", "") },
-    width  = { provided("theme").switchWidth },
+    label: string = "",
+    baseline: number = { this._cap.y + this._cap.baseline },   // a row aligns the control by its label
+
+    // keyboard focus rings the switch alone, not switch+label (the Checkbox rule)
+
+    focusShape() { return ({ x: this._track.x, y: this._track.y, w: this._track.width, h: this._track.height, rad: this._track.cornerRadius }) },
+
+    // the label, then the switch; wider than that, the switch keeps to the trailing edge
+
+    width  = { (label == "" ? 0 : this._cap.width + 12) + this._track.width },
     height = { provided("theme").switchHeight },
-    cornerRadius = { height / 2 },
     checked: boolean = false,
     fieldValue = { checked },
 
@@ -119,8 +152,8 @@ class Switch extends ValueControl [
     _dragged: boolean = false,
     _dx: number = 0,
     _grab: number = 0,
-    _restX(on: boolean) -> number { return on ? width - _thumb.width - 2 : 2 },
-    _dragX() -> number { return Math.max(2, Math.min(width - _thumb.width - 2, _grab + _dx)) },
+    _restX(on: boolean) -> number { return on ? _track.width - _track._thumb.width - 2 : 2 },
+    _dragX() -> number { return Math.max(2, Math.min(_track.width - _track._thumb.width - 2, _grab + _dx)) },
 
     onPointerDown(e: PointerEvent) {
         if (disabled) return
@@ -136,7 +169,7 @@ class Switch extends ValueControl [
     onDrag(e: PointerEvent) { _dx = e.deltaX },
     onDragEnd(e: DragEndEvent) {
         if (_dragged && !e.canceled) {
-            const on = _dragX() + _thumb.width / 2 > width / 2
+            const on = _dragX() + _track._thumb.width / 2 > _track.width / 2
             if (on != checked) edit(on)
             }
         dragging = false
@@ -144,17 +177,28 @@ class Switch extends ValueControl [
         },
 
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
-    fill    = { checked ? provided("theme").accent : hovered || pressed ? provided("theme").controlSelected : ((provided("theme").trackFill ?? provided("theme").control)) },
-    stroke  = { Stroke(1, checked ? provided("theme").accent : provided("theme").line) },
 
-    // the thumb derives from the track: inset 2 normally; a theme may say the
-    // unchecked thumb is smaller (Mountain View's 16→24 grow-on-check)
+    // No explicit textColor: the label follows the provided text style, and a use
+    // site restyles it with ordinary attributes, as a Checkbox's
 
-    _thumb: View [ cornerRadius = { this.width / 2 },
-        width  = { checked || provided("theme").switchThumbOffSize == null ? classroot.height - 4 : provided("theme").switchThumbOffSize },
-        height = { this.width },
-        y = center,
-        fill = { provided("theme").switchThumbFill ?? provided("theme").surface },
-        slide: Spring [ attribute = x, to = { classroot._dragged ? classroot._dragX() : classroot._restX(classroot.checked) }, stiffness = 300, damping = 26 ]
+    _cap: TextLabel [ y = center, wrap = false, visible = { label != "" }, text = { label } ],
+
+    _track: View [ x = { classroot.width - this.width }, y = center,
+        width  = { provided("theme").switchWidth },
+        height = { classroot.height },
+        cornerRadius = { this.height / 2 },
+        fill   = { classroot.checked ? provided("theme").accent : classroot.hovered || classroot.pressed ? provided("theme").controlSelected : ((provided("theme").trackFill ?? provided("theme").control)) },
+        stroke = { Stroke(1, classroot.checked ? provided("theme").accent : provided("theme").line) },
+
+        // the thumb derives from the track: inset 2 normally; a theme may say the
+        // unchecked thumb is smaller (Mountain View's 16→24 grow-on-check)
+
+        _thumb: View [ cornerRadius = { this.width / 2 },
+            width  = { classroot.checked || provided("theme").switchThumbOffSize == null ? parent.height - 4 : provided("theme").switchThumbOffSize },
+            height = { this.width },
+            y = center,
+            fill = { provided("theme").switchThumbFill ?? provided("theme").surface },
+            slide: Spring [ attribute = x, to = { classroot._dragged ? classroot._dragX() : classroot._restX(classroot.checked) }, stiffness = 300, damping = 26 ]
+            ]
         ]
     ]

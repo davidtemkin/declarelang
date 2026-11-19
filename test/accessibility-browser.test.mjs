@@ -479,6 +479,53 @@ await test("a grid's row headers are rowheaders, and a labelled scroller is a na
   await pg.close();
 });
 
+// A run cut short with an ellipsis (`maxLines`) is read and copied whole: the cut
+// remainder stays inline at no size, so Chrome names the run as one word across
+// the cut and a copy has no line break in it. A button given too narrow a width
+// cuts its label inside its margins the same way, and shows it whole in a tooltip.
+await test("a run cut short with an ellipsis is named and copied whole; a narrow button's label too", async () => {
+  const pg = await browser.newPage();
+  await pg.setViewport({ width: 400, height: 200 });
+  const errs = []; pg.on("pageerror", (e) => errs.push(String(e)));
+  await pg.goto(BASE + "/", { waitUntil: "domcontentloaded" });
+  const src = `App [ width = 400, height = 200, theme = { SanFrancisco },
+    col: View [ padding = 10, layout: SimpleLayout [ axis = y, spacing = 8 ],
+        cut: Button [ label = "Comfortable", width = 80 ],
+        whole: Button [ label = "Comfortable" ],
+        line: Text [ width = 60, maxLines = 1, text = "Comfortable chairs" ] ] ]`;
+  const out = await pg.evaluate(async (base, json) => {
+    const rt = await import(base + "/runtime/dist/index.js");
+    await rt.kernelReady?.();
+    const host = document.createElement("div");
+    host.style.cssText = "position:absolute;left:0;top:0;width:400px;height:200px";
+    document.body.appendChild(host);
+    const app = rt.buildProgram(JSON.parse(json));
+    rt.mountApp(app, host, new rt.DomBackend());
+    rt.settle();
+    await new Promise((res) => requestAnimationFrame(() => setTimeout(res, 50)));
+    rt.settle();
+    const box = app.col.line.$surface.element;
+    const dots = box.querySelector('[aria-hidden="true"]');
+    const el = dots?.parentElement ?? box;   // the run the clamp fills
+    return { cutTip: app.col.cut.tooltipLabel, wholeTip: app.col.whole.tooltipLabel,
+      shown: dots?.textContent === "\u2026",
+      copied: el.innerText.includes("\n"),
+      read: [...el.childNodes].filter((n) => !(n.nodeType === 1 && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("") };
+  }, BASE, JSON.stringify((await compile(src)).program));
+  const c = await pg.createCDPSession();
+  const { nodes } = await c.send("Accessibility.getFullAXTree");
+  const names = nodes.filter((n) => !n.ignored).map((n) => n.name?.value ?? "");
+  const buttons = nodes.filter((n) => !n.ignored && n.role?.value === "button").map((n) => n.name?.value ?? "");
+  assert.equal(out.cutTip, "", "a cut label has no tooltip: verify reports it as a bug instead");
+  assert.equal(out.copied, false, "no line break in the copy");
+  assert.deepEqual(buttons, ["Comfortable", "Comfortable"], "both buttons named whole, the cut one too");
+  assert.ok(out.shown, "the line is cut short on screen");
+  assert.equal(out.read, "Comfortable chairs", "the line's readable text is whole");
+  assert.ok(!names.some((n) => /\u2026/.test(n)), `the ellipsis is never read: ${JSON.stringify(names)}`);
+  assert.deepEqual(errs, []);
+  await pg.close();
+});
+
 await test("no page errors through the whole run", () => {
   assert.deepEqual(errors, []);
 });

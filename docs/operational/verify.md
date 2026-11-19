@@ -14,7 +14,7 @@ npx declare-verify app.declare
 | 1 | structure | parse errors | — |
 | 2 | resolution | unresolved names, tags, datapaths | — |
 | 3 | analysis | type errors, constraint reads without a known target | — |
-| 4 | boot | fails to construct or settle, or never settles; notes a control nobody can reach, a child spilling out of a box sized by its content, text running past its box or the window, a target too small for a finger | — |
+| 4 | boot | fails to construct or settle, or never settles; notes a control nobody can reach, a child spilling out of a box sized by its content, text running past its box, the view it sits in, or the window, a control's own words cut short, a target too small for a finger | — |
 | 5 | behavior | drive/expect mismatch; notes rung 4's layout findings wherever the script settles | `--assert <script.mjs>` |
 | 6 | visual | mismatch against named baselines; notes rung 4's layout findings in each state | `--states <script.mjs>` `--baselines <dir>` |
 
@@ -25,7 +25,7 @@ touch), and with `--phone --desktop`, both; `--size WxH [--touch]` names any oth
 hands each `DataSource` with a `schema` a sample of it, and notes what it can see wrong in
 the layout: a control outside a view which clips and does not scroll, or above a scroller's
 origin; a child spilling out of a box sized by its content because its own size is taken
-from that box; text that runs past its box or past the window's edge; on the phone,
+from that box; text that runs past its box, out of the view it sits in (one with a ground of its own, or onto a neighbor), or past the window's edge; a control's label that the program wrote, cut short with an ellipsis (a label showing data, such as a record's title, may be cut, and isn't said; the program's words are its string literals, so words it loads as data, a table of translations among them, or builds as it runs aren't checked); on the phone,
 controls smaller than 44 × 44. It lists the program's classes the boot never built —
 screens that appear only after data or a change of state — which it could not check.
 Rungs 5 and 6 run the app in the same Chrome, drive it with real input, and assert through
@@ -306,6 +306,7 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 | `drive.key(name)`, `drive.type(text)`, `drive.tab(n?)` | keys, to whatever has the focus; a chord is written with `+` as a person names it — `"Shift+Tab"`, `"Cmd+Z"`, `"Option+ArrowLeft"`, `"Mod+S"` (⌘ on a Mac, Ctrl elsewhere) — and a Mac's editing chords (⌘C, ⌥⌫, ⌘←…) do what they do on a Mac. `page.keyboard.press` and a locator's `press` take the same names |
 | `drive.selectAll(path)` | focus the text field and select everything in it, as select-all does before typing over a value |
 | `drive.set(path, attr, value)` | an assignment, as a handler's write |
+| `drive.call(path, method, …args)` | a method called on the node, its result returned — for testing the model's rules directly (`drive.call("app.field", "lay", 20)`). It goes around the controls, so it never stands in for what a person does: test the app by pressing what they press |
 | `drive.hold({ method?, path })` | every request that matches — `path` a prefix of its path, or a RegExp over the URL — waits, unsent, until the script lets it go: `const h = await drive.hold({ method: "POST", path: "/api/orders" })`, then look at what the program shows while it waits ("Sending…", a disabled button), then `await h.release()`. `h.count` is how many are held |
 | `drive.read(path)` | a value, as `--read` gives it — `await drive.read("app.list.height")`: the attribute after the last dot, on the view the rest names; a view comes back as its class's name |
 | `drive.wait(ms)` | exactly `ms` of the program's time, run frame by frame — not `ms` of real time; what the program asked for in the meantime (a request, a frame) is waited for as it lands |

@@ -391,6 +391,17 @@ await test("a child that is its parent's only content and is sized from it has n
   assert.match(neg[0], /Give View a width, or use its padding/);
 });
 
+// The same arithmetic through an attribute of the parent's (`inner`, read from its
+// own width) is the same mistake, and is said the same way.
+await test("a child sized from its parent through another attribute is reported as a direct read is", async () => {
+  const { lines } = await said(() => bootAttached(`App [ width = 600, height = 300,
+    card: View [ fill = gray, padding = 10, inner: number = { this.width - 40 },
+        body: View [ width = { parent.inner }, height = 20 ] ] ]`));
+  const neg = lines.filter((l) => /View\.width is -\d+/.test(l));
+  assert.equal(neg.length, 1, JSON.stringify(lines));
+  assert.match(neg[0], /— it is sized from its parent \(View\), which takes its width from its content/);
+});
+
 await test("ordinary arithmetic below zero is not a mistake — a closed section's field says nothing", async () => {
   // The accordion idiom: a field sized from its section's GIVEN height, the
   // section closed to less than the field's offset. The field is below zero
@@ -489,6 +500,33 @@ await test("under a computed axis a flexing or shrinking child is refused either
   assert.equal(either.length, 2, errs.join("\n"));
   assert.match(either[0], /^View\.height.*it flexes/);
   assert.match(either[1], /^Text\.width.*it shrinks/);
+});
+
+// A COMPUTED `flexes` flexes wherever it is true, and there the run gives the
+// child its size along the flow: a size declared beside it would meet the run in
+// that state, so it is refused at its line, with the bounded form named. A child
+// that always flexes, bounded by a computed maxWidth, compiles.
+await test("a size beside a computed flexes is refused at compile time; flexes with a computed bound compiles", async () => {
+  const errs = (await compileOnly(`App [ width = 400, height = 600, phone: boolean = false,
+    bar: View [ width = 400, height = 40, layout: SimpleLayout [ axis = x ],
+        find: View [ width = { app.phone ? 0 : 220 }, flexes = { app.phone }, height = 30 ] ] ]`)).errors.map((e) => e.message);
+  assert.equal(errs.length, 1, errs.join("\n"));
+  assert.match(errs[0], /^View\.width.*its 'flexes' is computed.*flexes = true, 'maxWidth'/);
+  const ok = (await compileOnly(`App [ width = 400, height = 600, phone: boolean = false,
+    bar: View [ width = 400, height = 40, layout: SimpleLayout [ axis = x ],
+        find: View [ flexes = true, minWidth = 120, maxWidth = { app.phone ? 2000 : 220 }, height = 30 ] ] ]`)).errors.map((e) => e.message);
+  assert.deepEqual(ok, []);
+});
+
+// A view arranged by a ResponsiveLayout chooses its plan by the width it is given;
+// `shrinks` sizes it from its content instead, so it is refused where it is written.
+await test("shrinks on a view arranged by a ResponsiveLayout is refused at compile time", async () => {
+  const errs = (await compileOnly(`App [ width = 600, height = 300,
+    bar: View [ width = 600, height = 40, layout: SimpleLayout [ axis = x ],
+        group: View [ shrinks = true, layout: ResponsiveLayout [ plan = { [({ from: 300, flow: "row" }), ({ from: 0, flow: "stack" })] } ],
+            View [ width = 120, height = 20 ] ] ] ]`)).errors.map((e) => e.message);
+  assert.equal(errs.length, 1, errs.join("\n"));
+  assert.match(errs[0], /arranged by ResponsiveLayout, which chooses its arrangement by the width the view is given, so it has no content width, and shrinks sizes it from its content.*flexes = true/);
 });
 
 summarize("layout-claims");

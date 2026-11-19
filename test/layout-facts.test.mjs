@@ -6,7 +6,7 @@
 // layout of your own reads the same facts and sizes its view from what it placed.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, summarize, tempDir } from "./harness.mjs";
@@ -84,6 +84,91 @@ await test("a title that shrinks keeps its own width while there is room, and gi
   const narrow = layOut("shrink-narrow", src(200));
   assert.equal(narrow["app.bar.title"][2], 200 - 20 - 60 - 3 * 8, "the title gives up what the run is over by");
   assert.equal(narrow["app.bar.gap"][2], 0);
+});
+
+// The same geometry, after a change the page makes once booted: `set` is assigned
+// on the App, a settle and a frame go by, and the boxes are read.
+function layOutAfter(name, source, set) {
+  const file = join(DIR, name + ".declare");
+  writeFileSync(file, source);
+  const probe = join(DIR, name + ".probe.mjs");
+  writeFileSync(probe, `export default async ({ drive }) => {
+  await drive.page.evaluate((set) => { const app = window.__declare.find("app"); for (const [k, v] of Object.entries(set)) app[k] = v; }, ${JSON.stringify(set)});
+  await drive.waitReal(200);
+  ` + readFileSync(join(DIR, "probe.mjs"), "utf8").replace(/^export default async \(\{ drive \}\) => \{\n/, ""));
+  const p = spawnSync("node", [join(ROOT, "tools/verify.mjs"), file, "--assert", probe], { cwd: ROOT, encoding: "utf8" });
+  const m = (p.stdout ?? "").match(/GEOM (.*)/);
+  assert.ok(m, (p.stdout ?? "") + (p.stderr ?? ""));
+  return JSON.parse(m[1]);
+}
+
+// A CHILD THAT SHRINKS AND HOLDS PARTS THAT SHRINK (a toolbar title of a name and
+// an edition): its content size is its parts' own sizes, never the sizes its own
+// run gives them under the width the outer run gave it, so it is whole while the
+// outer run has room, whatever it was laid out with first.
+await test("a shrinking title of shrinking parts is whole while there is room, gives way in proportion when there is not, and is whole again", () => {
+  const src = (w) => `App [ width = 1000, height = 200, name: string = "",
+    bar: View [ width = ${w}, height = 40, layout: SimpleLayout [ axis = x, spacing = 6 ],
+        lead: View [ width = 32, height = 32 ],
+        title: View [ shrinks = true, height = 32, padding = [0, 8, 0, 8], layout: SimpleLayout [ axis = x, spacing = 6 ],
+            name: Text [ shrinks = true, wrap = false, maxLines = 1, text = { app.name } ],
+            ed: Text [ shrinks = true, wrap = false, maxLines = 1, text = "Late edition" ],
+            mark: View [ width = 12, height = 12 ] ],
+        gap: Spacer [ ],
+        tail: View [ width = 40, height = 30 ] ] ]`;
+  const wide = layOutAfter("nested-wide", src(900), { name: "Issue 03 of the magazine" });
+  const [name, ed] = [wide["app.bar.title.name"][2], wide["app.bar.title.ed"][2]];
+  assert.ok(name > 100 && ed > 40, `both parts whole: ${name}, ${ed}`);
+  assert.equal(wide["app.bar.title"][2], 8 + name + 6 + ed + 6 + 12 + 8, "the title is its parts' natural width, with its padding");
+  assert.equal(wide["app.bar.gap"][2], 900 - 32 - wide["app.bar.title"][2] - 40 - 3 * 6, "the spacer takes what is left");
+  const short = layOutAfter("nested-short", src(220), { name: "Issue 03 of the magazine" });
+  const t = short["app.bar.title"][2];
+  assert.equal(t, 220 - 32 - 40 - 3 * 6, "the title gives up what the run is over by");
+  const [n2, e2] = [short["app.bar.title.name"][2], short["app.bar.title.ed"][2]];
+  assert.equal(n2 + e2, t - 16 - 2 * 6 - 12, "its parts share what is left inside it");
+  assert.ok(Math.abs(n2 / e2 - name / ed) < 0.1, `in proportion to their natural sizes: ${n2}/${e2} against ${name}/${ed}`);
+});
+
+await test("a shrinking chip with a spacer inside counts the spacer at its minimum: the chip is its label and icon, after a shorter label too", () => {
+  const g = layOutAfter("nested-spacer", `App [ width = 600, height = 200, label: string = "Filter by owner, date and state",
+    bar: View [ width = 500, height = 40, layout: SimpleLayout [ axis = x, spacing = 8 ],
+        chip: View [ shrinks = true, height = 30, padding = [0, 10, 0, 10], layout: SimpleLayout [ axis = x, spacing = 4 ],
+            label: Text [ wrap = false, text = { app.label } ], gap: Spacer [ ], icon: View [ width = 14, height = 14 ] ],
+        rest: Spacer [ ] ] ]`, { label: "Filter" });
+  const label = g["app.bar.chip.label"][2];
+  assert.equal(g["app.bar.chip"][2], 10 + label + 4 + 0 + 4 + 14 + 10, "label, a spacer at 0, the icon, and the padding");
+  assert.equal(g["app.bar.chip.gap"][2], 0);
+});
+
+await test("ResponsiveLayout and WrappingLayout take a shrinking or flexing child's natural size the same way", () => {
+  const part = `View [ shrinks = true, height = 30, padding = [0, 8, 0, 8], layout: SimpleLayout [ axis = x, spacing = 6 ],
+            name: Text [ shrinks = true, wrap = false, maxLines = 1, text = { app.name } ], mark: View [ width = 12, height = 12 ] ]`;
+  const g = layOutAfter("nested-others", `App [ width = 1000, height = 300, name: string = "",
+    resp: View [ width = 900, height = 40, layout: ResponsiveLayout [ plan = { [({ from: 0, flow: "row", gap: 6 })] } ],
+        title: ${part}, gap: Spacer [ ] ],
+    wrap: View [ y = 60, width = 900, layout: WrappingLayout [ spacing = 6 ],
+        cell: View [ flexes = true, height = 30, padding = [0, 8, 0, 8], layout: SimpleLayout [ axis = x, spacing = 6 ],
+            name: Text [ shrinks = true, wrap = false, maxLines = 1, text = { app.name } ], mark: View [ width = 12, height = 12 ] ] ] ]`,
+    { name: "Issue 03 of the magazine" });
+  const name = g["app.resp.title.name"][2];
+  assert.ok(name > 100, "the name is whole in a ResponsiveLayout row: " + name);
+  assert.equal(g["app.resp.title"][2], 8 + name + 6 + 12 + 8);
+  assert.ok(g["app.wrap.cell.name"][2] > 100, "and in a WrappingLayout cell that flexes from its natural size: " + g["app.wrap.cell.name"][2]);
+});
+
+// A WRAPPING GROUP THAT SHRINKS: its content width is all its items on one row,
+// the row it lays when nothing bounds it, so it wraps only into what is left.
+await test("a shrinking wrapping group is one row while there is room, and wraps into what is left when there is not", () => {
+  const src = `App [ width = 1000, height = 300, room: number = 200,
+    bar: View [ width = { app.room }, layout: SimpleLayout [ axis = x, spacing = 6 ],
+        tags: View [ shrinks = true, layout: WrappingLayout [ spacing = 4 ],
+            a: View [ width = 60, height = 20 ], b: View [ width = 60, height = 20 ], c: View [ width = 60, height = 20 ], d: View [ width = 60, height = 20 ] ],
+        gap: Spacer [ ],
+        tail: View [ width = 40, height = 20 ] ] ]`;
+  const narrow = layOut("wrap-shrink-narrow", src);
+  assert.deepEqual(narrow["app.bar.tags"].slice(2), [200 - 6 - 6 - 40, 44], "it takes what the row has left, two tags to a row");
+  const wide = layOutAfter("wrap-shrink-wide", src, { room: 900 });
+  assert.deepEqual(wide["app.bar.tags"].slice(2), [4 * 60 + 3 * 4, 20], "widened, all four on one row");
 });
 
 await test("a flexing field keeps its minimum; weights share the room 2 : 1; a maximum holds and the rest share again", () => {

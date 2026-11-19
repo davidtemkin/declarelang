@@ -342,4 +342,68 @@ await test("a press on a hidden view is refused, saying it is hidden; a failed r
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
+// expect(value).toMatchObject, as in Playwright and Jest: the expected object's
+// properties, at any depth; the value's others don't matter.
+await test("expect(value).toMatchObject passes on a subset and fails on a difference", () => {
+  const ok = verify(`export default async ({ expect }) => {
+    expect({ id: "p1", kind: { name: "ad", w: 2 }, tags: ["a", "b"], extra: 1 }).toMatchObject({ kind: { name: "ad" }, tags: ["a", "b"] });
+    expect([{ id: 1, x: 2 }]).toMatchObject([{ id: 1 }]);
+  };`);
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  const bad = verify(`export default async ({ expect }) => {
+    expect({ id: "p1", kind: { name: "ad" } }).toMatchObject({ kind: { name: "story" } });
+  };`);
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stdout + bad.stderr, /toMatchObject\(\{"kind":\{"name":"story"\}\}\)/);
+});
+
+// drive.call: a method on a live node, called from the script and its result
+// returned, for a test program (a part on its own, with fixed data). Its
+// failures say which: no node, no method, or what the method threw. The
+// verdict says calls, not input: a call goes around the controls.
+await test("drive.call returns a method's result; a missing method and a throw are said; the verdict says calls", () => {
+  const dir = tempDir("declare-verify-call-");
+  const app = join(dir, "calc.declare");
+  writeFileSync(app, `class Calc extends Node [ total: number = 0,
+    add(n: number) -> number { total = total + n; return total },
+    fail() { throw new Error("no room") } ]
+App [ width = 100, height = 100, c: Calc [ ] ]`);
+  const run = (body) => {
+    const f = join(dir, `s-${Math.random().toString(36).slice(2)}.mjs`);
+    writeFileSync(f, `export default async ({ drive, expect }) => { ${body} };`);
+    return spawnSync(process.execPath, [join(ROOT, "tools/verify.mjs"), app, "--assert", f, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  };
+  const ok = run(`expect(await drive.call("app.c", "add", 2)).toBe(2); expect(await drive.call("app.c", "add", 3)).toBe(5); await expect.attr("app.c", "total", 5);`);
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  assert.match(ok.stdout, /2 calls into the program, 3 assertions/);
+  const miss = run(`await drive.call("app.c", "subtract", 1);`);
+  assert.match(miss.stdout + miss.stderr, /app\.c \(a Calc\) has no method 'subtract'/);
+  const threw = run(`await drive.call("app.c", "fail");`);
+  assert.match(threw.stdout + threw.stderr, /app\.c\.fail\(\) threw: no room/);
+});
+
+// A window the program opens (window.open, a page to print) comes up in front;
+// the program's page, in the background, would make no frames and every step
+// after it would wait out its budget. Verify puts the page back and says so.
+await test("a window the program opens doesn't stall the steps after it, and is said", () => {
+  const dir = tempDir("declare-verify-popup-");
+  writeFileSync(join(dir, "pop.ts"), `export function pop(): boolean { const w = window.open("", "_blank"); if (!w) return false; w.document.write("<p>plan</p>"); w.document.close(); return true }`);
+  const app = join(dir, "pop.declare");
+  writeFileSync(app, `script { import { pop } from "./pop.ts" }
+App [ width = 300, height = 200, n: number = 0,
+    go: Button [ label = "Print", onClick() { pop(); app.n = app.n + 1 } ],
+    more: Button [ y = 50, label = "More", onClick() { app.n = app.n + 1 } ] ]`);
+  const f = join(dir, "assert.mjs");
+  writeFileSync(f, `export default async ({ drive, expect }) => {
+    await drive.click("app.go");
+    await drive.click("app.more");
+    await expect.attr("app", "n", 2);
+  };`);
+  const t0 = Date.now();
+  const r = spawnSync(process.execPath, [join(ROOT, "tools/verify.mjs"), app, "--assert", f, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /note: the program opened a window; verify kept testing the program's page/);
+  assert.ok(Date.now() - t0 < 25000, "no wait for a frame that never comes");
+});
+
 summarize("verify-requests");

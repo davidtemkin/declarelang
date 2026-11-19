@@ -26,7 +26,7 @@ export default [
   // gutter and the weekday strip, the two things a bad `nr` breaks.
   st("week", {
     route: async ({ drive }) => {
-      await drive.click("app.bar.top.tabs.Week");
+      await drive.click("app.bar.tabs.Week");
       await drive.settleMotion();
     },
   }),
@@ -34,7 +34,7 @@ export default [
   // One cell, fully zoomed: time blocks rather than chips.
   st("day", {
     route: async ({ drive }) => {
-      await drive.click("app.bar.top.tabs.Day");
+      await drive.click("app.bar.tabs.Day");
       await drive.settleMotion();
     },
   }),
@@ -42,13 +42,16 @@ export default [
   // The year view — twelve minis, the month folding into its own slot.
   st("year", {
     route: async ({ drive }) => {
-      await drive.click("app.bar.top.tabs.Year");
+      await drive.click("app.bar.tabs.Year");
       await drive.settleMotion();
     },
   }),
 
-  // Narrow: the bar takes its second row and the nav re-places (`barNarrow`).
+  // Narrow: no brand, and the date shortened to the room between the sides.
   st("month-narrow", { viewport: { width: 560, height: 820 } }),
+
+  // Narrowest: the views behind one menu button, and the month without its year.
+  st("month-phone", { viewport: { width: 390, height: 760 } }),
 
   // WIDE, because the appearance switch is gated on `width >= 1030` and would
   // otherwise appear in no baseline at all — the sun/half-disc/moon migrated to

@@ -1399,13 +1399,13 @@ everything the document carries.
 ### rules
 
 - A field's type is one of the shape vocabulary; an unknown name is refused with the list.
-  > says: 'a: Widget' names no schema — declared schemas: T (a field's type is string | number | boolean | Color | any, a schema name, a literal union, or a nested [ … ])
+  > says: 'a: Widget' names no schema — declared schemas: T (a field's type is string | number | boolean | any, a schema name, a literal union, or a nested [ … ])
   > probe: schema T [ a: Widget ]\nApp [ ]
 - One schema per name.
   > says: schema 'T' is declared twice
   > probe: schema T [ a: string ]\nschema T [ b: string ]\nApp [ ]
 - A field carries a type after its markers.
-  > says: expected a shape field's type — string | number | boolean | Color | any, a schema name, a literal union, or a nested [ … ], got ']'
+  > says: expected a shape field's type — string | number | boolean | any, a schema name, a literal union, or a nested [ … ], got ']'
   > probe: schema T [ a?: ]\nApp [ ]
 
 ### related

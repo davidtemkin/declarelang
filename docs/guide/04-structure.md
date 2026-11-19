@@ -402,6 +402,27 @@ single later one — and the compiler refuses `fetch`, the timers and `globalThi
 script block is not a body: when a program needs a host API the language does not cover, a
 script function wraps it and a handler calls that.
 
+An answer that comes later comes back the same way. A handler is synchronous (no `async`), so
+a script function that answers later returns a promise, or takes a callback, and the handler
+that calls it writes the answer into an attribute in the arrow it hands over. The arrow is
+part of the handler, so it reaches `app` and its members as the handler does, and the screen
+follows the attribute as it follows any other:
+
+```declare-fragment
+script {
+    function lookUp(word: string): Promise<string> { … }        // answers once
+    function watch(each: (n: number) => void): void { … }       // answers again and again
+    }
+
+onInit() {
+    lookUp("pagemap").then((v: string) => { app.answer = v })
+    watch((n: number) => { app.count = n })
+    }
+```
+
+Data a server sends is a `DataSource`'s ([Data](declare-docs:guide:data)); this is for an
+API that only a script reaches, such as a vendor's SDK.
+
 A script runs wherever the program does — in a browser, or in the Mac app — so on its own it
 may use only what every host provides: the JavaScript built-ins, `fetch`, the timers, `URL`,
 `console`, `performance`. A script written for the browser says so, and may then use

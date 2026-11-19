@@ -68,6 +68,11 @@ Each world has its own vocabulary, and the boundary between them is exact.
   an object literal written `({ id: 3 })`: an arrow that returns one needs the parentheses,
   as in TypeScript, and the examples keep them elsewhere so braces that hold data never
   read as a block.
+- **An object as a value takes two pairs of braces.** A number, a string or an array can
+  stand bare after `=` (`tags: array = []`), but braces there always open a constraint, so
+  an object's own braces would be the constraint's: `options: object = { {} }`, or
+  `{ { sort: "date", open: true } }`. The outer pair is the constraint, the inner pair the
+  object.
 - **A method's `{ }` holds statements**, like any function body.
 - **An attribute's type is written on its declaration.** `count: number = 0` states it,
   once, where the attribute is declared. Inside a body, TypeScript's own annotations work

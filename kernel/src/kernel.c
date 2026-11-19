@@ -1038,6 +1038,12 @@ uint32_t kernel_deps(dk_kernel *k, uint32_t rule, uint32_t *out, uint32_t cap) {
   return n;
 }
 
+uint32_t kernel_runs(dk_kernel *k, uint32_t rule) {
+  if (rule >= k->nrules) return 0;
+  const Rule *r = &k->rules[rule];
+  return r->stamp == k->stamp ? (uint32_t)r->runs : 0;
+}
+
 int32_t kernel_add_cells(dk_kernel *k, uint32_t n, uint8_t kind) {
   if (n == 0) return DK_ERR_BAD;
   if (k->ncells + n > k->cell_cap) return DK_ERR_FULL;

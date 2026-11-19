@@ -656,7 +656,7 @@ class DocView [ width = { app.width }, fill = { provided("theme").ink },
                 textColor = { provided("theme").faint }, text = { classroot.waiting } ],
             oops: Text [ visible = { classroot.src.failed }, fontSize = 15,
                 textColor = { provided("theme").faint }, wrap = true, width = 100%,
-                text = { classroot.trouble + (classroot.src.error || "") } ],
+                text = { classroot.trouble + (classroot.src.failure == "offline" ? "you’re offline." : "try again in a moment.") } ],
             doc: Markdown [ visible = { classroot.src.loaded }, width = 100%, lineHeight = 1.35,
                 bodyColor = { provided("theme").lead },
                 text = { classroot.src.value || "" } ],
@@ -1259,7 +1259,7 @@ App [ tagline: string = "a UI language for you and your AI",
                     textColor = { provided("theme").faint }, text = "Loading…" ],
                 oops: Text [ visible = { app.why.failed }, fontSize = 15, wrap = true, width = 100%,
                     textColor = { provided("theme").faint },
-                    text = { "The essay did not load — " + (app.why.error || "") } ],
+                    text = { "The essay did not load — " + (app.why.failure == "offline" ? "you’re offline." : "try again in a moment.") } ],
 
                 /* ### Where this came from
 

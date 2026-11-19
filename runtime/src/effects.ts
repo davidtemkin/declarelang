@@ -16,7 +16,7 @@ const ok = (value: AttrValue): Coerced => ({ ok: true, value });
 const fail = (expected: string, found?: string): Coerced => ({ ok: false, expected, found });
 
 function gradientStops(args: (number | GradientStop)[], who: string): readonly GradientStop[] {
-  if (args.length < 2) throw new Error(`${who} needs at least two stops`);
+  if (args.length < 2) throw new Error(diag`${who} needs at least two stops`);
   return Object.freeze(args.map((a): GradientStop => {
     if (typeof a === "number" || typeof a === "string") return Object.freeze({ offset: null, color: toColor(a) });
     if (typeof a === "object" && a !== null && "color" in a) return a;

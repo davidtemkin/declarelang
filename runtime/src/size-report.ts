@@ -6,8 +6,8 @@
 
 import { View } from "./view.js";
 import type { Node } from "./node.js";
-import { afterSettle } from "./reactive.js";
-import { cellIdsOf, isSet, ownerOf, percentOwned } from "./attributes.js";
+import { afterSettle, constraintOfRule, kernel, kernelLoaded } from "./reactive.js";
+import { cellIdsOf, isSet, ownerOf, percentOwned, slotCellOf } from "./attributes.js";
 import { emptyContainerMessage, negativeSizeMessage } from "./errors.js";
 import { declareName } from "./declare-name.js";
 import { pathOf } from "./node-path.js";
@@ -39,7 +39,8 @@ function rootOf(v: Node): Node {
   return root;
 }
 export function noteNegativeSize(v: View, size: "width" | "height"): void {
-  if (!percentOwned(v, size) || NEGATIVE_PENDING.has(v)) return;   // only a size derived from the parent's
+  void size;   // both axes are judged at the close: only a size derived from the parent's is said
+  if (NEGATIVE_PENDING.has(v)) return;
   NEGATIVE_PENDING.add(v);
   // attached: judge at this settle's close; not yet: App.attach judges it
   if ((rootOf(v) as View).$surface != null) afterSettle(judgeNegativeSizes);
@@ -54,7 +55,7 @@ export function judgeNegativeSizes(): void {
     if (p === null) continue;
     for (const axis of ["width", "height"] as const) {
       const value = v[axis];
-      if (!(value < 0) || !percentOwned(v, axis)) continue;
+      if (!(value < 0) || !(percentOwned(v, axis) || readsParentSize(v, p, axis))) continue;
       // the parent has no size to give on this axis: it takes it from its
       // content (no size of its own, or its auto-extent owns it)
       const pOwner = ownerOf(p, axis);
@@ -68,6 +69,38 @@ export function judgeNegativeSizes(): void {
       console.error("[Declare] " + negativeSizeMessage(declareName(v), axis, value, declareName(p), onlyContent, ownerOf(v, axis)?.sourcePos));
     }
   }
+}
+
+/** Does `v`'s size on `axis` come from its parent's through another attribute
+ *  (`width = { parent.inner }` beside `inner: number = { this.width - 40 }`)?
+ *  The mark a size carries sees a read its own body states; this follows the
+ *  rule's reads a few steps, through rules that belong to the child or the
+ *  parent, to the parent's size. Asked only of a size already below zero. */
+function readsParentSize(v: View, p: View, axis: "width" | "height"): boolean {
+  if (!kernelLoaded()) return false;
+  const K = kernel();
+  const target = slotCellOf(p, axis);
+  const start = ownerOf(v, axis) as { id?: number } | null;
+  if (target < 0 || start == null || typeof start.id !== "number" || start.id < 0) return false;
+  const seen = new Set<number>();
+  let frontier = [start.id];
+  for (let depth = 0; depth < 4 && frontier.length > 0; depth++) {
+    const next: number[] = [];
+    for (const r of frontier) {
+      if (seen.has(r)) continue;
+      seen.add(r);
+      for (const cell of K.deps(r)) {
+        if (cell === target) return true;
+        const w = K.owner(cell);
+        if (w < 0) continue;
+        const c = constraintOfRule(w) as { owner?: unknown; slot?: { node?: unknown } | null } | null;
+        const node = c?.slot?.node ?? c?.owner;
+        if (node === p || node === v) next.push(w);
+      }
+    }
+    frontier = next;
+  }
+  return false;
 }
 
 /** A VIEW WHOSE SIZE NOTHING DECIDES: it takes its size from its children, and

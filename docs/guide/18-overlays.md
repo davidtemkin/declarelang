@@ -224,6 +224,10 @@ phone it rises from the bottom and a downward swipe on its handle puts it away; 
 screen it slides in from the end edge (`edge = "end"`), or floats as a card when its edge is
 the bottom. The context behind it dims, and a press there closes it.
 
+What it holds stands in a column, and the sheet is as tall as that column, up to the room
+its layer has. Content taller than that scrolls inside the sheet, so a long form needs no
+scrolling view of its own.
+
 ```declare
 App [ width = 560, height = 300, theme = { SanFrancisco },
     Button [ x = 20, y = 20, label = "Settings…", onClick() { app.prefs.show() } ],

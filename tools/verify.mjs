@@ -53,6 +53,18 @@ const RUNGS = [
 ];
 const BUILT_THROUGH = 6;
 
+
+/** How R5's steps are said: real input, calls into the program (drive.call, a
+ *  test program's), or both — a call goes around the controls, so the verdict
+ *  doesn't call it input. */
+function stepsSaid(log) {
+  const calls = log.filter((s) => s.startsWith("call ")).length;
+  const input = log.length - calls;
+  if (calls === 0) return `${log.length} step${log.length === 1 ? "" : "s"}, real input`;
+  const c = `${calls} call${calls === 1 ? "" : "s"} into the program`;
+  return input === 0 ? c : `${input} step${input === 1 ? "" : "s"} of real input and ${c}`;
+}
+
 function rungOf(phase) {
   const r = RUNGS.find((r) => r.phases.includes(phase));
   return r ? r.n : 1; // an unknown phase is treated as structural — fail early, loudly
@@ -347,6 +359,7 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
     behave.log = r.log;
     behave.asserted = r.asserted ?? 0;
     behave.warned = r.warned ?? [];
+    behave.opened = r.opened ?? [];
     behave.waited = r.waited ?? [];
     behave.writes = r.writes ?? [];
     behave.refused = r.refused ?? [];
@@ -487,7 +500,7 @@ if (flags.json) {
     const note =
       optionalIdle || r.n > effectiveBuilt ? ` — ${r.what}` :
       r.n === 4 && boot.ran && boot.ok ? ` (${boot.nodes} nodes, in ${boot.where === "chrome" ? "Chrome, real text" : "Node, stand-in text"}${sized ? "" : flags.phone && flags.desktop ? ", a laptop and a phone" : flags.phone ? ", a phone, touch" : ", a laptop"})${findings(boot.layout.length)}` :
-      r.n === 5 && behave.ran && behave.ok ? ` (${behave.log.length} steps, real input${behave.asserted === 0 ? "; it asserted nothing, so the pass says only that nothing threw and what the layout checks found — end a flow with an expect of what it should have done" : `, ${behave.asserted} assertion${behave.asserted === 1 ? "" : "s"}`})` :
+      r.n === 5 && behave.ran && behave.ok ? ` (${stepsSaid(behave.log)}${behave.asserted === 0 ? "; it asserted nothing, so the pass says only that nothing threw and what the layout checks found — end a flow with an expect of what it should have done" : `, ${behave.asserted} assertion${behave.asserted === 1 ? "" : "s"}`})` :
       r.n === 6 && visual.ran && visual.ok ? ` (${visual.results.length} states${flags.bless ? ", blessed" : ""})` : "";
     console.log(`  R${r.n} ${mark} ${r.name}${note}`);
     if (failedRung != null && r.n === failedRung) {
@@ -527,6 +540,7 @@ if (flags.json) {
   for (const n of boot.notes) console.log(`  note ${n}`);
   if (behave.serviceNote) console.log(`  note ${behave.serviceNote}`);
   for (const w of behave.warned ?? []) console.log(`  note the runtime said: ${w}`);
+  for (const w of behave.opened ?? []) console.log(`  note: ${w}`);
   for (const q of behave.refused ?? []) console.log(`  note the program's request ${q} — what it fetched there is missing from this run (a relative path is read beside the program; a service must be running)`);
   for (const w of behave.waited ?? []) console.log(`  note a settle waited its whole time for ${w}, which never came back — a request open for good (a stream by fetch, a long poll) holds every settle that long`);
   if ((behave.intercepted ?? []).length > 0) {

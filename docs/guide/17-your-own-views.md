@@ -600,7 +600,8 @@ build, which drops classes nothing names, leaves it out.
 ---
 
 The proof is readable: open `library/`. [`Checkbox`](declare-docs:Checkbox) is under eighty lines of code,
-`SimpleLayout` is one method, and nothing in either is a move you cannot make.
+`SimpleLayout` is its one `place()` method over three attributes, and nothing in either is a
+move you cannot make.
 
 **What you can now do:** build a control on equal terms with the library's, extend a
 class and still reach its base, draw what attributes cannot say, author crisp icons,

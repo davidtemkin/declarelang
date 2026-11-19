@@ -329,7 +329,10 @@ await test("a { } reading Date.now() / new Date() warns that it evaluates once; 
 await test("a bare object literal inside { } names the real mistake; the double-brace form compiles; the paren idiom compiles with a hint; other errors keep their fragment", async () => {
   const r = await compile('App [ width = 100, height = 100, cfg: object = { a: "one", b: "two" } ]', { originDir: process.cwd() });
   assert.ok(r.errors.length > 0, "still an error");
-  assert.ok(r.errors[0].message.includes("its own braces"), r.errors[0].message);
+  assert.ok(r.errors[0].message.includes('write = { { a: "one", b: "two" } }'), r.errors[0].message);
+  // the empty object, the commonest case, is shown as its own line corrected
+  const empty = await compile('App [ width = 100, height = 100, cfg: object = {} ]', { originDir: process.cwd() });
+  assert.ok(empty.errors.length > 0 && empty.errors[0].message.includes("write = { {} }"), empty.errors[0]?.message);
   // The fix is the paren-FREE double-brace form; the runtime's own return(…) supplies
   // the disambiguating parens, so nesting the object in its own braces is enough.
   const ok = await compile('App [ width = 100, height = 100, cfg: object = { { a: "one", b: "two" } } ]', { originDir: process.cwd() });
@@ -340,7 +343,7 @@ await test("a bare object literal inside { } names the real mistake; the double-
   assert.deepEqual(paren.errors.map((e) => e.message), []);
   assert.ok((paren.hints ?? []).some((e) => e.message.includes("redundant parentheses")), JSON.stringify(paren.hints));
   const other = await compile('App [ width = 100, height = 100, n: number = { foo bar } ]', { originDir: process.cwd() });
-  assert.ok(other.errors.length > 0 && !other.errors[0].message.includes("its own braces"), other.errors[0]?.message);
+  assert.ok(other.errors.length > 0 && !other.errors[0].message.includes("the inner the object"), other.errors[0]?.message);
 });
 
 await test("no 'shows' matches the initial location — the silently-invisible app is a warning (field report 2026-09-04)", async () => {

@@ -225,6 +225,9 @@ Keep the size this child's content gives it along the parent's flow, and give so
 it up when the run is too long for the room: the children that shrink give way in
 proportion to their size, down to their `minWidth` (`minHeight` in a column). A
 toolbar's title that is whole when there is room and cut short when there is not.
+The size its content gives it is its content with nothing in it giving way: a title that
+shrinks and holds a name that shrinks is the name's whole width (and the title's padding)
+until the run is short, and then both give way.
 The layout sizes this child along the flow, so it does not state that size; bound it
 with `maxWidth` instead. `SimpleLayout`, `WrappingLayout` and `ResponsiveLayout`
 honour it.

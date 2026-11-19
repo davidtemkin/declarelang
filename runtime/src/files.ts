@@ -18,6 +18,7 @@
 // handler (compiler capabilities "files"); everywhere else a stand-in answers.
 
 import { View, fireEvent } from "./view.js";
+import { diag } from "./errors.js";
 
 /** A file the person chose or dropped. */
 export interface FileRecord {
@@ -88,7 +89,7 @@ export const FilePicker = {
    *  (A browser does not say, and resolves true.) */
   save(contents: string | Blob, options: SaveOptions): Promise<boolean> {
     const name = String(options?.name ?? "").trim();
-    if (name === "") return Promise.reject(new Error("FilePicker.save needs a file name: save(contents, { name: \"report.csv\" })"));
+    if (name === "") return Promise.reject(new Error(diag`FilePicker.save needs a file name: save(contents, { name: "report.csv" })`));
     const type = options.type ?? (typeof contents === "string" ? typeFor(name) : (contents.type || typeFor(name)));
     if (host !== null && host.save !== undefined) {
       const save = host.save.bind(host);

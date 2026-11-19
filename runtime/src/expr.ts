@@ -356,7 +356,10 @@ function refineBodyError(src: string, raw: string, expression: boolean, slot = "
 })`;
     const clean = syntaxValidator !== null ? syntaxValidator(wrapped, true) === null : !("error" in compileExpr(wrapped));
     if (clean) {
-      return diag`${head} — this reads as an object literal, and the outer { } is the constraint's own delimiter; give the object its own braces: { { a: 1, b: 2 } }`;
+      // the person's own body, corrected, so the fix reads as their line
+      const body = src.trim().replace(/\s+/g, " ");
+      const shown = body === "" ? "{}" : `{ ${body.length > 48 ? body.slice(0, 44).replace(/,?[^,]*$/, ", …") : body} }`;
+      return diag`${head} — a value in braces is a constraint, so an object's own braces would be the constraint's: write = { ${shown} }, the outer pair the constraint and the inner the object (a number, a string or an array can stand bare; an object can't)`;
     }
   }
   // `x as T?` ending a line: TypeScript reads that `?` as the start of a ? : the
@@ -453,7 +456,7 @@ export function compileBody(params: readonly string[], src: string, label?: stri
       const fn = factory(SCOPE, scripts) as BodyFn;
       return { fn: NAMES_KEYS.test(r.src) ? askingKeys(fn) : fn };
     } catch (e) {
-      return { error: `is not a valid method body — ${(e as Error).message}` };
+      return { error: diag`is not a valid method body — ${(e as Error).message}` };
     }
   })();
   memo.set(key, out);

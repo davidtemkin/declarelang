@@ -55,12 +55,21 @@ await test("a nested element's own dataset is its cursor's schema, not the root'
   assert.ok(texts(bad.errors).some((m) => /':c' — 'c' is not in the schema here; fields: b\b/.test(m)), texts(bad.errors).join("\n"));
 });
 
-await test("a class member shadows a script let: writing it writes the member", async () => {
+// A name means one thing: a bare name that both a member and a top-level script
+// binding answer to is refused where it is read (DT 2026-11-17, after Pagemap
+// run 1's method that called itself). A library class's own member meeting the
+// program's script name is no concern of the program's, and stays allowed.
+await test("a bare name both a member and a script binding answer to is refused; in a library class it is not the program's concern", async () => {
   const r = await build(`script { let total = 0 }
 class Counter [ total: number = 0, onClick() { total = total + 1 } ]
 App [ width = 200, height = 100, Counter [ ] ]`);
-  clean(r);
-  assert.ok(texts(r.warnings).some((m) => /bare 'total' means Counter's member here/.test(m)), "the deliberate ambiguity warning stays");
+  assert.ok(r.errors.some((e) => e.code === "DECLARE4045" && /bare 'total' names both Counter's member and the script/.test(e.message)), texts(r.errors).join("\n"));
+  const fn = await build(`script { function initialsOf(n: string): string { return n.slice(0, 1) } }
+App [ width = 200, height = 100, who: string = "Ada", initialsOf(id: string) -> string { return initialsOf(app.who) } ]`);
+  assert.ok(fn.errors.some((e) => e.code === "DECLARE4045"), "the method that would call itself");
+  const lib = await build(`script { function label(n: number): string { return "" + n } }
+App [ width = 200, height = 100, Button [ label = "Save" ], Text [ text = { label(2) } ] ]`);
+  none(lib.errors, /DECLARE4045|names both/, lib);
   const write = await build(`script { let total = 0 }
 App [ width = 200, height = 100, View [ onClick() { total = 1 } ] ]`);
   assert.ok(texts(write.errors).some((m) => /'total' is a script \{ \} variable/.test(m)), "a write to the script binding itself is still refused");

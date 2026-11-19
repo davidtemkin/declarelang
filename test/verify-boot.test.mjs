@@ -168,6 +168,64 @@ await test("a panel past the window's edge is named once, with what it carries; 
   assert.ok(!held.boot.layout.some((l) => /edge/.test(l)), held.boot.layout.join("\n"));
 });
 
+// A run drawn past the edges of the view it sits in is said where it shows: the
+// view has a ground (a pill), or the spill lands on a neighbor (the next segment).
+// A view with nothing to show it, and a caption placed below its shape, are not.
+await test("text past the view it sits in is said when that view has a ground or a neighbor; a caption below a shape is not", () => {
+  const r = verify("spill.declare", `App [ width = 400, height = 240,
+    pill: View [ x = 20, y = 20, width = 60, height = 30, fill = #E4E8EE, t: Text [ x = center, y = center, text = "Comfortable" ] ],
+    track: View [ x = 20, y = 70, width = 200, height = 30,
+        a: View [ x = 0, width = 64, height = 30, t: Text [ x = center, y = center, text = "Comfortable" ] ],
+        b: View [ x = 64, width = 64, height = 30, t: Text [ x = center, y = center, text = "Fit" ] ] ],
+    alone: View [ x = 20, y = 120, width = 40, height = 30, t: Text [ x = center, y = center, text = "Comfortable" ] ],
+    disc: View [ x = 20, y = 170, width = 30, height = 30, fill = #E4E8EE, t: Text [ x = center, y = 36, text = "Comfortable" ] ] ]`, "--size", "400x240");
+  const spill = r.boot.layout.filter((l) => /the view it sits in/.test(l));
+  assert.equal(spill.length, 2, spill.join("\n"));
+  assert.match(spill[0], /^app\.pill\.t's text is \d+ wide and app\.pill, the view it sits in, is 60, so it runs past both/);
+  assert.match(spill[1], /^app\.track\.a\.t's text/);
+});
+
+// A view arranged by a ResponsiveLayout has no content width: its plan is chosen by
+// the width it is given. Every way of sizing it from its content reads that, and is
+// refused at the read: nothing gives it a width, a parent stretches it to a line its
+// own content sets, a wrapping cell flexes from it. A share, a percent, or a stretch
+// into a parent with a width of its own give it one, and nothing is said.
+await test("a ResponsiveLayout view sized from its content is refused at the read; one given a width is not", () => {
+  const plan = `layout: ResponsiveLayout [ plan = { [({ from: 300, flow: "row" }), ({ from: 0, flow: "stack" })] } ], View [ width = 120, height = 20 ], View [ width = 120, height = 20 ]`;
+  const r = verify("given.declare", `App [ width = 1000, height = 600,
+    col: View [ layout: SimpleLayout [ axis = y ], loose: View [ ${plan} ] ],
+    tall: View [ y = 100, layout: SimpleLayout [ axis = y, align = stretch ], View [ width = 50, height = 20 ], stretched: View [ ${plan} ] ],
+    good: View [ y = 200, width = 600, layout: SimpleLayout [ axis = x ], a: View [ flexes = true, ${plan} ], b: View [ width = 100%, ${plan} ] ],
+    banded: View [ y = 300, width = 500, layout: SimpleLayout [ axis = y, align = stretch ], c: View [ ${plan} ] ] ]`, "--size", "1000x600");
+  const said = JSON.stringify(r).match(/View \(line \d+, col \d+\) is arranged by ResponsiveLayout[^"]*?no content width, and here [a-z ]+/g) ?? [];
+  const lines = [...new Set(said.map((m) => m.match(/line (\d+)/)[1]))];
+  assert.deepEqual(lines, ["2", "3"], said.join("\n"));
+  const cell = verify("given-cell.declare", `App [ width = 1000, height = 300,
+    flow: View [ width = 900, layout: WrappingLayout [ spacing = 4 ], cell: View [ flexes = true, ${plan} ] ] ]`, "--size", "1000x300");
+  assert.ok(JSON.stringify(cell).includes("no content width, and here its content width was read to size it"), "a wrapping cell flexing from its content is refused");
+});
+
+// A label the program wrote, on a control, cut short is said, once per control
+// (a row of segments is one finding); a label showing data (a record's title) may
+// be cut, and is not said; a label with room is not either.
+await test("a control's own words cut short are said once per control; a label showing data is not", () => {
+  const r = verify("cut.declare", `App [ width = 700, height = 400,
+    items: Dataset { { "rows": [ { "t": "A very long data title for a row" }, { "t": "Another long data title" } ] } },
+    chosen: string = { app.items.value.rows[0].t },
+    col: View [ x = 10, y = 10, layout: SimpleLayout [ axis = y, spacing = 8 ],
+        tabs: Segmented [ width = 200, items = { [ ({ id: "a", label: "Sections" }), ({ id: "b", label: "Stories" }), ({ id: "c", label: "Ads" }),
+            ({ id: "d", label: "Artwork" }), ({ id: "e", label: "Tags" }), ({ id: "f", label: "Print" }) ] } ],
+        roomy: Segmented [ items = { [ ({ id: "a", label: "Day" }), ({ id: "b", label: "Week" }) ] } ],
+        lit: Button [ width = 60, label = "Literal label" ],
+        pick: Button [ width = 60, label = { app.chosen } ],
+        rows: View [ datapath = { app.items.value }, layout: SimpleLayout [ axis = y ],
+            Button [ datapath = :rows[], width = 60, label = { :t } ] ] ] ]`, "--size", "700x400");
+  const cut = r.boot.layout.filter((l) => /cut short/.test(l));
+  assert.equal(cut.length, 2, cut.join("\n"));
+  assert.match(cut[0], /^app\.col\.tabs's labels “Sections”, “Stories”, “Ads”, “Artwork” and 2 more are cut short/);
+  assert.match(cut[1], /^app\.col\.lit's label “Literal label” is cut short/);
+});
+
 await test("a child 0 wide in a columns layout is said, naming flexes; a flexing one is not", () => {
   const r = verify("cells.declare", `App [
     cells: Dataset { { "rows": [1, 2, 3] } },

@@ -15,13 +15,14 @@ to a state or animate it; the layout places each child at the blended position, 
 transition is continuous.
 
 ## duration
-The duration, in ms, of the built-in retarget animation the base runs when the layout
-switches its `from`/`to` targets.
+The duration, in ms, of the glide to a new arrangement.
 
 ## laid()
 The children this layout manages — `Layout.laid()`, restated here because a tweening
 strategy reads it while animating between arrangements.
 
 ## retarget()
-Re-aims the in-flight tween at the current arrangement, so a change mid-animation becomes
-a new destination rather than a restart — the same interruption model a `Spring` has.
+Aims the children at the current arrangement now: `retarget(true)` glides, `retarget(false)`
+places them at once. A change to anything `place()` reads already glides by itself, from
+wherever the children are, so the call is for the exceptions: placing at once rather than
+gliding (a new window width), or a change the layout cannot see, made outside any attribute.

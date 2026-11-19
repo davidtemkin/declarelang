@@ -1423,7 +1423,7 @@ class ChapterDetail [ width = 100%,
 
     loading: Text [ visible = { classroot.src.loading }, fontSize = { 14 * app.fontScale }, textColor = { provided("theme").textMuted }, text = "Loading the chapter…" ],
     failed:  Text [ visible = { classroot.src.failed }, fontSize = { 14 * app.fontScale }, textColor = { provided("theme").textMuted }, wrap = true, width = 100%,
-        text = { "The chapter did not load — " + (classroot.src.error || "") } ],
+        text = { "The chapter did not load — " + (classroot.src.failure == "offline" ? "you’re offline." : "try again in a moment.") } ],
 
     // the guide is the primary reading surface: Block's default, brighter body tone
 

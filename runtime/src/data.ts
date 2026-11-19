@@ -42,7 +42,7 @@ import { formBody } from "./files.js";
 import { mapUrl } from "./asset-base.js";
 import { Node, authoredName } from "./node.js";
 import { Cell, isSettling, isTracking, noteOrigin, retireCell, setRetireValue, settle, untracked } from "./reactive.js";
-import { DeclareError } from "./errors.js";
+import { DeclareError, diag } from "./errors.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import type { AttrType } from "./value.js";
 import { validateDoc, fieldValueError, type ShapeField } from "./data-schema.js";
@@ -600,7 +600,7 @@ export class Dataset extends Node {
     const chain: [object, string][] = [];
     for (let i = 0; ; i++) {
       if (!isContainer(cur)) {
-        const at = i === 0 ? "the dataset has no value" : `'${showPath(segs.slice(0, i))}' is ${cur === undefined ? "missing" : "not a container"}`;
+        const at = i === 0 ? diag`the dataset has no value` : diag`'${showPath(segs.slice(0, i))}' is ${cur === undefined ? "missing" : "not a container"}`;
         throw new DeclareError(`'${showPath(segs)}' addresses nothing — ${at}`);
       }
       chain.push([cur, segs[i]]);
@@ -1100,7 +1100,7 @@ export class DataSource extends Dataset {
       timer = setTimeout(() => {
         timer = null;
         ctl?.abort();
-        stall(new RequestFailure("timedOut", `no answer from ${url} for ${limit} s${write ? " — it may or may not have been carried out" : ""}`));
+        stall(new RequestFailure("timedOut", write ? diag`no answer from ${url} for ${limit} s — it may or may not have been carried out` : diag`no answer from ${url} for ${limit} s`));
       }, limit * 1000);
     };
     const waiting = <T>(p: Promise<T>): Promise<T> => { p.catch(() => {}); return Promise.race([p, stalled]); };
@@ -1170,7 +1170,7 @@ export class DataSource extends Dataset {
         // a 4xx is the server's decision (a write was not carried out); a 5xx —
         // a gateway's 502/503/504 among them — is the server failing, and a
         // write's outcome is not known
-        throw new RequestFailure(res.status >= 500 ? "serverError" : "rejected", `HTTP ${res.status} for ${url}${misfit !== null ? ` — its body does not match errorSchema: ${misfit}` : ""}`);
+        throw new RequestFailure(res.status >= 500 ? "serverError" : "rejected", misfit !== null ? diag`HTTP ${res.status} for ${url} — its body does not match errorSchema: ${misfit}` : diag`HTTP ${res.status} for ${url}`);
       }
       answered = true;
       const value = await this.$readBody(res, quiet, waiting);
@@ -1181,7 +1181,7 @@ export class DataSource extends Dataset {
       // layers into a binding. Schema presence is the only switch.
       if (this.schema !== null && this.format === "json") {
         const err = validateDoc(value, this.schema);
-        if (err !== null) throw new RequestFailure("unreadable", `the response does not match the schema — ${err}`);
+        if (err !== null) throw new RequestFailure("unreadable", diag`the response does not match the schema — ${err}`);
       }
       if (timer !== null) clearTimeout(timer);
       noteOrigin(`${sourceLabel(this)} arrived`, this);
@@ -1221,7 +1221,7 @@ export class DataSource extends Dataset {
       noteOrigin(`${sourceLabel(this)} failed`, this);
       const said = e instanceof Error ? e.message : String(e);
       setBound(this, "error", answered && !(e instanceof RequestFailure && e.kind === "unreadable")
-        ? `the reply from ${url} could not be read (${said}) — the request itself was carried out` : said);
+        ? diag`the reply from ${url} could not be read (${said}) — the request itself was carried out` : said);
       setBound(this, "failure", kind);
       setBound(this, "failed", true);
       setBound(this, "loading", false);

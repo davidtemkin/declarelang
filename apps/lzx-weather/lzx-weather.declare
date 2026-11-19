@@ -185,7 +185,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
         art: Image [ source = "resources/weather_splash2.jpg" ],
 
         status: Text [ x = 15, y = 230, width = 240, textColor = #000099,
-            text = { weatherData.failed ? "Server error: " + weatherData.error
+            text = { weatherData.failed ? "Server error: the weather could not be fetched"
                    : weatherData.loading ? "Loading weather data..." : "" } ],
 
         zipBtn: View [ y = 245, x = 0,

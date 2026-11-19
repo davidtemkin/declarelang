@@ -27,8 +27,7 @@ The architecture is the example's real subject:
   dataset), and answers scalar queries as analyzed methods.
 - `MarketLayout extends Layout` — the partition as a **live layout**: its
   `place()` reads `app.day` under tracking, so one evaluation per frame
-  distributes every position. Sizes stay on the classes, computed from the
-  same partition — at 600 children, claiming sizes through `place()` is too slow.
+  distributes every position. Each tile sizes itself from the same partition.
 - `stageRoster` — a **derived Dataset** holding only the records the stage
   needs right now. Stage instances exist exactly while a stage key names
   them: nothing at boot, a dozen on open, reconciled by id on drill. Structure
@@ -541,22 +540,18 @@ A base `Layout`'s place-pass is a live tracked constraint, so a `place()` that
 reads `app.day` re-places continuously — the whole map morphs against the
 scrub with one evaluation distributing every position.
 
-The boxes carry `x`/`y` only, deliberately: a box names the attributes the
-layout owns, and a size claimed through `place()` costs a constraint per child
-per dimension, which is too slow at 600 tiles. Each class sizes itself instead
-from the same partition, which the script's memo computes once per frame:
-positions come from the layout, sizes from the classes.
+The boxes carry `x`/`y` only: positions come from the layout, and each tile
+sizes itself from the same partition, which the script's memo computes once
+per frame.
 */
 
 class MarketLayout extends Layout [
     place() {
-        const holder = parent as View
         const lay = mapPartition(app.market.stocks, app.market.tree,
-            app.day, holder.width, holder.height)
+            app.day, this.contentExtent("width"), this.contentExtent("height"))
         return this.laid().map((c) => {
             const r = lay[(c as Tile).pid]
-            // x/y only — a box's shape declares ownership, and sizes belong
-            // to the classes' own wired constraints
+            // x/y only: each tile sizes itself from the same partition
             return r ? { x: r.x, y: r.y } : { x: OFFSTAGE.x, y: OFFSTAGE.y }
             })
         }
@@ -565,9 +560,8 @@ class MarketLayout extends Layout [
 
 class StageLayout extends Layout [
     place() {
-        const holder = parent as View
         const lay = stagePartition(app.market.stocks, app.market.tree,
-            app.day, holder.width, holder.height,
+            app.day, this.contentExtent("width"), this.contentExtent("height"),
             app.stageKey, app.zoom, app.prevStageKey, app.drillProgress)
         return this.laid().map((c) => {
             const p = (c as StageTile).pid

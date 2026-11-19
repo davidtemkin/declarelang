@@ -100,6 +100,8 @@ export interface Kernel {
   freeCell(cell: number): void;
   state(rule: number): number;
   deps(rule: number): number[];
+  /** How many times a rule has run in the current (or last) settle. */
+  runs(rule: number): number;
   abort(): void;
   rewire(rule: number, edges: ArrayLike<number>): number;
   addRule(target: number, kind: number, flags: number, edges: ArrayLike<number>, body?: number): number;
@@ -165,6 +167,15 @@ const SCRATCH_START = 1 << 10;
 
 /** Callbacks the kernel makes that the LOADER answers, not the runtime: set once the kernel is bound. */
 interface LoaderHooks { reserve: (nodes: number) => void }
+/** The diagnostic tag, as errors.ts has it: this module imports nothing, so it
+ *  keeps its own copy. The production strip (tools/internal/error-codes.mjs)
+ *  reads the tag by name and codes what it marks. */
+function diag(strings: TemplateStringsArray, ...values: unknown[]): string {
+  let out = strings[0];
+  for (let i = 0; i < values.length; i++) out += String(values[i]) + strings[i + 1];
+  return out;
+}
+
 function importsFor(host: KernelHost, hooks: LoaderHooks): WebAssembly.Imports {
   return {
     host: {
@@ -397,7 +408,7 @@ function bindWith(x: Calls, mem: Mem, image: Uint8Array, c: Required<KernelCaps>
     catch (e) {
       // the one honest ceiling: the host would not give us the memory. Say so
       // with the number, rather than leaving a rule half-wired.
-      throw new Error(`kernel: could not stage a rule's ${n} dependencies — the host refused ${(4 * cap / 1024) | 0} KB (${String(e)})`);
+      throw new Error(diag`kernel: could not stage a rule's ${n} dependencies — the host refused ${(4 * cap / 1024) | 0} KB (${String(e)})`);
     }
     scratchCap = cap; scratchAt = at;
     retake();
@@ -504,6 +515,7 @@ function bindWith(x: Calls, mem: Mem, image: Uint8Array, c: Required<KernelCaps>
     freeCell: (cell) => { x.kernel_free_cell(k, cell); },
     state: (rule) => x.kernel_state(k, rule),
     deps: (rule) => { const n = x.kernel_deps(k, rule, scratchAt, scratchCap); return Array.from(scratch.subarray(0, Math.min(n, scratchCap))); },
+    runs: (rule) => x.kernel_runs(k, rule),
     abort: () => { x.kernel_abort(k); },
     rewire: (rule, edges) => roomy({ nodes: edges.length }, () => { const n = edgesIn(edges); return x.kernel_rewire(k, rule, scratchAt, n); }),
     addRule: (target, kind, flags, edges, body = 0) => roomy({ rules: 1, nodes: edges.length }, () => { const n = edgesIn(edges); return x.kernel_add_rule(k, target, kind, flags, scratchAt, n, 0, 0, body); }),

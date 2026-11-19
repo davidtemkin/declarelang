@@ -1,14 +1,14 @@
-// A boolean with a thumb
+// A boolean with a thumb, its label before it
 // Same value contract as Checkbox: `checked` derives from the app's fact, `commit` delivers
-// the change back up — the control never owns the truth. The label reads the same fact.
+// the change back up — the control never owns the truth. The line under it reads the same fact.
 
 App [ textColor = 0x172530, fontSize = 14,
     night: boolean = false,
-    row: View [ x = 20, y = 20, height = 28, width = { this.contentWidth },
-        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
-        Switch [ checked = { app.night },
+    col: View [ x = 20, y = 20, width = 220,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        Switch [ label = "Dark mode", width = 100%, checked = { app.night },
             commit(v: boolean) { app.night = v }
             ],
-        Text [ text = { app.night ? "Dark mode on" : "Dark mode off" } ]
+        Text [ text = { app.night ? "Dark mode is on" : "Dark mode is off" } ]
         ]
     ]

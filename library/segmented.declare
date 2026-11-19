@@ -6,7 +6,7 @@ are few, named, and worth showing all at once. Its choices are **data** — `ite
 `Menu`'s items and `DataGrid`'s columns:
 
 ```declare-fragment
-Segmented [ width = 300, value = { app.page },
+Segmented [ value = { app.page },
     items = { [ ({ id: "controls", label: "Controls" }),
                ({ id: "table",    label: "Table" }),
                ({ id: "grid",     label: "DataGrid" }) ] },
@@ -33,20 +33,27 @@ live while anything reaching into the collection is refused —
 `aggregation over a reactive node collection … derive from data [DECLARE7001]`.
 The compiler names the answer.
 
-### Equal widths
+### How wide
 
-Segments divide the control's width evenly — a segmented control divides evenly,
-where a row of buttons sizes to its content. Equal width keeps the convention that
-segment labels are short and similar in length, and it lets the pill travel at
-constant width between segments. So **a `Segmented` does not size itself to its
-labels**: set `width`, or accept `segmentMinWidth × items.length`.
+A `Segmented` is as wide as its labels need: give it no width and every label shows whole,
+each with its margin (the theme's `segmentedLabelInset`) at either side. Its segments share
+the width **equally** by default, each as wide as the widest label needs, which is the calm
+form for a row of choices. With `segmentWidths = "proportional"`, each segment is as wide as
+its own label instead.
+
+Give it a `width` (or let a layout stretch it) when it should fill a space, such as a phone's
+full-width switch. The width is shared out by the same rule, so extra room makes the segments
+wider. When there is less room than the labels need, a label that doesn't fit ends in an
+ellipsis inside its segment, keeping its margins, and a screen reader still says the whole
+label: a label cut short is a bug to fix, and verify says so. No segment is narrower than `segmentMinWidth`.
 
 ### The pill
 
-The highlight springs a **normalized lane** — a float index — not pixels. `x` is
-then the lane times one segment's width, so a resize recomputes that width and the pill **snaps** to the
-right place instead of skating across the bar on every layout change. The chosen
-segment wears a raised `surface` pill with a hairline.
+The highlight springs a **normalized lane** — a float index — not pixels. Its edge and width
+are read off the segments at that index, so a resize recomputes them and the pill **snaps** to
+the right place instead of skating across the bar on every layout change; between segments of
+different widths it changes width as it slides. The chosen segment wears a raised `surface`
+pill with a hairline.
 
 ```declare
 App [ width = 340, height = 130, page: string = "one",
@@ -93,17 +100,43 @@ recolour — to the theme's `disabledOpacity`, or 0.45 when the theme states non
 **A segment is not separately disable-able**: a disabled group leaves the tab order
 entirely rather than offering unreachable stops.
 
+## segmentWidths
+How the segments share the control's width: `equal` (the default), every segment as wide as
+the widest label needs; or `proportional`, each as wide as its own label needs. Either way a
+`width` you give the control is shared out by the same rule.
+
 ## segmentMinWidth
-The per-segment width used when you set no `width` on the control. Because a
-`Segmented` **does not self-size to its labels**, this is what decides the default
-width: `segmentMinWidth × items.length`.
+The narrowest a segment may be, however short its label: 44 by default, a finger's width, so
+a one-letter choice is still easy to hit.
 
 ## _count
 **Internal.** How many items there are, floored at 1 so the width arithmetic never divides by zero.
 
-## _segmentWidth
-**Internal.** One segment's width — the control's width divided by the count. What the pill and every
-segment position from.
+## _inset
+**Internal.** A label's margin at each side of its segment, from the theme's
+`segmentedLabelInset`.
+
+## _needs
+**Internal.** What each segment needs: its label measured in the face the segments draw it in
+(or its icon's size), plus `_inset` at each side, and at least `segmentMinWidth`. Measured
+from the records, as `Menu` sizes itself: a constraint may not gather its children's sizes.
+
+## _wants
+**Internal.** What each segment asks for, by `segmentWidths`: the widest need, or its own.
+
+## _total
+**Internal.** What the segments ask for together.
+
+## _widths
+**Internal.** Each segment's width: the control's width, less the track's inset, shared out
+in proportion to what each asks.
+
+## _lefts
+**Internal.** Each segment's left edge, and one more, where the last ends.
+
+## _at()
+**Internal.** A value along the row at a fractional index, blending between neighboring
+segments: where the pill's edge is, and how wide it is, as it slides.
 
 ## _idx
 **Internal.** Which item is live, as an index into `items`, from the **data** — the only place the
@@ -112,9 +145,8 @@ than springing to a phantom slot.
 
 ## _lane
 **Internal.** The pill's position as a **float index**, sprung toward `_idx`. The whole reason the pill
-is correct at any size: `x` is `_lane × _segmentWidth`, so a resize recomputes the width and the
-pill **snaps** to the right place instead of skating across the bar on every layout
-change.
+is correct at any size: its edge and width are `_at(_lefts, _lane)` and `_at(_widths, _lane)`, so a resize recomputes them and the pill **snaps** to the right place instead of skating across the
+bar on every layout change.
 
 ## segs()
 The segment views, for the Tab entry. A handler-only walk — a constraint may not
@@ -141,9 +173,9 @@ between segments; one beside the pill fades as the pill reaches it, so they part
 selection as it slides.
 
 ## width
-Divided evenly among the segments. Not sized to the labels: with no `width` it is
-`segmentMinWidth × items.length`, and a label longer than its segment runs into the next
-one — set a `width` the longest label fits in.
+What the segments ask for (`_total`, and the track's inset), unless you give one; then it is
+shared out among them by `segmentWidths`, and a label with too little room ends in an
+ellipsis inside its segment.
 
 ## datapath
 Roots the control on its own data, so the segments replicate from `items` without the author writing a datapath.
@@ -208,10 +240,10 @@ Rings the segment's pill inset, not its whole box.
 As tall as the control.
 
 ## width
-Every segment the same width — the control's width divided by its count.
+Its share of the control's width, by the control's `segmentWidths` (`_widths`).
 
 ## x
-Placed by index: the control's inset plus `i` segment widths.
+Placed by index: its left edge in the control's `_lefts`.
 
 ## disabled
 Disabled with the control; an item never disables alone.
@@ -220,7 +252,7 @@ Disabled with the control; an item never disables alone.
 Follows `on`: a segment is one radio of its group.
 
 ## accessibilityLabel
-Empty for a segment that shows text (the text names it); a segment showing an icon is named by its record's `label`.
+The record's whole `label`, whether the segment shows it, shows an icon, or shows it cut short.
 */
 
 include [ "valuecontrol.declare", "icons/icon.declare" ]
@@ -265,10 +297,39 @@ class Segmented extends ValueControl [
     fill = { provided("theme").trackFill ?? provided("theme").control },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 
-    segmentMinWidth: number = 96,  // per-segment width when the author sets none
+    // ── the widths
+    //
+    // A segment needs its label (or icon) plus the label's margin at each side,
+    // and never less than `segmentMinWidth`. The labels are measured from the
+    // records, in the face the segments draw them in: a fold over data, as
+    // Menu sizes itself, since a constraint may not gather the children's sizes.
+    // `equal` asks the widest need for every segment; `proportional`, each its
+    // own. The control's width is shared out in proportion to what they ask, so
+    // a given width is honored, and a label with too little room ends in an
+    // ellipsis inside its margins.
+
+    segmentWidths: "equal" | "proportional" = "equal",
+    segmentMinWidth: number = 44,  // a segment is never narrower: a finger's width
     _count: number = { Math.max(1, ((this.items ?? []) as any).length) },
-    width  = { this._count * this.segmentMinWidth },
-    _segmentWidth: number = { (this.width - 4) / this._count },
+    _inset: number = { provided("theme").segmentedLabelInset },
+    _needs: array = { ((this.items ?? []) as any).map((r) => Math.max(this.segmentMinWidth, 2 * this._inset + Math.ceil(r.icon != null
+        ? provided("iconSize", 16)
+        : measureText("" + (r.label ?? ""), providedTextStyle(({ fontSize: provided("theme").segmentedFontSize, fontWeight: "medium" }))).width))) },
+    _wants: array = { this.segmentWidths == "equal" ? this._needs.map(() => Math.max(...this._needs)) : this._needs },
+    _total: number = { this._wants.reduce((a, b) => a + b, 0) },
+    width  = { Math.max(this._total, this.segmentMinWidth) + 4 },
+
+    // each segment's width and left edge (one more, the end), from the width the control has
+
+    _widths: array = { this._wants.map((w) => w * (this.width - 4) / Math.max(1, this._total)) },
+    _lefts: array = { this._widths.reduce((a, w) => [...a, a[a.length - 1] + w], [2]) },
+
+    // a value along the row at a fractional index: the pill's edge and width as it slides
+
+    _at(a: array, lane: number) -> number {
+        const i = Math.max(0, Math.min(a.length - 1, Math.floor(lane)))
+        return a[i] + ((a[i + 1] ?? a[i]) - a[i]) * (lane - i)
+        },
 
     // Which choice is live, as an index — from the data, which is the only place
     // this question can be asked. −1 (nothing selected) parks the pill at 0 and
@@ -289,17 +350,18 @@ class Segmented extends ValueControl [
         return out
         },
 
-    // The pill. `_lane` is a float index the spring drives; `x` multiplies it by
-    // the current segment width, so the pill is correct at any size the moment
-    // layout changes and only animates when the selection does.
+    // The pill. `_lane` is a float index the spring drives; the pill's edge and
+    // width are read off the segments at that index, so the pill is correct at
+    // any size the moment layout changes and only animates when the selection
+    // does: between segments of different widths it changes width as it goes.
 
     _lane: number = 0,
     Spring [ attribute = _lane, to = { classroot._idx < 0 ? 0 : classroot._idx },
         stiffness = 260, damping = 30, mass = 0.9, epsilon = 0.002 ],
 
     _pill: View [ y = 2, height = { parent.height - 4 }, cornerRadius = { Math.max(0, (parent as Segmented)._rad - 2) },
-        x = { 2 + (parent as Segmented)._lane * (parent as Segmented)._segmentWidth },
-        width = { (parent as Segmented)._segmentWidth },
+        x = { (parent as Segmented)._at((parent as Segmented)._lefts, (parent as Segmented)._lane) },
+        width = { (parent as Segmented)._at((parent as Segmented)._widths, (parent as Segmented)._lane) },
         visible = { (parent as Segmented)._idx >= 0 },
         fill = { provided("theme").segmentedSelectedFill ?? provided("theme").surface },
         stroke = { Stroke(1, provided("theme").line) } ],
@@ -318,7 +380,7 @@ class Segmented extends ValueControl [
                 const a = Math.max(0, Math.min(1, (near - 0.5) * 2))
                 if (a <= 0) continue
                 d.globalAlpha = a
-                d.fillRect(2 + i * s._segmentWidth - 0.5, 7, 1, this.height - 14)
+                d.fillRect((s._lefts[i] ?? 0) - 0.5, 7, 1, this.height - 14)
                 }
             }
         ],
@@ -345,16 +407,17 @@ class SegmentedItem extends Control [
     _isSegment: boolean = true,
 
     height = 100%,
-    width  = { (parent as Segmented)._segmentWidth },
-    x      = { 2 + :i * (parent as Segmented)._segmentWidth },
+    width  = { ((parent as Segmented)._widths ?? [])[:i ?? 0] ?? 0 },
+    x      = { ((parent as Segmented)._lefts ?? [])[:i ?? 0] ?? 2 },
 
     on: boolean = { (parent as Segmented).value === :id },
     accessibilityRole = radio,
     accessibilityChecked = { on },
 
-    // a segment showing text is named by it; one showing an icon, by its record's label
+    // a segment is named by its record's whole label, whether it shows the label, an
+    // icon, or a label cut short by the room it has
 
-    accessibilityLabel = { :icon != null ? "" + (:label ?? "") : "" },
+    accessibilityLabel = { "" + (:label ?? "") },
 
     // Rest, hover and press only — the chosen state is the sliding pill behind
     // these, not a fill of their own. That is what lets it travel between them.
@@ -375,7 +438,12 @@ class SegmentedItem extends Control [
     ink: Color = { this.on ? provided("theme").segmentedSelectedTextColor ?? provided("theme").text
         : this.hovered ? provided("theme").text : provided("theme").textMuted },
 
-    _t: TextLabel [ wrap = false, fontSize = { provided("theme").segmentedFontSize }, fontWeight = medium, x = center,
+    // the label keeps its margin at each side, and ends in an ellipsis when that
+    // leaves too little room — it never runs past its segment
+
+    _t: TextLabel [ wrap = false, maxLines = 1, fontSize = { provided("theme").segmentedFontSize }, fontWeight = medium,
+        x = { (parent.parent as Segmented)._inset ?? 0 }, width = { Math.max(0, parent.width - 2 * ((parent.parent as Segmented)._inset ?? 0)) },
+        textAlign = center,
         visible = { :label != null && :icon == null },
         textColor = { parent.ink },
         text = { "" + (:label ?? "") } ],

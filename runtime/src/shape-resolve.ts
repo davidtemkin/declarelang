@@ -22,7 +22,7 @@
 // body and method signature — one declaration, both halves of the toolchain.
 
 import type { Program, SchemaDecl, ShapeField, Element, ClassDecl } from "./parser.js";
-import { DeclareError } from "./errors.js";
+import { DeclareError, diag } from "./errors.js";
 import { declaredType } from "./value.js";
 
 /** A resolved document shape as stored on a Dataset's `schema` slot: the
@@ -101,7 +101,7 @@ export function resolveShapes(program: Program, isBuiltinClass: (name: string) =
       const target = table.get(name);
       if (target === undefined) {
         errors.push(new DeclareError(
-          `${a.name} = ${written}: '${name}' names no schema — ${table.size > 0 ? `declared schemas: ${[...table.keys()].join(", ")}` : "declare one with 'schema Name [ … ]', or write the shape inline: schema = [ field: type, … ]"}`,
+          `${a.name} = ${written}: '${name}' names no schema — ${table.size > 0 ? `declared schemas: ${[...table.keys()].join(", ")}` : diag`declare one with 'schema Name [ … ]', or write the shape inline: schema = [ field: type, … ]`}`,
           a.value.pos));
         continue;
       }

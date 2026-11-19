@@ -21,12 +21,12 @@ what the library ships, and what `extends Control` makes yours.
 |---|---|---|
 | [`Button [ label, primary, onClick() ]`](declare-docs:Button) | — | the action control; Space and Enter press it |
 | [`Checkbox [ label, checked ]`](declare-docs:Checkbox) | `checked: boolean` | box, mark and label |
-| [`Switch [ checked ]`](declare-docs:Switch) | `checked: boolean` | a sliding thumb |
+| [`Switch [ label, checked ]`](declare-docs:Switch) | `checked: boolean` | label, then a sliding thumb |
 | [`RadioGroup [ value ]`](declare-docs:RadioGroup) with [`Radio [ choice, label ]`](declare-docs:Radio) children | `value` on the group | one of several |
 | [`ChoiceControl [ value ]`](declare-docs:ChoiceControl) with [`ChoiceItem [ choice ]`](declare-docs:ChoiceItem) children | `value`, or `values` with `multiple` | one of several, or several at once, each item drawn as your own |
 | [`Slider [ value, min, max, step ]`](declare-docs:Slider) | `value: number` | drag or arrow keys |
 | [`RangeSlider [ value, min, max, step ]`](declare-docs:RangeSlider) | `{ low, high }` | a range on one track — two thumbs that never cross, each a stop of its own |
-| [`Segmented [ items, value ]`](declare-docs:Segmented) | the chosen `id` | one of a few, shown at once; set its `width` — segments divide it evenly |
+| [`Segmented [ items, value ]`](declare-docs:Segmented) | the chosen `id` | one of a few, shown at once; as wide as its labels need |
 | [`TabBar [ items, value ]`](declare-docs:TabBar) | the chosen `id` | a `Segmented` that switches what is shown below it — pages, panes; a screen reader hears tabs |
 | [`Combobox [ items, value ]`](declare-docs:Combobox) | the chosen item | filter as you type; with [`creates`](declare-docs:Combobox.creates), what names no item is offered as new |
 | [`TextInput [ value, placeholder ]`](declare-docs:TextInput) | `value: string` | the text field |
@@ -219,7 +219,7 @@ App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("th
     page: string = "list",
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 14 ],
-        Segmented [ width = 300, value = { app.page },
+        Segmented [ value = { app.page },
             items = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
             commit(v: string) { app.page = v }
             ],
@@ -241,6 +241,14 @@ are and how much room they may take:
   `checked`; the row that is checked is the current choice, and a `group` shared by the
   rows tells a screen reader they are one set to choose from.
 - [`Combobox`](declare-docs:Combobox) — a long list the user narrows by typing.
+
+**How wide a `Segmented` is.** As wide as its labels need: give it no width and every label
+shows whole, with its margin at each side. Its segments share the width equally, each as wide
+as the widest label needs; with `segmentWidths = "proportional"`, each is as wide as its own
+label instead. Give it a `width`, or let a layout stretch it, when it should fill a space: the
+width is shared out by the same rule, and a label with too little room ends in an ellipsis
+inside its segment, while a screen reader still says the whole of it; verify reports a label
+cut short, since a shipped app shouldn't have one. `TabBar` and `TextSizeSwitch` are `Segmented`s, and size the same way.
 
 ```declare
 App [ width = 340, height = 160, theme = { SanFrancisco }, fill = { provided("theme").background },

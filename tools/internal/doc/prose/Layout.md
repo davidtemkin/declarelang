@@ -77,6 +77,10 @@ contract, interpolated through its scalar `t`.
 whenever anything it read changes: return one box per child of `laid()`, aligned by index,
 computed from your own attributes, the children's sizes, and the room `contentExtent(size)`
 reports. Nothing else — no time, no side effects, no writing a child's attributes by hand.
+**Nothing it gives a child may depend on itself**: a width it gives can't be computed from
+that width, nor a position from that position, directly or through anything else it reads.
+A column may give a child its width and then place the next child by the height that width
+produced.
 
 **A box says only what you decide.** Give it `x`, `y`, `w`, `h`, or any subset, and the
 attributes you name are the attributes this strategy owns for that child: a box of `{ y }` alone
@@ -97,6 +101,18 @@ own height, a scrolling pane held to the page), else to the tallest child. Measu
 child's content (`contentHeight`), never its height, or the line holds itself up once the
 tallest shrinks. A view sized from its children is as large as what its layout placed,
 stretched children included.
+
+**Say how long the run is, when you size a child along it.** A view's content size is
+what it holds with nothing in it giving way, and when your `place()` shrinks or flexes
+children, only it knows that length: return `{ boxes, contentWidth: n }` (`contentHeight`
+along a column) instead of the bare boxes, and `n` is the view's content size on that axis,
+its padding added by the runtime. Work `n` out from what the children bring, before the room
+is applied (each child you size at its own content size, or its minimum if it flexes), never
+from the boxes the room has just made: a parent sizing this view from its content would
+otherwise be reading its own answer. An arrangement chosen by the width it is given (a plan
+per width, columns cut from it) has no content width: return `contentWidth: null`, and a
+rule that reads it is refused, since the view would be measuring what it arranges. A
+`place()` that returns its bare boxes leaves the content size to what it draws.
 
 The base takes your boxes from there and installs them as claims, so `place()` never
 mentions ownership — and never mentions padding either, since the coordinates it returns

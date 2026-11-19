@@ -628,6 +628,11 @@ export class Replicator {
         let before = this.surfaceAfter(at);
         for (let i = next.length - 1; i >= 0; i--) {
           const v = next[i];
+          // attaching a row runs its rules, and one may close a gate around this
+          // list (an `exists` above it turning false): the parent is then torn
+          // down mid-loop, its backend gone, and the rows with it. Nothing is
+          // left to attach to.
+          if ((this.parent as unknown as { $tornDown?: boolean }).$tornDown === true) break;
           // an instance attached after this one may have brought a waiting
           // parent in (one that needs its surface while hidden — a field):
           // the rest attach to the parent's surface as it is now, before the
@@ -661,6 +666,9 @@ export class Replicator {
         }
       }
     }
+    // …and a parent torn down while its rows attached took them with it:
+    // there is nothing to finish, arm or keep
+    if ((this.parent as unknown as { $tornDown?: boolean }).$tornDown === true) return;
     // Freshly built instances are presenting a record they were not
     // presenting before: their springs take the arriving target outright
     // (Spring.arrive). Armed, not snapped — the cursor write above

@@ -316,7 +316,7 @@ await test("find: a path step names a view by its label, accessible name or text
         items = { [ ({ id: "a", label: "One" }), ({ id: "b", label: "Two" }) ] } ],
     box: View [ Text [ text = "Save As…" ], v: View [ accessibilityLabel = "Volume", accessibilityRole = group ] ] ]`);
   const two = find(app, "app.seg.Two");
-  assert.ok(two !== null && (two.label === "Two" || two.text === "Two"), "the view in the segment that says Two (a press on it is the segment's)");
+  assert.ok(two !== null && (two.accessibilityLabel === "Two" || two.label === "Two" || two.text === "Two"), "the segment named Two, or the view in it that says Two (a press on either is the segment's)");
   assert.equal(find(app, 'app.box."Save As…"')?.text, "Save As…", "a text, quoted");
   assert.equal(find(app, "app.box.Volume"), find(app, "app.box.v"), "a view by its accessible name");
   assert.equal(find(app, "app.box.Nothing"), null);

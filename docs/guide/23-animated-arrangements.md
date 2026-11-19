@@ -87,8 +87,8 @@ The toy above positions every cell with its own constraints, which is the right 
 the geometry is a formula. When the arrangement is a *layout* — a row that becomes a
 stack, a grid that becomes a list — extend [`TweenLayout`](declare-docs:TweenLayout) instead. Its `place()` is an
 ordinary layout method ([Your own views](declare-docs:guide:your-own-views@writing-a-layout)) that
-reads the layout's own state; change the state, call [`retarget(true)`](declare-docs:TweenLayout.method.retarget), and the children
-glide from where they are to where `place()` now puts them:
+reads the layout's own state; change the state, and the children glide from where they are to
+where `place()` now puts them:
 
 ```declare
 class RowOrStack extends TweenLayout [
@@ -104,7 +104,7 @@ class RowOrStack extends TweenLayout [
 
 
 App [ width = 440, height = 200, fill = white, textColor = white, fontSize = 14,
-    flip() { box.layout.stacked = !box.layout.stacked; box.layout.retarget(true) },
+    flip() { box.layout.stacked = !box.layout.stacked },
     Button [ x = 20, y = 12, label = "Flip", textColor = black, onClick() { app.flip() } ],
     box: View [ x = 20, y = 60, width = 400, height = 140,
         layout: RowOrStack [ duration = 450 ],
@@ -115,15 +115,17 @@ App [ width = 440, height = 200, fill = white, textColor = white, fontSize = 14,
     ]
 ```
 
-Click Flip, then click again mid-flight: `retarget` aims the glide at the new arrangement
-from wherever the children are, the same interruption a spring has. `duration` sets the
-glide's length, and `t`, the layout's 0-to-1 blend between arrangements, can also be
+Click Flip, then click again mid-flight: the glide turns toward the new arrangement from
+wherever the children are, the same interruption a spring has. Whatever `place()` reads is
+watched (the layout's own state, the room, a size a child asks for), and a change to it
+glides. So does a change to the children themselves: when the records they replicate over
+reorder, or one arrives or leaves, every child that stays glides from where it stands to its
+new place, and an arrival waits, hidden, at its own place until the glide lands. `duration`
+sets the glide's length, and `t`, the layout's 0-to-1 blend between arrangements, can also be
 driven by a constraint or an [`Animator`](declare-docs:Animator).
 
-A change to the children themselves needs no call: when the records a layout's children
-replicate over reorder, or one arrives or leaves, every child that stays glides from where it
-stands to its new place, and an arrival waits, hidden, at its own place until the glide lands.
-`retarget` is for what the layout cannot see — its own state, or a size a child asks for.
+[`retarget(false)`](declare-docs:TweenLayout.method.retarget) places the children at once
+instead, for a change that should not be seen moving: a new window width, say.
 
 ## Deriving appearance from the scalars
 

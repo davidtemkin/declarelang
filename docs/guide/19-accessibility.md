@@ -48,12 +48,12 @@ that is drawn, and the focus a screen reader follows are the same focus.
 
 ## What you add
 
-**A name where nothing shows one.** An icon-only button, a `Switch`, a `Slider`: nothing
-on screen is the name, so give one.
+**A name where nothing shows one.** An icon-only button, a `Slider`, a `Switch` with no
+`label`: nothing on screen is the name, so give one.
 
 ```declare-fragment
 Button [ accessibilityLabel = "Close", CloseIcon [ ] ],
-Switch [ accessibilityLabel = "Wi-Fi", checked <-> app.wifi ]
+Slider [ accessibilityLabel = "Volume", value <-> app.volume ]
 ```
 
 The compiler warns, with a fix, when a control has no name to give. A field inside a

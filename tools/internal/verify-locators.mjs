@@ -591,6 +591,15 @@ export function withLocators(page, { act, series, settle, advance, fail: refuse 
   };
   const valueMatchers = (v, not) => {
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    // Playwright's and Jest's toMatchObject: every property the expected object
+    // names, at any depth, is equal in the value; others the value has don't
+    // matter. Arrays match element by element, at the same length.
+    const covers = (a, w) => {
+      if (w === null || typeof w !== "object") return Object.is(a, w) || same(a, w);
+      if (a === null || typeof a !== "object") return false;
+      if (Array.isArray(w)) return Array.isArray(a) && a.length === w.length && w.every((x, i) => covers(a[i], x));
+      return Object.keys(w).every((k) => k in a && covers(a[k], w[k]));
+    };
     const m = (label, pass) => (...a) => {
       const ok = pass(...a);
       if (not ? ok : !ok) fail(`expect(${JSON.stringify(v)})${not ? ".not" : ""}.${label}(${a.map((x) => x instanceof RegExp ? String(x) : JSON.stringify(x)).join(", ")})`);
@@ -599,6 +608,7 @@ export function withLocators(page, { act, series, settle, advance, fail: refuse 
     return {
       toBe: m("toBe", (w) => Object.is(v, w)),
       toEqual: m("toEqual", (w) => same(v, w)),
+      toMatchObject: m("toMatchObject", (w) => w !== null && typeof w === "object" && covers(v, w)),
       toStrictEqual: m("toStrictEqual", (w) => same(v, w)),
       toBeTruthy: m("toBeTruthy", () => !!v),
       toBeFalsy: m("toBeFalsy", () => !v),

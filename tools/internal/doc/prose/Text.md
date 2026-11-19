@@ -60,8 +60,11 @@ within the width. The height derive, `contentHeight` and every renderer honor it
 clamped preview measures exactly as tall as it draws.
 
 ## truncated
-`true` when `maxLines` actually dropped something. Read-only and reactive — the fact a
-"Show more" reads: `more: Text [ visible = { app.summary.truncated }, … ]`.
+`true` when `maxLines` cut something short: lines dropped past the limit, or a last line
+ending in an ellipsis because it is wider than the box (one line that does not wrap, or a
+word too long to wrap). Read-only and reactive: the fact a "Show more" reads,
+`more: Text [ visible = { app.summary.truncated }, … ]`, or a label reads to show itself
+whole in a tooltip.
 
 ## textAlign
 Horizontal alignment of wrapped lines within the run's width — `start` (the default),

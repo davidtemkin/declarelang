@@ -13,7 +13,7 @@ import http from "node:http";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, realpathSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { test, summarize, tempDir } from "./harness.mjs";
 import { createMounts, MountError } from "../server/mounts.mjs";
@@ -298,4 +298,40 @@ await test("a proxy prefix shadowing a mount is refused at startup", () => {
 });
 
 rmSync(CACHE, { recursive: true, force: true });
+// ── a compile's script imports are part of what it read ──────────────────────
+// A `script { import … from "./top.ts" }` is bundled into the compiled program, so
+// the server's compile cache must see an edit to it, and to what it imports in
+// turn: before, only the .declare files were recorded, and the cached program
+// went on carrying the old code (Pagemap functional run 1).
+await (async () => {
+  const dir = tempDir("declare-script-imports-");
+  mkdirSync(path.join(dir, "lib"));
+  writeFileSync(path.join(dir, "top.ts"), `import { deep } from "./lib/deep.ts"\nexport function word(): string { return "top " + deep() }\n`);
+  writeFileSync(path.join(dir, "lib", "deep.ts"), `export function deep(): string { return "first" }\n`);
+  const src = `script { import { word } from "./top.ts" }\nApp [ width = 200, height = 100, Text [ text = { word() } ] ]\n`;
+  writeFileSync(path.join(dir, "chain.declare"), src);
+  const server = createDeclareServer({
+    mountSpecs: [{ prefix: "/", dir }, { prefix: "/declare/", dir: ROOT, platform: true }],
+    buildCache: CACHE, mode: "distro",
+  });
+  const { s, port } = await listen(server);
+  const compile = async () => (await fetch(`http://127.0.0.1:${port}/compile?main=${encodeURIComponent("/chain.declare")}`,
+    { method: "POST", body: src })).json();
+  try {
+    await test("compile cache: an edit to a .ts a script imports, or to one that imports, compiles again", async () => {
+      const a = await compile();
+      assert.ok(JSON.stringify(a.program).includes("first"), a.report);
+      assert.deepEqual(a.build.files.filter((f) => f.endsWith(".ts")).map((f) => path.relative(realpathSync(dir), f)).sort(), [path.join("lib", "deep.ts"), "top.ts"]);
+      const again = await compile();
+      assert.equal(again.build.at, a.build.at, "nothing changed: the cached compile");
+      writeFileSync(path.join(dir, "lib", "deep.ts"), `export function deep(): string { return "second" }\n`);
+      const b = await compile();
+      assert.ok(JSON.stringify(b.program).includes("second"), "the edit two imports down is in the program");
+      writeFileSync(path.join(dir, "top.ts"), `import { deep } from "./lib/deep.ts"\nexport function word(): string { return "upper " + deep() }\n`);
+      const c = await compile();
+      assert.ok(JSON.stringify(c.program).includes("upper "), "the edit to the imported file is in the program");
+    });
+  } finally { s.close(); }
+})();
+
 summarize("serve (embeddable server)");

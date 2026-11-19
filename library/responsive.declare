@@ -128,10 +128,12 @@ class: an **ordinary inline child** carries its own `layout:` like any other
 view. A class nested this way answers to **its allocation, not the
 window** — the same child reads correctly in a sidebar, a dialog, or a
 full-bleed row, and picks its own flow in each. One thing to get right: the
-parent's plan must actually **give** the child a width in every tier. A tier
-that allocates it nothing leaves it at its content width, and a child sized by
-its content is measuring what it is trying to arrange — so name it in the
-stack tier's shares (`share: { acts: 100 }`) or give it `width = 100%`.
+view must actually **be given** a width, in every tier. A tier that allocates
+it nothing leaves it at its content width, and a view sized by its content is
+measuring what it is trying to arrange — so name it in the stack tier's shares
+(`share: { acts: 100 }`), give it `width = 100%`, or let it flex
+(`flexes = true` takes the room its row has left). `shrinks` sizes it from its
+content too, and is refused; verify says when nothing gives it a width.
 
 **Division of labor.** ResponsiveLayout manages **named regions**. A collection
 of uniform, replicated cards that should reflow to fit is the other tool:
@@ -301,15 +303,15 @@ class ResponsiveLayout extends Layout [
         // the run sizes a child along the flow when it flexes (a weight above
         // 0) or shrinks (and no share sizes it): SimpleLayout's model
         const weight = (c) => {
-            const f = (c as any).flexes
+            const f = c.flexes
             return hidden(c) ? 0 : f === true ? 1 : (typeof f == "number" && f > 0 ? f : 0)
             }
-        const shrinking = (c) => weight(c) == 0 && !hidden(c) && (c as any).shrinks === true && !(shares.has(c) && !stack)
+        const shrinking = (c) => weight(c) == 0 && !hidden(c) && c.shrinks === true && !(shares.has(c) && !stack)
         const flexing = (c) => weight(c) > 0 || shrinking(c)
         const flowSize = stack ? "Height" : "Width"
         const clamp = (c, v) => {
-            const hi = (c as any)["max" + flowSize]
-            return Math.max(hi > 0 ? Math.min(v, hi) : v, (c as any)["min" + flowSize], 0)
+            const hi = c["max" + flowSize]
+            return Math.max(hi > 0 ? Math.min(v, hi) : v, c["min" + flowSize], 0)
             }
 
         // What the shares divide, in a row: the width left after the gaps
@@ -325,12 +327,12 @@ class ResponsiveLayout extends Layout [
         for (const c of kids) if (c.visible && !hidden(c)) visN = visN + 1
         const avail = W - gap * Math.max(0, visN - 1)
         // a shrinking child's natural size is its content's, within its range
-        const given = kids.map((c) => c.visible && shrinking(c) ? clamp(c, stack ? (c as any).contentHeight : (c as any).contentWidth) : 0)
+        const given = kids.map((c) => c.visible && shrinking(c) ? clamp(c, stack ? c.contentHeight : c.contentWidth) : 0)
         let naturalRun = 0
         if (!stack) {
             kids.forEach((c, i) => {
                 if (!c.visible || hidden(c) || weight(c) > 0 || shares.has(c)) return
-                naturalRun = naturalRun + (shrinking(c) ? given[i] : (c as any).footprint().width)
+                naturalRun = naturalRun + (shrinking(c) ? given[i] : c.footprint().width)
                 })
         }
         const base = Math.max(0, avail - naturalRun)
@@ -348,7 +350,7 @@ class ResponsiveLayout extends Layout [
             // natural sizes are the footprint (scale/rotation composed,
             // position-free); a share or flex allocation stays the raw attribute it
             // claims — the strategy never reads an attribute it writes
-            rigid = rigid + (stack ? (c as any).footprint().height : (shares.has(c) ? shareW(c) : (c as any).footprint().width))
+            rigid = rigid + (stack ? c.footprint().height : (shares.has(c) ? shareW(c) : c.footprint().width))
             })
         // the sizes the run gives, in the model's order: if the rest do not fit,
         // the shrinking children give way in proportion to their size, down to
@@ -369,7 +371,7 @@ class ResponsiveLayout extends Layout [
                     let again = false
                     kids.forEach((c, i) => {
                         if (!c.visible || !shrinking(c) || held[i]) return
-                        const lo = (c as any)["min" + flowSize]
+                        const lo = c["min" + flowSize]
                         if (given[i] - over * given[i] / basis < lo) { over = over - (given[i] - lo); given[i] = lo; held[i] = true; again = true }
                         })
                     if (!again) {
@@ -413,9 +415,9 @@ class ResponsiveLayout extends Layout [
         const cross = stack ? "x" : "y"
         const crossSize = stack ? "width" : "height"
         const allocated = (c) => flexing(c) || shares.has(c)
-        const crossExt = (c) => !allocated(c) ? (c as any).footprint()[crossSize]
+        const crossExt = (c) => !allocated(c) ? c.footprint()[crossSize]
                               : stack ? (shares.has(c) ? shareW(c) : c.width) : c.height
-        const crossLead = (c) => allocated(c) ? 0 : (stack ? (c as any).footprint().x : (c as any).footprint().y)
+        const crossLead = (c) => allocated(c) ? 0 : (stack ? c.footprint().x : c.footprint().y)
         if (al == "baseline" && stack) this.refuseStackBaseline()
         const onBaseline = al == "baseline" && !stack
         let line = 0
@@ -424,9 +426,12 @@ class ResponsiveLayout extends Layout [
         // size a stretch gave it (that would hold the line up once it shrank)
         const naturalCross = stack ? "contentWidth" : "contentHeight"
         const stretches = (c) => al == "stretch" && !(stack && shares.has(c)) && this.sizedByContent(c, crossSize)
+        // a stretch into a view with a cross size of its own fills that size,
+        // so the children's line is not measured for it
+        const banded = al == "stretch" && !this.sizedByChildren(crossSize)
         for (const c of kids) {
             if (!c.visible || hidden(c)) continue
-            line = Math.max(line, stretches(c) ? (c as any)[naturalCross] : crossExt(c))
+            if (!banded) line = Math.max(line, stretches(c) ? c[naturalCross] : crossExt(c))
             const b = (c as any).baseline
             if (onBaseline && typeof b == "number") lineBase = Math.max(lineBase, b)
         }
@@ -445,7 +450,7 @@ class ResponsiveLayout extends Layout [
         }
 
         let pos = 0
-        return kids.map((c, i) => {
+        const boxes = kids.map((c, i) => {
             if (hidden(c)) {
                 // excluded from the flow entirely: hidden, space reclaimed — and the
                 // plan has nothing new to say about its width, so it keeps the one it
@@ -455,7 +460,7 @@ class ResponsiveLayout extends Layout [
             // allocated children (share, flex) take their attribute raw; natural
             // ones are placed by footprint, lead-compensated
             const natural = !flexing(c) && !(stack ? false : shares.has(c))
-            const f = natural ? (c as any).footprint() : null
+            const f = natural ? c.footprint() : null
             const lead = f == null ? 0 : (stack ? f.y : f.x)
             const box = (stack ? ({ y: pos - lead }) : ({ x: pos - lead })) as any
             box[cross] = across(c)
@@ -471,5 +476,8 @@ class ResponsiveLayout extends Layout [
             if (c.visible) pos = pos + adv + gap
             return box
             })
+        // the plan is chosen by the width the view is given and its shares are
+        // cut from it, so the view has no content width of its own to report
+        return ({ boxes: boxes, contentWidth: null })
         }
     ]

@@ -20,7 +20,10 @@ script {
     function lerp(a: number, b: number, t: number): number { return a + (b - a) * t }
     function clamp(v: number, a: number, b: number): number { return Math.max(a, Math.min(b, v)) }
 
-    function monthName(m: number): string { return MONTHS[m - 1] }
+    // the short names, as American usage writes them: March to July in full
+    const SHORT_MONTHS = ["Jan.", "Feb.", "March", "April", "May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec."]
+
+    function monthName(m: number, short: boolean = false): string { return (short ? SHORT_MONTHS : MONTHS)[m - 1] }
     function dowName(i: number): string { return DAYS[i].slice(0, 3) }
 
     // a day's key, "2024-1-19": what cells and events are matched by
@@ -34,14 +37,19 @@ script {
         return mm == 0 ? hh + ap : hh + ":" + (mm < 10 ? "0" + mm : "" + mm) + ap
     }
     function hourLabel(h: number): string { return (h % 12 == 0 ? 12 : h % 12) + (h < 12 ? " AM" : " PM") }
-    function weekLabel(k: string): string {
+    function weekLabel(k: string, short: boolean = false): string {
         const d = parseKey(k)
         const s = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay())
         const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6)
-        return monthName(s.getMonth() + 1) + " " + s.getDate() + " – "
-             + (s.getMonth() == e.getMonth() ? "" : monthName(e.getMonth() + 1) + " ") + e.getDate()
+        return monthName(s.getMonth() + 1, short) + " " + s.getDate() + " – "
+             + (s.getMonth() == e.getMonth() ? "" : monthName(e.getMonth() + 1, short) + " ") + e.getDate()
     }
-    function dayLabel(k: string): string { const d = parseKey(k); return DAYS[d.getDay()] + ", " + monthName(d.getMonth() + 1) + " " + d.getDate() }
+    function weekStartKey(k: string): string { const d = parseKey(k); return keyOf(new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay())) }
+    function dateLabel(k: string): string { const d = parseKey(k); return monthName(d.getMonth() + 1, true) + " " + d.getDate() }
+    function dayLabel(k: string, short: boolean = false): string {
+        const d = parseKey(k)
+        return (short ? DAYS[d.getDay()].slice(0, 3) + "." : DAYS[d.getDay()]) + ", " + monthName(d.getMonth() + 1, short) + " " + d.getDate()
+    }
     }
 
 
@@ -444,27 +452,27 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
 
     // layout constants
 
-    barH: number = { app.barNarrow ? 100 : 60 },     // two rows when narrow; everything below derives
+    barH: number = 60,      // the bar is one row at every width; everything below derives
     pad: number = 20,
     gap: number = 8,
 
     /* Responsive chrome, all from the window width. As it narrows the
-       appearance switch drops out, then the tabs shrink to single letters
-       (D/W/M/Y). Thresholds are sized to the widest view so the bar never flickers
-       when you switch views at a fixed width. */
+       appearance switch drops out, the tabs shrink to single letters (D/W/M/Y),
+       the brand goes, and last the Today button (the date itself goes to today).
+       The date between them takes the room that is left (see the bar). */
 
     showTheme: boolean = { app.width >= 1030 },
     tabsCompact: boolean = { app.width < 910 },
-    brandCompact: boolean = { app.width < 640 },     // "Declare Calendar" → "Declare" (still the way home)
-    barNarrow: boolean = { app.width < 560 },        // the bar tiers to two rows: controls above, date nav below
+    showBrand: boolean = { app.width >= 800 },
+    showToday: boolean = { app.width >= 480 },
     tabW: number = { app.tabsCompact ? 44 : 74 },
     tabsW: number = { 4 * app.tabW },
 
-    // The date block is a fixed width per mode, from the widest label that mode
-    // can ever show — measured, in the face the title actually renders in, so
-    // a font or locale change moves it with no constant to retune. It must not
-    // follow the current label: the arrows sit at its edges, so a width that
-    // tracked "May 4" and then "September 30" would shift them as you page.
+    // The date block is at most a fixed width per view, from the widest label that
+    // view can ever show — measured, in the face the title renders in, so a font or
+    // locale change moves it with no constant to retune. It must not follow the
+    // current label: the arrows sit at its edges, so a width that tracked "May 4"
+    // and then "September 30" would shift them as you page.
 
     titleFace: object = { providedTextStyle(({ fontSize: 16, fontWeight: "semibold" })) },
     widestOf(samples: string[]) -> number {
@@ -475,7 +483,8 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         day:   ["Wednesday, September 30"],             // longest weekday + longest month
         month: ["September 2088"],
         year:  ["2088"],
-        })[app.mode]) + 14) },
+        })[app.mode])) + 14 },
+    navW: number = { 2 * 36 + 2 * 6 + app.dateW },      // the arrows, their spacing, the date
     panelOverlay: boolean = { app.width < 720 },     // the detail panel overlays the grid instead of insetting it
     panelW: number = { Math.min(340, app.width - 32) },
 
@@ -582,14 +591,20 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     yearZoom: number = 0,
     Spring [ attribute = yearZoom, to = { app.mode == "year" ? 1 : 0 }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
 
-    periodLabel: string = { app.periodText() },
-    periodText() -> string {
+    // The period on view, said as fully as the bar has room for: the title shows
+    // the first of these that fits.
+
+    periodLabels() -> string[] {
         switch (this.mode) {
-            case "year":  return "" + this.year
-            case "month": return monthName(this.month) + " " + this.year
-            case "week":  return weekLabel(this.anchorKey)
-            default:      return dayLabel(this.anchorKey)
+            case "year":  return ["" + this.year]
+            case "month": return [monthName(this.month) + " " + this.year, monthName(this.month, true) + " " + this.year, monthName(this.month, true)]
+            case "week":  return [weekLabel(this.anchorKey), weekLabel(this.anchorKey, true), dateLabel(weekStartKey(this.anchorKey))]
+            default:      return [dayLabel(this.anchorKey), dayLabel(this.anchorKey, true), dateLabel(this.anchorKey)]
             }
+        },
+    fittingLabel(room: number) -> string {
+        const labels = app.periodLabels()
+        return labels.find((t) => measureText(t, app.titleFace).width + 14 <= room) ?? labels[labels.length - 1]
         },
 
     // a day's 0..41 slot in the visible month's grid
@@ -730,8 +745,8 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         onKeyUp(e: KeyEvent) {
             if (e.key == "Escape") app.closeDetail()
             // the arrows page the calendar — not while the view tabs rove with them
-            else if (app.selectedId < 0 && !Focus.holds(app.bar.top.tabs) && e.key == "ArrowLeft") app.step(-1)
-            else if (app.selectedId < 0 && !Focus.holds(app.bar.top.tabs) && e.key == "ArrowRight") app.step(1)
+            else if (app.selectedId < 0 && !Focus.holds(app.bar.tabs) && e.key == "ArrowLeft") app.step(-1)
+            else if (app.selectedId < 0 && !Focus.holds(app.bar.tabs) && e.key == "ArrowRight") app.step(1)
             }
         ],
 
@@ -837,96 +852,79 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         ],
 
     /* ## Chrome
-       Declared last for the top z-order. Three zones: brand + theme switch hug the
-       left, Today + the view tabs hug the right, and the date nav floats near the
-       centre, clamped so it never rides into either side. */
+       Declared last for the top z-order. One row: the brand and theme switch at
+       the left, Today and the views at the right, and the date nav in the room
+       between them. */
 
-    bar: View [ width = { app.width }, height = { app.barH }, fill = { provided("theme").background },
+    bar: View [ width = { app.width }, height = { app.barH }, padding = [0, 20, 0, 20],
+        fill = { provided("theme").background },
         stroke = { [null, null, Stroke(1, provided("theme").line), null] },   // the rule under the bar is its own bottom edge
+        layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
 
-        // Tab follows the bar as it reads. On one row the date nav sits between
-        // the two clusters, so it is visited between them; on two rows it is
-        // the second row, which tree order already gives.
+        brand: View [ height = 22, visible = { app.showBrand },
+            layout: SimpleLayout [ axis = x, spacing = 5 ],
 
-        tabOrder() { return app.barNarrow ? this.tabDefault() : [top.brand, top.themeSwitch, nav, top.today, top.tabs] },
+            // the word "Declare" is the way home — openURL() resolves against the
+            // distro root, so this works on either host at any mount point
 
-        // Row 1 is the first 60px band — fixed, not barH-derived, so the narrow
-        // tier's second row doesn't drag it downward. Brand and the appearance
-        // switch hug the left, Today and the view tabs the right.
+            Control [ press() { app.openURL("apps/homepage/homepage.declare") },
+                accessibilityRole = link,
+                Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare" ]
+                ],
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { provided("theme").text }, text = "Calendar" ]
+            ],
 
-        top: View [ x = 20, width = { app.width - 20 - (app.barNarrow ? 12 : 20) }, height = 60,
-            layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+        // the library's light/dark switch: it shows the current appearance, and
+        // choosing one pins themeMode, leaving Auto
 
-            // where each cluster ends, in the bar's coordinates — the date nav
-            // floats between them
+        themeSwitch: AppearanceSwitch [
+            visible = { app.showTheme },
+            dark = { app.isDark },
+            commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
+            ],
 
-            leftEnd: number = { this.x + (app.showTheme ? this.themeSwitch.x + this.themeSwitch.width : this.brand.x + this.brand.width) },
-            rightStart: number = { this.x + this.today.x },
+        // The date nav, in the room the two sides leave: centered in the bar as far
+        // as that room allows. It is as wide as the view's widest date needs, so
+        // the arrows hold still while paging, or as the room, when that is less;
+        // the title then says the date as fully as it has room for. Pressing the
+        // date goes to today, the way back on a phone, where Today has no room.
 
-            brand: View [ height = 22,
-                layout: SimpleLayout [ axis = x, spacing = 5 ],
-
-                // the word "Declare" is the way home — openURL() resolves against the
-                // distro root, so this works on either host at any mount point
-
-                Control [ press() { app.openURL("apps/homepage/homepage.declare") },
-                    accessibilityRole = link,
-                    Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare" ]
+        middle: View [ flexes = true, height = 100%,
+            nav: View [ y = center, width = { Math.min(parent.width, app.navW) },
+                x = { clamp(app.width / 2 - parent.x - this.width / 2, 0, parent.width - this.width) },
+                layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+                prev:  NavArrow [ dir = -1 ],
+                title: Control [ flexes = true, height = 34, cornerRadius = 10,
+                    fill = { pressed ? provided("theme").control : null },
+                    accessibilityLabel = { this.words.text + ", go to today" },
+                    press() { app.today() },
+                    words: Text [ width = 100%, y = center, textAlign = center, fontSize = 16, wrap = false,
+                        fontWeight = semibold, textColor = { provided("theme").text }, text = { app.fittingLabel(this.width) } ]
                     ],
-                Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { provided("theme").text }, text = "Calendar",
-                    visible = { !app.brandCompact } ]
-                ],
-
-            // the library's light/dark switch: it shows the current appearance, and
-            // choosing one pins themeMode, leaving Auto
-
-            themeSwitch: AppearanceSwitch [
-                visible = { app.showTheme },
-                dark = { app.isDark },
-                commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
-                ],
-
-            Spacer [ ],
-
-            // quiet like the tabs beside it: muted until the pointer is on it
-
-            today: Button [ height = 34, fontSize = 13, label = "Today",
-                ink = { hovered || pressed ? provided("theme").text : provided("theme").textMuted },
-                onClick() { app.today() }
-                ],
-
-            // Day / Week / Month / Year — the library's `Segmented`, which brings
-            // tab stops, arrow-key roving, and the shared look.
-            //
-            // The labels shorten to single letters when the bar narrows, which the
-            // data carries: `items` is a constraint like any other.
-
-            tabs: Segmented [ height = 34, width = { app.tabsW },
-                value = { app.mode },
-                commit(v: object) { app.goMode(v as "day" | "week" | "month" | "year") },
-                items = { [ ({ id: "day",   label: app.tabsCompact ? "D" : "Day" }),
-                            ({ id: "week",  label: app.tabsCompact ? "W" : "Week" }),
-                            ({ id: "month", label: app.tabsCompact ? "M" : "Month" }),
-                            ({ id: "year",  label: app.tabsCompact ? "Y" : "Year" }) ] }
+                next:  NavArrow [ dir = 1 ]
                 ]
             ],
 
-        // The date block is a fixed width per view, so the arrows hold still while
-        // paging. Narrow: the nav takes the second row, centered. Wide: it floats
-        // near the center, clamped off both clusters — and the clamp can never
-        // invert (the max is floored at the min, so a squeezed bar pins the nav
-        // left rather than flinging it off-frame).
+        // quiet like the tabs beside it: muted until the pointer is on it
 
-        nav: View [ y = { app.barNarrow ? 56 : 13 },
-            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
-            x = { app.barNarrow
-                ? (app.width - this.width) / 2
-                : clamp((app.width - this.width) / 2, parent.top.leftEnd + 24,
-                            Math.max(parent.top.leftEnd + 24, parent.top.rightStart - this.width - 24)) },
-            prev:  NavArrow [ dir = -1 ],
-            title: Text [ width = { app.dateW }, textAlign = center, fontSize = 16, wrap = false,
-                fontWeight = semibold, textColor = { provided("theme").text }, text = { app.periodLabel } ],
-            next:  NavArrow [ dir = 1 ]
+        today: Button [ height = 34, fontSize = 13, label = "Today", visible = { app.showToday },
+            ink = { hovered || pressed ? provided("theme").text : provided("theme").textMuted },
+            onClick() { app.today() }
+            ],
+
+        // Day / Week / Month / Year — the library's `Segmented`, which brings
+        // tab stops, arrow-key roving, and the shared look.
+        //
+        // The labels shorten to single letters when the bar narrows, which the
+        // data carries: `items` is a constraint like any other.
+
+        tabs: Segmented [ height = 34, width = { app.tabsW },
+            value = { app.mode },
+            commit(v: object) { app.goMode(v as "day" | "week" | "month" | "year") },
+            items = { [ ({ id: "day",   label: app.tabsCompact ? "D" : "Day" }),
+                        ({ id: "week",  label: app.tabsCompact ? "W" : "Week" }),
+                        ({ id: "month", label: app.tabsCompact ? "M" : "Month" }),
+                        ({ id: "year",  label: app.tabsCompact ? "Y" : "Year" }) ] }
             ]
         ]
     ]

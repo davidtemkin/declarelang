@@ -327,7 +327,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         padding = [0, 0, 90, 0],
         layout: SimpleLayout [ axis = y, spacing = 34 ],
         loadNote: Text [ fontSize = 14, textColor = { provided("theme").muted }, visible = { !app.data.loaded },
-            text = { app.data.failed ? "The field guide failed to load: " + app.data.error : "Fetching the plates…" } ],
+            text = { app.data.failed ? "The field guide failed to load — " + (app.data.failure == "offline" ? "you’re offline." : "try again in a moment.") : "Fetching the plates…" } ],
         Section [ datapath = :groups[], identityKey = :name ],
         credit: Text [ width = 100%, fontSize = 12, textColor = { provided("theme").muted }, lineHeight = 1.5,
             text = "Plates: John James Audubon, The Birds of America (1827–1838), public domain — high-resolution scans courtesy of the National Audubon Society. Prose written for this field guide." ]

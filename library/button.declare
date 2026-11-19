@@ -86,7 +86,8 @@ Otherwise the shared `controlCornerRadius` every control uses.
 
 ## width
 Content-sized: the run — icon, label, icon — plus `padH` each side, plus any `padding`. Give it a `width`
-and the run centres inside it, so a dialog's equal-width row keeps every label centred.
+and the run centres inside it, so a dialog's equal-width row keeps every label centred. A width
+narrower than the run keeps the margins: the label ends in an ellipsis inside them.
 
 ## opacity
 Disabled dims the whole control, icon and label alike, rather than recolouring it — to
@@ -127,6 +128,12 @@ Follows `ink`, the button's one ink decision, so the label and the icon can neve
 
 ## _plainFill
 **Internal.** The plain look's ground for the current state, that `fill` picks when not `primary`.
+
+## _sides
+**Internal.** The room at both sides: `padH` twice, and any `padding`.
+
+## _natural
+**Internal.** The run's content width: icon, label and icon whole, with nothing given way.
 */
 
 include [ "control.declare", "icons/icon.declare" ]
@@ -172,11 +179,21 @@ class Button extends Control [
     // outward.
 
     // …and the view's own `padding`, which narrows the room the run centres in:
-    // a padded button grows by it rather than pushing its label out
+    // a padded button grows by it rather than pushing its label out. The run's
+    // content width is what it holds with nothing given way (the whole label),
+    // so it holds still when the run is narrower; the run is given that, or the
+    // room inside the margins when there is less, and its label gives way.
 
-    width   = { this._run.width + this.padH * 2 + (typeof this.padding == "number"
+    width   = { this._natural + this._sides },
+    _natural: number = { this._run.contentWidth },
+    _sides: number = { this.padH * 2 + (typeof this.padding == "number"
         ? 2 * Math.max(0, this.padding)
         : Math.max(0, this.padding[1]) + Math.max(0, this.padding[3])) },
+
+    // A width given narrower than its content keeps the margins: the label gives
+    // way and ends in an ellipsis, named in full to a screen reader (its text is
+    // whole). A label cut short is a bug to fix, and verify says so.
+
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 
     // the fill by state: pressed (or its menu open), hovered, at rest
@@ -191,11 +208,11 @@ class Button extends Control [
     stroke  = { !primary && provided("theme").buttonStrokeColor != null ? Stroke(1, provided("theme").buttonStrokeColor) : null },
 
     _run: View [ height = 100%, x = center,
-        width = { this.contentWidth },
+        width = { Math.min(classroot._natural, Math.max(0, classroot.width - classroot._sides)) },
         layout: SimpleLayout [ axis = x, spacing = { classroot.gap } ],
 
         ico:   IconHost [ y = center, kind = { classroot.iconLeft },  ink = { classroot.ink } ],
-        cap:   TextLabel [ wrap = false, fontWeight = semibold,
+        cap:   TextLabel [ maxLines = 1, fontWeight = semibold, shrinks = true,
             visible = { classroot.label != "" }, text = { classroot.label } ],
         trail: IconHost [ y = center, kind = { classroot._rightIcon }, ink = { classroot.ink } ]
         ]

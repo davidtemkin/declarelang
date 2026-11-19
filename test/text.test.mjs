@@ -332,6 +332,24 @@ App [ t: Text [ text = "x", fontSize = { Caption.fontSize }, smallCaps = { Capti
   assert.ok(bad.errors.some((e) => /a style holds literal values only/.test(e.message)), bad.errors.map((e) => e.message).join("; "));
 });
 
+// `truncated` is clampLines' own rule: lines dropped past maxLines, or the last kept
+// line ending in an ellipsis because it is wider than the box (one line that does
+// not wrap, or a word too long to wrap). A run that fits is never truncated.
+await test("truncated: a single line cut short reports it, as dropped lines do; a run that fits does not", async () => {
+  const app = await boot(`one: Text [ width = 60, maxLines = 1, wrap = false, text = "Comfortable chairs" ],
+    word: Text [ width = 40, maxLines = 2, text = "Comfortable" ],
+    fits: Text [ width = 400, maxLines = 1, wrap = false, text = "Comfortable chairs" ],
+    many: Text [ width = 80, maxLines = 1, text = "one two three four five six" ],
+    free: Text [ width = 60, wrap = false, text = "Comfortable chairs" ]`);
+  assert.equal(app.one.truncated, true, "one line, wider than its box");
+  assert.equal(app.word.truncated, true, "a word too long to wrap");
+  assert.equal(app.fits.truncated, false, "it fits");
+  assert.equal(app.many.truncated, true, "lines dropped");
+  assert.equal(app.free.truncated, false, "no maxLines, so nothing is cut (it runs past its box)");
+  app.one.width = 400; settle();
+  assert.equal(app.one.truncated, false, "widened, it fits");
+});
+
 // ── rich text ─────────────────────────────────────────────────────────────────
 
 const DOC = ["## Note", "", "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk llll mmmm nnnn", "",

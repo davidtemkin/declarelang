@@ -12,6 +12,15 @@
 // landing or a font switching.
 
 /** The CSS family a font names right now (its registered name, or a system family). */
+/** The diagnostic tag, as errors.ts has it: this module imports nothing, so it
+ *  keeps its own copy. The production strip (tools/internal/error-codes.mjs)
+ *  reads the tag by name and codes what it marks. */
+function diag(strings: TemplateStringsArray, ...values: unknown[]): string {
+  let out = strings[0];
+  for (let i = 0; i < values.length; i++) out += String(values[i]) + strings[i + 1];
+  return out;
+}
+
 export const FONT_CSS = Symbol("declare.font.css");
 /** Whether a font is still inside its wait for faces it has not received. */
 export const FONT_PENDING = Symbol("declare.font.pending");
@@ -109,7 +118,7 @@ export async function fontsReady(root: object): Promise<void> {
  *  or a retired top-level `font Serif [ … ]`): name the object form. */
 export function fontObjectHint(name: string): string {
   const member = name.charAt(0).toLowerCase() + name.slice(1);
-  return `a font is an object in the tree: declare '${member}: Font [ … ]' (on the App, or where it is used) and write fontFamily = { app.${member} } — or give a family string such as "Helvetica, sans-serif"`;
+  return diag`a font is an object in the tree: declare '${member}: Font [ … ]' (on the App, or where it is used) and write fontFamily = { app.${member} } — or give a family string such as "Helvetica, sans-serif"`;
 }
 
 // ── keeping the current look while a font loads ───────────────────────────────

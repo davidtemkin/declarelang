@@ -13,6 +13,15 @@
  *  semantics (streams.md §2: an app that streams JSON parses in the handler).
  *  `type` is the SSE named event ("message" for unnamed/default messages and
  *  for every socket frame); `id` is the SSE last-event-id ("" on sockets). */
+/** The diagnostic tag, as errors.ts has it: this module imports nothing, so it
+ *  keeps its own copy. The production strip (tools/internal/error-codes.mjs)
+ *  reads the tag by name and codes what it marks. */
+function diag(strings: TemplateStringsArray, ...values: unknown[]): string {
+  let out = strings[0];
+  for (let i = 0; i < values.length; i++) out += String(values[i]) + strings[i + 1];
+  return out;
+}
+
 export interface StreamMessage {
   readonly data: string;
   readonly type: string;
@@ -110,7 +119,7 @@ function browserEventSource(url: string, listen: readonly string[], cb: StreamCa
     // onError reports terminal failures, not each retry. CLOSED: EventSource
     // does not say why (a refusal, a wrong content type and a dead network
     // look alike), so it is a network error unless the platform is offline.
-    if (es.readyState === EventSource.CLOSED) cb.end(`the server closed the stream at ${url}`, true, { failure: offlineNow() ? "offline" : "networkError" });
+    if (es.readyState === EventSource.CLOSED) cb.end(diag`the server closed the stream at ${url}`, true, { failure: offlineNow() ? "offline" : "networkError" });
     else cb.end("", false);
   };
   return { close: () => es.close() };

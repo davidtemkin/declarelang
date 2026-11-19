@@ -110,7 +110,7 @@ export abstract class TweenLayout extends Layout {
     };
     // the slots each child's box names: one it leaves out stays the child's own
     // (a change in which it names re-installs, the base layout's shape watch)
-    const boxes = this.place() as Partial<FullBox>[];
+    const boxes = this.$arrange().boxes as Partial<FullBox>[];
     try {
       kids.forEach((child, idx) => {
         for (const [slot, key] of SLOTS) {
@@ -190,7 +190,7 @@ export abstract class TweenLayout extends Layout {
     const key = (bs: readonly FullBox[]): string => bs.map((b) => `${b.x},${b.y},${b.w},${b.h},${b.vis !== false}`).join(";");
     const watch = new Constraint(
       `${declareName(this)}.place`,
-      () => key(this.place() as FullBox[]),
+      () => key(this.$arrange().boxes as FullBox[]),
       (k) => {
         const was = seen;
         seen = k as string;
@@ -222,7 +222,7 @@ export abstract class TweenLayout extends Layout {
     for (const c of kids) if (!this.placed.has(c) && !this.$ownBox.has(c)) this.$ownBox.set(c, { x: c.x, y: c.y, w: c.width, h: c.height });
     // a box that leaves out `vis` is shown, as in every other layout's place();
     // one that leaves out x, y, w or h keeps the child's own
-    const to = (this.place() as FullBox[]).map((b, i) => {
+    const to = (this.$arrange().boxes as FullBox[]).map((b, i) => {
       const o = kids[i] !== undefined ? this.$ownBox.get(kids[i]) : undefined;
       return {
         ...b,

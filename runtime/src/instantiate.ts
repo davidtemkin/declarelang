@@ -1308,7 +1308,7 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
       const items = attr.value.kind === "ident" ? [attr.value] : attr.value.items;
       const family = items.map((i) => {
         if (i.kind === "string") return i.value;
-        throw new DeclareError(i.kind === "ident" ? `'${i.name}' is not a family — ${fontObjectHint(i.name)}` : `a fontFamily list holds family strings`, i.pos);
+        throw new DeclareError(i.kind === "ident" ? diag`'${i.name}' is not a family — ${fontObjectHint(i.name)}` : diag`a fontFamily list holds family strings`, i.pos);
       }).join(", ");
       (view as unknown as Record<string, unknown>)[attr.name] = family;
       continue;
@@ -1505,7 +1505,7 @@ function constructData(el: Element, outer: View | null, ctx: Ctx): Node {
     appendChildren(s.el, node as unknown as View, s.croot ?? (node as unknown as View), ctx, el, slot);
   }
   for (const { attr, croot } of mergeAttrs(sources).values()) {
-    landNodeAttr(node, attr, croot, el.tag, eff, ctx, "a data node is where data lives — a :path reads a view's cursor");
+    landNodeAttr(node, attr, croot, el.tag, eff, ctx, diag`a data node is where data lives — a :path reads a view's cursor`);
   }
   queueDeclaredRules(node, ctx);
   if (!(DATA.DataSource !== undefined && node instanceof DATA.DataSource)) {
@@ -1585,7 +1585,7 @@ function constructSource(el: Element, outer: View | null, ctx: Ctx): Node {
     }
   }
   for (const { attr, croot } of mergeAttrs(sources).values()) {
-    landNodeAttr(node, attr, croot, el.tag, eff, ctx, "a source attribute is a value or a { }, not a data read");
+    landNodeAttr(node, attr, croot, el.tag, eff, ctx, diag`a source attribute is a value or a { }, not a data read`);
   }
   queueDeclaredRules(node, ctx);
   return node;
@@ -1696,7 +1696,7 @@ function constructState(
   const overrides: Override[] = [];
   for (const { attr: a, croot } of mergeAttrs(sources).values()) {
     if (a.route !== "override") {
-      landNodeAttr(node, a, croot, el.tag, eff, ctx, "a state's own slot is a value or a { }, not a data read");
+      landNodeAttr(node, a, croot, el.tag, eff, ctx, diag`a state's own slot is a value or a { }, not a data read`);
       continue;
     }
     if (parentEl === null) {

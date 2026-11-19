@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { instantiate } from "../runtime/dist/instantiate.js";
-import { settle, provideMeasurer, Focus } from "../runtime/dist/index.js";
+import { settle, provideMeasurer, Focus, HeadlessBackend } from "../runtime/dist/index.js";
 import { approximateMeasurer } from "../compiler/dist/headless.js";
 
 // Menu machinery centers text (`y = center`) — node has no canvas, so the
@@ -308,6 +308,38 @@ await test("Button: its own padding widens it — the label keeps its room inste
   assert.equal(app.c.width - app.a.width, 20, "10 each side");
 });
 
+// A Switch's label comes first and the switch after it; wider than both, the switch keeps
+// to the trailing edge (a settings row). The words are part of the control, so a press on
+// them toggles it.
+await test("Switch: its label, then the switch, at the trailing edge when wider; a press on the words toggles", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
+    bare: Switch [ accessibilityLabel = "Bare" ],
+    sw: Switch [ y = 40, label = "Wi-Fi" ],
+    row: Switch [ y = 80, label = "Wi-Fi", width = 300 ] ]`);
+  assert.equal(app.bare.width, app.bare._track.width, "no label: the switch alone");
+  assert.equal(app.sw.width, app.sw._cap.width + 12 + app.sw._track.width, "label, gap, switch");
+  assert.equal(app.row._track.x + app.row._track.width, 300, "the switch at the trailing edge");
+  app.sw.press(); settle();
+  assert.equal(app.sw.checked, true);
+});
+
+// A rule wired once, at bind, that reads a view's content size hears the length
+// its layout reports, even when the layout came after the binding: a Button's
+// label that grows ("Creating…" back to "Create account") widens the button.
+await test("Button: a label that grows widens the button again, and one that shrinks narrows it", async () => {
+  const app = await boot(`App [ width = 500, height = 200, long: boolean = false,
+    b: Button [ label = { app.long ? "Create account" : "Creating…" } ] ]`);
+  app.$attach(new HeadlessBackend(), null);
+  settle();
+  const short = app.b.width;
+  app.long = true; settle();
+  const wide = app.b.width;
+  assert.ok(wide > short, `the button widened: ${short} → ${wide}`);
+  assert.equal(app.b._run.cap.truncated, false, "and its label is whole");
+  app.long = false; settle();
+  assert.equal(app.b.width, short, "and narrows back");
+});
+
 // ── DataGrid ──────────────────────────────────────────────────────────────
 
 const GRID = `App [ width = 700, height = 400,
@@ -573,6 +605,49 @@ await test("DataGrid: a FOCUSED cell's row is never recycled — focus is touch 
 });
 
 // ── Segmented ─────────────────────────────────────────────────────────────
+
+await test("Segmented: as wide as its labels need, equally or in proportion; a given width is shared out, and a label with too little room ends in an ellipsis inside its segment", async () => {
+  const items = `items = { [ ({ id: "o", label: "Overview" }), ({ id: "c", label: "Comfortable" }), ({ id: "d", label: "Detail" }), ({ id: "f", label: "Fit" }) ] }`;
+  const app = await boot(`use [ TextSmallIcon, TextLargeIcon ]
+App [ width = 900, height = 300,
+    eq: Segmented [ ${items} ],
+    pr: Segmented [ segmentWidths = "proportional", ${items} ],
+    narrow: Segmented [ width = 200, ${items} ],
+    icons: Segmented [ items = { [ ({ id: "s", icon: "TextSmallIcon", label: "Smaller text" }), ({ id: "l", icon: "TextLargeIcon", label: "Larger text" }) ] } ] ]`);
+  // whether a label is cut short is measured, and measuring starts when a renderer is attached
+  app.$attach(new HeadlessBackend(), null);
+  settle();
+  const fits = (seg) => { const t = seg._t, inset = seg.parent._inset; return t.x >= inset - 0.5 && t.x + t.width <= seg.width - inset + 0.5; };
+  // no width: every label whole, segments equal, each label inside its margins
+  const eq = app.eq.segs();
+  assert.ok(eq.every((s) => !s._t.truncated), "with no width, no label is cut short");
+  assert.ok(eq.every((s) => Math.abs(s.width - eq[0].width) < 0.01), "equal by default");
+  assert.ok(eq.every(fits), "each label keeps its margin at both sides");
+  // proportional: each as wide as its own label needs, so narrower overall
+  const pr = app.pr.segs();
+  assert.ok(pr[1].width > pr[3].width, "Comfortable's segment is wider than Fit's");
+  assert.ok(app.pr.width < app.eq.width, "proportional needs less room than equal");
+  assert.ok(pr.every((s) => !s._t.truncated));
+  // a given width is honored and shared out; a long label ends in an ellipsis, inside its segment
+  const nw = app.narrow.segs();
+  assert.equal(app.narrow.width, 200, "the width given is the width it has");
+  assert.ok(nw.every((s) => Math.abs(s.width - nw[0].width) < 0.01), "shared equally");
+  assert.equal(nw[1]._t.truncated, true, "Comfortable doesn't fit its share");
+  assert.equal(nw[1]._t.maxLines, 1, "…and is drawn as one line ending in an ellipsis");
+  assert.ok(nw.every(fits), "…and still stays inside its segment's margins");
+  assert.equal(nw[1].accessibilityLabel, "Comfortable", "a screen reader hears the whole label");
+  // an icon segment is as wide as its icon and margins, at least segmentMinWidth, named by its label
+  const ic = app.icons.segs();
+  assert.ok(ic.every((s) => s.width >= app.icons.segmentMinWidth - 0.01));
+  assert.equal(ic[0].accessibilityLabel, "Smaller text", "an icon segment is named by its label");
+  // the pill sits on the chosen segment, at its width
+  app.eq.value = "c"; settle();
+  app.eq._lane = 1; settle();
+  assert.ok(Math.abs(app.eq._pill.x - eq[1].x) < 0.5 && Math.abs(app.eq._pill.width - eq[1].width) < 0.5, "the pill covers the chosen segment");
+  app.pr._lane = 1.5; settle();
+  const mid = (pr[1].width + pr[2].width) / 2;
+  assert.ok(Math.abs(app.pr._pill.width - mid) < 0.5, "between segments of different widths the pill's width blends");
+});
 
 await test("Segmented: every segment is a STOP — tab to an inactive choice, Space picks; arrows rove", async () => {
   const { Focus } = await import("../runtime/dist/focus.js");

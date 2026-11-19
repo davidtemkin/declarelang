@@ -16,8 +16,8 @@ How to read it:
   the URL), the tag filters, the search, which task is open, whether the add
   form is up.
 - **Everything on screen derives from those two.** Handlers write facts and the
-  screen follows. The one imperative call is `retarget`, which asks for a
-  change of arrangement to be animated.
+  screen follows. The one imperative call is `retarget(false)`, which places
+  the list at once when its width changes, rather than gliding.
 - **The list moves.** Change a view or a filter, tick a task, open one: rows
   fold away, travel to their new group or grow open, and a change mid-motion
   redirects them. One small layout (`Glide`) does all of it.
@@ -201,11 +201,10 @@ class Tasks extends DataSource [ url = "tasks.json", autoFetch = true,
 // for 0 is folded away. (`laid()` hands back the children as plain views; every
 // child of the list is a Line, so `as Line` reads each one's `want`.)
 //
-// It extends `TweenLayout`, which glides instead of jumping. When the rows
-// themselves change (they reorder, one arrives, one leaves) it glides on its
-// own. A change it cannot see, such as a line asking for a new height, needs
-// `retarget(true)`: every line then glides from where it is to where
-// `place()` now puts it, and a second call mid-glide re-aims from there.
+// It extends `TweenLayout`, which glides instead of jumping. Whatever `place()`
+// reads is watched, so a line asking for a new height glides the list to it,
+// and so does a change to the rows themselves (they reorder, one arrives, one
+// leaves); a change mid-glide turns it from where the lines are.
 //
 // The price: every record keeps a built row, folded when hidden. That suits a
 // list of hundreds. For thousands, build only what is on screen with
@@ -229,13 +228,10 @@ class Glide extends TweenLayout [ duration = 420,
 //
 // Three kinds of line, three classes over one base; `classFor` (on the list,
 // below) picks the class for each record. `want` is the height a line asks
-// for. A row can't re-place its neighbours, so when its `want` changes it asks
-// the list to: `trackChanges` names attributes whose change fires `onChange`.
+// for; the list's layout reads it.
 
 class Line [ clip = true,
-    want: number = 0,
-    trackChanges = ["want"],
-    onChange() { app.reflow() }
+    want: number = 0
     ]
 
 
@@ -773,11 +769,6 @@ App [ appName = "To-do", minWidth = 320,
             })
         return ({ lines: out })
         },
-
-    // A line asked for a new height: glide the list to it. (The list's own
-    // width changing re-places at once, below.)
-
-    reflow() { (app.list.layout as Glide | null)?.retarget(true) },
 
     // ── adding, deleting, undoing
 

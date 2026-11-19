@@ -139,18 +139,22 @@ class WrappingLayout extends Layout [
         // only what the last pass left). `columns` divides a width, so it keeps one.
         const unbounded = cols == 0 && this.viewExtent("width") == 0
         let inRow = 0
+        // the flow's length with nothing wrapping: every child on one row, from
+        // the first row's indent, each at the width it wraps by
+        let oneRow = ind0
+        let seen = 0
         // what a run gives its children along the flow (SimpleLayout's model):
         // a child that flexes (a weight above 0) or shrinks has its width
         // written here, starting from `natural`; every size stays in the
         // child's range (minWidth, maxWidth; 0 = no limit)
         const weight = (c) => {
-            const f = (c as any).flexes
+            const f = c.flexes
             return f === true ? 1 : (typeof f == "number" && f > 0 ? f : 0)
             }
-        const shrinking = (c) => weight(c) == 0 && (c as any).shrinks === true
+        const shrinking = (c) => weight(c) == 0 && c.shrinks === true
         const clamp = (c, v) => {
-            const hi = (c as any).maxWidth
-            return Math.max(hi > 0 ? Math.min(v, hi) : v, (c as any).minWidth, 0)
+            const hi = c.maxWidth
+            return Math.max(hi > 0 ? Math.min(v, hi) : v, c.minWidth, 0)
             }
         // per weight, what the last full row's flexing children grew by: cells
         // that state a minWidth keep it on the last row, so they line up
@@ -186,7 +190,7 @@ class WrappingLayout extends Layout [
                     shrinkers.forEach((j, k) => {
                         if (held[k]) return
                         const n = given[j - rowStart]
-                        const lo = (kids[j] as any).minWidth
+                        const lo = kids[j].minWidth
                         if (n - over * n / basis < lo) { over = over - (n - lo); given[j - rowStart] = lo; held[k] = true; again = true }
                         })
                     if (!again) {
@@ -196,7 +200,7 @@ class WrappingLayout extends Layout [
                 }
             }
             if (flexers.length > 0) {
-                const carry = last && rowStart > 0 && grewBy != null && flexers.every((j) => (kids[j] as any).minWidth > 0)
+                const carry = last && rowStart > 0 && grewBy != null && flexers.every((j) => kids[j].minWidth > 0)
                 let free = -over
                 const held = flexers.map((j) => false)
                 for (let round = 0; round <= flexers.length; round = round + 1) {
@@ -266,7 +270,7 @@ class WrappingLayout extends Layout [
                 if (!kids[j].visible) continue
                 let off = 0
                 // a child's own center, where it says one (a TextLabel's capitals)
-                if (al == "center") off = (lineH - heights[j]) / 2 - ((kids[j] as any).centerY - (kids[j] as any).height / 2)
+                if (al == "center") off = (lineH - heights[j]) / 2 - (kids[j].centerY - kids[j].height / 2)
                 else if (al == "end") off = lineH - heights[j]
                 else if (al == "baseline") {
                     if (bases[j] != null) off = rowBase - bases[j]
@@ -285,18 +289,20 @@ class WrappingLayout extends Layout [
             // A flexing child's width is this flow's to write, so it is fitted
             // by its content width and its footprint is never read.
             const flex = weight(c) > 0 || shrinking(c)
-            const f = flex ? null : (c as any).footprint()
-            const ch = flex ? (c as any).height : f.height
-            const leadX = flex ? 0 : f.x
-            const leadY = flex ? 0 : f.y
+            const f = flex ? ({ x: 0, y: 0, width: 0, height: c.height }) : c.footprint()
+            const ch = f.height
+            const leadX = f.x
+            const leadY = f.y
             // under `columns` a child takes a cell: a flexing one is the cell's
             // width, a shrinking one its own up to the cell's, and the next row
             // starts after the last column, whatever fits. Outside a grid a
             // flexing child wraps by its minWidth when it states one (a cell),
             // else by its content's width, as a shrinking one does
-            const own = flex ? clamp(c, weight(c) > 0 && (c as any).minWidth > 0 ? (c as any).minWidth : (c as any).contentWidth) : 0
+            const own = flex ? clamp(c, weight(c) > 0 && c.minWidth > 0 ? c.minWidth : c.contentWidth) : 0
             let cw = cols > 0 ? 0 : flex ? own : f.width
             natural.push(flex && cols == 0 ? cw : null)
+            oneRow = oneRow + (seen > 0 ? sp : 0) + cw
+            seen = seen + 1
             // wrap when this child (with its leading gap) would overflow — never
             // on a row's first child, so one over-wide child just overflows
             if (!firstInRow && (cols > 0 ? inRow >= cols : !unbounded && cx + sp + cw > w)) { const lh = finish(i, cx, false); cx = indN; cy = cy + lh + ls; rowH = 0; rowBase = 0; firstInRow = true; rowStart = i; inRow = 0 }
@@ -314,6 +320,9 @@ class WrappingLayout extends Layout [
             firstInRow = false
         }
         finish(kids.length, cx, true)   // the last (or only) row — ragged under fill
-        return out
+        // the view's content width is its children on one row, whatever the room
+        // made of them; a grid's columns are cut from the width it is given, so a
+        // grid has none
+        return ({ boxes: out, contentWidth: cols > 0 ? null : oneRow })
         }
     ]

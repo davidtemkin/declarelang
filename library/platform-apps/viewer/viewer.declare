@@ -987,7 +987,9 @@ App [ fill = { provided("theme").background },
         left: number = { this.brand.x + this.brand.width + 16 },
         right: number = { (this.size.visible ? this.size.x : this.themeSwitch.x) - 12 },
 
-        modeSwitch: Segmented [ visible = { app.hostWidth >= 520 }, y = { (app.barH - 30) / 2 }, height = 30,
+        // the four tabs need about 280 between the brand and the size switch: from 660 wide
+
+        modeSwitch: Segmented [ visible = { app.hostWidth >= 660 }, y = { (app.barH - 30) / 2 }, height = 30,
             width = { Math.min(320, parent.right - parent.left) },
             x = { Math.min(parent.right - this.width, Math.max(parent.left, (app.hostWidth - this.width) / 2)) },
             replace = true,        // a tab switch never buries Back — the walk is between files
@@ -1014,7 +1016,7 @@ App [ fill = { provided("theme").background },
 
         // a phone's tabs: the tab it is on, and a chevron that says there are more
 
-        tabBtn: Control [ visible = { app.hostWidth < 520 }, menu = { app.tabMenu },
+        tabBtn: Control [ visible = { app.hostWidth < 660 }, menu = { app.tabMenu },
             x = { parent.left }, y = { (app.barH - 30) / 2 }, height = 30, cornerRadius = 8, padding = [0, 8, 0, 12],
             accessibilityLabel = { "View: " + this.t.text },
             fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },

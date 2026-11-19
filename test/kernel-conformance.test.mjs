@@ -201,6 +201,28 @@ await bothAgree("a write to an owned cell is refused, and a YIELDING owner steps
   r("owner gone, value stands", K.table[out]);
 });
 
+// RUNS: how many times a rule ran in the settle, what a cycle's report reads to
+// find the loop among the rules that kept running. Both kernels count alike, and
+// a rule that did not run in the latest settle counts 0.
+await bothAgree("runs counts a rule's runs in the latest settle", (K, h, r) => {
+  const src = K.addCell(0, false), mid = K.addCell(0, false), out = K.addCell(0, false), other = K.addCell(0, false);
+  const m = K.addRule(mid, KIND.DYNAMIC, 0, [src], 0);
+  h.bodies.set(m, () => { K.track(src); return K.table[src] + 1; });
+  K.own(mid, m);
+  const o = K.addRule(out, KIND.DYNAMIC, 0, [mid], 0);
+  h.bodies.set(o, () => { K.track(mid); return K.table[mid] * 2; });
+  K.own(out, o);
+  const q = K.addRule(other, KIND.DYNAMIC, 0, [], 0);
+  h.bodies.set(q, () => 5);
+  K.own(other, q);
+  K.run(m); K.run(o); K.run(q);
+  K.set(src, 3);
+  r("settle", K.settle());
+  r("mid ran", K.runs(m));
+  r("out ran", K.runs(o));
+  r("unwoken", K.runs(q));
+});
+
 await bothAgree("a dynamic rule re-discovers its reads every run", (K, h, r) => {
   const pick = K.addCell(0, false), a = K.addCell(0, false), b = K.addCell(0, false), out = K.addCell(0, false);
   K.set(pick, 0); K.set(a, 10); K.set(b, 20);

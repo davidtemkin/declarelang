@@ -15,7 +15,7 @@ App [ textColor = 0x172530, fontSize = 14,
             Switch [ checked = { app.feed.active },
                 commit(v: boolean) { app.feed.active = v }
                 ],
-            Text [ text = { "status: " + app.feed.status + (app.feed.error != "" ? " — " + app.feed.error : "") } ]
+            Text [ text = { "status: " + app.feed.status + (app.feed.failure == "offline" ? " — you’re offline" : "") } ]
             ],
         Text [ fontSize = 13, textColor = 0x6A7883, wrap = true, width = { parent.width },
             text = { app.log == "" ? "nothing received yet" : app.log } ]

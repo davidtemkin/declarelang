@@ -57,6 +57,15 @@ export interface HitAdapter<N> {
 }
 
 /** Is a point (in `c`'s frame) outside everything `c`'s subtree could answer? */
+/** The diagnostic tag, as errors.ts has it: this module imports nothing, so it
+ *  keeps its own copy. The production strip (tools/internal/error-codes.mjs)
+ *  reads the tag by name and codes what it marks. */
+function diag(strings: TemplateStringsArray, ...values: unknown[]): string {
+  let out = strings[0];
+  for (let i = 0; i < values.length; i++) out += String(values[i]) + strings[i + 1];
+  return out;
+}
+
 function beyond<N>(A: HitAdapter<N>, c: N, cx: number, cy: number): boolean {
   const r = A.reach?.(c);
   return r === null || (r !== undefined && (cx < r.x0 || cy < r.y0 || cx >= r.x1 || cy >= r.y1));
@@ -81,7 +90,7 @@ export function walkHit<N>(n: N, lx: number, ly: number, A: HitAdapter<N>, accep
   const inside = lx >= 0 && ly >= 0 && lx < A.width(n) && ly < A.height(n);
   const scroller = A.scroller(n);
   if (scroller && !inside) {
-    if (trace !== undefined) trace.push({ view: n, why: "skipped — outside a scroller's FRAME, so its whole subtree is out of view", x: Math.round(lx), y: Math.round(ly) });
+    if (trace !== undefined) trace.push({ view: n, why: diag`skipped — outside a scroller's FRAME, so its whole subtree is out of view`, x: Math.round(lx), y: Math.round(ly) });
     return null;
   }
   const outside = A.clips(n) && !A.insideClip(n, lx, ly);
@@ -113,7 +122,7 @@ export function walkHit<N>(n: N, lx: number, ly: number, A: HitAdapter<N>, accep
     if (hit !== null) return hit;
   }
   if (!inside || outside) {
-    if (trace !== undefined) trace.push({ view: n, why: inside ? "missed — the point is outside this view's clip" : "missed — the point is outside this view's own box", x: Math.round(lx), y: Math.round(ly) });
+    if (trace !== undefined) trace.push({ view: n, why: inside ? diag`missed — the point is outside this view's clip` : diag`missed — the point is outside this view's own box`, x: Math.round(lx), y: Math.round(ly) });
     return null;
   }
   const why = accept(n);
@@ -121,7 +130,7 @@ export function walkHit<N>(n: N, lx: number, ly: number, A: HitAdapter<N>, accep
     if (trace !== undefined) trace.push({ view: n, why, x: Math.round(lx), y: Math.round(ly) });
     return null;
   }
-  if (trace !== undefined) trace.push({ view: n, why: "HIT — the deepest box containing the point", x: Math.round(lx), y: Math.round(ly) });
+  if (trace !== undefined) trace.push({ view: n, why: diag`HIT — the deepest box containing the point`, x: Math.round(lx), y: Math.round(ly) });
   hitPoint.x = lx;
   hitPoint.y = ly;
   return n;

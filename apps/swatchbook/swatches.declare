@@ -78,12 +78,23 @@ class Section [ width = 100%,
         textColor = { provided("theme").text }, text = { classroot.title } ],
     cap: Text [ width = 100%, fontSize = 13, wrap = true,
         textColor = { provided("theme").textMuted }, text = { classroot.caption } ],
-    pick: Segmented [ visible = { !app.matrix },
+    pick: Segmented [ visible = { !app.matrix && !app.compact },
         segmentMinWidth = 96,
         value = { classroot.sub },
         commit(v: object) { classroot.sub = "" + v },
         items = { classroot.tabs }
-        ]
+        ],
+
+    // on a narrow window the sub-pages don't fit side by side with room around
+    // their names: one button opens them as a list, the chosen one checked
+
+    subMenu: Menu [
+        items = { ((classroot.tabs ?? []) as { id: string, label: string }[]).map((t) => ({ ...t, group: "sub", checked: classroot.sub == t.id })) },
+        picked(id: string) { classroot.sub = id }
+        ],
+    picker: Button [ visible = { !app.matrix && app.compact }, height = 30,
+        label = { ((classroot.tabs ?? []) as { id: string, label: string }[]).find((t) => t.id == classroot.sub)?.label ?? "" },
+        menu = { classroot.subMenu } ]
     ]
 
 

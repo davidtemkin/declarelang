@@ -373,3 +373,139 @@ Tests: the full suite; for the changed surfaces, `scaffold`, `unit`, `slim`, `sl
 `subclass-roots`, `focus-ring`, `accessibility-browser`, `api-signatures`, `name-scope`,
 `script-block` and `declarec`.
 
+
+## The Pagemap run 1 fix round (2026-11-17)
+
+- **A size beside a computed `flexes` is refused at compile time.** `width = { … }, flexes =
+  { phone }` was refused only at run time, in a state where `flexes` was true. The checker now
+  refuses it at the size's line, naming the form that says the intent: `flexes = true` with a
+  computed `maxWidth` (and `minWidth` for a floor). Considered and dropped: letting a stated
+  size apply while the child doesn't flex. A reader from CSS takes a size beside `flexes` as
+  the size it grows from, so it would be silently ignored, and the refusal that catches that
+  mistake would go. The layout refusals' "to fill" clause also names the bounds now.
+- **An object as a value: the message shows the person's line corrected** (`write = { {} }`),
+  and the notation chapter states the rule: braces after `=` open a constraint, so an object
+  takes a second pair. Considered and dropped (DT): accepting `= {}` as an empty object, and
+  reading `= { a: 1 }` as an object. `= { a }` already means a constraint reading `a`, so
+  forms that look alike would mean different things.
+- **A bare name both a member and a top-level script binding answer to is an error**
+  (DECLARE4045, DT). It was a lint warning (DECLARE4002) among many, and the member silently
+  won: in Pagemap run 1 an App method `initialsOf(id)` calling the script's `initialsOf(name)`
+  called itself and overflowed the stack at boot; the original Pagemap hit the same leak. A
+  library class's own member meeting a program's script name stays allowed: the library never
+  calls the program's script, and its code is not the program's to rename. DECLARE4002 keeps
+  its other case, an inner member shadowing an outer one, which has a written fix (`app.x`).
+- **`Text.truncated` reports a last line cut short with an ellipsis**, not only lines dropped
+  past `maxLines`, and is a rule of its own, so a text whose height another rule states (a
+  `TextLabel`) has it too. verify reads it to report a control's own words cut short.
+- **A clamped run's hidden remainder is inline at no size** on the DOM, not absolutely
+  positioned: Chrome named a cut "Comfortable" as "Co mfortable", and a copy carried a line
+  break. Unverified in Safari and VoiceOver.
+- **`Button` cuts its label inside its margins** when given a width narrower than its content:
+  an ellipsis, the full label as its accessible name and, when cut, its tooltip. Its default
+  width is now measured from its label and icons rather than read from its run, so the label's
+  limit can read the button's width without a cycle.
+- **verify: text past the view it sits in.** A run drawn past either edge of its parent is a
+  layout finding when the parent has a ground (a fill or a stroke) or the spill lands on a
+  neighbor, and the run sits within the parent's height (a caption under a disc does not count).
+- **A view's content size is what it holds with nothing in it giving way, and a layout that
+  sizes its children says how long that is** (DT 2026-11-18). `place()` may return
+  `{ boxes, contentWidth }` (`contentHeight` along a column) instead of its bare boxes; the
+  number is the view's content size on that axis (its padding added), worked out from what the
+  children bring before the room is applied. SimpleLayout reports it when its run shrinks or
+  flexes a child; WrappingLayout reports one row's length; a layout returning bare boxes leaves
+  the content size to what it draws, as before. This is what `shrinks` always promised ("the
+  size its content gives it"): a container's content size had counted its parts at the sizes
+  its own layout gave them under the width its parent gave it, so it was a function of itself
+  (Pagemap's header looped at sign-in; a title laid out empty stayed at its padding; a
+  shrinking tag group stayed one tag wide). The page's scroll extent keeps what is drawn.
+  Considered and dropped: separate `naturalOf` / `naturalExtent` members (a second name for an
+  almost-identical concept, and a second copy of each layout's arithmetic) and a measuring run
+  of `place()` outside the pass (irregular).
+- **An arrangement chosen by the width it is given has no content width.** ResponsiveLayout and
+  a WrappingLayout with `columns` return `contentWidth: null`; a rule that reads it (a parent
+  sizing the view from its content in any way) is refused at the read, and so is the view
+  when nothing gives it a width. `shrinks` on a ResponsiveLayout view is refused at compile
+  time. Its documentation already required a given width; breaking that failed silently.
+  Considered and dropped: a natural width for a ResponsiveLayout (its widest plan's), which
+  contradicts itself, and a `needsGivenWidth()` flag (the `null` report says it).
+- **Diagnostics from the layout review** (no language change): a size taken from the parent's
+  through another attribute is reported below zero as a direct read is; an error raised in
+  library code (a layout's `place()`, a library class's rule) names where the author wrote the
+  view it was working on; verify no longer says a flexing child "takes its width from" a row
+  sized by its children (the flex finding says it).
+
+## The Pagemap functional run 1 fix round (2026-11-18)
+
+- **A built-in color name is a color on every class.** `fill`, `textColor`, `textFill` and
+  `tint` already took a value set on them as a color whatever the class declared, so a
+  `tint: string` was handed numbers and its use (`Color.from(classroot.tint)`) failed with no
+  report. A declaration of one of these names as anything but `Color` or `number` (what a
+  color is) is now refused, naming the rule and a free name. The corpus declares `tint` only
+  as a `Color` or a `number`. Considered and dropped: letting the declared type win, which
+  would make the name mean two things.
+- **`Switch` takes a `label`**, as `Checkbox` does: shown, part of what a press reaches, and
+  its name to a screen reader. The words come first and the switch after them, every
+  platform's order for a switch; given a wider width, the switch keeps to the trailing
+  edge, so a full-width labeled switch is a settings row. The pill is now a part of the
+  switch (`_track`), so `fill`, `stroke` and `cornerRadius` set on a `Switch` no longer
+  paint it; nothing in the corpus set them. Its focus ring circles the switch alone, as
+  Checkbox's circles the box.
+- **No change: `press()` takes no modifier keys.** An activation has none, on every platform
+  but the web's event model; the rare control that needs them reads `Keyboard` at the press,
+  and extending a selection belongs to the collections.
+- **Runtime and tool fixes** (no language change): a rule that closes an `exists` gate while
+  the views under it come in, or while a list attaches its new rows, no longer attaches into
+  the removed parent; a window the program opens no longer stalls verify (the program's page
+  is put back in front, and the window is said); verify's `expect(value)` has
+  `toMatchObject`; a compile records the `.ts` files its script imports bundle, and what
+  they import, so an edit to one compiles the program again (the dev server had kept serving
+  the old code).
+- **Calling the model from a verify script** (no language change): `drive.call(path,
+  method, …args)` calls a method and returns its result, so a script can test the model's
+  rules directly; the app is still tested by pressing what a person presses, and the verdict
+  says calls, not input. Vortex's `tests/assert.mjs` is the first, against the running game.
+  Considered and dropped: test programs (a part included on its own, paired with a script
+  by name in the ladder), since the running app already gives the model a quiet start, and
+  several cases per file each from fresh records.
+- **The release's size, back under 0.7.0** (DT 2026-11-19): the calendar had grown 6.2 KB.
+  It drops `Menu` (below 480 the date goes to today when pressed, and Today hides);
+  `Button` sizes from its run's content length, and `Segmented` keeps both
+  `segmentWidths` with less code; neither shows a tooltip for a cut label, which is a bug
+  verify reports, not something to ship. Production builds leave out what only a developer
+  is told (the layout's checks, the rule loop's search, the author's line on an error).
+- **A production app shows no words the platform wrote** (DT 2026-11-19, reversing the
+  strip's rule that a DataSource's `.error` stays readable because an app may show it). An
+  app reads a failure by its `failure` kind and says it in its own words; the platform's
+  text is coded in production, with its values, wherever it would reach a person.
+- **A content size heard through the view's own cell** (no language change): a rule wired
+  once, at bind, read a view's content size before its layout existed, and never heard the
+  length the layout later reported (a Button stayed narrow when its label grew). The view
+  now has a content cell its layout signals.
+
+## Open: what the layout guard enforces (2026-11-19, not decided)
+
+Before a layout uses its view's own width as the room to share out, a guard
+(`Layout.sizedByChildren`, behind `viewExtent`) asks whether that width depends on the
+children; if it does, the room is taken as unlimited (no shortage). What was established:
+
+- **It is broader than the rule.** It counts a read of ANY cell of a laid child, visibility
+  included, while a loop can only run through what the layout writes: positions, and the sizes
+  it gives. Reading the reported content length reads which children are laid (their
+  visibility), so `width = { Math.min(this.contentWidth, room) }` is treated as sized by the
+  children and nothing shrinks. Button works around it by reading its run's content width
+  through `_natural`, which the guard does not see.
+- **It is narrower than the rule.** It sees only the width rule's direct reads, so a real loop
+  through another attribute passes unnoticed (the same blind spot `_natural` uses).
+- **The reported length is not always independent of the room:** SimpleLayout counts a child
+  sized as a percent of its parent at its current size, which the drawn content size leaves
+  out for that reason.
+- **It runs on every pass that asks for the room** (every frame in an animated arrangement),
+  building a set of the children's cell ids each time.
+- **Considered:** an exact predictive guard (transitive, through the reported length into
+  the pass) needs a walk of the dependency graph whose inputs change as rules re-track, so it
+  cannot simply be cached; and keeping the guard only for a view sized by its children (the
+  auto-extent, where it defines "no shortage"), leaving a real loop through a rule to the
+  kernel's cycle detection. The second is cheap and exact by construction, but turns a
+  program that today works by the guard's silence into a reported loop. Not on solid ground
+  yet (DT); nothing changed.

@@ -374,7 +374,16 @@
     "full screen": "App.fullScreen",
     "requestFullscreen": "App.fullScreen",
     "enter full screen": "App.fullScreen",
-    "exit full screen": "App.fullScreen"
+    "exit full screen": "App.fullScreen",
+    "window coordinates": "View.method.rootOrigin",
+    "global coordinates": "View.method.rootOrigin",
+    "page coordinates": "View.method.rootOrigin",
+    "global position": "View.method.rootOrigin",
+    "absolute position": "View.method.rootOrigin",
+    "getBoundingClientRect": "View.method.rootOrigin",
+    "localToGlobal": "View.method.rootOrigin",
+    "convert point": "View.method.rootOrigin",
+    "convertPoint": "View.method.rootOrigin"
   },
   "negative": [
     {

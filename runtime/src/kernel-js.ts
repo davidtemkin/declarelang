@@ -899,6 +899,7 @@ export function instantiateKernelJS(host: KernelHost, caps: KernelCaps = {}): Ke
     listened: (cell) => cell < ncells && cellHead[cell] !== 0,
     flush: () => { drainTrack(); drain(); },
     deps: (rule) => (known(rule) ? readsOf(rule) : []),
+    runs: (rule) => (known(rule) && rStamp[rule] === stamp ? rRuns[rule] : 0),
     abort: () => { aborted = true; },
     rewire: (rule, edges) => {
       if (!known(rule) || (rState[rule] & ST_DEAD) !== 0) return ERR_BAD;

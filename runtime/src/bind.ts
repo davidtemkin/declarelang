@@ -284,7 +284,7 @@ function bindKernelExpr(view: Node, name: string, expr: { code: number[]; paths:
  *  text the same question, so the two can never answer differently. A read
  *  reached through another attribute is not seen here: it is not a derivation
  *  the source states, and if it collapses the size, the negative-size report
- *  (view.ts) is what says so. */
+ *  (size-report.ts), which follows the rule's reads, is what says so. */
 /** Does the body choose between branches? A size that reads the parent's size
  *  in a body with branches may read it on one run and not the next — so it is
  *  marked by the branch each run took (bindConstraint), not by its source. */

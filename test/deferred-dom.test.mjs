@@ -341,6 +341,39 @@ await test("hideScrollbars: a scroller that hides its bar still scrolls; one tha
   assert.equal(out.shown, "auto", "turned off again, the bar is back");
 });
 
+// A GATE CLOSING WHILE VIEWS COME IN. Bringing a waiting view in pushes its state,
+// and attaching a list's new rows runs theirs; either can close a gate above them
+// (an `exists` turning false: Pagemap functional run 1's page panel, when a second
+// page was taken in hand). The view or rows then have no parent left to come in
+// to, and nothing more happens to them: no throw, nothing finished outside the tree.
+await test("a parent torn down while a waiting view comes in, or while new rows attach, ends quietly", async () => {
+  const out = await inPage(`App [ width = 300, height = 200, n: number = 1,
+    panel: View [ width = 200, height = 100,
+        inner: View [ visible = false, width = 10, height = 10, fill = #FF0000 ] ],
+    items: Dataset [ schema = [ rows[]: Item ], contents = { ({ rows: [...Array(app.n).keys()].map((i) => ({ k: i })) }) } ],
+    host2: View [ y = 120, width = 200, height = 60,
+        list: View [ datapath = { app.items.value }, layout: SimpleLayout [ axis = y ],
+            Row [ datapath = :rows[] ] ] ] ]
+schema Item [ k: number ]
+class Row [ height = 10, marker: boolean = true, tip: Text [ text = { "row " + (:k ?? 0) } ] ]`, `
+    // one: the waiting view's flush takes its parent away
+    const inner = app.panel.inner;
+    const flush = inner.$flush.bind(inner);
+    inner.$flush = (s) => { flush(s); app.panel.discard(); };
+    inner.visible = true; settle(); await frame();
+    // two: the first new row's attach takes the list's parent away
+    const attach = rt.View.prototype.$attach;
+    let once = false;
+    rt.View.prototype.$attach = function (...a) {
+      const r = attach.apply(this, a);
+      if (!once && this.marker === true) { once = true; app.host2.discard(); }
+      return r;
+    };
+    try { app.n = 4; settle(); await frame(); } finally { rt.View.prototype.$attach = attach; }
+    return { panelGone: app.panel === undefined || app.panel.parent === null, hostGone: app.host2 === undefined || app.host2.parent === null };`);
+  assert.deepEqual(out, { panelGone: true, hostGone: true });
+});
+
 await browser.close();
 server.close();
 summarize("deferred-dom");

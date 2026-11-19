@@ -81,6 +81,20 @@ await test("the runtime's built-in color attributes are exactly the schemas' col
   assert.deepEqual([...BUILTIN_COLOR_ATTRS].sort(), [...want].sort());
 });
 
+// A built-in color name is a color on every class, so a class can't declare one as
+// something a color isn't: a `tint: string` would be handed numbers (Pagemap
+// functional run 1's avatar lost its fill). Declared a Color, or a number, it is fine.
+await test("a built-in color name declared as a string is refused; as a Color or a number it holds a color", async () => {
+  const bad = await errorsOf(`class Avatar [ width = 20, height = 20, tint: string = "#80a7ff" ]
+App [ width = 100, height = 100, Avatar [ tint = "#336699" ] ]`);
+  assert.ok(bad.some((m) => /'tint' is a color wherever it is declared .* so it can't be a string: declare it 'Color' \(or 'number'\)/.test(m)), bad.join("\n"));
+  for (const [type, set] of [["Color = #80a7ff", "#336699"], ["number = 0", "0x336699"]]) {
+    const ok = await errorsOf(`class Chip [ width = 20, height = 20, tint: ${type}, fill = { classroot.tint } ]
+App [ width = 100, height = 100, Chip [ tint = ${set} ] ]`);
+    assert.deepEqual(ok, [], type);
+  }
+});
+
 await test("a bare value takes a color in quotes too, the same color as unquoted", async () => {
   const { app } = await boot(`App [ width = 100, height = 100, fill = "#FF000080",
     v: View [ width = 10, height = 10, fill = "royalblue", stroke = Stroke(1, "#123") ] ]`);

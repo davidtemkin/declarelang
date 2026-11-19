@@ -97,16 +97,16 @@ class SimpleLayout extends Layout [
         // read as a footprint (that reads both sizes): across the flow it is its
         // own raw extent, untransformed, and it aligns like any child
         const weight = (c) => {
-            const f = (c as any).flexes
+            const f = c.flexes
             return f === true ? 1 : (typeof f == "number" && f > 0 ? f : 0)
             }
-        const shrinking = (c) => weight(c) == 0 && (c as any).shrinks === true
+        const shrinking = (c) => weight(c) == 0 && c.shrinks === true
         const flexing = (c) => weight(c) > 0 || shrinking(c)
         const minKey = axis == "x" ? "minWidth" : "minHeight"
         const maxKey = axis == "x" ? "maxWidth" : "maxHeight"
         const clamp = (c, v) => {
-            const hi = (c as any)[maxKey]
-            const lo = (c as any)[minKey]
+            const hi = c[maxKey]
+            const lo = c[minKey]
             const capped = hi > 0 ? Math.min(v, hi) : v
             return Math.max(capped, lo)
             }
@@ -128,9 +128,24 @@ class SimpleLayout extends Layout [
             if (!c.visible) return
             visN = visN + 1
             if (weight(c) > 0) { flexN = flexN + 1; given[i] = clamp(c, 0) }
-            else if (shrinking(c)) { shrinkN = shrinkN + 1; given[i] = clamp(c, (c as any)[axis == "x" ? "contentWidth" : "contentHeight"]) }
-            else fixed = fixed + (c as any).footprint()[size]
+            else if (shrinking(c)) { shrinkN = shrinkN + 1; given[i] = clamp(c, c[axis == "x" ? "contentWidth" : "contentHeight"]) }
+            else fixed = fixed + c.footprint()[size]
             })
+        // the run's length with nothing in it giving way: a child the run sizes
+        // at what it brings (its content, or its minimum if it flexes), the rest
+        // at their own, laid end to end as below. Reported with the boxes, it is
+        // the view's content size along the flow: never the run as the room has
+        // just made it, which would make the view's size a function of itself.
+        let runLength = 0
+        if (flexN + shrinkN > 0) {
+            let at = 0
+            kids.forEach((c, i) => {
+                if (!c.visible) return
+                const n = flexing(c) ? given[i] : c.footprint()[size]
+                runLength = Math.max(runLength, at + n)
+                at = at + n + this.spacing
+                })
+            }
         if (flexN + shrinkN > 0) {
             fixed = fixed + this.spacing * Math.max(0, visN - 1)
             // the room: a run that flexes divides the view's own; one that only
@@ -152,7 +167,7 @@ class SimpleLayout extends Layout [
                     let again = false
                     kids.forEach((c, i) => {
                         if (!c.visible || !shrinking(c) || held[i]) return
-                        const lo = (c as any)[minKey]
+                        const lo = c[minKey]
                         if (given[i] - over * given[i] / basis < lo) {
                             over = over - (given[i] - lo)
                             given[i] = lo
@@ -207,10 +222,10 @@ class SimpleLayout extends Layout [
         const crossSize = axis == "x" ? "height" : "width"
         // how far a child's own center (centerY in a row, centerX in a column)
         // sits from its box's middle: 0 unless it says otherwise (a TextLabel)
-        const centerShift = (c) => (c as any)[axis == "x" ? "centerY" : "centerX"] - (c as any)[crossSize] / 2
+        const centerShift = (c) => c[axis == "x" ? "centerY" : "centerX"] - c[crossSize] / 2
         const crossOf = (c) => {
-            if (flexing(c)) return ({ lead: 0, extent: (c as any)[crossSize] })
-            const fc = (c as any).footprint()
+            if (flexing(c)) return ({ lead: 0, extent: c[crossSize] })
+            const fc = c.footprint()
             return ({ lead: axis == "x" ? fc.y : fc.x, extent: fc[crossSize] })
             }
         let line = 0
@@ -218,12 +233,15 @@ class SimpleLayout extends Layout [
         // stretch: a child its content sizes counts by that content, never by the
         // size a stretch gave it (that would hold the line up once it shrank)
         const natural = axis == "x" ? "contentHeight" : "contentWidth"
-        const extentOf = (c) => al == "stretch" && this.sizedByContent(c, crossSize) ? (c as any)[natural] : crossOf(c).extent
+        const extentOf = (c) => al == "stretch" && this.sizedByContent(c, crossSize) ? c[natural] : crossOf(c).extent
         if (al != "none") {
             if (al == "baseline" && axis != "x") this.refuseStackBaseline()
+            // a stretch into a view with a cross size of its own fills that size,
+            // so the children's line is not measured for it
+            const banded = al == "stretch" && !this.sizedByChildren(crossSize)
             for (const c of kids) {
                 if (!c.visible) continue
-                line = Math.max(line, extentOf(c))
+                if (!banded) line = Math.max(line, extentOf(c))
                 const b = (c as any).baseline
                 if (al == "baseline" && typeof b == "number") lineBase = Math.max(lineBase, b)
             }
@@ -236,7 +254,7 @@ class SimpleLayout extends Layout [
         }
 
         let pos = 0
-        return kids.map((c, i) => {
+        const boxes = kids.map((c, i) => {
             const flex = c.visible && flexing(c)
             // hidden, a flexing child takes no room, and the run has nothing new to
             // say about its size: it keeps the one it has (handed back to its content,
@@ -245,7 +263,7 @@ class SimpleLayout extends Layout [
             // footprint, never bounds: the strategy must not read the attribute it
             // writes (one-pass discipline). A flexing child's size is allocated
             // (box.w/h), so its footprint is never consulted — lead 0, raw attribute.
-            const f = flex ? null : (c as any).footprint()
+            const f = flex ? null : c.footprint()
             const lead = f == null ? 0 : (axis == "x" ? f.x : f.y)
             const box = (axis == "x" ? ({ x: pos - lead }) : ({ y: pos - lead })) as any
             if (flex) box[axis == "x" ? "w" : "h"] = given[i]
@@ -273,5 +291,9 @@ class SimpleLayout extends Layout [
             if (c.visible) pos = pos + (flex ? given[i] : (f as any)[size]) + this.spacing
             return box
             })
+        // a run that sizes a child along its flow says how long it is unshrunk;
+        // one that sizes none is as long as what it draws, and says nothing
+        if (flexN + shrinkN == 0) return boxes
+        return axis == "x" ? ({ boxes: boxes, contentWidth: runLength }) : ({ boxes: boxes, contentHeight: runLength })
         }
     ]

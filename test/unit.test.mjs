@@ -3730,7 +3730,8 @@ async function onePass() {
 }
 
 await test("an unmodified SimpleLayout's shape, read from its inputs, is the shape its place() returns", async () => {
-  const sig = (boxes) => boxes.map((b) => ["x", "y", "w", "h", "vis"].filter((k) => b[k] !== undefined).join()).join("|");
+  // place() answers its boxes, or { boxes, contentWidth } when it sizes a child along its run
+  const sig = (r) => (Array.isArray(r) ? r : r.boxes).map((b) => ["x", "y", "w", "h", "vis"].filter((k) => b[k] !== undefined).join()).join("|");
   for (const axis of ["x", "y"]) for (const align of ["none", "start", "center", "end", "baseline"]) {
     if (align === "baseline" && axis === "y") continue;      // a stack has no baseline line (refused at compile time)
     const b = align === "baseline" ? ", baseline: number = 8" : "";

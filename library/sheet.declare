@@ -49,7 +49,8 @@ The whole width at the bottom; `sheetWidth` at the end edge or as a card; `sheet
 start edge too, leaving at least 56 of its context showing to press.
 
 ## height
-Its content's height, kept inside its layer; the full height at the end or start edge.
+Its content's height, kept inside its layer; the full height at the end or start edge. Content
+taller than the sheet scrolls inside it.
 
 ## x
 At the end or start edge as it slides in, a drawer less any swipe back; centered as a card.

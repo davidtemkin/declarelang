@@ -203,9 +203,11 @@ wait includes sending the body and the server's work: a large upload or a slow o
 sets a longer `timeout`.
 
 ## error
-Why the last fetch failed, as one line — an HTTP status, a transport message, or the
-schema mismatch with its pointed path. `null` when nothing has gone wrong. It is the
-*message*; the server's own account is `errorBody`.
+Why the last fetch failed, as one line for a developer — an HTTP status, a transport message,
+or the schema mismatch with its pointed path. `null` when nothing has gone wrong. In a
+production build it is a code with its values (`declare-help` gives the sentence back), so it
+is never words to show a person: show the program's own, chosen by `failure`. The server's
+own account is `errorBody`.
 
 ## statusCode
 The HTTP status of the last reply — `404`, `422`, `200`. **`0` means no reply arrived**:

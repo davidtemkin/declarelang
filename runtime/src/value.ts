@@ -212,7 +212,7 @@ export function gradient(...args: (number | string | GradientStop)[]): Gradient 
     angle = parseFloat(m[1]);
     args = args.slice(1);
   }
-  if (args.length < 2) throw new Error("gradient needs at least two stops");
+  if (args.length < 2) throw new Error(diag`gradient needs at least two stops`);
   const stops = args.map((a): GradientStop => {
     if (typeof a === "number" || typeof a === "string") return Object.freeze({ offset: null, color: toColor(a) });
     if (typeof a === "object" && a !== null && "color" in a) return a;

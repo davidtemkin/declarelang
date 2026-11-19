@@ -1431,11 +1431,14 @@ async function compileUnquieted(source: string, opts: CompileOptions, seen: { fl
   // A program's script name meeting a member inside a LIBRARY class is no
   // concern of the program's: the library never calls the program's script,
   // and its code is not the author's to rename (Cadence run 19, `duration`)
+  for (let i = r.errors.length - 1; i >= 0; i--) {
+    const e = r.errors[i];
+    if (e.code === "DECLARE4045" && e.pos != null && libraryAt(e.pos.offset)) r.errors.splice(i, 1);
+  }
   for (let i = r.warnings.length - 1; i >= 0; i--) {
     const w = r.warnings[i];
-    if (w.code === "DECLARE4002" && /the script \{ \} binding/.test(w.message) && w.pos != null && libraryAt(w.pos.offset)) r.warnings.splice(i, 1);
     // a library hook named on… (TextInput's onEnter) is declared on purpose, for programs to override
-    else if (w.code === "DECLARE4019" && w.pos != null && libraryAt(w.pos.offset)) r.warnings.splice(i, 1);
+    if (w.code === "DECLARE4019" && w.pos != null && libraryAt(w.pos.offset)) r.warnings.splice(i, 1);
     // a library control that takes the keys itself (Table, a listbox: its own arrow travel,
     // Space and Enter) replaces Control's on purpose, and its code is not the author's to change
     else if (w.code === "DECLARE4031" && w.pos != null && libraryAt(w.pos.offset)) r.warnings.splice(i, 1);
@@ -2610,14 +2613,11 @@ class Resolver {
         end: bodyStart + id.end,
         text: id.shorthand ? `${id.name}: ${expr}` : expr,
       });
-      // A member BEATS a same-named script function, silently — the surface
-      // search runs first. Say so where it happens: the script one is then
-      // unreachable from every body, which is rarely what was meant.
+      // A member and a same-named script binding both answer to this bare name.
+      // The member wins the search, so the read would mean something the
+      // program's own top level didn't say: refused where it is read.
       if (this.scriptNames.has(id.name)) {
-        this.warnings.push(Diag.shadowing(
-          `bare '${id.name}' means ${describe(levels[k])}'s member here, not the script { } binding of the same name — the script one cannot be reached from a body while the member exists; rename one of them`,
-          pos
-        ));
+        this.errors.push(Diag.scriptNameTaken(id.name, describe(levels[k]), pos));
       }
       for (let j = k + 1; j < levels.length; j++) {
         if (this.surfaceOf(levels[j]).declared.has(id.name)) {

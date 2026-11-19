@@ -115,6 +115,34 @@ export default async ({ drive, expect }) => {
 `settleMotion` takes the app's clock and runs animation to rest deterministically, so a
 spring's end state can be asserted at all.
 
+### Testing the model's rules
+
+A behavior script like the one above tests what a person can do: it presses the controls
+they press. The rules in a program's model, its dataset class and what derives from it, can
+also be tested directly, many cases at a time, without going through the screen: the same
+kind of script calls the model's methods and checks what follows. Vortex tests its field of
+play this way, in the running game, where the field is empty until a game starts:
+
+```js
+// tests/assert.mjs
+export default async ({ drive, expect }) => {
+  await drive.call("app.field", "standSpikes", 0.4);             // a spike in every lane…
+  await drive.call("app.field", "set", ["spikes", 5, "h"], 0.1);  // …lane 5's the shortest
+  expect(await drive.call("app.field", "shortestSpike")).toBe(5);
+  await drive.call("app.field", "lay", 20);
+  expect((await drive.read("app.field.value.nymphs")).length).toBe(20);
+};
+```
+
+`drive.call(path, method, …args)` calls a method, the model's own or a dataset's `set`, and
+returns its result; `drive.read` and `expect.attr` read what derives from it, a view's
+attributes included.
+
+The two kinds answer different questions. A call goes around the controls, so it says
+whether a rule is right, never whether a person can reach it: test the app by pressing what
+a person presses, and test the model's rules by calling them
+([Checking and looking](declare-docs:operational:verify)).
+
 To look at a program as a person would, without writing a script, `npx declare-look` opens
 it at a size, uses it a little and takes a picture: `npx declare-look app.declare --size
 390x844 --touch --click app.card.add --shot phone.png`. `--touch` makes the window a touch

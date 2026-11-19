@@ -8,7 +8,7 @@ App [ height = 200, textColor = 0x172530, fontSize = 14,   // the rows arrive af
     col: View [ x = 20, y = 16, width = { parent.width - 40 },
         layout: SimpleLayout [ axis = y, spacing = 6 ],
         Text [ fontSize = 12, textColor = 0x6A7883,
-            text = { app.weather.loaded ? "updated " + :updated : app.weather.failed ? "failed: " + app.weather.error : "loading…" } ],
+            text = { app.weather.loaded ? "updated " + :updated : app.weather.failed ? (app.weather.failure == "offline" ? "offline" : "couldn’t load") : "loading…" } ],
         View [ datapath = :cities[], width = { parent.width }, height = 24,
             layout: SimpleLayout [ axis = x, spacing = 16, align = baseline ],
             Text [ fontWeight = semibold, text = :name ],

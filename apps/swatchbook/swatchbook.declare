@@ -71,21 +71,36 @@ App [ minWidth = 340,
         return null
         },
 
+    pageList: array = { [ ({ id: "type", label: "Type" }), ({ id: "lines", label: "Lines" }),
+        ({ id: "rich", label: "Rich" }), ({ id: "paint", label: "Paint" }),
+        ({ id: "effects", label: "Effects" }), ({ id: "transforms", label: "Transforms" }),
+        ({ id: "images", label: "Images" }), ({ id: "drawing", label: "Drawing" }),
+        ({ id: "measure", label: "Measure" }), ({ id: "combos", label: "Combined" }) ] },
+
+    // the ten sections side by side need the bar's width less the name and the switch
+
+    pagesFit: boolean = { app.width >= 1200 },
+    pageMenu: Menu [
+        items = { app.pageList.map((p) => ({ ...p, group: "page", checked: app.page == p.id })) },
+        picked(id: string) { app.page = id }
+        ],
+
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, ignoreScroll = true,
         fill = { provided("theme").surface },
         stroke = { [null, null, Stroke(1, provided("theme").line), null] },
         brand: Text [ x = 20, y = center, fontSize = 18, fontWeight = semibold, wrap = false, text = "Swatchbook" ],
-        pages: Segmented [ y = 11, visible = { !app.matrix },
-            x = { Math.max(app.compact ? 150 : 170, (app.width - this.width) / 2) },
-            segmentMinWidth = { app.compact ? 44 : 78 },
+        pages: Segmented [ y = 11, visible = { !app.matrix && app.pagesFit },
+            x = { Math.max(170, (app.width - this.width) / 2) },
+            segmentMinWidth = 78,
             value = { app.page },
             commit(v: object) { app.page = "" + v },
-            items = { [ ({ id: "type", label: "Type" }), ({ id: "lines", label: "Lines" }),
-                        ({ id: "rich", label: "Rich" }), ({ id: "paint", label: "Paint" }),
-                        ({ id: "effects", label: "Effects" }), ({ id: "transforms", label: "Transforms" }),
-                        ({ id: "images", label: "Images" }), ({ id: "drawing", label: "Drawing" }),
-                        ({ id: "measure", label: "Measure" }), ({ id: "combos", label: "Combined" }) ] }
+            items = { app.pageList }
             ],
+
+        // on a narrow bar the ten sections don't fit side by side: one button opens them as a list
+
+        pagePicker: Button [ y = center, x = 150, height = 30, visible = { !app.matrix && !app.pagesFit },
+            label = { app.pageList.find((p) => p.id == app.page)?.label ?? "" }, menu = { app.pageMenu } ],
         matrixNote: Text [ y = center, x = { (app.width - this.width) / 2 }, visible = { app.matrix }, fontSize = 13, wrap = false,
             textColor = { provided("theme").textMuted }, text = "The matrix — every case of every section" ],
         themeSwitch: AppearanceSwitch [ y = center, x = { app.width - this.width - 14 },

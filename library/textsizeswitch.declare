@@ -26,10 +26,6 @@ One segment per size, each showing its A and named for a screen reader by what i
 
 ## accessibilityLabel
 "Text size": the group's name.
-
-## width
-Three segments of 34 each, so the letters keep their room whatever the theme's
-segment minimum.
 */
 
 include [ "segmented.declare", "icons/textsize.declare" ]
@@ -43,6 +39,5 @@ class TextSizeSwitch extends Segmented [
     items = { [ ({ id: classroot.sizes[0], icon: "TextSmallIcon", label: "Smaller text" }),
                 ({ id: classroot.sizes[1], icon: "TextMediumIcon", label: "Default text size" }),
                 ({ id: classroot.sizes[2], icon: "TextLargeIcon", label: "Larger text" }) ] },
-    accessibilityLabel = "Text size",
-    width = 102
+    accessibilityLabel = "Text size"
     ]

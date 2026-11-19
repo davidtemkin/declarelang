@@ -616,7 +616,7 @@ class MasonryLayout extends Layout [
     evenBottom: boolean = true,
 
     place() {
-        const w = this.view == null ? 0 : this.view.width
+        const w = this.contentExtent("width")
         const n = Math.max(1, Math.round(this.cols))
         const g = this.gap
         const colW = (w - g * (n - 1)) / n

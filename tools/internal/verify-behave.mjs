@@ -10,7 +10,7 @@
 import { withLocators, parseChord, pressChord, heldBy, inFlight } from "./verify-locators.mjs";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, existsSync, statSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname, extname, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -18,6 +18,58 @@ import { sharedChrome } from "./chrome.mjs";
 import { timing } from "./timing.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+
+/** Every string the program and the library write as a literal: the words a
+ *  control's label may never be cut from (boot-check, "a control's own words cut
+ *  short"). From the program's folder, the files its classes came from, and the
+ *  library; a Dataset's literal records are data, and are left out, as is any
+ *  string built at run time. Once per program. */
+const AUTHOR_TEXT = new WeakMap();
+function authorTextOf(program, appDir) {
+  if (program != null && AUTHOR_TEXT.has(program)) return AUTHOR_TEXT.get(program);
+  const files = new Set();
+  const walk = (d, depth) => {
+    let names = [];
+    try { names = readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of names) {
+      if (e.name === "node_modules" || e.name.startsWith(".")) continue;
+      const f = join(d, e.name);
+      if (e.isDirectory()) { if (depth > 0) walk(f, depth - 1); }
+      else if (e.name.endsWith(".declare")) files.add(f);
+    }
+  };
+  if (appDir) walk(appDir, 3);
+  walk(join(ROOT, "library"), 3);
+  for (const c of program?.classes ?? []) {
+    const f = c.pos?.file;
+    if (typeof f !== "string") continue;
+    for (const base of [appDir ?? ROOT, ROOT]) { const p = resolve(base, f); if (existsSync(p)) { files.add(p); break; } }
+  }
+  // a Dataset's literal body is data: `Dataset { … }`, braces balanced
+  const withoutData = (s) => {
+    let out = "", i = 0;
+    for (const m of s.matchAll(/\bDataset\s*\{/g)) {
+      if (m.index < i) continue;
+      out += s.slice(i, m.index);
+      let j = m.index + m[0].length, depth = 1;
+      while (j < s.length && depth > 0) { if (s[j] === "{") depth++; else if (s[j] === "}") depth--; j++; }
+      i = j;
+    }
+    return out + s.slice(i);
+  };
+  const strings = new Set();
+  for (const f of files) {
+    let s;
+    try { s = withoutData(readFileSync(f, "utf8")); } catch { continue; }
+    for (const m of s.matchAll(/"((?:[^"\\\n]|\\.)*)"|'((?:[^'\\\n]|\\.)*)'/g)) {
+      const t = (m[1] ?? m[2]).replace(/\\(.)/g, "$1");
+      if (t.trim() !== "") strings.add(t);
+    }
+  }
+  const list = [...strings];
+  if (program != null) AUTHOR_TEXT.set(program, list);
+  return list;
+}
 
 const MIME = {
   ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript",
@@ -248,6 +300,21 @@ bootHost(cfg);
       // what the runtime warns of, once each — a call that did nothing, focus it
       // dropped — said beside the verdict, since nothing on screen shows it
       const warned = [];
+      // A WINDOW THE PROGRAM OPENS (window.open: a page to print, a document)
+      // comes up in front, and the program's page, now in the background, makes
+      // no frames, so every step after it would wait out its budget. The
+      // program's page is put back in front, as a person would go back to it,
+      // and the window is said beside the verdict: verify drives only the
+      // program's page.
+      const opened = [];
+      page.on("popup", (w) => {
+        if (w === null) return;
+        // a window opened blank and written into carries the opener's address: no address to say
+        const at = w.url() !== "" && w.url() !== "about:blank" && w.url() !== page.url() ? ` at ${w.url()}` : "";
+        const said = `the program opened a window${at}; verify kept testing the program's page, and doesn't drive the window`;
+        if (!opened.includes(said) && opened.length < 4) opened.push(said);
+        page.bringToFront().catch(() => {});
+      });
       page.on("console", (m) => {
         if (m.type() === "warn" || m.type() === "warning") {
           const t = m.text();
@@ -597,7 +664,7 @@ bootHost(cfg);
             await frames(page);
           }
           if (deferredAt !== null) { where = deferredAt; deferredAt = null; }
-          const r = await timing.time("check: the layout questions", () => page.evaluate((o) => window.__declare?.bootCheck?.(o) ?? null, { touch, realText: true, classes: check.classes ?? [], skip: [...reported] }));
+          const r = await timing.time("check: the layout questions", () => page.evaluate((o) => window.__declare?.bootCheck?.(o) ?? null, { touch, realText: true, classes: check.classes ?? [], skip: [...reported], authorText: check.authorText }));
           if (r !== null) {
             for (const k of r.flagged ?? []) reported.add(k);
             checks.push({ where, layout: r.layout, faults: r.faults ?? [], notes: r.notes, unbuilt: r.unbuilt, neverBuilt: r.neverBuilt, flagged: r.flagged ?? [] });
@@ -1629,6 +1696,27 @@ bootHost(cfg);
           step(`set ${path}.${name}`);
           await page.evaluate((p, a, v) => { window.__declare.find(p)[a] = v; }, path, name, value);
         },
+        /** Call a method on a live node and return what it returns:
+         *  `drive.call("app.plan", "movePages", ["p3"], 7)`. For a TEST PROGRAM —
+         *  a part of the app on its own, with fixed data — where the method under
+         *  test is the point. It goes around the controls, so against the whole
+         *  app it proves nothing a person can do: there, press what they press. */
+        async call(path, method, ...args) {
+          step(`call ${path}.${method}()`);
+          const r = await page.evaluate((p, m, a) => {
+            const node = window.__declare.find(p);
+            if (node == null) return { missing: true };
+            if (typeof node[m] !== "function") return { noMethod: true, kind: node.constructor?.name ?? "node" };
+            try {
+              const v = node[m](...a);
+              try { return { value: JSON.parse(JSON.stringify(v ?? null)) }; } catch { return { value: String(v) }; }
+            } catch (e) { return { threw: String(e?.message ?? e) }; }
+          }, path, method, args);
+          if (r.missing) throw new VerifyAssertion(await noNode(path));
+          if (r.noMethod) throw new VerifyAssertion(`${path} (a ${r.kind}) has no method '${method}'`);
+          if (r.threw !== undefined) throw new VerifyAssertion(`${path}.${method}(${args.map((x) => JSON.stringify(x)).join(", ")}) threw: ${r.threw}`);
+          return r.value;
+        },
         /** A value, as `--read` gives it: `drive.read("app.list.height")` — the
          *  attribute after the last dot, on the view the rest names. A view comes
          *  back as its class's name; a path that names no view is said. */
@@ -1894,7 +1982,7 @@ const expect = {
       // `expect` is both: Playwright's expect(locator / page / value), and the
       // driver's own asks by program path (expect.text, expect.attr, expect.request, …)
       const scriptExpect = Object.assign((target) => located.expect(target), expect);
-      return { page, scriptPage, drive, expect: scriptExpect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned, waited, endFrames };
+      return { page, scriptPage, drive, expect: scriptExpect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned, opened, waited, endFrames };
     };
 
     return await fn({ openApp });
@@ -1935,7 +2023,7 @@ export async function runBootInBrowser({ compiled, appDir, windows, queries = nu
       }
       record.ms = Date.now() - t0;
       try {
-        const r = await app.watched(() => app.page.evaluate((o) => window.__declare.bootCheck(o), { touch: w.touch, realText: true, classes, feed: true, queries: first ? queries : null }));
+        const r = await app.watched(() => app.page.evaluate((o) => window.__declare.bootCheck(o), { touch: w.touch, realText: true, classes, feed: true, queries: first ? queries : null, authorText: authorTextOf(compiled?.program, appDir) }));
         Object.assign(record, r);
         for (const f of r.faults ?? []) record.errors.push(`boot: ${f}`);
       } catch (e) {
@@ -2226,7 +2314,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     if (typeof mod.default !== "function") throw new VerifyAssertion(`${assertPath} has no default export function`);
     let app;
     try {
-      app = await timing.time("open: the app loaded and arrived, in all", () => openApp({ width: 1280, height: 800, ...(mod.device ?? {}), budgetMs, check: classes === null ? null : { classes, skip }, fromStart: mod.fromStart === true }));
+      app = await timing.time("open: the app loaded and arrived, in all", () => openApp({ width: 1280, height: 800, ...(mod.device ?? {}), budgetMs, check: classes === null ? null : { classes, skip, authorText: authorTextOf(compiled?.program, appDir) }, fromStart: mod.fromStart === true }));
     } catch (e) {
       if (e?.lines === undefined) throw e;
       return { ok: false, failures: e.lines, log: [] };
@@ -2234,7 +2322,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     try {
       await timing.time("script: the assert script, in all", () => app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.scriptPage })));
     } catch (e) {
-      if (e?.lines !== undefined) { failures.push(...e.lines); await app.endFrames(); return { ok: false, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned, waited: app.waited }; }
+      if (e?.lines !== undefined) { failures.push(...e.lines); await app.endFrames(); return { ok: false, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned, opened: app.opened, waited: app.waited }; }
       const where = app.log.length > 0 ? ` (after: ${app.log.slice(-3).join(" → ")})` : "";
       // For an unexpected error, the first stack frame is the difference
       // between "my assert threw here" and an anonymous page error a reader
@@ -2272,7 +2360,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     // what the program asked for and did not get — a data file not found, a service
     // that refused — said beside the verdict: a run otherwise passes with its data empty
     const refused = [...new Set(app.drive.requests().filter((q) => q.intercepted === undefined && typeof q.status === "number" && q.status >= 400).map((q) => `${q.method} ${q.path} answered ${q.status}`))];
-    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned, waited: app.waited, refused };
+    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned, opened: app.opened, waited: app.waited, refused };
   });
 }
 
@@ -2435,7 +2523,7 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
       const viewport = st.viewport ?? { width: 1024, height: 768 };
       let app;
       try {
-        app = await openApp({ ...viewport, clock: st.clock ?? null, scheme: st.scheme ?? "light", dpr: st.dpr ?? 1, touch: st.touch === true, budgetMs, check: classes === null ? null : { classes, skip: [...reported] } });
+        app = await openApp({ ...viewport, clock: st.clock ?? null, scheme: st.scheme ?? "light", dpr: st.dpr ?? 1, touch: st.touch === true, budgetMs, check: classes === null ? null : { classes, skip: [...reported], authorText: authorTextOf(compiled?.program, appDir) } });
       } catch (e) {
         if (e?.lines === undefined) throw e;
         failures.push(...e.lines.map((l, i) => i === 0 ? `${st.name}: ${l}` : l));
