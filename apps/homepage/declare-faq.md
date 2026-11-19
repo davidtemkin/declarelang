@@ -8,7 +8,7 @@ Declare is a programming language for user interfaces — a domain-specific lang
 
 ### Why should I use it?
 
-Because most of what makes UI code hard isn't your application — it's the plumbing. In Declare there is no render lifecycle to manage, no state synchronization to orchestrate, no CSS cascade to fight, no build pipeline to configure. An application is a readable tree of declarations: the flagship calendar — four views, continuous zoom, drag-to-reschedule — is about <!--stat:calendar.codeAbout-->500<!--/stat--> lines of code you can read end to end. Given the same brief, an agent's Declare app came out at <!--stat:venue.codeRatioWord-->half<!--/stat--> the code of its React app. And Declare is built for the era when much code is written by machines: the language is small enough to hand a model in its entirety, and strict enough to verify what comes back.
+Because most of what makes UI code hard isn't your application — it's the plumbing. In Declare there is no render lifecycle to manage, no state synchronization to orchestrate, no CSS cascade to fight, no build pipeline to configure. An application is a readable tree of declarations: the flagship calendar — four views, continuous zoom, drag-to-reschedule — is about <!--stat:calendar.codeAbout-->600<!--/stat--> lines of code you can read end to end. Given the same brief, an agent's Declare app came out at <!--stat:venue.codeRatioWord-->half<!--/stat--> the code of its React app. And Declare is built for the era when much code is written by machines: the language is small enough to hand a model in its entirety, and strict enough to verify what comes back.
 
 ### What kinds of applications is it designed to build?
 

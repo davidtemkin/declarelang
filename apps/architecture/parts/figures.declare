@@ -6,8 +6,8 @@ script {
     const FIGURES = {
         "sizes": {
             "calDom": {
-                "app": 12.8,
-                "lib": 14.1,
+                "app": 13.1,
+                "lib": 14.4,
                 "core": 46.1,
                 "view": 13.6,
                 "backend": 16.1,
@@ -22,8 +22,8 @@ script {
                 "ker": 15.3
             },
             "calCanvas": {
-                "app": 12.8,
-                "lib": 14.1,
+                "app": 13.1,
+                "lib": 14.4,
                 "core": 45.5,
                 "view": 13.4,
                 "backend": 36.4,
@@ -38,8 +38,8 @@ script {
                 "ker": 15.3
             },
             "calMac": {
-                "app": 12.8,
-                "lib": 14.1,
+                "app": 13.1,
+                "lib": 14.4,
                 "core": 46.1,
                 "view": 13.6,
                 "backend": 8.8,
@@ -54,12 +54,12 @@ script {
                 "ker": 0
             },
             "totals": {
-                "calDom": 177.7,
-                "calCanvas": 203,
-                "calMac": 152.4
+                "calDom": 178.4,
+                "calCanvas": 203.6,
+                "calMac": 153.1
             }
         },
-        "runtimeKB": 135.5,
+        "runtimeKB": 135.6,
         "kernelKB": 15.3,
         "kernelWasmGzipKB": 12.8,
         "kernelWasmRawKB": 23,

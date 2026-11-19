@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "62dc823ddeb0",
+  "buildId": "b786aa4935d8",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -130109,7 +130109,7 @@
        "kind": "doc",
        "label": "Guide chapter",
        "path": "docs/guide/28-calendar.md",
-       "preview": "Core concepts(declare-docs:guide:what-declare-is) made a promise: that you would end this guide by opening a real calendar application — four views, continuous zoom, drag-to-reschedule; 549 lines of code, about 930 with its detailed comment…",
+       "preview": "Core concepts(declare-docs:guide:what-declare-is) made a promise: that you would end this guide by opening a real calendar application — four views, continuous zoom, drag-to-reschedule; 568 lines of code, about 985 with its detailed comment…",
        "loc": "guide/28-calendar"
       }
      ]

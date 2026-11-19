@@ -26,6 +26,12 @@ export declare function diskDataResolver(originDir: string): (url: string) => un
  *  what a host needs before it decides how to serve the program. Undefined when
  *  it states none, or when its files do not parse (the compile reports that). */
 export declare function programFlags(source: string, originDir: string): Promise<Flags | undefined>;
+/** The page color a host paints before the program runs: the App's `fill` when it
+ *  is a literal color (`black`, `#1E3A49`, `0x0A0A0A`), as CSS; null when the fill
+ *  is a rule, is absent, or the source does not parse. Once the program mounts, the
+ *  runtime paints the page with the App's live fill (dom-backend setFill); this only
+ *  covers the moment before, so a page opens on the color its app declares. */
+export declare function programPageColor(source: string): string | null;
 /** `compile` with the filesystem include+auto-include host and (when `typecheck`
  *  is set) the real typechecker injected. Drop-in for the previous `compile`
  *  import. */

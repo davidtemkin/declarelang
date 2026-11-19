@@ -81,7 +81,7 @@ attribute; layout is a reactive attribute; a mode is a reversible state — so t
 continuous version of an interface is often less code than the discrete one.
 The reference app is a calendar whose four views are one surface seen through
 a moving, zooming rectangle — normally a bespoke project of its own, here
-about <!--stat:calendar.codeAbout-->500<!--/stat--> lines of code, readable end to end, written with an LLM.
+about <!--stat:calendar.codeAbout-->600<!--/stat--> lines of code, readable end to end, written with an LLM.
 The whole category moves into the declarative, analyzable layer: the hardest
 part of ambitious UX becomes the part a model is best at.
 

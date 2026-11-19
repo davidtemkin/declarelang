@@ -52,8 +52,8 @@
 <h5>Declare Calendar</h5></a>
 <p>It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible.</p>
 <p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
-<p>549</p>
-<p>lines of code, plus 209 of comments — four views, zoom, drag and edit</p>
+<p>568</p>
+<p>lines of code, plus 228 of comments — four views, zoom, drag and edit</p>
 <p>178 KB</p>
 <p>over the wire, gzipped — app (structure, logic, styling) and runtime</p>
 <p>0</p>
@@ -148,7 +148,7 @@
 <p>Indexable content is there from the start: the compiler runs your program at build time and serializes what it renders, so what a visitor sees and what a crawler sees can never drift. No server-side rendering, no hydration. That’s why this page works on a static host like GitHub Pages.</p>
 <h2>What it’s actually for</h2>
 <p>All of that is the floor, not the point. The point is what a language makes sayable. The most prized layer of modern UI — the continuity you feel in the best native software, where a view doesn’t switch so much as become the next one, where motion carries meaning and everything stays interruptible — has always been bespoke: specialist craft, one interaction at a time, locked to a platform. It is also the least machine-writable code there is; the corpus is thin, custom, and wrong in ways nothing catches.</p>
-<p>Declare makes continuity the grain, not the garnish. Motion is a Spring on an attribute; layout is a reactive attribute; a mode is a reversible state — so the continuous version of an interface is often less code than the discrete one. The reference app is a calendar whose four views are one surface seen through a moving, zooming rectangle — normally a bespoke project of its own, here about 500 lines of code, readable end to end, written with an LLM. The whole category moves into the declarative, analyzable layer: the hardest part of ambitious UX becomes the part a model is best at.</p>
+<p>Declare makes continuity the grain, not the garnish. Motion is a Spring on an attribute; layout is a reactive attribute; a mode is a reversible state — so the continuous version of an interface is often less code than the discrete one. The reference app is a calendar whose four views are one surface seen through a moving, zooming rectangle — normally a bespoke project of its own, here about 600 lines of code, readable end to end, written with an LLM. The whole category moves into the declarative, analyzable layer: the hardest part of ambitious UX becomes the part a model is best at.</p>
 <p>And that is the forward-looking wager. There is another generation of experiences beyond the hand-crafted best-in-class interfaces of today — built on a foundation with continuity at its core, enabled at the language level, deployed as universally as a URL, and iterated by imaginative designer-developers working with an LLM at their side. Declare is built to find that out.</p>
 <p>None of this trades away the human. What makes code legible to a model is what makes it fast for you to read — and you are still the reader who decides. You don’t teach an LLM Declare with a million examples. You hand it the language and let the compiler keep it honest. The corpus will come; the language doesn’t need it first.</p>
 <p>WHERE THIS CAME FROM</p>
@@ -515,7 +515,7 @@ Slider   [ value = { app.volume },
 <h3>What is Declare?</h3>
 <p>Declare is a programming language for user interfaces — a domain-specific language, the way SQL is a domain-specific language for querying data. You describe an interface as a tree of views with attributes; any attribute can be a live expression, and when the things it reads change, everything that depends on it updates. All real logic is ordinary TypeScript. Programs compile in the browser or ahead of time, and one program renders to the DOM, directly to pixels on a canvas, or as a native Mac app.</p>
 <h3>Why should I use it?</h3>
-<p>Because most of what makes UI code hard isn't your application — it's the plumbing. In Declare there is no render lifecycle to manage, no state synchronization to orchestrate, no CSS cascade to fight, no build pipeline to configure. An application is a readable tree of declarations: the flagship calendar — four views, continuous zoom, drag-to-reschedule — is about 500 lines of code you can read end to end. Given the same brief, an agent's Declare app came out at half the code of its React app. And Declare is built for the era when much code is written by machines: the language is small enough to hand a model in its entirety, and strict enough to verify what comes back.</p>
+<p>Because most of what makes UI code hard isn't your application — it's the plumbing. In Declare there is no render lifecycle to manage, no state synchronization to orchestrate, no CSS cascade to fight, no build pipeline to configure. An application is a readable tree of declarations: the flagship calendar — four views, continuous zoom, drag-to-reschedule — is about 600 lines of code you can read end to end. Given the same brief, an agent's Declare app came out at half the code of its React app. And Declare is built for the era when much code is written by machines: the language is small enough to hand a model in its entirety, and strict enough to verify what comes back.</p>
 <h3>What kinds of applications is it designed to build?</h3>
 <p>Any kind of data-driven application, at any level of interactivity — Declare is designed for everyday apps with everyday needs: forms, lists, settings screens, dashboards, admin tools. It is especially well suited to continuous, dynamic interfaces — the app-like web rather than the page-like web: calendars, editors, data tools, product sites. Text and documents are first-class too (Markdown rendering is built in), so content-heavy apps work well. Everything on this site is a Declare program: the homepage you're reading, the documentation app, the calendar.</p>
 <h3>What specific features make it well-suited to continuous, dynamic user experiences?</h3>
@@ -736,9 +736,9 @@ npm start</code></pre>
 <p>Canvas</p>
 <p>Mac host</p>
 <p>Your program</p>
-<p>12.8 KB</p>
+<p>13.1 KB</p>
 <p>Library classes it uses</p>
-<p>14.1 KB</p>
+<p>14.4 KB</p>
 <p>Reactive core, instantiation &amp; data</p>
 <p>46.1 KB</p>
 <p>DOM backend</p>
@@ -760,9 +760,9 @@ npm start</code></pre>
 <p>Kernel — WebAssembly + loader</p>
 <p>15.3 KB</p>
 <p>App</p>
-<p>12.8 KB</p>
+<p>13.1 KB</p>
 <p>Library</p>
-<p>14.1 KB</p>
+<p>14.4 KB</p>
 <p>Runtime</p>
 <p>135.6 KB</p>
 <p>Kernel</p>
@@ -809,7 +809,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=62dc823ddeb0";
+  import boot from "./bundles/declare-boot.js?v=b786aa4935d8";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().
