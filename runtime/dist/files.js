@@ -17,6 +17,7 @@
 // This module ships only in a program that names `FilePicker` or a file-drop
 // handler (compiler capabilities "files"); everywhere else a stand-in answers.
 import { View, fireEvent } from "./view.js";
+import { diag } from "./errors.js";
 let host = null;
 export function provideFilesHost(h) {
     host = h;
@@ -54,7 +55,7 @@ export const FilePicker = {
     save(contents, options) {
         const name = String(options?.name ?? "").trim();
         if (name === "")
-            return Promise.reject(new Error("FilePicker.save needs a file name: save(contents, { name: \"report.csv\" })"));
+            return Promise.reject(new Error(diag `FilePicker.save needs a file name: save(contents, { name: "report.csv" })`));
         const type = options.type ?? (typeof contents === "string" ? typeFor(name) : (contents.type || typeFor(name)));
         if (host !== null && host.save !== undefined) {
             const save = host.save.bind(host);

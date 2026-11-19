@@ -58,6 +58,7 @@ import { sharedClock } from "./animate.js";
 import { defineAttributes, ownerOf, setBound } from "./attributes.js";
 import { noteOrigin, observe, profileHook } from "./reactive.js";
 import { timeHost } from "./wallclock.js";
+import { diag } from "./errors.js";
 export const TICKS = ["frame", "second", "minute", "hour", "day"];
 // The wall clock and the alarm are wallclock.ts's one seam, shared with a
 // node's `after` — a test that drives one drives both.
@@ -313,8 +314,8 @@ export class Time extends Node {
                 // constrained gate cannot be written, but it runs again the next time
                 // what it reads changes (the write below is a runtime write it overrides).
                 const how = ownerOf(this, "running") !== null
-                    ? "`running` is constrained, so it starts again the next time what that constraint reads changes"
-                    : "set running = true to restart it";
+                    ? diag `\`running\` is constrained, so it starts again the next time what that constraint reads changes`
+                    : diag `set running = true to restart it`;
                 console.error(`[Declare] ${who} stopped — onTick threw ${this.#throws} ticks in a row; ${how}`);
                 this.#throws = 0;
                 setBound(this, "running", false); // through the write path: a constraint-owned slot yields

@@ -11,7 +11,7 @@ class RowOrStack extends TweenLayout [
 
 
 App [ width = 440, height = 200, fill = white, textColor = white, fontSize = 14,
-    flip() { box.layout.stacked = !box.layout.stacked; box.layout.retarget(true) },
+    flip() { box.layout.stacked = !box.layout.stacked },
     Button [ x = 20, y = 12, label = "Flip", textColor = black,
         onClick() { app.flip() }
         ],

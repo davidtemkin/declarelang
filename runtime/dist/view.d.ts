@@ -44,7 +44,7 @@ export declare function provideInlineViewHost(fn: (root: Node) => InlineViewHost
 /** The class table for the program `v` belongs to, or null (no program). */
 export declare function inlineViewHost(v: View): InlineViewHost | null;
 import { type DrawContext } from "./draw.js";
-import { Constraint } from "./reactive.js";
+import { Cell, Constraint } from "./reactive.js";
 import { type Affine } from "./affine.js";
 import { type AttrType } from "./value.js";
 import { type BoundaryValues } from "./boundary.js";
@@ -118,6 +118,9 @@ export declare function deferralStats(): {
  *  surface the view no longer holds would sit elsewhere). Returns one line
  *  per problem. Tests call it; a dev build reports it at a settle's close. */
 export declare function deferralProblems(root: View): string[];
+export declare function contentCellOf(v: View): Cell;
+/** The length a view's layout reports changed: its content size's readers run. */
+export declare function contentChanged(v: View): void;
 export declare class View extends Node {
     /** The navigation target the compiler's link extraction (links.ts) found for
      *  this instance's activation handler — stamped by instantiate from the source
@@ -525,7 +528,17 @@ export declare class View extends Node {
      *  cell on the axis, then each View child's numeric block base (the rule
      *  reads its slots by base). */
     private $extentWords;
+    /** THE CONTENT SIZE: what this view holds, with nothing in it giving way.
+     *  Its drawn children's extent (below), unless its layout measured the run
+     *  and reported it (a run whose children shrink or flex, a flow that wraps),
+     *  and then that report, its padding added. A layout that reported the view
+     *  has none (its arrangement is chosen by the size it is given) answers the
+     *  drawn extent, and a rule that reads it is refused there. */
     private $extentOf;
+    /** What this view's drawn children cover, padding included: the content
+     *  size when no layout has measured it, and always the page's scroll extent,
+     *  which follows what is drawn. */
+    $drawnExtentOf(size: "width" | "height"): number;
     /** THIS VIEW'S CONTENT ORIGIN, in its own coordinates: the leading insets of
      *  `padding`. Every child's `x`/`y` is measured from here — laid,
      *  self-placing and `ignoreLayout` alike — which is what makes the content

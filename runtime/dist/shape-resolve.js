@@ -20,7 +20,7 @@
 // The compiler projects the same declarations as ambient TS interfaces
 // (scaffold.ts), which is what makes `Task` a real type name in every { }
 // body and method signature — one declaration, both halves of the toolchain.
-import { DeclareError } from "./errors.js";
+import { DeclareError, diag } from "./errors.js";
 import { declaredType } from "./value.js";
 export const isArrayDoc = (s) => !Array.isArray(s) && s.arrayRoot === true;
 /** Resolve a program's schema declarations in place. Idempotent. Returns the
@@ -85,7 +85,7 @@ export function resolveShapes(program, isBuiltinClass = () => false) {
             const name = arrayRoot ? written.slice(0, -2) : written;
             const target = table.get(name);
             if (target === undefined) {
-                errors.push(new DeclareError(`${a.name} = ${written}: '${name}' names no schema — ${table.size > 0 ? `declared schemas: ${[...table.keys()].join(", ")}` : "declare one with 'schema Name [ … ]', or write the shape inline: schema = [ field: type, … ]"}`, a.value.pos));
+                errors.push(new DeclareError(`${a.name} = ${written}: '${name}' names no schema — ${table.size > 0 ? `declared schemas: ${[...table.keys()].join(", ")}` : diag `declare one with 'schema Name [ … ]', or write the shape inline: schema = [ field: type, … ]`}`, a.value.pos));
                 continue;
             }
             a.value = { kind: "schema", shape: target.fields, pos: a.value.pos, refName: name, ...(arrayRoot ? { arrayRoot: true } : {}) };

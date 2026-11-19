@@ -13,7 +13,7 @@ const ok = (value) => ({ ok: true, value });
 const fail = (expected, found) => ({ ok: false, expected, found });
 function gradientStops(args, who) {
     if (args.length < 2)
-        throw new Error(`${who} needs at least two stops`);
+        throw new Error(diag `${who} needs at least two stops`);
     return Object.freeze(args.map((a) => {
         if (typeof a === "number" || typeof a === "string")
             return Object.freeze({ offset: null, color: toColor(a) });

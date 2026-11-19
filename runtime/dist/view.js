@@ -45,7 +45,7 @@ export function inlineViewHost(v) {
 import { record } from "./draw.js";
 import { sharedClock } from "./animate.js";
 import { modifiersNow } from "./modifiers.js";
-import { Cell, Constraint, afterSettle, isSettling, kernel, kernelLoaded, noteEffect, noteOrigin, profileHook } from "./reactive.js";
+import { Cell, Constraint, afterSettle, isSettling, isTracking, kernel, kernelLoaded, noteEffect, noteOrigin, profileHook } from "./reactive.js";
 import { setChangeDispatcher, trackNode } from "./change-event.js";
 import { boxThrough, fromParts, isIdentity as isIdentityAffine, leavesPlane } from "./affine.js";
 import { footprint3D, spec3DOf } from "./projective.js";
@@ -445,6 +445,18 @@ function realSurfaceAfter(v) {
     }
     return null;
 }
+/** A view's CONTENT CELL: what reading its content size subscribes to, besides
+ *  its children, and what its layout signals when the length it reports
+ *  changes (layout.ts). Made on first read; a view never read this way has none. */
+const CONTENT = new WeakMap();
+export function contentCellOf(v) {
+    let c = CONTENT.get(v);
+    if (c === undefined)
+        CONTENT.set(v, (c = new Cell()));
+    return c;
+}
+/** The length a view's layout reports changed: its content size's readers run. */
+export function contentChanged(v) { CONTENT.get(v)?.changed(); }
 export class View extends Node {
     /** The navigation target the compiler's link extraction (links.ts) found for
      *  this instance's activation handler — stamped by instantiate from the source
@@ -838,7 +850,33 @@ export class View extends Node {
                 words.push(blockOf(c));
         return words;
     }
+    /** THE CONTENT SIZE: what this view holds, with nothing in it giving way.
+     *  Its drawn children's extent (below), unless its layout measured the run
+     *  and reported it (a run whose children shrink or flex, a flow that wraps),
+     *  and then that report, its padding added. A layout that reported the view
+     *  has none (its arrangement is chosen by the size it is given) answers the
+     *  drawn extent, and a rule that reads it is refused there. */
     $extentOf(size) {
+        // what the view holds can change without any child moving (its layout
+        // reports a new length): a reader of the content size hears it through
+        // the view's own content cell, which exists before any layout does, so a
+        // rule wired once, at bind, is wired to it
+        contentCellOf(this).track();
+        const L = this.layout;
+        const reported = L?.$contentLength?.(size);
+        if (typeof reported === "number") {
+            noteContentRead(this, size);
+            const [top, right, bottom, left] = insetSides(this.padding);
+            return reported + (size === "width" ? left + right : top + bottom);
+        }
+        if (reported === null && (typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) && isTracking())
+            L?.$refuseNoContentLength?.(this, size, "here its content " + size + " was read to size it");
+        return this.$drawnExtentOf(size);
+    }
+    /** What this view's drawn children cover, padding included: the content
+     *  size when no layout has measured it, and always the page's scroll extent,
+     *  which follows what is drawn. */
+    $drawnExtentOf(size) {
         noteContentRead(this, size);
         // The child-LIST is a dependency too: a container populated by
         // replication (or createView) starts empty — without this, a constraint
@@ -1240,6 +1278,11 @@ export class View extends Node {
         noteDeferral(this);
         const s = (this.$surface = this.$backend.createSurface());
         this.$flush(s);
+        // the flush pushes this view's state, and a push can run what closes a gate
+        // above it: if the parent lost its surface meanwhile (torn down, or put back
+        // to wait), there is nowhere to come in, and nothing to do
+        if (this.$tornDown || p.$surface === null || isDeferred(p.$surface))
+            return;
         p.$surface.insertChild(s, realSurfaceAfter(this));
         for (const c of this.children) {
             if (!(c instanceof View))
@@ -2656,7 +2699,7 @@ export class App extends View {
         // the page's extent as it stands: the rule that keeps it (bindPageScroll)
         // pushes only on change, and an App laid out before its surface existed
         // (its size known at build) has nothing left to change
-        s.setPageExtent?.(this.contentWidth, this.contentHeight);
+        s.setPageExtent?.(this.$drawnExtentOf("width"), this.$drawnExtentOf("height"));
     }
     /** onReady — the boot transaction's close, DELIVERED (schema.ts App
      *  events): boot is the one settle with no app handler anywhere in it, so
@@ -2983,7 +3026,7 @@ export class App extends View {
         if (hv === null) {
             if (has)
                 return fallback;
-            throw new Error(`hostProvided("${name}"): this program has no host values`);
+            throw new Error(diag `hostProvided("${name}"): this program has no host values`);
         }
         return hv.read(name, has, fallback);
     }
@@ -3135,7 +3178,7 @@ export class App extends View {
     $bindPageScroll() {
         if (this.$pageScroll !== null)
             return;
-        this.$pageScroll = new Constraint("App.pageExtent", () => [this.contentWidth, this.contentHeight], (wh) => {
+        this.$pageScroll = new Constraint("App.pageExtent", () => [this.$drawnExtentOf("width"), this.$drawnExtentOf("height")], (wh) => {
             const [w, h] = wh;
             this.$surface?.setPageExtent?.(w, h);
         }, 1);

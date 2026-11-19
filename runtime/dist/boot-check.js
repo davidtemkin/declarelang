@@ -173,7 +173,9 @@ function tabAgainstSight(app) {
 /** A size for a message: whole when it is whole, else to a tenth, so 43.6 is not
  *  said as 44 under a rule that it be at least 44. */
 const size1 = (n) => (Math.abs(n - Math.round(n)) < 0.05 ? String(Math.round(n)) : n.toFixed(1));
-function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagged, faults) {
+function layoutChecks(app, { touch = false, realText = false, skip = [], authorText }, flagged, faults) {
+    const authored = authorText !== undefined ? new Set(authorText) : null;
+    const cutLabels = new Map();
     const skipped = new Set(skip);
     // a control reported once is not reported again: kept by kind and path
     const fresh = (kind, path) => {
@@ -245,6 +247,9 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
                 from = from.parent;
             for (const c of v.children) {
                 if (!(c instanceof View) || !c.visible || !percentOwned(c, size))
+                    continue;
+                // a share a layout gave (a flexing child) is the flex finding's below
+                if (ownerOf(c, size)?.arrangedBy != null)
                     continue;
                 const end = (size === "height" ? c.y : c.x) + c[size];
                 if (c[size] < 1) {
@@ -322,6 +327,62 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
                 const need = t.$widestLine();
                 if (need > v.width + 1)
                     out.push(`${pathOf(app, v)}'s text needs ${Math.round(need)} wide and has ${Math.round(v.width)} — it runs past its box (wrap is off).`);
+            }
+            // A CONTROL'S OWN WORDS CUT SHORT: a label the program wrote, on a control
+            // (a segment, a tab, a button, a menu item), ending in an ellipsis. The
+            // label is the choice it names, so cut short it can't be read, and two
+            // cut alike can't be told apart. A label that shows data (a record's
+            // title, a name someone typed) may be cut: its length is nobody's choice,
+            // and the control gives its whole text on demand.
+            if (authored !== null && isA(v, "Text") && v.truncated === true) {
+                let ctl = v.parent;
+                for (let n = 0; n < 4 && ctl instanceof View && !isA(ctl, "Control"); n++)
+                    ctl = ctl.parent;
+                const text = String(v.text ?? "");
+                const t = v;
+                if (ctl instanceof View && isA(ctl, "Control") && (authored.has(text) || authored.has(text.trim()))) {
+                    // said once per control: a row of choices cut short is one finding,
+                    // under the control that holds them (a Segmented's segments, a TabBar's tabs)
+                    let group = ctl;
+                    while (group.parent instanceof View && isA(group.parent, "Control"))
+                        group = group.parent;
+                    const at = pathOf(app, group);
+                    let c = cutLabels.get(at);
+                    if (c === undefined)
+                        cutLabels.set(at, (c = { labels: [], need: 0, has: 0 }));
+                    if (!c.labels.includes(text))
+                        c.labels.push(text);
+                    c.need += typeof t.$widestLine === "function" ? t.$widestLine() : 0;
+                    c.has += v.contentBox("width");
+                }
+            }
+            // TEXT PAST ITS PARENT'S SHAPE: a run drawn past the left or right edge of
+            // the view it sits in, which neither clips nor scrolls across, where that
+            // shows: the view has a ground of its own (a fill or a stroke: a button, a
+            // chip, a card), or the spill lands on a neighbor beside it (the next
+            // segment of a control, the next button in a row). Whatever sized the text
+            // (its own words, most often), the words leave the place they belong to.
+            // One finding per parent.
+            if (isA(v, "Text") && v.width > 0 && v.parent instanceof View && v.parent.parent !== null) {
+                const p = v.parent;
+                const ground = (p.fill !== null && p.fill !== undefined) || (p.stroke !== null && p.stroke !== undefined);
+                const clips = p.clip !== null && p.clip !== false && p.clip !== "";
+                const scrolls = p.scrolls === "x" || p.scrolls === "both";
+                const over = Math.max(-v.x, v.x + v.width - p.width); // the larger spill, either side
+                // …a run that sits IN the shape: its middle within the shape's height. A
+                // caption placed above or below a shape (a disc's name under it) is beside
+                // it by design, wider or not.
+                const mid = v.y + v.height / 2;
+                const inside = mid > 0 && mid < p.height;
+                // the spill, in the grandparent's frame, over a visible sibling of the parent's
+                const g = p.parent;
+                const left = p.x + v.x, right = left + v.width, top = p.y + v.y, bottom = top + v.height;
+                const onNeighbor = g instanceof View && g.children.some((n) => n !== p && n instanceof View && n.visible && n.width > 0
+                    && ((left < -1 && n.x < p.x && n.x + n.width > left) || (v.x + v.width > p.width + 1 && n.x + n.width > p.x + p.width && n.x < right))
+                    && n.y < bottom && n.y + n.height > top);
+                if ((ground || onNeighbor) && inside && !clips && !scrolls && p.width > 0 && over > 1 && fresh("spill", pathOf(app, p))) {
+                    out.push(`${pathOf(app, v)}'s text is ${Math.round(v.width)} wide and ${pathOf(app, p)}, the view it sits in, is ${Math.round(p.width)}, so it runs past ${v.x < -1 && v.x + v.width > p.width + 1 ? "both" : v.x < -1 ? "the left" : "the right"} of ${pathOf(app, p)}'s edges. Give it the room (a wider ${pathOf(app, p)}, or one sized from what it holds), or cut it short: a width and maxLines = 1 end it in an ellipsis.`);
+                }
             }
             // PAST THE WINDOW'S EDGE: text or a control running off the window across,
             // outside any pane that scrolls that way — by the part of it that shows:
@@ -444,6 +505,13 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
     };
     if (app instanceof View)
         visit(app, false);
+    for (const [at, c] of cutLabels) {
+        if (!fresh("cut", at))
+            continue;
+        const named = c.labels.slice(0, 4).map((l) => `“${l}”`).join(", ") + (c.labels.length > 4 ? ` and ${c.labels.length - 4} more` : "");
+        const plural = c.labels.length > 1;
+        out.push(`${at}'s ${plural ? "labels" : "label"} ${named} ${plural ? "are" : "is"} cut short (${plural ? "they need" : "it needs"} ${Math.round(c.need)} and ${plural ? "have" : "has"} ${Math.round(c.has)}): a label the program wrote names a choice, and cut short it can't be read. Give ${plural ? "them" : "it"} the room, shorten ${plural ? "them" : "it"}, or offer the choices another way (a pop-up of them, when there are many).`);
+    }
     // A VIEW WHOSE SIZE NOTHING DECIDES — or only its padding, its children hanging
     // outside (size-report.ts) — asked here, where a view shown only later is too
     if (app instanceof View)

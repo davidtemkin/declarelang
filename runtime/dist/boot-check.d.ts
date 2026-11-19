@@ -13,6 +13,11 @@ export interface BootCheckOptions {
         outline?: string | true | null;
         semantics?: string | true | null;
     } | null;
+    /** Every string the program and the library write as a literal (data in a
+     *  Dataset's literal records left out): a control's label cut short is a
+     *  finding only when it is one of these, the author's own words, and never
+     *  when it shows data, whose length nobody chose. */
+    authorText?: readonly string[];
     /** Controls already reported, by `flagged` key: a check asked again (a state a
      *  script reached) names only what it finds new. */
     skip?: readonly string[];

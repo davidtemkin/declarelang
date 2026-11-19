@@ -22,6 +22,7 @@
 // (declarec `slim-dataschema` — the same lever as `slim-select`), so the
 // cost is pay-per-use.
 import { isArrayDoc } from "./shape-resolve.js";
+import { diag } from "./errors.js";
 const isObj = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 const showPtr = (segs) => "/" + segs.map((t) => String(t).replace(/~/g, "~0").replace(/\//g, "~1")).join("/");
 function typeOk(type, v) {
@@ -47,7 +48,7 @@ export function validateDoc(value, shape) {
     if (!isArrayDoc(shape))
         return validateShape(value, shape);
     if (!Array.isArray(value)) {
-        return `/ — the schema declares the document is an ARRAY of records, got ${describe(value)}`;
+        return diag `/ — the schema declares the document is an ARRAY of records, got ${describe(value)}`;
     }
     for (let i = 0; i < value.length; i++) {
         const err = validateShape(value[i], shape.fields, [i]);
@@ -71,7 +72,7 @@ function describe(v) {
 export function fieldValueError(f, v, element = false) {
     if (f.array && !element) {
         if (!Array.isArray(v))
-            return `the schema declares '${f.name}[]' (an array), got ${describe(v)}`;
+            return diag `the schema declares '${f.name}[]' (an array), got ${describe(v)}`;
         for (let i = 0; i < v.length; i++) {
             const err = fieldValueError(f, v[i], true);
             if (err !== null)
@@ -80,18 +81,18 @@ export function fieldValueError(f, v, element = false) {
         return null;
     }
     if (v === null || v === undefined) {
-        return f.optional ? null : `the schema requires ${f.fields !== undefined ? "a record" : expectation(f)} at '${f.name}' (mark it '${f.name}?' if it may be absent)`;
+        return f.optional ? null : diag `the schema requires ${f.fields !== undefined ? "a record" : expectation(f)} at '${f.name}' (mark it '${f.name}?' if it may be absent)`;
     }
     if (f.fields !== undefined)
         return validateShape(v, f.fields);
-    return fieldOk(f, v) ? null : `expected ${expectation(f)}, got ${describe(v)}`;
+    return fieldOk(f, v) ? null : diag `expected ${expectation(f)}, got ${describe(v)}`;
 }
 /** Validate `value` against a record shape. Returns the FIRST mismatch as a
  *  pointed message (path + expectation + what arrived), or null when the
  *  value conforms. */
 export function validateShape(value, fields, at = []) {
     if (!isObj(value)) {
-        return `${showPtr(at) || "/"} — expected an object with ${fields.map((f) => f.name).join(", ")}, got ${describe(value)}`;
+        return diag `${showPtr(at) || "/"} — expected an object with ${fields.map((f) => f.name).join(", ")}, got ${describe(value)}`;
     }
     for (const f of fields) {
         const v = value[f.name];
@@ -99,11 +100,11 @@ export function validateShape(value, fields, at = []) {
         if (v === undefined || v === null) {
             if (f.optional)
                 continue;
-            return `${showPtr(here)} is ${v === null ? "null" : "missing"} — the schema requires ${f.array ? "an array" : expectation(f)} (mark it '${f.name}?' if it may be absent)`;
+            return diag `${showPtr(here)} is ${v === null ? "null" : "missing"} — the schema requires ${f.array ? "an array" : expectation(f)} (mark it '${f.name}?' if it may be absent)`;
         }
         if (f.array) {
             if (!Array.isArray(v)) {
-                return `${showPtr(here)} — the schema declares '${f.name}[]' (an array), got ${describe(v)}`;
+                return diag `${showPtr(here)} — the schema declares '${f.name}[]' (an array), got ${describe(v)}`;
             }
             for (let i = 0; i < v.length; i++) {
                 const el = v[i];
@@ -113,7 +114,7 @@ export function validateShape(value, fields, at = []) {
                         return err;
                 }
                 else if (!fieldOk(f, el)) {
-                    return `${showPtr([...here, i])} — expected ${expectation(f)}, got ${describe(el)}`;
+                    return diag `${showPtr([...here, i])} — expected ${expectation(f)}, got ${describe(el)}`;
                 }
             }
             continue;
@@ -125,7 +126,7 @@ export function validateShape(value, fields, at = []) {
             continue;
         }
         if (!fieldOk(f, v)) {
-            return `${showPtr(here)} — expected ${expectation(f)}, got ${describe(v)}`;
+            return diag `${showPtr(here)} — expected ${expectation(f)}, got ${describe(v)}`;
         }
     }
     return null;

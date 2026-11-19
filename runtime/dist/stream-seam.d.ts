@@ -1,7 +1,3 @@
-/** What `onMessage` receives. `data` is always a string — parsing is app
- *  semantics (streams.md §2: an app that streams JSON parses in the handler).
- *  `type` is the SSE named event ("message" for unnamed/default messages and
- *  for every socket frame); `id` is the SSE last-event-id ("" on sockets). */
 export interface StreamMessage {
     readonly data: string;
     readonly type: string;

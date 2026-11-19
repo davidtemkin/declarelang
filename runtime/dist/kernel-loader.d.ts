@@ -128,6 +128,8 @@ export interface Kernel {
     freeCell(cell: number): void;
     state(rule: number): number;
     deps(rule: number): number[];
+    /** How many times a rule has run in the current (or last) settle. */
+    runs(rule: number): number;
     abort(): void;
     rewire(rule: number, edges: ArrayLike<number>): number;
     addRule(target: number, kind: number, flags: number, edges: ArrayLike<number>, body?: number): number;

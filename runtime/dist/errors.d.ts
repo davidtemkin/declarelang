@@ -78,11 +78,27 @@ export declare class DeclareErrors extends DeclareError {
  *  message names the layout, the child and attribute, the author's line, and
  *  the two ways out. `by` names who else set it when that helps. */
 export declare function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null, where?: Where | null, write?: boolean, child?: unknown): string;
+/** A view whose arrangement is CHOSEN BY THE WIDTH IT IS GIVEN (a
+ *  ResponsiveLayout's plans, a WrappingLayout's columns) has no content width,
+ *  and something measured it from what it holds: it would measure what it
+ *  arranges, and keep whatever arrangement it first had. `how` says where the
+ *  measure was read. One wording for the runtime refusal and the checker. */
+export declare function givenWidthMessage(view: string, layout: string, how: string, where?: Where | null, size?: "width" | "height"): string;
 /** When a refusal's line is inside a library class, the place in the author's
  *  own code that built it: " — in the Slider at line 3, col 20". A library's
  *  line says where the conflict landed; this says what the author wrote to
  *  cause it. Nothing when the line is the author's own, or unknown. */
 export declare function authorSite(view: unknown, where: Where | null | undefined): string;
+/** Whether a source place is inside the library. */
+export declare function inLibraryWhere(w: {
+    file?: string;
+} | null | undefined): boolean;
+/** The place the author wrote the view a piece of library code was working on:
+ *  " — in the Slider at line 3, col 20", up through the instances whose bodies
+ *  wrote each view (`classroot`, set as it is built, so a binding can be placed
+ *  before the view is attached to a parent) to the first the author's own code
+ *  made. Nothing when there is none. */
+export declare function writtenAt(view: unknown): string;
 /** A LITERAL on an attribute a layout places — the same sentence as every other
  *  spelling, with the value shown, because the answer never depends on how the
  *  value was written: `y = 99` and `y = { 99 }` are one declaration. */
@@ -102,14 +118,16 @@ export declare function emptyContainerMessage(parentClass: string, size: "width"
  *  ResponsiveLayout's cross axis also takes a tier `offset`), because its
  *  configuration is computed and may place either axis, a plan's `share`, a
  *  plan's drop (`share: 0`), or an arrangement that places everything. */
-export declare function placedAttributeMessage(childClass: string, slot: string, arranger: string, kind: "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all" | "flex" | "flex-class" | "shrink" | "flex-either" | "shrink-either", where?: Where | null): string;
+export declare function placedAttributeMessage(childClass: string, slot: string, arranger: string, kind: "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all" | "flex" | "flex-class" | "flex-computed" | "shrink" | "flex-either" | "shrink-either", where?: Where | null): string;
 /** The diagnostic tag — an identity join, and the third constructor the
  *  production error-prose strip (tools/internal/error-codes.mjs) recognizes.
  *  A sentence that reaches its reader through a helper — a builder's return,
  *  an `err(…)`/`fail(…)` argument, a stub's refusal — is `diag\`…\`` so the
  *  strip can code it: dev builds keep the words, a shipped app carries
  *  `[Declare E42] values`, and `declare-help E42` gives the sentence back.
- *  The tag is the author saying "this is a diagnostic, never app copy" — the
+ *  The tag is the author saying "this is the platform's text": a production
+ *  app shows a person no words the platform wrote, not even a DataSource's
+ *  `error`, which an app reads for its kind and puts in its own words. The
  *  strip never has to guess that from a string's shape. */
 export declare function diag(strings: TemplateStringsArray, ...values: unknown[]): string;
 /** A production stand-in's refusal: the module `which` was slimmed out of

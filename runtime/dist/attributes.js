@@ -25,7 +25,7 @@
 // direct write to it is an error (one declarative owner — the silent-clobber
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
 import { ACTIVE, Cell, addressFor, Constraint, S, isSettling, isTracking, kernel, noteWrite, nulls, retireValue, setPushHook, table, touchCell, trackCell, untracked, setOwnershipCheck } from "./reactive.js";
-import { DeclareError, at, layoutConflictMessage } from "./errors.js";
+import { DeclareError, at, layoutConflictMessage, diag } from "./errors.js";
 import { THEME_PRESETS, withThemeDefaults } from "./themes.js";
 import { toColor } from "./value.js";
 import { declareName } from "./declare-name.js";
@@ -581,7 +581,7 @@ export function defineAttributes(ctor, specs) {
                     if (!owner.yielding && !owner.fillsContent) {
                         throw new DeclareError(owner.arrangedBy !== null
                             ? layoutConflictMessage(declareName(this), name, owner.arrangedBy, null, null, true, this)
-                            : `${declareName(this)}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`);
+                            : diag `${declareName(this)}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`);
                     }
                     owner.dispose(); // a runtime derive yields: the author takes over
                     delete self.$owners[name];
@@ -785,7 +785,7 @@ export function providedRead(self, name, hasDefault, dflt) {
             return THEME_PRESETS.SanFrancisco;
         if (S.collecting !== null)
             return undefined;
-        throw new DeclareError(`provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`);
+        throw new DeclareError(diag `provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`);
     }
     // A node that PROVIDES a value can also read it — `App [ theme = { … }, fill =
     // { provided("theme").background } ]`. Its own provision is checked first (a provision
@@ -892,9 +892,8 @@ export function providedRead(self, name, hasDefault, dflt) {
     // the reader's OWN attribute of that name is not above it: provided() reads
     // from above, so a view reading its own value names it
     const own = tableFor(DEFAULTS, self.constructor) !== null && name in self;
-    throw new DeclareError(`provided("${name}"): no ancestor provides '${name}', and this read declares no default — ` +
-        (own ? `'${name}' is this ${declareName(self)}'s own attribute, and provided() reads from above: read it here as ${name}`
-            : `provide '${name}' on an ancestor, or give the read a default`));
+    throw new DeclareError(own ? diag `provided("${name}"): no ancestor provides '${name}', and this read declares no default — '${name}' is this ${declareName(self)}'s own attribute, and provided() reads from above: read it here as ${name}`
+        : diag `provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`);
 }
 /** The one write path (public setters and setBound both land here):
  *  equality-gate, store, push the slot's Surface call, wake dependents. */

@@ -4,8 +4,8 @@
 // out (the `size-report` capability, compiler/src/capabilities.ts: aboard a
 // `--debug` build and every development page).
 import { View } from "./view.js";
-import { afterSettle } from "./reactive.js";
-import { cellIdsOf, isSet, ownerOf, percentOwned } from "./attributes.js";
+import { afterSettle, constraintOfRule, kernel, kernelLoaded } from "./reactive.js";
+import { cellIdsOf, isSet, ownerOf, percentOwned, slotCellOf } from "./attributes.js";
 import { emptyContainerMessage, negativeSizeMessage } from "./errors.js";
 import { declareName } from "./declare-name.js";
 import { pathOf } from "./node-path.js";
@@ -37,8 +37,9 @@ function rootOf(v) {
     return root;
 }
 export function noteNegativeSize(v, size) {
-    if (!percentOwned(v, size) || NEGATIVE_PENDING.has(v))
-        return; // only a size derived from the parent's
+    void size; // both axes are judged at the close: only a size derived from the parent's is said
+    if (NEGATIVE_PENDING.has(v))
+        return;
     NEGATIVE_PENDING.add(v);
     // attached: judge at this settle's close; not yet: App.attach judges it
     if (rootOf(v).$surface != null)
@@ -56,7 +57,7 @@ export function judgeNegativeSizes() {
             continue;
         for (const axis of ["width", "height"]) {
             const value = v[axis];
-            if (!(value < 0) || !percentOwned(v, axis))
+            if (!(value < 0) || !(percentOwned(v, axis) || readsParentSize(v, p, axis)))
                 continue;
             // the parent has no size to give on this axis: it takes it from its
             // content (no size of its own, or its auto-extent owns it)
@@ -74,6 +75,43 @@ export function judgeNegativeSizes() {
             console.error("[Declare] " + negativeSizeMessage(declareName(v), axis, value, declareName(p), onlyContent, ownerOf(v, axis)?.sourcePos));
         }
     }
+}
+/** Does `v`'s size on `axis` come from its parent's through another attribute
+ *  (`width = { parent.inner }` beside `inner: number = { this.width - 40 }`)?
+ *  The mark a size carries sees a read its own body states; this follows the
+ *  rule's reads a few steps, through rules that belong to the child or the
+ *  parent, to the parent's size. Asked only of a size already below zero. */
+function readsParentSize(v, p, axis) {
+    if (!kernelLoaded())
+        return false;
+    const K = kernel();
+    const target = slotCellOf(p, axis);
+    const start = ownerOf(v, axis);
+    if (target < 0 || start == null || typeof start.id !== "number" || start.id < 0)
+        return false;
+    const seen = new Set();
+    let frontier = [start.id];
+    for (let depth = 0; depth < 4 && frontier.length > 0; depth++) {
+        const next = [];
+        for (const r of frontier) {
+            if (seen.has(r))
+                continue;
+            seen.add(r);
+            for (const cell of K.deps(r)) {
+                if (cell === target)
+                    return true;
+                const w = K.owner(cell);
+                if (w < 0)
+                    continue;
+                const c = constraintOfRule(w);
+                const node = c?.slot?.node ?? c?.owner;
+                if (node === p || node === v)
+                    next.push(w);
+            }
+        }
+        frontier = next;
+    }
+    return false;
 }
 /** A VIEW WHOSE SIZE NOTHING DECIDES: it takes its size from its children, and
  *  every one of them takes its size from it (`height = 100%` in a row as tall as

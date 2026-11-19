@@ -11,6 +11,15 @@ import { View, type LayoutStrategy } from "./view.js";
  *  flexed size where its siblings carry only a position). It may also differ
  *  from install to install, which is what the shape watcher exists for.
  *  `vis: false` hides — the zero-size-is-hidden idiom made explicit. */
+/** What a place() may return instead of its bare boxes: the boxes, and the
+ *  content length of the view along the axis it knows, its run with nothing in
+ *  it giving way (`null`: the view has none, its arrangement chosen by the width
+ *  it is given). */
+export interface Arrangement {
+    boxes: Box[];
+    contentWidth?: number | null;
+    contentHeight?: number | null;
+}
 export interface Box {
     x?: number;
     y?: number;
@@ -138,7 +147,7 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  shape declares ownership — carry exactly the slots this strategy manages
      *  for THAT child (per box, not per strategy: a box without `h` leaves that
      *  child's height alone, and its neighbour's box may well carry one). */
-    place(): Box[];
+    place(): Box[] | Arrangement;
     /** THE ROOM THIS ARRANGEMENT HAS: the arranged view's CONTENT BOX on `size`
      *  — its extent less its own `padding` on that axis, never below 0 (view.ts
      *  `contentBox`). A strategy that needs the view's measurement — a flow
@@ -218,7 +227,7 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
     private readonly discarded;
     /** Is this the first thing said about (child, slot)? A conflict report is
      *  once-only per child — a rearm storm re-hits the same slot every wave. */
-    private $firstReport;
+    $firstReport(child: View, slot: string): boolean;
     /** A strategy's own CONTAINED refusals — the same once-per-(child, key)
      *  discipline as a conflict, callable from a `.declare` place(): the child is
      *  placed at the line's start, the arrangement stands, the message says why.
@@ -226,6 +235,29 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  these hold the line for what only exists at run time (a bound `align`, a
      *  created child, a `baseline` binding that yields none). */
     refuseBaseline(child: View): void;
+    /** WHAT THIS VIEW HOLDS, MEASURED BY THE ARRANGEMENT: the content length
+     *  `place()` reported along an axis on its last pass (its run with nothing in
+     *  it giving way), with any child it does not lay counted at its own place;
+     *  `null` when it reported that the view has none (an arrangement chosen by
+     *  the width it is given); `undefined` when it reported nothing, and the view's
+     *  measure of its drawn children stands. Tracked, so a reader of the view's
+     *  content size follows the report. Padding is the view's to add. */
+    $contentLength(size: "width" | "height"): number | null | undefined;
+    /** The content length each axis's last pass reported; a change is signaled
+     *  on the view's content cell, which its readers track (view.ts). */
+    private lengths;
+    /** Take what a pass reported. A view whose arrangement has no content width
+     *  (it is chosen by the width it is given) and whose width is measured from
+     *  what it holds is refused here, once: nothing else reads that measure. */
+    private $noteLengths;
+    /** A rule read the content size of a view whose arrangement has none on that
+     *  axis: said once per view, contained (the drawn measure is answered, the
+     *  arrangement stands), in the one wording errors.ts keeps. */
+    $refuseNoContentLength(view: View, size: "width" | "height", how: string): void;
+    /** place()'s answer, in its one shape: the boxes, and the content length it
+     *  reported, if it did. A place() returns its boxes, or `{ boxes, contentWidth }`
+     *  (`contentHeight` along a column) when it knows what its view holds. */
+    protected $arrange(): Arrangement;
     /** THE BAND an alignment places children in: the arranged view's own extent
      *  on `size` — or **0 when that extent is measured from the very children
      *  this strategy lays**, where reading it would be the one-pass discipline's

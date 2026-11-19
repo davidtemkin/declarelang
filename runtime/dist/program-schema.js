@@ -22,6 +22,7 @@ export { coerceToken };
 /** The default (no schemas declared) — one shared frozen set. */
 const EMPTY_SHAPES = new Set();
 import { validateExpr } from "./expr.js";
+import { BUILTIN_COLOR_ATTRS } from "./attributes.js";
 /** The text face a container provides by declaring it (schema.ts FACE_ATTRS). */
 const PROVIDED_FACE = ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing"];
 /** The scope nouns of language §11 — never legal as member or parameter names.
@@ -377,6 +378,16 @@ isShape = () => false) {
         return err(diag `'${d.name}' declared here provides it to every text inside, which reads it as a ${face.kind} — declared ${d.type}, it would give them that instead. To provide it, declare it as the text reads it; for a value of your own, choose another name`, d.pos);
     }
     const errT = (message, pos) => ({ ok: false, error: new DeclareError(message, pos), type });
+    // A BUILT-IN COLOR NAME means a color on every class (attributes.ts
+    // BUILTIN_COLOR_ATTRS): a value set on it is taken as a color, whatever the
+    // class declares, so a declaration of another type would silently hold a
+    // number. `fill` is View's own and the text faces are answered above, so what
+    // reaches here is a name another library class declares: `tint`. Declared a
+    // Color, or a number (what a color is), it is the same thing.
+    if (BUILTIN_COLOR_ATTRS.has(d.name) && type.kind !== "color" && type.kind !== "number") {
+        const own = (owner.match(/[A-Z][a-z0-9]*$/)?.[0] ?? owner).toLowerCase() + d.name[0].toUpperCase() + d.name.slice(1);
+        return errT(diag `'${d.name}' is a color wherever it is declared (as on Image and Gauge), so it can't be a ${d.type.trim()}: declare it 'Color' (or 'number') to hold a color, or, for a value of your own, name it otherwise, e.g. '${own}'`, d.pos);
+    }
     if (d.def === null)
         return { ok: true, type, value: undefined };
     if (d.def.kind === "code") {

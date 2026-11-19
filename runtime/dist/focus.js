@@ -29,6 +29,7 @@ import { rootFrameBox, rootTransform, pointerOff, paintedAbove } from "./interac
 import { apply as applyAffine } from "./affine.js";
 import { provideKeyContextTarget } from "./input.js";
 import { pathOf } from "./node-path.js";
+import { diag } from "./errors.js";
 export class FocusService {
     current = null;
     rootView = null;
@@ -146,13 +147,14 @@ export class FocusService {
                     break;
                 }
             const o = ownerOf(hid, "visible");
-            const why = o?.arrangedBy != null ? `${o.arrangedBy} holds it hidden until its motion lands` : "visible is false";
+            const why = o?.arrangedBy != null ? diag `${o.arrangedBy} holds it hidden until its motion lands` : "visible is false";
             warnOnce(view, hid === view
-                ? `Focus.focus(${where(view)}): it is hidden (${why}), so focus can't land on it — focus it once it is shown${o?.arrangedBy != null ? ", when the motion has landed" : ""}`
-                : `Focus.focus(${where(view)}): it is inside ${where(hid)}, which is hidden (${why}), so the focus can't stay — focus it once that view is shown`);
+                ? (o?.arrangedBy != null ? diag `Focus.focus(${where(view)}): it is hidden (${why}), so focus can't land on it — focus it once it is shown, when the motion has landed`
+                    : diag `Focus.focus(${where(view)}): it is hidden (${why}), so focus can't land on it — focus it once it is shown`)
+                : diag `Focus.focus(${where(view)}): it is inside ${where(hid)}, which is hidden (${why}), so the focus can't stay — focus it once that view is shown`);
         }
         else if (view !== null && !canFocus(view) && !(inPointerDispatch() && typeof view.press === "function"))
-            warnOnce(view, `Focus.focus(${where(view)}): it is not focusable, so focus did not move — set focusable = true on it, or focus a control inside it`);
+            warnOnce(view, diag `Focus.focus(${where(view)}): it is not focusable, so focus did not move — set focusable = true on it, or focus a control inside it`);
         this.apply(view);
         // Focus a program moves is shown, as Tab's is and as the web's
         // element.focus() is: scrolled into view, clear of pinned chrome. Focus a
@@ -366,7 +368,7 @@ export class FocusService {
                     return;
                 // shown and focusable, yet out of reach: a container's tabOrder() leaves it out
                 if (shownChain(v) && canFocus(v))
-                    warnOnce(v, `focus on ${where(v)} was dropped: a container's tabOrder() leaves it out, so Tab cannot reach it — list it there (compose with tabDefault()) or focus a view Tab reaches`);
+                    warnOnce(v, diag `focus on ${where(v)} was dropped: a container's tabOrder() leaves it out, so Tab cannot reach it — list it there (compose with tabDefault()) or focus a view Tab reaches`);
                 const ring = this.keyboard;
                 this.apply(null);
                 this.startPoint = v;

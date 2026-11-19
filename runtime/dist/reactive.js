@@ -24,7 +24,7 @@
 // program entry awaits it before instantiating. Cells and constraints made
 // before that (a module-level Cell) allocate their ids lazily.
 import { phasesOn, phased, registerPhaseHooks, wrapMethods } from "./phase-timer.js";
-import { DeclareError } from "./errors.js";
+import { DeclareError, inLibraryWhere, writtenAt, diag } from "./errors.js";
 import { chainRunners, endChangeChain, fireChanges } from "./change-event.js";
 import { instantiateKernel, instantiateKernelSync, instantiateKernelNative, hasNativeKernel, decodeWasm, emptyImage, KERNEL_ERR, KERNEL_KIND, KERNEL_FLAG, KERNEL_STATE, KERNEL_TRACK, CELL_KIND, } from "./kernel-loader.js";
 import { KERNEL_WASM_B64 } from "./kernel-wasm.js";
@@ -99,6 +99,13 @@ export function constraintOfRule(id) { return id >= 0 ? RULES[id] ?? null : null
 function cycleLoop(start) {
     if (K === null)
         return null;
+    // The rules that kept running in this settle are where the loop is: those
+    // that ran close to the limit. Looked for among them first, the loop is the
+    // one that ran, whatever rule happened to reach the limit (often one
+    // downstream of it, reading what the loop keeps changing).
+    const hot = new Set();
+    RULES.forEach((c, id) => { if (c != null && K.runs(id) >= CYCLE_LIMIT / 2)
+        hot.add(id); });
     const writer = new Map();
     RULES.forEach((c, id) => { if (c != null)
         for (const cell of c.ownedCells())
@@ -117,10 +124,10 @@ function cycleLoop(start) {
     // A loop among the rules that feed it, or through it: the rule that hit the
     // limit can be downstream of the loop (a layout reading two widths that feed
     // each other), so any loop upstream is the answer, nearest first.
-    const state = new Map(); // 1 on the path, 2 done
+    let state = new Map(); // 1 on the path, 2 done
     const path = [];
     let found = null;
-    const visit = (r) => {
+    const visit = (r, only) => {
         if (found !== null || state.size > 2000)
             return;
         state.set(r, 1);
@@ -128,17 +135,28 @@ function cycleLoop(start) {
         for (const w of feeds(r)) {
             if (found !== null)
                 break;
+            if (only !== null && !only.has(w))
+                continue;
             if (state.get(w) === 1) {
                 found = path.slice(path.indexOf(w));
                 break;
             }
             if (!state.has(w))
-                visit(w);
+                visit(w, only);
         }
         path.pop();
         state.set(r, 2);
     };
-    visit(start);
+    for (const h of hot) {
+        if (found !== null)
+            break;
+        state = new Map();
+        visit(h, hot);
+    }
+    if (found === null) {
+        state = new Map();
+        visit(start, null);
+    }
     if (found === null)
         return null;
     // in the order values flow: each feeds the next (the path runs reader → writer)
@@ -297,14 +315,20 @@ const HOST = {
             // where it is, by path: a label names a class, and a program has many Views
             const owner = RULES[rule]?.owner;
             const at = owner != null ? addressOf?.(owner) ?? null : null;
-            const loop = cycleLoop(rule);
-            pendingError = new DeclareError(`constraint cycle: ${label}${at !== null ? ` (at ${at})` : ""} re-evaluated ${CYCLE_LIMIT} times in one settle — it (transitively) depends on its own output${loop !== null ? `. The loop: ${loop}` : ""}`);
+            // the loop itself is what a developer is told: not looked for in a production build
+            const loop = typeof __DECLARE_PRODUCTION__ !== "undefined" && __DECLARE_PRODUCTION__ ? null : cycleLoop(rule);
+            // A rule of the runtime's own ($-named: hover, focus) reaching the limit is
+            // downstream of the loop, reading what it keeps changing: the loop leads.
+            const internal = /(^|\.)\$/.test(label);
+            pendingError = new DeclareError(internal && loop !== null
+                ? diag `constraint cycle: these values kept changing each other and never settled — ${loop}. (${label}, which reads them, reached the limit of ${CYCLE_LIMIT} runs in one settle.)`
+                : diag `constraint cycle: ${label}${at !== null ? ` (at ${at})` : ""} re-evaluated ${CYCLE_LIMIT} times in one settle — it (transitively) depends on its own output${loop !== null ? `. The loop: ${loop}` : ""}`);
         }
         else if (code === KERNEL_ERR.AFTER) {
             const runners = chainRunners();
             pendingError = new DeclareError(stepsRan
-                ? `afterSettle: steps kept one settle going for ${AFTER_LIMIT} rounds — a step (transitively) registers itself again`
-                : `onChange: change handlers kept one settle going for ${AFTER_LIMIT} rounds — ${runners !== "" ? runners : "a handler"}: what a handler assigns keeps changing what it tracks. The settle stopped; what was assigned so far stands`);
+                ? diag `afterSettle: steps kept one settle going for ${AFTER_LIMIT} rounds — a step (transitively) registers itself again`
+                : diag `onChange: change handlers kept one settle going for ${AFTER_LIMIT} rounds — ${runners !== "" ? runners : "a handler"}: what a handler assigns keeps changing what it tracks. The settle stopped; what was assigned so far stands`);
         }
         else if (code !== KERNEL_ERR.ABORT) {
             pendingError = new DeclareError(`kernel: settle failed (${code}) at ${RULES[rule]?.label ?? `rule ${rule}`}`);
@@ -867,7 +891,12 @@ function locate(e, c) {
     if (at === null || !(e instanceof Error))
         return;
     const first = e.message;
-    e.message = `${first} — while working out ${c.label} at ${at}`;
+    // a rule the library wrote (or the runtime built) names where the author
+    // wrote the view it was working on: the author's line, not the library's
+    // (what a developer is told: not in a production build)
+    const mine = (typeof __DECLARE_PRODUCTION__ !== "undefined" && __DECLARE_PRODUCTION__) || (c.sourcePos != null && !inLibraryWhere(c.sourcePos));
+    const site = mine ? "" : writtenAt(c.slot?.node ?? c.owner);
+    e.message = `${first} — while working out ${c.label} at ${at}${site}`;
     if (typeof e.stack === "string" && e.stack.includes(first))
         e.stack = e.stack.replace(first, e.message);
 }

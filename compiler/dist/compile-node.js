@@ -100,14 +100,26 @@ export async function compile(source, opts = {}) {
  *  over the concatenated script sources, resolving relative files from disk and
  *  bare specifiers from node_modules, emitting one CommonJS text the compile
  *  re-embeds. Lazy import — a program with no script imports never loads it. */
-async function nodeBundleScripts(entry, resolveDir) {
+async function nodeBundleScripts(entry, resolveDir, tracker) {
     try {
         const esbuild = await import("esbuild");
         const r = await esbuild.build({
             stdin: { contents: entry, resolveDir, loader: "ts" },
             bundle: true, write: false, format: "cjs", platform: "browser", target: "es2022",
-            logLevel: "silent",
+            logLevel: "silent", metafile: tracker !== undefined,
         });
+        // The program's own files the bundle read (a `./plan.ts` and what it imports)
+        // join the closure, as an include does: the bundle is inside the compiled
+        // program, so an edit to one must make the next load compile again. Installed
+        // packages stay out: they change with an install, which a reload of the
+        // server already answers, and a package can be hundreds of files to check.
+        if (tracker !== undefined && r.metafile !== undefined) {
+            for (const input of Object.keys(r.metafile.inputs)) {
+                if (input.startsWith("<") || /(^|[\\/])node_modules[\\/]/.test(input))
+                    continue;
+                tracker.file(resolve(input)); // esbuild names an input from the working directory
+            }
+        }
         return { code: r.outputFiles[0].text };
     }
     catch (e) {
@@ -116,7 +128,8 @@ async function nodeBundleScripts(entry, resolveDir) {
 }
 /** `compile`, additionally returning the compile's full dependency CLOSURE
  *  (closure.ts) — the main file, every `include`, every auto-included class
- *  library, and the manifest, each with a disk validator. The caller owns it:
+ *  library, the manifest, and the program's own files its script imports bundle
+ *  (an imported `.ts` and what it imports), each with a disk validator. The caller owns it:
  *  feed it to isUpToDate()/contentTag() for a disk or HTTP cache, or to fs.watch
  *  for live reload. The disk/browser CACHE layers (get/put, 304s) build on this
  *  and land with the deploy / in-browser-compile paths that need them. */
@@ -127,7 +140,7 @@ export async function compileTracked(source, opts = {}) {
     const result = await compileCore(source, {
         ...opts,
         host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT, tracker),
-        bundleScripts: opts.bundleScripts ?? nodeBundleScripts,
+        bundleScripts: opts.bundleScripts ?? ((entry, dir) => nodeBundleScripts(entry, dir, tracker)),
     });
     return carryProgram(result, { closure: tracker.closure(opts.props ?? {}) });
 }

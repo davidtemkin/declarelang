@@ -5,7 +5,7 @@
 // `host-values` capability, compiler/src/capabilities.ts): App then holds no
 // host values, and a page's `provide` has nothing to reach.
 import { Cell } from "./reactive.js";
-import { DeclareError } from "./errors.js";
+import { DeclareError, diag } from "./errors.js";
 /** The host values an App starts with: `seed` is build's `provides` (view.ts
  *  withHostProvides), so the app's very first evaluation already reads them. */
 export function hostValuesFor(seed) {
@@ -65,7 +65,9 @@ export class BoundaryValues {
         if (!e.has) {
             if (hasDefault)
                 return dflt;
-            throw new DeclareError(`${this.what}("${name}"): nothing provides '${name}' here, and this read declares no default — give the read a default, or have the ${this.what === "hostProvided" ? "host list it in its island's `provides`" : "hosted side expose it"}`);
+            throw new DeclareError(this.what === "hostProvided"
+                ? diag `hostProvided("${name}"): nothing provides '${name}' here, and this read declares no default — give the read a default, or have the host list it in its island's \`provides\``
+                : diag `${this.what}("${name}"): nothing provides '${name}' here, and this read declares no default — give the read a default, or have the hosted side expose it`);
         }
         if (hasDefault && !sameKind(e.v, dflt)) {
             if (!this.warned.has(name)) {

@@ -85,20 +85,39 @@ export class DeclareErrors extends DeclareError {
  *  the two ways out. `by` names who else set it when that helps. */
 export function layoutConflictMessage(childClass, slot, arranger, by, where, write = false, child) {
     const who = by !== null ? ` (set by ${by})` : "";
-    const clause = write ? `cannot set its ${slot} while the layout arranges it` : `does not declare its ${slot}`;
+    const clause = write ? diag `cannot set its ${slot} while the layout arranges it` : diag `does not declare its ${slot}`;
     return diag `${childClass}.${slot}${who}${at(where)}${authorSite(child, where)} — ${arranger} ${arranges(slot)} its children, so this child ${clause}; ${layoutEscape(slot)}.`;
+}
+/** A view whose arrangement is CHOSEN BY THE WIDTH IT IS GIVEN (a
+ *  ResponsiveLayout's plans, a WrappingLayout's columns) has no content width,
+ *  and something measured it from what it holds: it would measure what it
+ *  arranges, and keep whatever arrangement it first had. `how` says where the
+ *  measure was read. One wording for the runtime refusal and the checker. */
+export function givenWidthMessage(view, layout, how, where, size = "width") {
+    return diag `${view}${at(where)} is arranged by ${layout}, which chooses its arrangement by the ${size} the view is given, so it has no content ${size}, and ${how}. Give it a ${size} that comes from outside it: flexes = true takes the room its run has left, or ${size} = 100%, or a share in its parent's plan.`;
 }
 /** When a refusal's line is inside a library class, the place in the author's
  *  own code that built it: " — in the Slider at line 3, col 20". A library's
  *  line says where the conflict landed; this says what the author wrote to
  *  cause it. Nothing when the line is the author's own, or unknown. */
 export function authorSite(view, where) {
-    const inLibrary = (w) => w?.file !== undefined && /(^|\/)library\//.test(w.file);
-    if (where == null || !inLibrary(where))
+    if (where == null || !inLibraryWhere(where))
         return "";
+    return writtenAt(view);
+}
+/** Whether a source place is inside the library. */
+export function inLibraryWhere(w) {
+    return w?.file !== undefined && /(^|\/)library\//.test(w.file);
+}
+/** The place the author wrote the view a piece of library code was working on:
+ *  " — in the Slider at line 3, col 20", up through the instances whose bodies
+ *  wrote each view (`classroot`, set as it is built, so a binding can be placed
+ *  before the view is attached to a parent) to the first the author's own code
+ *  made. Nothing when there is none. */
+export function writtenAt(view) {
     for (let v = view, n = 0; v != null && n < 64; v = (v.classroot ?? v.parent), n++) {
         const c = v.$createdAt;
-        if (c !== undefined && !inLibrary(c))
+        if (c !== undefined && !inLibraryWhere(c))
             return ` — in the ${c.tag} at ${c.file !== undefined ? `${c.file}:${c.line}:${c.col}` : `line ${c.line}, col ${c.col}`}`;
     }
     return "";
@@ -113,7 +132,7 @@ function layoutEscape(slot) {
     const verb = slot === "width" || slot === "height" ? "size" : slot === "visible" ? "show" : "place";
     // a size is the layout's along its flow (flexes, shrinks) or across it
     // (align = stretch) — the way to ask for each, said where it is refused
-    const how = verb === "size" ? " (to fill: 'flexes' along its flow, 'align = stretch' on the layout across it)" : "";
+    const how = verb === "size" ? diag ` (to fill: 'flexes' along its flow, bounded by 'minWidth'/'maxWidth' or their heights where it needs a limit; 'align = stretch' on the layout across it)` : "";
     return diag `remove it and let the layout ${verb} the child${how}, or set 'ignoreLayout = true' on the child to ${verb} it yourself`;
 }
 /** A LITERAL on an attribute a layout places — the same sentence as every other
@@ -162,7 +181,9 @@ export function placedAttributeMessage(childClass, slot, arranger, kind, where) 
         case "share":
             return diag `${head} — a plan gives it a share of the width. Remove it and let the plan size the child, or leave the child out of the share (or name it "auto") to keep its own width.`;
         case "flex":
-            return diag `${head} — it flexes, so the run gives it its ${slot}: the room left, shared among the children that flex. Remove the ${slot} to let it flex, or remove 'flexes' to keep its own ${slot}.`;
+            return diag `${head} — it flexes, so the run gives it its ${slot}: the room left, shared among the children that flex. Remove the ${slot} to let it flex (bounded by '${slot === "width" ? "minWidth" : "minHeight"}' and '${slot === "width" ? "maxWidth" : "maxHeight"}' where it needs a limit), or remove 'flexes' to keep its own ${slot}.`;
+        case "flex-computed":
+            return diag `${head} — its 'flexes' is computed, and wherever it is true the run gives it its ${slot}, so the two would meet. To fill in some states and stay small in others, let it always flex and bound it: flexes = true, '${slot === "width" ? "maxWidth" : "maxHeight"}' a constraint that is small where it should be (and '${slot === "width" ? "minWidth" : "minHeight"}' for a floor); or remove 'flexes' to keep its own ${slot}.`;
         case "flex-class":
             return diag `${head} — a ${childClass} flexes (its class says so), so the run gives it its ${slot}: the room left, shared among the children that flex. For a fixed ${slot}, use a view that does not flex (a View with a ${slot}), or set flexes = false on this one.`;
         case "shrink":
@@ -182,7 +203,9 @@ export function placedAttributeMessage(childClass, slot, arranger, kind, where) 
  *  an `err(…)`/`fail(…)` argument, a stub's refusal — is `diag\`…\`` so the
  *  strip can code it: dev builds keep the words, a shipped app carries
  *  `[Declare E42] values`, and `declare-help E42` gives the sentence back.
- *  The tag is the author saying "this is a diagnostic, never app copy" — the
+ *  The tag is the author saying "this is the platform's text": a production
+ *  app shows a person no words the platform wrote, not even a DataSource's
+ *  `error`, which an app reads for its kind and puts in its own words. The
  *  strip never has to guess that from a string's shape. */
 export function diag(strings, ...values) {
     let out = strings[0];

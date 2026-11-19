@@ -68,7 +68,7 @@ export const RUNTIME_FIELDS = {
     Video: ["natural"],
     DOMIsland: ["exposedValues", "handle", "tenantSink"],
     NativeText: [],
-    Layout: ["authorSized", "bases", "discarded", "extentRead", "rearming", "reported", "stackReported", "stretching", "undo", "view"],
+    Layout: ["authorSized", "bases", "discarded", "extentRead", "lengths", "rearming", "reported", "stackReported", "stretching", "undo", "view"],
     TweenLayout: ["from", "placed", "to", "tween"],
     Dataset: ["cursors"],
     DataSource: ["autoUrl", "inFlight", "inFlightWrite", "seq", "autoCalling"],

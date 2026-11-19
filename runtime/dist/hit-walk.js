@@ -22,6 +22,15 @@
 //     pointer-transparent, or holding no input — lets the walk go on to the
 //     siblings beneath it.
 /** Is a point (in `c`'s frame) outside everything `c`'s subtree could answer? */
+/** The diagnostic tag, as errors.ts has it: this module imports nothing, so it
+ *  keeps its own copy. The production strip (tools/internal/error-codes.mjs)
+ *  reads the tag by name and codes what it marks. */
+function diag(strings, ...values) {
+    let out = strings[0];
+    for (let i = 0; i < values.length; i++)
+        out += String(values[i]) + strings[i + 1];
+    return out;
+}
 function beyond(A, c, cx, cy) {
     const r = A.reach?.(c);
     return r === null || (r !== undefined && (cx < r.x0 || cy < r.y0 || cx >= r.x1 || cy >= r.y1));
@@ -42,7 +51,7 @@ export function walkHit(n, lx, ly, A, accept, trace) {
     const scroller = A.scroller(n);
     if (scroller && !inside) {
         if (trace !== undefined)
-            trace.push({ view: n, why: "skipped — outside a scroller's FRAME, so its whole subtree is out of view", x: Math.round(lx), y: Math.round(ly) });
+            trace.push({ view: n, why: diag `skipped — outside a scroller's FRAME, so its whole subtree is out of view`, x: Math.round(lx), y: Math.round(ly) });
         return null;
     }
     const outside = A.clips(n) && !A.insideClip(n, lx, ly);
@@ -86,7 +95,7 @@ export function walkHit(n, lx, ly, A, accept, trace) {
     }
     if (!inside || outside) {
         if (trace !== undefined)
-            trace.push({ view: n, why: inside ? "missed — the point is outside this view's clip" : "missed — the point is outside this view's own box", x: Math.round(lx), y: Math.round(ly) });
+            trace.push({ view: n, why: inside ? diag `missed — the point is outside this view's clip` : diag `missed — the point is outside this view's own box`, x: Math.round(lx), y: Math.round(ly) });
         return null;
     }
     const why = accept(n);
@@ -96,7 +105,7 @@ export function walkHit(n, lx, ly, A, accept, trace) {
         return null;
     }
     if (trace !== undefined)
-        trace.push({ view: n, why: "HIT — the deepest box containing the point", x: Math.round(lx), y: Math.round(ly) });
+        trace.push({ view: n, why: diag `HIT — the deepest box containing the point`, x: Math.round(lx), y: Math.round(ly) });
     hitPoint.x = lx;
     hitPoint.y = ly;
     return n;

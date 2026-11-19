@@ -38,6 +38,7 @@ import { affineFit, childHomography, unprojectChild } from "./projective.js";
 import { leavesPlane, IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
 import { walkHit } from "./hit-walk.js";
 import { insetLead } from "./value.js";
+import { diag } from "./errors.js";
 /** The parent's CONTENT ORIGIN on one axis — the leading inset every child's
  *  `x`/`y` is measured from (view.ts `padding`). 0, cheaply, for the view that
  *  never named one. */
@@ -317,7 +318,7 @@ export function pointerOff(v) {
             return u.pointerEvents === "none";
     return false;
 }
-const POINTABLE = (v) => pointerOff(v) ? 'skipped — pointerEvents = "none" here or above it' : null;
+const POINTABLE = (v) => pointerOff(v) ? diag `skipped — pointerEvents = "none" here or above it` : null;
 const ANY = () => null;
 // What a PRESS reaches: past views that declared no interest in the pointer —
 // no handler, tip, link or scroll axis — to what is beneath, as the backends
@@ -328,7 +329,7 @@ const PRESSABLE = (v) => {
     if (gate !== null)
         return gate;
     const takes = v.$takesPointer;
-    return v.parent == null || typeof takes !== "function" || takes.call(v) ? null : "skipped — it takes no presses (no handler, link, tip or scroll axis)";
+    return v.parent == null || typeof takes !== "function" || takes.call(v) ? null : diag `skipped — it takes no presses (no handler, link, tip or scroll axis)`;
 };
 /** The view a real press at this point would reach — `hitAt` passing over views
  *  that take no presses, as the backends' input routing does. The checking

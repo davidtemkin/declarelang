@@ -12,7 +12,7 @@
 //     room for the ellipsis);
 //   · the ellipsis — seen, but `aria-hidden` and unselectable, so it is never
 //     read or copied;
-//   · the rest, visually hidden (no box, no layout) but selectable and read.
+//   · the rest, inline at no size (it takes no room) but selectable and read.
 // Selecting and copying the run copies the full text; a screen reader reads it
 // whole; nothing on the page draws past the clamp.
 import { clampLines, transformText, wrapLines } from "./measure.js";
@@ -36,16 +36,16 @@ export function renderClamped(el, raw, rule, width) {
     dots.setAttribute("aria-hidden", "true");
     dots.style.userSelect = "none";
     dots.style.webkitUserSelect = "none";
+    // The rest stays INLINE, at no size: a screen reader names the run as one word
+    // across the cut ("Comfortable", not "Co mfortable", which an out-of-flow span
+    // gives), and a copy has no line break in it. The spacings are the run's in
+    // pixels, so they are zeroed too, or each hidden character would still take room.
     const rest = document.createElement("span");
     rest.textContent = shown.slice(cut);
     const rs = rest.style;
-    rs.position = "absolute";
-    rs.width = "1px";
-    rs.height = "1px";
-    rs.overflow = "hidden";
-    rs.clipPath = "inset(50%)";
-    rs.left = "0";
-    rs.top = "0";
+    rs.fontSize = "0";
+    rs.letterSpacing = "0";
+    rs.wordSpacing = "0";
     rs.whiteSpace = "pre"; // its leading space is part of the copy
     el.append(dots, rest);
 }

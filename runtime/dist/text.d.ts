@@ -32,7 +32,7 @@ export declare class Text extends View {
     wrapWidth: number;
     /** Line clamp (schema.ts): the height derive and every renderer honour it. */
     maxLines: number;
-    /** True when the clamp actually dropped something (schema.ts). Read-only. */
+    /** True when the clamp cut anything short: lines dropped, or a last line ellipsized (schema.ts). Read-only. */
     truncated: boolean;
     textAlign: "start" | "center" | "end" | "left" | "right";
     italic: boolean;
@@ -83,6 +83,10 @@ export declare class Text extends View {
      *  that stops flexing is as wide as its words again — never the number its
      *  width held when the layout first took it. */
     private $bindTextSize;
+    /** Whether `maxLines` cuts anything short, by clampLines' own rule: lines
+     *  dropped past the limit, or the last kept line wider than the box, which
+     *  ends in an ellipsis (one line that does not wrap, or a word too long to). */
+    private $cutShort;
     protected $bindExtent(): void;
     $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** A Text's own content folds into `contentWidth`/`contentHeight` as its

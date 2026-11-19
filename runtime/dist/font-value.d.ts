@@ -1,4 +1,3 @@
-/** The CSS family a font names right now (its registered name, or a system family). */
 export declare const FONT_CSS: unique symbol;
 /** Whether a font is still inside its wait for faces it has not received. */
 export declare const FONT_PENDING: unique symbol;

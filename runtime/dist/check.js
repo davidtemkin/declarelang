@@ -25,7 +25,7 @@
 // instance of the class it declares, inline attribute declarations grow an
 // element an anonymous schema, and named children join the one member
 // namespace.
-import { DeclareError, insetOrRadiusMessage, noBaselineMessage, stackBaselineMessage, placedAttributeMessage } from "./errors.js";
+import { DeclareError, givenWidthMessage, insetOrRadiusMessage, noBaselineMessage, stackBaselineMessage, placedAttributeMessage, diag } from "./errors.js";
 import { SCHEMAS, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
 import { Diag, nearestName } from "./diagnostics.js";
 import { RUNTIME_METHODS, runtimeFieldsOf, runtimeMethodsOf } from "./runtime-methods.js";
@@ -709,7 +709,7 @@ classRoot = false) {
                 for (const i of items) {
                     if (i.kind === "string")
                         continue;
-                    errors.push(new DeclareError(i.kind === "ident" ? `'${i.name}' is not a family — ${fontObjectHint(i.name)}` : `a fontFamily list holds family strings`, i.pos));
+                    errors.push(new DeclareError(i.kind === "ident" ? diag `'${i.name}' is not a family — ${fontObjectHint(i.name)}` : diag `a fontFamily list holds family strings`, i.pos));
                 }
                 // one ordered family chain — what the slot, or the provision, holds
                 if (items.every((i) => i.kind === "string"))
@@ -786,6 +786,13 @@ classRoot = false) {
                 errors.push(...checkBaselineAlignment(schemas, child, el));
                 if (child.name === "layout")
                     errors.push(...checkPlacedAttributes(schemas, child, el));
+                // a view arranged by a ResponsiveLayout chooses its plan by the width it
+                // is given, so it has no content width; `shrinks` sizes it from that
+                if (child.name === "layout" && Object.hasOwn(schemas, child.tag) && descendsFrom(schemas[child.tag], "ResponsiveLayout")) {
+                    const sh = el.attrs.find((a) => a.name === "shrinks" && a.value.kind === "ident" && a.value.name === "true");
+                    if (sh !== undefined)
+                        errors.push(new DeclareError(givenWidthMessage(el.tag, child.tag, "shrinks sizes it from its content"), sh.pos));
+                }
                 continue;
             }
             // A named child is a member of THIS element (language §4: "reachable
@@ -923,7 +930,7 @@ function checkDataNode(el, schema, errors, classRoot) {
             continue;
         }
         if (a.value.kind === "path") {
-            errors.push(new DeclareError(`${el.tag}.${a.name} = :${a.value.path}: a data node is where data lives — a :path reads a view's cursor`, a.value.pos));
+            errors.push(new DeclareError(diag `${el.tag}.${a.name} = :${a.value.path}: a data node is where data lives — a :path reads a view's cursor`, a.value.pos));
             continue;
         }
         const r = checkAttr(schema, a);
@@ -1038,7 +1045,7 @@ classRoot = false) {
             continue;
         }
         if (a.value.kind === "path") {
-            errors.push(new DeclareError(`${schema.name}.${a.name} = :${a.value.path}: an animator attribute is a value or a { }, not a data read`, a.value.pos));
+            errors.push(new DeclareError(diag `${schema.name}.${a.name} = :${a.value.path}: an animator attribute is a value or a { }, not a data read`, a.value.pos));
             continue;
         }
         const r = checkAttr(schema, a);
@@ -1169,7 +1176,7 @@ function checkAnimatorGroupNode(el, schema, schemas, parentSchema, errors, attri
             continue;
         }
         if (a.value.kind === "path") {
-            errors.push(new DeclareError(`${schema.name}.${a.name} = :${a.value.path}: an animator attribute is a value or a { }, not a data read`, a.value.pos));
+            errors.push(new DeclareError(diag `${schema.name}.${a.name} = :${a.value.path}: an animator attribute is a value or a { }, not a data read`, a.value.pos));
             continue;
         }
         const r = checkAttr(schema, a);
@@ -1381,6 +1388,16 @@ function checkPlacedAttributes(schemas, layoutEl, owner) {
             const here = c.attrs.find((a) => a.name === size);
             if (here !== undefined)
                 errors.push(new DeclareError(placedAttributeMessage(c.tag, size, arranger, sized, null), here.pos));
+        }
+        // …and a child whose `flexes` is computed flexes in whichever states make it
+        // true, where the run gives it that size: a size declared beside it meets the
+        // run there, refused here at its line rather than at runtime in that state
+        const flexesCode = c.attrs.find((a) => a.name === "flexes" && a.value.kind === "code");
+        if (flow !== null && sized === null && flexesCode !== undefined) {
+            const size = flow === "x" ? "width" : "height";
+            const here = c.attrs.find((a) => a.name === size);
+            if (here !== undefined)
+                errors.push(new DeclareError(placedAttributeMessage(c.tag, size, arranger, "flex-computed", null), here.pos));
         }
         // …and under a COMPUTED axis the run may take either one, so a child that
         // flexes or shrinks declares neither: refused here, at its line, rather

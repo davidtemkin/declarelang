@@ -85,7 +85,7 @@ export class TweenLayout extends Layout {
         };
         // the slots each child's box names: one it leaves out stays the child's own
         // (a change in which it names re-installs, the base layout's shape watch)
-        const boxes = this.place();
+        const boxes = this.$arrange().boxes;
         try {
             kids.forEach((child, idx) => {
                 for (const [slot, key] of SLOTS) {
@@ -162,7 +162,7 @@ export class TweenLayout extends Layout {
         // runtime can see. Off the settle: a glide writes from/to, which the lerps read.
         let seen = null;
         const key = (bs) => bs.map((b) => `${b.x},${b.y},${b.w},${b.h},${b.vis !== false}`).join(";");
-        const watch = new Constraint(`${declareName(this)}.place`, () => key(this.place()), (k) => {
+        const watch = new Constraint(`${declareName(this)}.place`, () => key(this.$arrange().boxes), (k) => {
             const was = seen;
             seen = k;
             if (was !== null && k !== was && k !== key(this.to))
@@ -192,7 +192,7 @@ export class TweenLayout extends Layout {
                 this.$ownBox.set(c, { x: c.x, y: c.y, w: c.width, h: c.height });
         // a box that leaves out `vis` is shown, as in every other layout's place();
         // one that leaves out x, y, w or h keeps the child's own
-        const to = this.place().map((b, i) => {
+        const to = this.$arrange().boxes.map((b, i) => {
             const o = kids[i] !== undefined ? this.$ownBox.get(kids[i]) : undefined;
             return {
                 ...b,

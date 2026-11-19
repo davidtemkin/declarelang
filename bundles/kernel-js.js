@@ -1379,6 +1379,7 @@ ${new Error().stack ?? ""}`);
       drain();
     }, "flush"),
     deps: /* @__PURE__ */ __name((rule) => known(rule) ? readsOf(rule) : [], "deps"),
+    runs: /* @__PURE__ */ __name((rule) => known(rule) && rStamp[rule] === stamp ? rRuns[rule] : 0, "runs"),
     abort: /* @__PURE__ */ __name(() => {
       aborted = true;
     }, "abort"),

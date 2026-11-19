@@ -92,10 +92,12 @@
 // rAF, zero polling.
 import { Node } from "./node.js";
 import { Cell, Constraint, afterSettle, kernel, kernelLoaded } from "./reactive.js";
-import { blockOf, cellIdsOf, isSet, markPercent, own, ownerOf, release, setBound, setPercentMark, setPosOf, slotCellOf, useSiteSet } from "./attributes.js";
+import { blockOf, cellIdsOf, isSet, markPercent, own, ownerOf, percentOwned, release, setBound, setPercentMark, setPosOf, slotCellOf, useSiteSet } from "./attributes.js";
 import { LAYOUT_NOWRITE } from "./kernel-loader.js";
-import { DeclareError, discardedValueMessage, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
-import { App, isWindowedBlock, View, viewLayoutReady } from "./view.js";
+import { DeclareError, discardedValueMessage, givenWidthMessage, layoutConflictMessage, noBaselineMessage, stackBaselineMessage, writtenAt, diag } from "./errors.js";
+/** Errors already given the author's place (an error re-thrown through nested arrangements is placed once). */
+const PLACED_AT = new WeakSet();
+import { App, contentChanged, isWindowedBlock, View, viewLayoutReady } from "./view.js";
 import { declareName } from "./declare-name.js";
 /** Box key → the child slot it drives, in a stable order. */
 const BOX_SLOTS = [
@@ -142,7 +144,7 @@ export class Layout extends Node {
      *  claims it (SimpleLayout's place()). Anything else asks place(). */
     $shapeSignature() {
         if (this.$canon !== "simple") {
-            return this.place().map((b) => BOX_SLOTS.filter(([k]) => b[k] !== undefined).map(([k]) => k).join()).join("|");
+            return this.$arrange().boxes.map((b) => BOX_SLOTS.filter(([k]) => b[k] !== undefined).map(([k]) => k).join()).join("|");
         }
         const me = this;
         const xAxis = me.axis === "x", aligned = me.align !== "none";
@@ -286,8 +288,7 @@ export class Layout extends Node {
      *  for THAT child (per box, not per strategy: a box without `h` leaves that
      *  child's height alone, and its neighbour's box may well carry one). */
     place() {
-        throw new DeclareError(`${declareName(this)} declares no place() — a layout strategy IS its place(): ` +
-            `declare it and return one box per child of laid(), aligned by index`);
+        throw new DeclareError(diag `${declareName(this)} declares no place() — a layout strategy IS its place(): declare it and return one box per child of laid(), aligned by index`);
     }
     /** THE ROOM THIS ARRANGEMENT HAS: the arranged view's CONTENT BOX on `size`
      *  — its extent less its own `padding` on that axis, never below 0 (view.ts
@@ -440,6 +441,77 @@ export class Layout extends Node {
             seen.add("baseline");
             console.error("[Declare] " + noBaselineMessage(declareName(child), declareName(this)));
         });
+    }
+    /** WHAT THIS VIEW HOLDS, MEASURED BY THE ARRANGEMENT: the content length
+     *  `place()` reported along an axis on its last pass (its run with nothing in
+     *  it giving way), with any child it does not lay counted at its own place;
+     *  `null` when it reported that the view has none (an arrangement chosen by
+     *  the width it is given); `undefined` when it reported nothing, and the view's
+     *  measure of its drawn children stands. Tracked, so a reader of the view's
+     *  content size follows the report. Padding is the view's to add. */
+    $contentLength(size) {
+        const r = this.lengths[size];
+        if (r === undefined || r === null)
+            return r;
+        const v = this.view;
+        if (v === null)
+            return r;
+        v.$watchChildList();
+        const laid = new Set(this.laid());
+        const axis = size === "width" ? "x" : "y";
+        let max = r;
+        for (const c of v.children) {
+            if (!(c instanceof View) || laid.has(c) || !c.visible || c.ignoreClip || c.$paintsElsewhere() || percentOwned(c, size))
+                continue;
+            const b = c.$dragHome ?? c.bounds();
+            const end = (percentOwned(c, axis) ? 0 : b[axis]) + b[size];
+            if (end > max)
+                max = end;
+        }
+        return max;
+    }
+    /** The content length each axis's last pass reported; a change is signaled
+     *  on the view's content cell, which its readers track (view.ts). */
+    lengths = {};
+    /** Take what a pass reported. A view whose arrangement has no content width
+     *  (it is chosen by the width it is given) and whose width is measured from
+     *  what it holds is refused here, once: nothing else reads that measure. */
+    $noteLengths(a) {
+        let moved = false;
+        for (const k of ["width", "height"]) {
+            const key = k === "width" ? "contentWidth" : "contentHeight";
+            const r = Object.hasOwn(a, key) ? (a[key] ?? null) : undefined;
+            if (r !== this.lengths[k]) {
+                this.lengths[k] = r;
+                moved = true;
+            }
+            // (what a developer is told: not in a production build)
+            if (r === null && (typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__)
+                && this.view !== null && this.sizedByChildren(k))
+                this.$refuseNoContentLength(this.view, k, "here nothing gives it one, so it is measured from what it holds");
+        }
+        if (moved && this.view !== null)
+            contentChanged(this.view);
+    }
+    /** A rule read the content size of a view whose arrangement has none on that
+     *  axis: said once per view, contained (the drawn measure is answered, the
+     *  arrangement stands), in the one wording errors.ts keeps. */
+    $refuseNoContentLength(view, size, how) {
+        if (typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__)
+            refuseNoContentLength(this, view, size, how);
+    }
+    /** place()'s answer, in its one shape: the boxes, and the content length it
+     *  reported, if it did. A place() returns its boxes, or `{ boxes, contentWidth }`
+     *  (`contentHeight` along a column) when it knows what its view holds. */
+    $arrange() {
+        // A production build takes the answer as it comes: the author's line on an
+        // error and the check of the answer's shape are what a developer is told
+        if (typeof __DECLARE_PRODUCTION__ !== "undefined" && __DECLARE_PRODUCTION__) {
+            const a = this.place();
+            return Array.isArray(a) ? { boxes: a } : a;
+        }
+        else
+            return checkedArrangement(this);
     }
     /** THE BAND an alignment places children in: the arranged view's own extent
      *  on `size` — or **0 when that extent is measured from the very children
@@ -622,7 +694,7 @@ export class Layout extends Node {
             return why("no kernel rule");
         const spacingCell = slotCellOf(this, "spacing");
         if (spacingCell < 0)
-            return why("spacing not a kernel cell");
+            return why(diag `spacing not a kernel cell`);
         const kids = this.laid();
         if (kids.length === 0)
             return () => { };
@@ -709,7 +781,7 @@ export class Layout extends Node {
             kids = this.laid();
             if (kids.length === 0)
                 return () => { };
-            probe = this.place();
+            probe = this.$arrange().boxes;
             if (probe.length !== kids.length) {
                 throw new DeclareError(`${label}.place() returned ${probe.length} boxes for ${kids.length} laid children — one box per child, by index`);
             }
@@ -803,14 +875,15 @@ export class Layout extends Node {
                     const was = this.extentRead;
                     this.extentRead = { width: false, height: false };
                     try {
-                        return this.place();
+                        return this.$arrange();
                     }
                     finally {
                         readExtent = this.extentRead;
                         this.extentRead = was;
                     }
                 }, (v) => {
-                    boxes = v;
+                    boxes = v.boxes;
+                    this.$noteLengths(v);
                     placed.changed();
                     // While the WINDOWING KERNEL owns this block's placement
                     // (materialization.md — a windowed vertical stack), the pass
@@ -907,5 +980,38 @@ function withinRange(child, size, v) {
     if (hi > 0 && v > hi)
         v = hi;
     return lo > 0 && v < lo ? lo : v;
+}
+/** A development build's place(): an error thrown inside it names where the
+ *  author wrote the view it arranges (a place() refusing what it was handed is
+ *  the library's line, not theirs), and an answer of the wrong shape is said. */
+function checkedArrangement(L) {
+    let r;
+    try {
+        r = L.place();
+    }
+    catch (e) {
+        if (e instanceof Error && !PLACED_AT.has(e)) {
+            PLACED_AT.add(e);
+            const site = writtenAt(L.view);
+            if (site !== "")
+                e.message = `${e.message}${site}`;
+        }
+        throw e;
+    }
+    if (Array.isArray(r))
+        return { boxes: r };
+    if (r !== null && typeof r === "object" && Array.isArray(r.boxes))
+        return r;
+    throw new DeclareError(`${declareName(L)}.place() returned ${r === null ? "null" : typeof r} — it returns its boxes, one per laid child, or { boxes, contentWidth } (contentHeight along a column) to say what its view holds`);
+}
+/** A rule read the content size of a view whose arrangement has none on that
+ *  axis: said once per view, contained (the drawn measure is answered, the
+ *  arrangement stands), in the one wording errors.ts keeps. */
+function refuseNoContentLength(L, view, size, how) {
+    if (!L.$firstReport(view, "content-length"))
+        return;
+    // where the author wrote the view: its `shrinks` when it shrinks, else where it was made
+    const where = setPosOf(view, "shrinks") ?? view.$createdAt ?? null;
+    console.error("[Declare] " + givenWidthMessage(declareName(view), declareName(L), how, where, size));
 }
 //# sourceMappingURL=layout.js.map

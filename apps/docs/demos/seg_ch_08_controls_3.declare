@@ -3,7 +3,7 @@ App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("th
     page: string = "list",
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 14 ],
-        Segmented [ width = 300, value = { app.page },
+        Segmented [ value = { app.page },
             items = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
             commit(v: string) { app.page = v }
             ],

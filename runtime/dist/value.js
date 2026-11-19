@@ -101,7 +101,7 @@ export function gradient(...args) {
         args = args.slice(1);
     }
     if (args.length < 2)
-        throw new Error("gradient needs at least two stops");
+        throw new Error(diag `gradient needs at least two stops`);
     const stops = args.map((a) => {
         if (typeof a === "number" || typeof a === "string")
             return Object.freeze({ offset: null, color: toColor(a) });

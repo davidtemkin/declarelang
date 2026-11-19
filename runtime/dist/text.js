@@ -27,7 +27,7 @@ import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight
 import { holdsFamily, heldFamily } from "./font-value.js";
 /** A line count under `maxLines` (0 = no clamp). */
 const clampN = (n, max) => (max > 0 ? Math.min(n, max) : n);
-import { bindDerived, defineAttributes, faceSlots, isSet, ownerOf, providedDefault, setBound } from "./attributes.js";
+import { bindDerived, defineAttributes, faceSlots, isSet, ownerOf, providedDefault } from "./attributes.js";
 /** A Text's alignment on the page: `start` and `end` by the run's direction,
  *  `left`, `center` and `right` as written. */
 export function physicalAlign(a, dir) {
@@ -141,6 +141,20 @@ export class Text extends View {
      *  that stops flexing is as wide as its words again — never the number its
      *  width held when the layout first took it. */
     $bindTextSize() {
+        // Whether the clamp cuts the run short is a fact of the run and its box, so
+        // it has a rule of its own: a Text whose height another rule states (a
+        // TextLabel's, a layout's) still knows when its line ends in an ellipsis.
+        if (ownerOf(this, "truncated") === null) {
+            bindDerived(this, "truncated", () => {
+                if (this.maxLines <= 0)
+                    return false;
+                const bounded = this.$bounded();
+                const run = bounded && this.wrap
+                    ? wrapLines(transformText(runOf(this), this.textTransform), fontString(this), this.contentBox("width"), this.letterSpacing)
+                    : runOf(this).split("\n");
+                return this.$cutShort(run, bounded);
+            });
+        }
         // Auto-size installs at attach (measurement is a browser activity — the
         // model stays Node-importable) and only for unowned, never-set slots: an
         // author literal, constraint, or percent takes precedence untouched.
@@ -165,17 +179,30 @@ export class Text extends View {
                 // wrapped line count. Reading `width` keeps this reactive, so a
                 // container/viewport resize re-wraps and re-flows — baseline.
                 const bounded = this.$bounded();
-                const all = bounded && this.wrap
-                    ? wrapLines(transformText(runOf(this), this.textTransform), fontString(this), this.contentBox("width"), this.letterSpacing).length
+                const run = bounded && this.wrap
+                    ? wrapLines(transformText(runOf(this), this.textTransform), fontString(this), this.contentBox("width"), this.letterSpacing)
                     // Not wrapping still breaks at a HARD newline — DOM (`pre`), canvas and the
                     // Mac host all draw each line — so a code block's Text is as tall as its lines.
-                    : runOf(this).split("\n").length;
-                setBound(this, "truncated", this.maxLines > 0 && all > this.maxLines);
+                    : runOf(this).split("\n");
+                const all = run.length;
                 const lines = clampN(all, this.maxLines);
                 const [top, , bottom] = insetSides(this.padding);
                 return Math.ceil(lineH * lines) + top + bottom;
             });
         }
+    }
+    /** Whether `maxLines` cuts anything short, by clampLines' own rule: lines
+     *  dropped past the limit, or the last kept line wider than the box, which
+     *  ends in an ellipsis (one line that does not wrap, or a word too long to). */
+    $cutShort(lines, bounded) {
+        if (this.maxLines <= 0)
+            return false;
+        if (lines.length > this.maxLines)
+            return true;
+        if (!bounded || lines.length === 0)
+            return false;
+        const last = transformText(lines[lines.length - 1], this.wrap ? undefined : this.textTransform);
+        return textWidth(last, fontString(this), this.letterSpacing) > this.contentBox("width") + 0.5;
     }
     $bindExtent() {
         if (this.$backend !== null)
@@ -204,8 +231,8 @@ export class Text extends View {
             return this.$widestLine();
         const m = fontMetrics(font);
         const bounded = this.$bounded();
-        const all = bounded && this.wrap ? wrapLines(disp, font, this.contentBox("width"), this.letterSpacing).length : disp.split("\n").length;
-        setBound(this, "truncated", this.maxLines > 0 && all > this.maxLines);
+        const run = bounded && this.wrap ? wrapLines(disp, font, this.contentBox("width"), this.letterSpacing) : disp.split("\n");
+        const all = run.length;
         const lines = clampN(all, this.maxLines);
         return Math.ceil(this.$lineAdvance(m) * lines);
     }

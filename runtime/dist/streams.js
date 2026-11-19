@@ -34,6 +34,7 @@ import { Node, onDiscard } from "./node.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { currentStreams, defaultEventSource, offlineNow } from "./stream-seam.js";
 import { declareName } from "./declare-name.js";
+import { diag } from "./errors.js";
 // ── The classes ───────────────────────────────────────────────────────────
 /** The abstract base: everything shared between SSE and WebSocket. Lifecycle
  *  is exactly the source contract (§5): node removal closes the connection,
@@ -438,7 +439,7 @@ export class Socket extends Stream {
             this.$refreshBuffered();
             return;
         }
-        setBound(this, "error", "send(…) on a socket that is not open — nothing was sent (gate on .open, or send from onOpen)");
+        setBound(this, "error", diag `send(…) on a socket that is not open — nothing was sent (gate on .open, or send from onOpen)`);
         this.$fire("onError");
     }
 }
@@ -469,18 +470,18 @@ function requestStreamOverFetch(url, req, listen, cb) {
             catch {
                 said = "";
             }
-            cb.end(`HTTP ${res.status} for ${url}${said !== "" ? ` — ${said}` : ""}`, true, { failure: res.status >= 500 ? "serverError" : "rejected" });
+            cb.end(said !== "" ? diag `HTTP ${res.status} for ${url} — ${said}` : diag `HTTP ${res.status} for ${url}`, true, { failure: res.status >= 500 ? "serverError" : "rejected" });
             return;
         }
         // a 200 that is not an event stream — a sign-in page, a proxy's notice —
         // is no stream at all: said, not read as one
         const replied = res.headers?.get?.("content-type") ?? "";
         if (replied !== "" && !/^text\/event-stream\b/i.test(replied)) {
-            cb.end(`the reply from ${url} is ${replied.split(";")[0]}, not an event stream`, true, { failure: "unreadable" });
+            cb.end(diag `the reply from ${url} is ${replied.split(";")[0]}, not an event stream`, true, { failure: "unreadable" });
             return;
         }
         if (res.body === null) {
-            cb.end(`no reply body from ${url}`, true, { failure: "unreadable" });
+            cb.end(diag `no reply body from ${url}`, true, { failure: "unreadable" });
             return;
         }
         cb.open();

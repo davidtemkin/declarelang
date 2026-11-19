@@ -47,6 +47,15 @@ export function emptyImage() {
  *  buffer. So a growth re-takes every view here and tells the runtime to re-read
  *  them (`onGrow`), synchronously, before the call that triggered it returns. */
 const SCRATCH_START = 1 << 10;
+/** The diagnostic tag, as errors.ts has it: this module imports nothing, so it
+ *  keeps its own copy. The production strip (tools/internal/error-codes.mjs)
+ *  reads the tag by name and codes what it marks. */
+function diag(strings, ...values) {
+    let out = strings[0];
+    for (let i = 0; i < values.length; i++)
+        out += String(values[i]) + strings[i + 1];
+    return out;
+}
 function importsFor(host, hooks) {
     return {
         host: {
@@ -252,7 +261,7 @@ function bindWith(x, mem, image, c, hooks) {
         catch (e) {
             // the one honest ceiling: the host would not give us the memory. Say so
             // with the number, rather than leaving a rule half-wired.
-            throw new Error(`kernel: could not stage a rule's ${n} dependencies — the host refused ${(4 * cap / 1024) | 0} KB (${String(e)})`);
+            throw new Error(diag `kernel: could not stage a rule's ${n} dependencies — the host refused ${(4 * cap / 1024) | 0} KB (${String(e)})`);
         }
         scratchCap = cap;
         scratchAt = at;
@@ -366,6 +375,7 @@ function bindWith(x, mem, image, c, hooks) {
         freeCell: (cell) => { x.kernel_free_cell(k, cell); },
         state: (rule) => x.kernel_state(k, rule),
         deps: (rule) => { const n = x.kernel_deps(k, rule, scratchAt, scratchCap); return Array.from(scratch.subarray(0, Math.min(n, scratchCap))); },
+        runs: (rule) => x.kernel_runs(k, rule),
         abort: () => { x.kernel_abort(k); },
         rewire: (rule, edges) => roomy({ nodes: edges.length }, () => { const n = edgesIn(edges); return x.kernel_rewire(k, rule, scratchAt, n); }),
         addRule: (target, kind, flags, edges, body = 0) => roomy({ rules: 1, nodes: edges.length }, () => { const n = edgesIn(edges); return x.kernel_add_rule(k, target, kind, flags, scratchAt, n, 0, 0, body); }),

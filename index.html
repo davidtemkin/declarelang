@@ -52,8 +52,8 @@
 <h5>Declare Calendar</h5></a>
 <p>It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible.</p>
 <p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
-<p>540</p>
-<p>lines of code, plus 215 of comments — four views, zoom, drag and edit</p>
+<p>549</p>
+<p>lines of code, plus 209 of comments — four views, zoom, drag and edit</p>
 <p>178 KB</p>
 <p>over the wire, gzipped — app (structure, logic, styling) and runtime</p>
 <p>0</p>
@@ -73,7 +73,7 @@
 <p>→</p></a>
 <a href="apps/desktop/desktop.declare"><img loading="lazy" src="apps/homepage/shots/desktop-dark.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3504 lines — 1996 code, 933 comment · 267 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3504 lines — 1996 code, 933 comment · 266 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -284,7 +284,7 @@ defaultPlacement = body, body: View [ … ] ]</code> — and every subclass's an
 <p>A <code>{ }</code> as an attribute's value is a <strong>constraint</strong>: re-evaluated when, and only when, its inputs change.</p>
 <pre><code class="language-declare-fragment">x    = { parent.width - width - 20 },               // stays 20 from the right edge
 fill = { selected ? 0x4169E1 : 0x191970 },           // royalblue / midnightblue
-text = { data.failed ? data.error : "Loading…" }</code></pre>
+text = { data.failed ? "Couldn’t load" : "Loading…" }</code></pre>
 <p><strong>Dependencies are extracted by the compiler.</strong> It reads your expression, reads <em>through</em> what it calls, and wires what it can name once. A read it can see but not name — through a closure's parameter, a local alias, or a value a method hands back — keeps that constraint on runtime tracking, where each read is observed as it runs. What it cannot follow at all is a compile error (below).</p>
 <p><strong>A constraint stays live through everything Declare it reaches.</strong> Call your own methods, chain array operations, read through a closure — every read inside all of it is a wired dependency, rebased onto what you passed, so <code>{ this.price(app.cart) }</code> depends on whatever the <code>price</code> <em>method</em> reads of the cart. The analysis collects <em>potential</em> reads, not observed ones: <code>{ a ? b : c }</code> depends on all three. A <code>script { }</code> function is the one opaque call: script is outside the reactive system, so <code>{ fmt(app.total) }</code> depends on <code>app.total</code> — the values you pass — and never on what <code>fmt</code> does inside. Pass values, not nodes (a node reference never changes, so a node-typed argument is refused); a helper that should be <em>analyzed</em> is a method.</p>
 <p>Reads are symmetric — a bare read <strong>is</strong> the tracked read. <strong>Only a change notifies:</strong> a write, or a constraint re-deriving, that lands on the value already there (the same number, string or boolean, the same object) wakes nothing. A new array or record is a change, even with the same contents.</p>
@@ -710,7 +710,7 @@ npm start</code></pre>
 <p>Continuity — a view becoming the next one rather than being replaced by it — is the part of good native software that is usually bespoke. Here is what makes it ordinary at run time. A <code>Spring</code> is an attribute with a target; each frame it writes its next value, and that write is a settle like any other — the same graph, the same kernel, the same dependency order. Nothing about animation is special-cased. Because geometry arithmetic runs as bytecode, a frame that only moves things — most frames of most animations — completes inside the kernel, in WebAssembly, and never enters JavaScript. Because a settle is one indivisible step, a new target arriving mid-flight is simply the next write: the spring retargets from wherever it is, and every value that read it follows. Interruptibility isn’t a feature of the animation system; it is what a reactive graph does when you write to it. And a layout is re-derived in the same settle, so an arrangement can travel as one thing — the calendar’s four views are one surface under a moving rectangle, and each frame of that zoom is a settle over the same few hundred kernel bodies.</p>
 <p>04</p>
 <h2>Layout and hit-testing</h2>
-<p>Open a Declare page in the browser’s element inspector and every view is there — a <code>div</code> per view, nested to mirror the tree — with its position and size written on it as inline style and no layout CSS anywhere. That is not a shortcut. It is the division of labor: every box is decided before the host hears about it, by one of three things. Arithmetic over slots (<code>x = { parent.width - 40 }</code>) runs in the kernel. A layout is a library class with one method, <code>place()</code>, returning a box per child — 2.4 KB of runtime applies it. An unset width is the bounding box of the visible children, kept current as a rule over the geometry table. Text is the one place the host contributes a number: it measures glyph widths. Wrapping, line count and the resulting height are the runtime’s, so a paragraph breaks into the same lines on every renderer.</p>
+<p>Open a Declare page in the browser’s element inspector and every view is there — a <code>div</code> per view, nested to mirror the tree — with its position and size written on it as inline style and no layout CSS anywhere. That is not a shortcut. It is the division of labor: every box is decided before the host hears about it, by one of three things. Arithmetic over slots (<code>x = { parent.width - 40 }</code>) runs in the kernel. A layout is a library class with one method, <code>place()</code>, returning a box per child — 2.6 KB of runtime applies it. An unset width is the bounding box of the visible children, kept current as a rule over the geometry table. Text is the one place the host contributes a number: it measures glyph widths. Wrapping, line count and the resulting height are the runtime’s, so a paragraph breaks into the same lines on every renderer.</p>
 <p>Because the runtime placed every box, it can answer the inverse question — what is under this point? — and that answer decides hover, press, whether a gesture was a click, and where a drag lands. The scene below computes none of it. Each view is reporting its own <code>hovered</code> fact, kept true by the same walk that routes a press. Try the rotated card’s corners, the invisible glass, the badge, and the child the pane’s clip cuts off: the walk runs in reverse paint order and stops at the first view that has declared an interest in the pointer.</p>
 <p>Card</p>
 <p>Plain. Declares onClick.</p>
@@ -738,23 +738,23 @@ npm start</code></pre>
 <p>Your program</p>
 <p>12.8 KB</p>
 <p>Library classes it uses</p>
-<p>13.4 KB</p>
+<p>14.1 KB</p>
 <p>Reactive core, instantiation &amp; data</p>
-<p>46.9 KB</p>
+<p>46.1 KB</p>
 <p>DOM backend</p>
 <p>16.1 KB</p>
 <p>View</p>
-<p>13.5 KB</p>
+<p>13.6 KB</p>
 <p>Input, focus, gestures, scrolling</p>
-<p>23.0 KB</p>
+<p>22.8 KB</p>
 <p>Draw &amp; compositing</p>
-<p>16.5 KB</p>
+<p>16.4 KB</p>
 <p>Springs &amp; animators</p>
 <p>3.2 KB</p>
 <p>Text &amp; fonts</p>
-<p>5.0 KB</p>
+<p>5.1 KB</p>
 <p>Boot</p>
-<p>6.0 KB</p>
+<p>5.9 KB</p>
 <p>Accessibility</p>
 <p>3.7 KB</p>
 <p>Kernel — WebAssembly + loader</p>
@@ -762,9 +762,9 @@ npm start</code></pre>
 <p>App</p>
 <p>12.8 KB</p>
 <p>Library</p>
-<p>13.4 KB</p>
+<p>14.1 KB</p>
 <p>Runtime</p>
-<p>136.4 KB</p>
+<p>135.6 KB</p>
 <p>Kernel</p>
 <p>15.3 KB</p>
 <img loading="lazy" src="apps/homepage/../architecture/resources/desktop-dom.webp">
@@ -809,7 +809,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=e8ba870fa134";
+  import boot from "./bundles/declare-boot.js?v=62dc823ddeb0";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().
