@@ -1,0 +1,262 @@
+/*
+# Ledger: Overview
+
+In five seconds: how are we doing this period, and what needs attention?
+Four headline figures with their change against the comparison period and a
+line of the last twelve months; income against expenses month by month;
+expenses by category; the top products and customers; what needs attention;
+the most recent transactions. Every figure, bar and row opens Transactions
+filtered to exactly the records behind it.
+
+The screen owns its reads. Each names the App's filter (`app.f`) in its
+address and the books' revision (`app.books.rev`), so it follows both.
+*/
+
+// A headline figure: its name, its value, its change, its last twelve months.
+// Pressing it opens its records.
+
+class Figure extends Control [ flexes = true, minWidth = 150, cornerRadius = 12, padding = 16,
+    label: string = "",
+    value: string = "",
+    now: number = 0,
+    before: number = 0,
+    known: boolean = true,
+    upIsGood: boolean = true,
+    points: boolean = false,       // a percentage: its change is in points
+    trend: number[] = [],
+    partialLast: boolean = false,
+    tone: number = 0,
+    loading: boolean = false,
+    fill = { hovered ? provided("theme").raised : provided("theme").surface },
+    stroke = { Stroke(1, provided("theme").line) },
+    accessibilityLabel = { classroot.label + ", " + classroot.value + ", " + classroot.changeText.text + ". Opens its transactions." },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    TextLabel [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    Text [ fontSize = { app.phone ? 22 : 26 }, fontWeight = semibold, wrap = false, numeralWidth = tabular,
+        opacity = { classroot.loading ? 0.4 : 1 }, text = { classroot.value } ],
+    changeText: Change [ now = { classroot.now }, before = { classroot.before }, known = { classroot.known },
+        points = { classroot.points }, upIsGood = { classroot.upIsGood }, against = { app.compareShort } ],
+    Spark [ values = { classroot.trend }, partialLast = { classroot.partialLast }, tone = { classroot.tone } ]
+    ]
+
+
+// One line of the needs-attention list: what, how many, and a way to open it.
+
+schema Attention [ id: string, kind: string, label: string, detail: string, categoryId?: string, severity: string ]
+
+class AttentionRow extends Control [ width = 100%, cornerRadius = 8, padding = [8, 8, 8, 8],
+    rec: Attention = { :@ },
+    accessibilityLabel = { classroot.rec.label + ". " + classroot.rec.detail },
+    fill = { hovered ? provided("theme").hover : null },
+    press() { app.openAttention(classroot.rec) },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Glyph [ shape = "warn", iconSize = 16,
+        ink = { classroot.rec.severity == "over" ? provided("theme").bad : provided("theme").warn } ],
+    col: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, fontSize = 13, fontWeight = medium, text = { classroot.rec.label } ],
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, text = { classroot.rec.detail } ]
+        ],
+    ChevronIcon [ dir = "right", iconSize = 10, ink = { provided("theme").textFaint } ]
+    ]
+
+
+// A recent transaction: its date, what it was, and its amount.
+
+class RecentRow extends Control [ width = 100%, cornerRadius = 8, padding = [7, 8, 7, 8],
+    rec: Row = { :@ },
+    accessibilityLabel = { classroot.rec.description + ", " + money(classroot.rec.signed) + ", " + longDate(classroot.rec.date) },
+    fill = { hovered ? provided("theme").hover : null },
+    press() { app.showTransaction(classroot.rec) },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Text [ width = 52, fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = { shortDate(classroot.rec.date, app.today) } ],
+    col: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ width = 100%, fontSize = 13, maxLines = 1, text = { classroot.rec.description == "" ? kindWord(classroot.rec.kind) : classroot.rec.description } ],
+        Text [ width = 100%, fontSize = 12, maxLines = 1, textColor = { provided("theme").textMuted },
+            text = { (classroot.rec.contactName ?? "") == "" ? kindWord(classroot.rec.kind) : classroot.rec.contactName ?? "" } ]
+        ],
+    Money [ fontSize = 13, cents = { classroot.rec.signed },
+        textColor = { classroot.rec.signed > 0 ? provided("theme").good : provided("theme").text } ]
+    ]
+
+
+class OverviewScreen [ width = 100%, height = 100%, scrolls = y,
+
+    // ── the reads
+
+    totals: Remote [ url = { app.api("aggregates/periods", ({ by: "month" })) }, schema = Periods ],
+    before: Remote [ url = { app.compareFrom == "" ? "" : app.api("aggregates/periods", ({ by: "month", from: app.compareFrom, to: app.compareTo })) },
+        schema = Periods ],
+    months: Remote [ url = { app.api("aggregates/periods", ({ by: "month", from: app.trendFrom, to: app.trendTo })) }, schema = Periods ],
+    cats: Remote [ url = { app.api("aggregates/categories", ({ side: "expense" })) }, schema = CatAgg ],
+    products: Remote [ url = { app.api("aggregates/products", ({ })) }, schema = ProdAgg ],
+    customers: Remote [ url = { app.api("aggregates/contacts", ({ side: "income", limit: 6 })) }, schema = ContactAgg ],
+    recent: Remote [ url = { app.api("transactions", ({ limit: 8 })) }, schema = TxPage ],
+
+    // what needs attention is the whole books' business, whatever the filter
+
+    uncategorised: Remote [ url = { app.books.api + "summary?category=none&rev=" + app.books.rev }, schema = Summary ],
+    budgetsNow: Remote [ url = { app.gate(app.books.api + "budgets?month=" + app.today.slice(0, 7) + "&rev=" + app.books.rev) }, schema = Budgets ],
+
+    t: Totals? = { this.totals.value?.total ?? null },
+    b: Totals? = { this.before.value?.total ?? null },
+    known: boolean = { app.compare != "none" && this.before.loaded && !this.before.failed },
+    trend: Period[] = { (this.months.value?.periods ?? []).filter((p) => p.start <= app.today) },
+    lastPartial: boolean = { this.trend.length > 0 && this.trend[this.trend.length - 1].partial },
+
+    // ── what the lists show
+
+    catRows: NamedRec[] = { classroot.topCategories() },
+    topCategories() -> NamedRec[] {
+        const list = cats.value?.categories ?? []
+        const total = cats.value?.total.amount ?? 0
+        const top = list.slice(0, 5)
+        const rest = list.slice(5)
+        const rows: NamedRec[] = top.map((c) => ({ id: c.categoryId ?? "none", key: c.categoryId ?? "none",
+            label: app.books.categoryName(c.categoryId ?? null), amount: c.amount, count: c.count,
+            share: total > 0 ? c.amount / total : 0,
+            tone: c.categoryId == null ? provided("theme").warn : provided("theme").cats[Math.max(0, app.books.colourOf(c.categoryId))],
+            sentence: app.books.categoryName(c.categoryId ?? null) + ", " + money(c.amount) + ", " + c.count + " transactions" }))
+        if (rest.length > 0) {
+            const amt = rest.reduce((n, c) => n + c.amount, 0)
+            const cnt = rest.reduce((n, c) => n + c.count, 0)
+            rows.push({ id: "rest", key: rest.map((c) => c.categoryId ?? "none").join(","), label: "All other categories",
+                amount: amt, count: cnt, share: total > 0 ? amt / total : 0, tone: provided("theme").textFaint,
+                sentence: "All other categories, " + money(amt) })
+            }
+        return rows
+        },
+    productRows: NamedRec[] = { (this.products.value?.products ?? []).slice(0, 5).map((p) => ({ id: p.productId ?? "none",
+        label: app.books.productName(p.productId ?? null), amount: p.revenue, count: p.count, tone: provided("theme").income,
+        sentence: app.books.productName(p.productId ?? null) + ", " + money(p.revenue) + ", " + p.units + " sold" })) },
+    customerRows: NamedRec[] = { (this.customers.value?.contacts ?? []).filter((c) => c.contactId != null).slice(0, 5).map((c) => ({
+        id: c.contactId ?? "none", label: c.contactName ?? "", amount: c.amount, count: c.count, tone: provided("theme").income,
+        sentence: (c.contactName ?? "") + ", " + money(c.amount) + ", " + c.count + " transactions" })) },
+
+    attention: Dataset [ schema = [ rows[]: Attention ], contents = { ({ rows: classroot.attentionRows() }) } ],
+    attentionRows() -> Attention[] {
+        const out: Attention[] = []
+        const n = uncategorised.value?.count ?? 0
+        if (n > 0) out.push({ id: "uncat", kind: "uncategorised", severity: "warn",
+            label: n + (n == 1 ? " uncategorised transaction" : " uncategorised transactions"),
+            detail: money(uncategorised.value?.out ?? 0) + " not yet in a category" })
+        for (const b of budgetsNow.value?.budgets ?? []) {
+            const name = app.books.categoryName(b.categoryId)
+            if (b.remaining < 0) out.push({ id: "b-" + b.categoryId, kind: "budget", categoryId: b.categoryId, severity: "over",
+                label: name + " is over budget", detail: "Over by " + money(-b.remaining) + " · " + money(b.spent) + " of " + money(b.amount) + " this month" })
+            else if (b.spent >= b.amount * 0.9) out.push({ id: "b-" + b.categoryId, kind: "budget", categoryId: b.categoryId, severity: "near",
+                label: name + " is near its budget", detail: money(b.remaining) + " left of " + money(b.amount) + " this month" })
+            }
+        return out
+        },
+
+    col: View [ x = center, width = { Math.min(parent.width - (app.phone ? 24 : 48), 1200) },
+        padding = { app.phone ? [12, 0, 24, 0] : [20, 0, 40, 0] },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+        FilteredNote [ ],
+
+        figuresFailed: View [ width = 100%, visible = { classroot.totals.failed || classroot.months.failed },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Glyph [ shape = "warn", iconSize = 16, ink = { provided("theme").bad } ],
+            Text [ flexes = true, fontSize = 13,
+                text = { classroot.totals.loaded ? "The figures couldn't be brought up to date; what shows is from before." : "The figures couldn't be loaded." } ],
+            Button [ height = 30, label = "Retry",
+                onClick() { classroot.totals.retry(); classroot.months.retry(); classroot.before.retry() }
+                ]
+            ],
+        slowFigures: Text [ visible = { classroot.totals.slow }, fontSize = 12, textColor = { provided("theme").textMuted }, text = "Still working…" ],
+
+        // ── the four figures
+
+        figures: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 12, rowSpacing = 12, columns = { app.phone ? 2 : 4 } ],
+            Figure [ label = "Revenue", loading = { !classroot.totals.loaded },
+                value = { money(classroot.t?.revenue.amount ?? 0) },
+                now = { classroot.t?.revenue.amount ?? 0 }, before = { classroot.b?.revenue.amount ?? 0 }, known = { classroot.known },
+                trend = { classroot.trend.map((p) => p.revenue.amount) }, partialLast = { classroot.lastPartial }, tone = { provided("theme").income },
+                press() { app.openFigure("revenue", app.fromDate, app.toDate) }
+                ],
+            Figure [ label = "Expenses", loading = { !classroot.totals.loaded }, upIsGood = false,
+                value = { money(classroot.t?.expenses.amount ?? 0) },
+                now = { classroot.t?.expenses.amount ?? 0 }, before = { classroot.b?.expenses.amount ?? 0 }, known = { classroot.known },
+                trend = { classroot.trend.map((p) => p.expenses.amount) }, partialLast = { classroot.lastPartial }, tone = { provided("theme").expense },
+                press() { app.openFigure("expenses", app.fromDate, app.toDate) }
+                ],
+            Figure [ label = "Net profit", loading = { !classroot.totals.loaded },
+                value = { money(classroot.t?.net.amount ?? 0) },
+                now = { classroot.t?.net.amount ?? 0 }, before = { classroot.b?.net.amount ?? 0 }, known = { classroot.known },
+                trend = { classroot.trend.map((p) => p.net.amount) }, partialLast = { classroot.lastPartial }, tone = { provided("theme").netLine },
+                press() { app.openFigure("net", app.fromDate, app.toDate) }
+                ],
+            Figure [ label = "Gross margin", loading = { !classroot.totals.loaded }, points = true,
+                value = { pct(classroot.t?.grossMargin.percent ?? null) },
+                now = { classroot.t?.grossMargin.percent ?? 0 }, before = { classroot.b?.grossMargin.percent ?? 0 },
+                known = { classroot.known && classroot.t?.grossMargin.percent != null && classroot.b?.grossMargin.percent != null },
+                trend = { classroot.trend.map((p) => p.grossMargin.percent ?? 0) }, partialLast = { classroot.lastPartial }, tone = { provided("theme").accent },
+                press() { app.openFigure("margin", app.fromDate, app.toDate) }
+                ]
+            ],
+
+        // ── income vs expenses, the last twelve months
+
+        incomePanel: Panel [ heading = "Income vs expenses", source = { classroot.months },
+            note = { "Month by month, the " + (app.phone ? "six" : "twelve") + " months to " + monthYear(app.trendTo) + ", with net profit as a line." },
+            PeriodChart [ periods = { classroot.trend }, by = "month", netLine = true, plotH = { app.phone ? 180 : 220 },
+                chartTitle = "Income vs expenses by month",
+                series = { [ ({ key: "revenue", label: "Revenue", tone: provided("theme").income }),
+                             ({ key: "expenses", label: "Expenses", tone: provided("theme").expense }) ] },
+                open(r: BarRec) { app.openFigure(r.series, r.from, r.to) }
+                ]
+            ],
+
+        twoUp: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 16, rowSpacing = 16, columns = { app.width >= 900 ? 2 : 1 } ],
+
+            Panel [ flexes = true, heading = "Expenses by category", source = { classroot.cats },
+                note = { (classroot.cats.value?.categories ?? []).length == 0 ? "No expenses in this range." : money(classroot.cats.value?.total.amount ?? 0) + " in all" },
+                NamedBars [ rows = { classroot.catRows }, share = true,
+                    open(r: NamedRec) { app.openCategories((r.key ?? "none").split(","), "expense") }
+                    ]
+                ],
+
+            Panel [ flexes = true, heading = "Needs attention", source = { classroot.uncategorised },
+                list: View [ width = 100%, datapath = { classroot.attention.value },
+                    layout: SimpleLayout [ axis = y, spacing = 2 ],
+                    AttentionRow [ datapath = :rows[] ]
+                    ],
+                caughtUp: View [ visible = { (classroot.attention.value?.rows ?? []).length == 0 }, width = 100%, padding = [8, 0, 8, 0],
+                    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                    CheckIcon [ iconSize = 14, weight = 2, ink = { provided("theme").good } ],
+                    Text [ fontSize = 14, text = "All caught up." ]
+                    ]
+                ],
+
+            Panel [ flexes = true, heading = "Top products", source = { classroot.products },
+                note = { classroot.productRows.length == 0 ? "No sales in this range." : "" },
+                NamedBars [ rows = { classroot.productRows },
+                    open(r: NamedRec) { app.openProduct(r.id) }
+                    ]
+                ],
+
+            Panel [ flexes = true, heading = "Top customers", source = { classroot.customers },
+                note = { classroot.customerRows.length == 0 ? "No named customers in this range." : "" },
+                NamedBars [ rows = { classroot.customerRows },
+                    open(r: NamedRec) { app.openContact(r.id, "income") }
+                    ]
+                ]
+            ],
+
+        Panel [ heading = "Recent transactions", source = { classroot.recent },
+            note = { (classroot.recent.value?.rows ?? []).length == 0 ? "No transactions match." : "" },
+            list: View [ width = 100%, datapath = { classroot.recent.value },
+                layout: SimpleLayout [ axis = y, spacing = 0 ],
+                RecentRow [ datapath = :rows[] ]
+                ],
+            Button [ height = 32, fontSize = 13, label = "All transactions",
+                onClick() { app.go("transactions") }
+                ]
+            ]
+        ]
+    ]

@@ -1,0 +1,737 @@
+/*
+# Ledger
+
+The books of a small business that makes and sells things: what came in, what
+went out, and how the business is doing. Overview, Transactions, Insights and
+Budgets, one set of filters across all of them, and one editor for recording
+a sale, a refund or an expense. On a desk and on a phone.
+
+How to read it:
+
+- **The records live in the service** (port 8370). `app.books` (a `Books`, in
+  `ledger-model.declare`) holds the lookups and makes every write; each write
+  that lands moves `books.rev`, and every read names `rev` in its address, so
+  everything on screen reads again after a change, with nothing to remember.
+- **Where the user is** is a few attributes on this App: the screen (in the
+  URL), the filter, the comparison, the sort, the selection, what is being
+  recorded. The filter is one record, `filter`; `f` is that record with its
+  dates worked out, and every read on every screen is addressed from `f`
+  through `api(…)`.
+- **Everything on screen derives from those two.** A screen owns its reads (a
+  `Remote` each) and shows them; a press writes a fact here (a new filter, a
+  selection) and the screens follow.
+- **Every number opens its records.** `openFigure`, `openCategories` and the
+  rest set the filter to exactly the records behind a number and show
+  Transactions, remembering where the person came from (`returnTo`), so Back
+  returns to the chart as it was.
+- **Money is cents** from the service to the screen; `money()` (in
+  `ledger-helpers.ts`) writes it, two decimals and a true minus sign.
+
+Files, in reading order: this one; `ledger-model.declare` (shapes, reads,
+writes); `ledger-filters.declare`; `ledger-overview.declare`;
+`ledger-transactions.declare`; `ledger-editor.declare` (recording);
+`ledger-insights.declare`; `ledger-budgets.declare`; `ledger-charts.declare`;
+`ledger-parts.declare` (themes, icons, small pieces); `ledger-helpers.ts`.
+*/
+
+script [ "ledger-helpers.ts" ]
+
+include [ "ledger-model.declare" ]
+
+include [ "ledger-parts.declare" ]
+
+include [ "ledger-filters.declare" ]
+
+include [ "ledger-charts.declare" ]
+
+include [ "ledger-overview.declare" ]
+
+include [ "ledger-transactions.declare" ]
+
+include [ "ledger-editor.declare" ]
+
+include [ "ledger-insights.declare" ]
+
+include [ "ledger-budgets.declare" ]
+
+schema ChipRec [ id: string, label: string ]
+schema CatCountRow [ id: string, label: string, count: number, tone: number ]
+schema ReturnTo [ screen: string, filter: Filter, label: string ]
+
+
+App [ appName = "Ledger", minWidth = 320,
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    fontFamily = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+
+    // ── appearance: follow the system until the person picks one
+
+    themeMode: "auto" | "light" | "dark" = "auto",
+    isDark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
+    theme = { ({ ...(app.isDark ? ({ ...SanFranciscoDark, ...LedgerDark }) : ({ ...SanFrancisco, ...LedgerLight })),
+        segmentedHeight: app.touchFirst ? 44 : 30, comboboxHeight: app.touchFirst ? 44 : 30 }) },
+
+    // ── the device
+
+    phone: boolean = { app.width < 720 },
+    roomy: boolean = { app.width >= 1180 },          // the transaction's detail sits beside the list
+    tap: number = { app.touchFirst ? 44 : 32 },       // a control's height: finger-sized on touch
+    reduceMotion: boolean = { app.accessibilitySettings?.reduceMotion ?? false },
+
+    // ── the books
+
+    books: Books [
+        saved(changeId: string, said: string) { app.didChange(changeId, said) },
+        notSaved(message: string) { app.didFail(message) },
+        notSavedRetry(message: string) { app.toast.say("Not saved: " + message, ({ id: "retry", label: "Retry" })) },
+        undone(count: number) { app.didUndo(count) },
+        contactMade(id: string, name: string) { app.editorContactMade(id, name) }
+        ],
+    today: string = { app.books.today },
+    ready: boolean = { app.books.ready },
+
+    // ── where the user is: the screen, in the URL
+
+    location = "overview",
+    screens: string[] = ["overview", "transactions", "insights", "budgets"],
+    screen: string = { app.screens.includes(app.location) ? app.location : "overview" },
+    go(place: string) { location = place },
+
+    // ── the filter
+
+    filter: Filter = { ({ preset: "this-month", from: "", to: "", q: "", min: null, max: null, kinds: [], cats: [], contacts: [], products: [] }) },
+    compare: string = "previous",          // "previous", "year" or "none"
+
+    presetDates: DateRange = { presetRange(app.filter.preset, app.today) },
+    fromDate: string = { app.filter.preset == "custom" ? app.filter.from : app.presetDates.from },
+    toDate: string = { app.filter.preset == "custom" ? app.filter.to : app.presetDates.to },
+    f: Filter = { ({ ...app.filter, from: app.fromDate, to: app.toDate }) },
+
+    compareDates: DateRange? = { compareRangeSoFar(app.fromDate, app.toDate, app.compare, app.today) },
+    compareFrom: string = { app.compareDates?.from ?? "" },
+    compareTo: string = { app.compareDates?.to ?? "" },
+    compareShort: string = { compareLabel(app.fromDate, app.toDate, app.compare, app.today) },
+
+    // the twelve months that end with the range: Overview's chart and every figure's line
+
+    trendTo: string = { app.toDate == "" ? monthEnd(app.today) : monthEnd(app.toDate) },
+    trendFrom: string = { addMonths(app.trendTo, app.phone ? -5 : -11) },
+
+    rangeText: string = { app.filter.preset == "custom" ? rangeLabel(app.fromDate, app.toDate, app.today)
+        : presetLabel(app.filter.preset) + (app.filter.preset == "all" ? "" : " · " + rangeLabel(app.fromDate, app.toDate, app.today)) },
+    compareText: string = { app.compare == "none" ? "No comparison" : app.compare == "year" ? "vs same period last year" : "vs previous period" },
+
+    // any filter besides the dates: every screen says the figures are filtered
+
+    filtered: boolean = { app.chipRows().length > 0 },
+
+    // every read's address: the endpoint, the filter, anything the read adds, the revision
+
+    api(endpoint: string, extra: object) -> string {
+        if (today == "") return ""          // nothing is read until the service has said what day it is
+        return books.api + endpoint + "?" + query(f, ({ ...extra, rev: books.rev }))
+        },
+
+    // any other read, held back the same way
+
+    gate(url: string) -> string { return today == "" ? "" : url },
+
+    // ── the filter's verbs. Each makes a new record: assigning is what tells
+    //    every read that it changed.
+
+    setFilter(patch: object) { filter = ({ ...filter, ...patch }) },
+    setPreset(id: string) { this.setFilter(({ preset: id, from: "", to: "" })) },
+    setRange(from: string, to: string) { this.setFilter(({ preset: "custom", from: from, to: to })) },
+    stepRange(dir: number) {
+        if (filter.preset == "all") return
+        const r = shiftRange(fromDate, toDate, dir)
+        this.setRange(r.from, r.to)
+        },
+    setAmount(min: number?, max: number?) {
+        // the handles never cross; typed values that would are put in order
+        if (min != null && max != null && min > max) this.setFilter(({ min: max, max: min }))
+        else this.setFilter(({ min: min, max: max }))
+        },
+    toggleIn(field: string, id: string) {
+        const list: string[] = field == "kinds" ? filter.kinds : field == "cats" ? filter.cats : filter.contacts
+        const next = list.includes(id) ? list.filter((x) => x != id) : [...list, id]
+        if (field == "kinds") this.setFilter(({ kinds: next }))
+        else if (field == "cats") this.setFilter(({ cats: next }))
+        else this.setFilter(({ contacts: next }))
+        },
+    setSearch(q: string) { this.setFilter(({ q: q })) },
+    clearFilters() {
+        filter = ({ preset: "this-month", from: "", to: "", q: "", min: null, max: null, kinds: [], cats: [], contacts: [], products: [] })
+        },
+
+    // ── the chips: every active filter, with a way to remove it
+
+    chips: Dataset [ schema = [ rows[]: ChipRec ], contents = { ({ rows: app.chipRows() }) } ],
+    chipRows() -> ChipRec[] {
+        const out: ChipRec[] = []
+        if (filter.q.trim() != "") out.push({ id: "q", label: "Search: “" + filter.q.trim() + "”" })
+        if (filter.min != null || filter.max != null) out.push({ id: "amount", label: "Amount " + amountChip(filter.min ?? null, filter.max ?? null) })
+        for (const k of filter.kinds) out.push({ id: "kind:" + k, label: kindWord(k) + "s" })
+        for (const c of filter.cats) out.push({ id: "cat:" + c, label: c == "none" ? "Uncategorised" : books.categoryName(c) })
+        for (const c of filter.contacts) out.push({ id: "contact:" + c, label: c == "none" ? "No contact" : books.contactName(c) })
+        for (const p of filter.products) out.push({ id: "product:" + p, label: books.productName(p == "none" ? null : p) })
+        return out
+        },
+    contactChips: Dataset [ schema = [ rows[]: ChipRec ], contents = { ({ rows: app.chipRows().filter((c) => c.id.startsWith("contact:")) }) } ],
+    removeChip(id: string) {
+        if (id == "q") this.setFilter(({ q: "" }))
+        else if (id == "amount") this.setFilter(({ min: null, max: null }))
+        else if (id.startsWith("kind:")) this.toggleIn("kinds", id.slice(5))
+        else if (id.startsWith("cat:")) this.toggleIn("cats", id.slice(4))
+        else if (id.startsWith("contact:")) this.toggleIn("contacts", id.slice(8))
+        else if (id.startsWith("product:")) this.setFilter(({ products: filter.products.filter((p) => p != id.slice(8)) }))
+        },
+    filterWords: string = { app.chipRows().map((c) => c.label).join(", ") },
+
+    // ── what the filter panel shows: amounts' spread, and each category's count
+
+    amountsSrc: Remote [ url = { app.gate(app.books.api + "aggregates/amounts?" + queryNoAmount(app.f) + "&rev=" + app.books.rev) }, schema = Amounts ],
+    catCountsSrc: Remote [ url = { app.api("aggregates/category-counts", ({ })) }, schema = CatCounts ],
+    catCountRows: Dataset [ schema = [ rows[]: CatCountRow ], contents = { ({ rows: app.catCountList() }) } ],
+    catCountList() -> CatCountRow[] {
+        const counts = catCountsSrc.value?.categories ?? []
+        const countOf = (id: string?) => counts.find((c) => (c.categoryId ?? null) == id)?.count ?? 0
+        const rows: CatCountRow[] = books.categories.filter((c) => !c.archived || countOf(c.id) > 0)
+            .map((c) => ({ id: c.id, label: c.name + (c.archived ? " (archived)" : ""), count: countOf(c.id),
+                tone: provided("theme").cats[c.colour] }))
+        rows.push({ id: "none", label: "Uncategorised", count: countOf(null), tone: provided("theme").warn })
+        return rows
+        },
+
+    // ── the menus the date bar opens
+
+    rangeMenu: Menu [
+        items = { [ ...presetList().map((p) => ({ id: p.id, label: p.label, group: "range", checked: app.filter.preset == p.id })),
+            ({ divider: true }),
+            ({ id: "custom", label: "Custom range…", group: "range", checked: app.filter.preset == "custom" }) ] },
+        picked(id: string) {
+            if (id == "custom") { app.setRange(app.fromDate == "" ? app.today : app.fromDate, app.toDate == "" ? app.today : app.toDate); app.customOpen = true }
+            else app.setPreset(id)
+            }
+        ],
+    customOpen: boolean = false,
+    compareMenu: Menu [
+        items = { [ ({ id: "previous", label: "vs previous period", group: "cmp", checked: app.compare == "previous" }),
+                    ({ id: "year", label: "vs same period last year", group: "cmp", checked: app.compare == "year" }),
+                    ({ id: "none", label: "No comparison", group: "cmp", checked: app.compare == "none" }) ] },
+        picked(id: string) { app.compare = id }
+        ],
+
+    // ── opening a number's records
+    //
+    // Each sets the filter to exactly the records behind the number, keeping
+    // the other filters, and shows Transactions. Where the person came from is
+    // kept, so Back returns to it as it was.
+
+    returnTo: ReturnTo? = null,
+    drill(patch: object) {
+        if (screen != "transactions") returnTo = ({ screen: screen, filter: filter, label: screen.charAt(0).toUpperCase() + screen.slice(1) })
+        this.setFilter(patch)
+        this.takeSelection([])
+        this.go("transactions")
+        },
+    goBack() {
+        const r = returnTo
+        if (r == null) return
+        filter = r.filter
+        returnTo = null
+        this.go(r.screen)
+        },
+    figureKinds(measure: string) -> string[] {
+        switch (measure) {
+            case "revenue": return ["sale", "refund"]
+            case "margin": return ["sale", "refund"]
+            case "sales": return ["sale"]
+            case "expenses": return ["expense"]
+            default: return []
+            }
+        },
+    openFigure(measure: string, from: string, to: string) {
+        const kinds = this.figureKinds(measure)
+        this.drill(({ preset: from == "" && to == "" ? "all" : "custom", from: from, to: to,
+            kinds: kinds.length == 0 ? filter.kinds : kindsBoth(filter.kinds, kinds) }))
+        },
+    openCategories(ids: string[], side: string) {
+        const kinds = side == "expense" ? ["expense"] : ["sale", "refund"]
+        this.drill(({ preset: filter.preset, from: filter.from, to: filter.to, cats: ids, kinds: kindsBoth(filter.kinds, kinds) }))
+        },
+    openProduct(id: string) {
+        // products are on sales and refunds: the list shows the sales and refunds with that product
+        this.drill(({ products: [id], kinds: kindsBoth(filter.kinds, ["sale", "refund"]) }))
+        },
+    openContact(id: string, side: string) {
+        const kinds = side == "expense" ? ["expense"] : ["sale", "refund"]
+        this.drill(({ contacts: [id], kinds: kindsBoth(filter.kinds, kinds) }))
+        },
+    openAttention(a: Attention) {
+        if (a.kind == "uncategorised") {
+            returnTo = ({ screen: screen, filter: filter, label: "Overview" })
+            filter = ({ preset: "all", from: "", to: "", q: "", min: null, max: null, kinds: [], cats: ["none"], contacts: [], products: [] })
+            this.takeSelection([])
+            this.go("transactions")
+            }
+        else {
+            returnTo = ({ screen: screen, filter: filter, label: "Overview" })
+            filter = ({ preset: "custom", from: monthStart(today), to: monthEnd(today), q: "", min: null, max: null,
+                kinds: ["expense"], cats: [a.categoryId ?? "none"], contacts: [], products: [] })
+            this.takeSelection([])
+            this.go("transactions")
+            }
+        },
+
+    // Budgets show the month in the date filter: today's, when the range holds today
+
+    budgetMonth: string = { (app.fromDate <= app.today && (app.toDate == "" || app.toDate >= app.today) ? app.today
+        : app.toDate != "" ? app.toDate : app.fromDate).slice(0, 7) },
+    openBudget(categoryId: string) {
+        const m = budgetMonth + "-01"
+        this.drill(({ preset: "custom", from: m, to: monthEnd(m), cats: [categoryId], kinds: ["expense"] }))
+        },
+    showTransaction(r: Row) {
+        if (phone) this.openOnPhone(({ id: r.id }))
+        else this.takeSelection([r])
+        this.go("transactions")
+        },
+
+    // ── the transactions: their order, the selection, the open one
+
+    sortOn: string = "date",
+    sortDir: string = "desc",
+    txns: Remote [ url = { app.api("transactions", ({ sort: app.sortOn, dir: app.sortDir, limit: 10000 })) }, schema = TxPage ],
+    rows: Row[] = { app.txns.value?.rows ?? [] },
+    total: number = { app.txns.value?.total ?? 0 },
+
+    selection: Row[] = [],
+    selectedIds: string[] = { app.selection.map((r) => r.id) },
+    allSelected: boolean = { app.total > 0 && app.selection.length == app.total },
+    takeSelection(sel: array) {
+        selection = (sel ?? []).filter((r) => r != null && r.kind != null) as Row[]
+        pinnedId = ""
+        },
+    selectAll() { selection = rows },
+
+    // the selection kept as records, mapped onto a new read of the same ones
+
+    trackChanges = ["rows"],
+    onChange(e: ChangeEvent) {
+        if (selection.length == 0) return
+        const ids = new Set(selectedIds)
+        selection = rows.filter((r) => ids.has(r.id))
+        },
+
+    // the open transaction: the one selected, or one opened by its link (a sale's refund)
+
+    pinnedId: string = "",
+    openId: string = { app.selection.length == 1 ? app.selection[0].id : app.selection.length == 0 ? app.pinnedId : "" },
+    detailOpen: boolean = false,
+    openById(id: string) {
+        const r = rows.find((x) => x.id == id)
+        if (r != null) this.takeSelection([r])
+        else { this.takeSelection([]); pinnedId = id }
+        detailOpen = true
+        },
+
+    // on a phone a tap opens a transaction; selecting many is a desk's
+
+    openOnPhone(r: PhoneLineRec) {
+        this.takeSelection([])
+        pinnedId = r.id
+        detailOpen = true
+        },
+    deleteOne(id: string) {
+        books.bulk(({ action: "delete", where: ({ ids: [id] }), expectedCount: 1 }), "Deleted # transactions")
+        this.takeSelection([])
+        pinnedId = ""
+        detailOpen = false
+        },
+    detail: Remote [ url = { app.openId == "" ? "" : app.books.api + "transactions/" + app.openId + "?rev=" + app.books.rev }, schema = Detail ],
+    closeDetail() -> boolean {
+        if (selection.length == 0) return false
+        this.takeSelection([])
+        return true
+        },
+
+    // the order, as the service sorts it: a header press names a column
+
+    sortBy(column: string, direction: string) {
+        sortOn = column == "description" || column == "contact" || column == "category" || column == "channel"
+            || column == "amount" || column == "kind" ? column : "date"
+        sortDir = direction
+        },
+
+    // the columns, and which the person has hidden
+
+    hiddenColumns: string[] = ["kind"],
+    columnList: array = { [ ({ id: "date", title: "Date", width: 80, cell: "DateCell", editor: "DateEditor" }),
+        ({ id: "description", title: "Description", width: 300, cell: "DescCell", editor: "DescEditor" }),
+        ({ id: "kind", title: "Kind", width: 90, cell: "KindCell" }),
+        ({ id: "category", title: "Category", width: 176, cell: "CategoryCell", editor: "CategoryEditor" }),
+        ({ id: "channel", title: "Channel", width: 104, cell: "ChannelCell" }),
+        ({ id: "amount", title: "Amount", width: 124, cell: "AmountCell", editor: "AmountEditor" }) ] },
+    gridColumns: array = { app.columnList },
+
+    // the description takes what the other columns leave; a narrow list sets the channel aside
+
+    narrowGrid(gridW: number) -> boolean { return gridW < 720 },
+    descWidth(gridW: number) -> number {
+        const others = columnList.filter((c) => c.id != "description" && !hiddenColumns.includes(c.id)
+            && !(c.id == "channel" && this.narrowGrid(gridW))).reduce((n, c) => n + c.width, 0)
+        return Math.max(180, gridW - others - 14)
+        },
+    columnWidths: object = { Object.fromEntries(app.hiddenColumns.map((c) => [c, 0])) },
+    columnsMenu: Menu [
+        items = { app.columnList.filter((c) => c.id != "description").map((c) => ({ id: c.id, label: c.title, checked: !app.hiddenColumns.includes(c.id) })) },
+        picked(id: string) { app.hiddenColumns = app.hiddenColumns.includes(id) ? app.hiddenColumns.filter((c) => c != id) : [...app.hiddenColumns, id] }
+        ],
+
+    // what the editors choose from
+
+    contactItems: array = { app.books.contacts.map((c) => ({ id: c.id, label: c.name })) },
+    contactItem(id: string?) -> object? { return id == null ? null : ({ id: id, label: books.contactName(id) }) },
+    categoryItems(kind: string) -> array {
+        const list = kind == "expense" ? books.expenseCategories : books.incomeCategories
+        return [...list.map((c) => ({ id: c.id, label: c.name })), ({ id: "none", label: "Uncategorised" })]
+        },
+    categoryItem(id: string?) -> object { return ({ id: id ?? "none", label: books.categoryName(id) }) },
+
+    categoriseMenu: Menu [
+        items = { [ ...app.books.expenseCategories.map((c) => ({ id: c.id, label: c.name, group: "Expense categories" })),
+            ({ divider: true }),
+            ...app.books.incomeCategories.map((c) => ({ id: c.id, label: c.name, group: "Income categories" })),
+            ({ divider: true }),
+            ({ id: "none", label: "Uncategorised" }) ] },
+        picked(id: string) { app.categoriseSelection(id == "none" ? null : id) }
+        ],
+    contactPicker: Popover [ accessibilityLabel = "Set contact",
+        col: View [ width = 280,
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            Text [ fontSize = 14, fontWeight = semibold, text = { "Set the contact of " + app.selection.length + (app.selection.length == 1 ? " transaction" : " transactions") } ],
+            Combobox [ width = 100%, placeholder = "Type a name", accessibilityLabel = "Contact",
+                items = { app.contactItems }, value = { null },
+                commit(v: object) { if (v != null) { app.setContactOfSelection(v.id); app.contactPicker.close() } }
+                ],
+            Button [ height = 30, fontSize = 13, label = "Clear the contact",
+                onClick() { app.setContactOfSelection(null); app.contactPicker.close() }
+                ]
+            ]
+        ],
+
+    // the phone's list: the same rows, a heading over each day
+
+    dayLines: Dataset [ schema = PhoneLines, contents = { ({ lines: app.groupByDay() }) } ],
+    groupByDay() -> PhoneLineRec[] {
+        const out: PhoneLineRec[] = []
+        let day = ""
+        let head: PhoneLineRec? = null
+        for (const r of rows) {
+            if (sortOn == "date" && r.date != day) {
+                day = r.date
+                head = ({ id: "day:" + day, day: day, label: dayHeading(day, today), net: 0 })
+                out.push(head)
+                }
+            if (head != null) head.net = (head.net ?? 0) + (r.inFilter ?? r.signed)
+            out.push(r)
+            }
+        return out
+        },
+
+    // nothing matches: what each filter's removal would bring back
+
+    everything: Remote [ url = { app.books.api + "summary?rev=" + app.books.rev }, schema = Summary ],
+    noBooks: boolean = { app.everything.loaded && (app.everything.value?.count ?? 0) == 0 },
+    emptyHints: Dataset [ schema = [ rows[]: EmptyHint ], contents = { ({ rows: app.total == 0 && app.txns.loaded ? app.hintRows() : [] }) } ],
+    hintRows() -> EmptyHint[] {
+        return chipRows().map((c) => ({ id: c.id, label: c.label,
+            url: books.api + "summary?" + query(this.filterWithout(c.id), ({ rev: books.rev })) }))
+        },
+    filterWithout(id: string) -> Filter {
+        const g = f
+        if (id == "q") return ({ ...g, q: "" })
+        if (id == "amount") return ({ ...g, min: null, max: null })
+        if (id.startsWith("kind:")) return ({ ...g, kinds: g.kinds.filter((k) => k != id.slice(5)) })
+        if (id.startsWith("cat:")) return ({ ...g, cats: g.cats.filter((k) => k != id.slice(4)) })
+        if (id.startsWith("contact:")) return ({ ...g, contacts: g.contacts.filter((k) => k != id.slice(8)) })
+        if (id.startsWith("product:")) return ({ ...g, products: g.products.filter((k) => k != id.slice(8)) })
+        return g
+        },
+
+    // what the summary line describes: the selection when there is one, else what is shown
+
+    summaryLine: string = { app.summaryOf() },
+    summaryOf() -> string {
+        const s = selection.length > 0 ? selectionSummary : (txns.value?.summary ?? ({ count: 0, in: 0, out: 0, net: 0 }))
+        const n = s.count.toLocaleString("en-US") + (s.count == 1 ? " transaction" : " transactions")
+        const lead = selection.length == 0 ? n
+            : allSelected ? "All " + n + " matching the filters selected"
+            : n + " selected"
+        return lead + " · In " + money(s.in) + " · Out " + money(s.out) + " · Net " + money(s.net)
+        },
+    selectionSummary: Summary = { app.sumOf(app.selection) },
+    sumOf(list: Row[]) -> Summary {
+        let a = 0, b = 0
+        for (const r of list) { const v = r.inFilter ?? r.signed; if (v >= 0) a = a + v; else b = b - v }
+        return ({ count: list.length, in: a, out: b, net: a - b })
+        },
+
+    // ── bulk changes to the selection, each said, each undoable
+
+    bulkWhere() -> object {
+        // "everything matching" goes as the filter, so it covers what isn't on screen too
+        return allSelected ? whereOf(f, []) : ({ ids: selectedIds })
+        },
+    categoriseSelection(categoryId: string?) {
+        const n = selection.length
+        books.bulk(({ action: "categorise", categoryId: categoryId, where: this.bulkWhere(), expectedCount: n }),
+            categoryId == null ? "Uncategorised # transactions" : "Categorised # transactions as " + books.categoryName(categoryId))
+        },
+    setContactOfSelection(contactId: string?) {
+        books.bulk(({ action: "set-contact", contactId: contactId, where: this.bulkWhere(), expectedCount: selection.length }),
+            contactId == null ? "Cleared the contact of # transactions" : "Set # transactions to " + books.contactName(contactId))
+        },
+    deleteSelection() {
+        books.bulk(({ action: "delete", where: this.bulkWhere(), expectedCount: selection.length }), "Deleted # transactions")
+        this.takeSelection([])
+        },
+
+    // ── undo: the last changes, newest last
+
+    changes: UndoStep[] = [],
+    didChange(changeId: string, said: string) {
+        if (changeId == "") { toast.say(said.startsWith("Categorised 0") || said.startsWith("Set 0") ? "Nothing needed changing" : said, null); return }
+        changes = [...changes, ({ changeId: changeId, said: said })]
+        toast.say(said, ({ id: "undo", label: "Undo" }))
+        },
+    didFail(message: string) {
+        notSavedMessage = message
+        toast.say("Not saved: " + message, null)
+        },
+    notSavedMessage: string = "",
+    undoLast() {
+        if (changes.length == 0) { toast.say("Nothing to undo", null); return }
+        books.undo(changes[changes.length - 1].changeId)
+        },
+    didUndo(count: number) {
+        const last = changes[changes.length - 1]
+        changes = changes.slice(0, -1)
+        toast.say("Undone: " + (last?.said ?? (count + " changes")), null)
+        },
+    canUndo: boolean = { app.changes.length > 0 },
+
+    // ── export: the filtered transactions, or the selection, as a CSV
+
+    exportCsv() {
+        const list = selection.length > 0 ? selection : rows
+        const csv = toCsv(["id", "date", "kind", "description", "contact", "category", "channel", "amount", "transaction_total"],
+            list.map((r) => [r.id, r.date, r.kind, r.description, r.contactName ?? "",
+                r.split != null ? r.split.categoryIds.map((c) => books.categoryName(c)).join(" + ") : books.categoryName(r.categoryId ?? null),
+                books.channelName(r.channel ?? null), plainAmount(r.inFilter ?? r.signed), plainAmount(r.signed)]))
+        const name = "ledger-" + (fromDate == "" ? "all" : fromDate) + (toDate == "" ? "" : "-to-" + toDate) + (selection.length > 0 ? "-selection" : "") + ".csv"
+        FilePicker.save(csv, ({ name: name, type: "text/csv" }))
+        toast.say("Exported " + list.length.toLocaleString("en-US") + (list.length == 1 ? " transaction" : " transactions"), null)
+        },
+
+    // ── recording: which kind, and where the next one starts
+
+    recording: boolean = false,
+    recordKind: string = "expense",
+    refundOf: string = "",
+    record(kind: string) { recordKind = kind; refundOf = ""; recording = true },
+    carryDate: string = "",
+    carryChannel: string = "market",
+    recorded(id: string, changeId: string, kind: string, date: string, channel: string) {
+        carryDate = date
+        if (kind == "sale") carryChannel = channel
+        changes = [...changes, ({ changeId: changeId, said: "Recorded a " + kind })]
+        toast.say("Recorded the " + kind, ({ id: "undo", label: "Undo" }))
+        books.landed()
+        // the new one is open in the list
+        this.takeSelection([])
+        pinnedId = id
+        },
+    refund(saleId: string) { recordKind = "refund"; refundOf = saleId; recording = true },
+    editorContactMade(id: string, name: string) { app.recordSheet.editor?.contactMade(id, name) },
+
+    // ── the keyboard
+
+    topBar: TopBar = { app.main.topBar },
+    search: SearchField = { app.topBar.search },
+    shortcuts: Shortcuts [ title = "Ledger",
+        items = { [ ({ id: "expense", key: "e", label: "New expense" }),
+                    ({ id: "sale", key: "s", label: "New sale" }),
+                    ({ id: "find", key: "/", label: "Search" }),
+                    ({ id: "prev", key: "[", label: "Previous date range" }),
+                    ({ id: "next", key: "]", label: "Next date range" }),
+                    ({ id: "undo", key: "Ctrl+Z", label: "Undo the last change", enabled: app.canUndo }),
+                    ({ id: "overview", key: "1", label: "Overview" }),
+                    ({ id: "transactions", key: "2", label: "Transactions" }),
+                    ({ id: "insights", key: "3", label: "Insights" }),
+                    ({ id: "budgets", key: "4", label: "Budgets" }) ] },
+        picked(id: string) {
+            if (id == "expense" || id == "sale") app.record(id)
+            else if (id == "find") Focus.focus(app.search)
+            else if (id == "prev") app.stepRange(-1)
+            else if (id == "next") app.stepRange(1)
+            else if (id == "undo") app.undoLast()
+            else app.go(id)
+            }
+        ],
+    keyBindings = { [ ({ key: "Escape", command: "closeDetail", label: "Close the open transaction" }) ] },
+
+    // ── the frame: the nav beside the content on a desk; a bar on top and
+    //    tabs along the bottom on a phone
+
+    layout: SimpleLayout [ axis = { app.phone ? "y" : "x" }, align = stretch ],
+
+    nav: View [ visible = { !app.phone }, width = 214, padding = [18, 12, 16, 12],
+        accessibilityRole = navigation, accessibilityLabel = "Ledger",
+        fill = { provided("theme").navFill }, stroke = { [null, Stroke(1, provided("theme").line), null, null] },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        brand: Text [ padding = [0, 10, 16, 10], fontSize = 19, fontWeight = bold, letterSpacing = -0.3, text = "Ledger" ],
+        NavItem [ place = "overview", label = "Overview" ],
+        NavItem [ place = "transactions", label = "Transactions" ],
+        NavItem [ place = "insights", label = "Insights" ],
+        NavItem [ place = "budgets", label = "Budgets" ],
+        View [ height = 18 ],
+        Button [ width = 100%, height = 36, primary = true, fontSize = 13, label = "New expense",
+            tooltipLabel = "E",
+            onClick() { app.record("expense") }
+            ],
+        View [ height = 6 ],
+        Button [ width = 100%, height = 36, fontSize = 13, label = "New sale", tooltipLabel = "S",
+            onClick() { app.record("sale") }
+            ],
+        Spacer [ ],
+        AppearanceSwitch [ dark = { app.isDark },
+            commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
+            ]
+        ],
+
+    main: View [ flexes = true, accessibilityRole = main,
+        layout: SimpleLayout [ axis = y ],
+
+        topBar: TopBar [ ],
+
+        chipsRow: View [ visible = { app.filtered }, width = 100%, padding = { app.phone ? [0, 12, 8, 12] : [0, 24, 10, 24] },
+            stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+            FilterChips [ ]
+            ],
+
+        content: View [ width = 100%, flexes = true,
+            starting: View [ visible = { !app.ready }, width = 100%, height = 100%,
+                col: View [ x = center, y = { parent.height * 0.35 }, width = 280,
+                    layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+                    Text [ fontSize = 15, textAlign = center, width = 280,
+                        text = { app.books.failed ? "The books couldn't be reached." : "Opening the books…" } ],
+                    Button [ visible = { app.books.failed }, label = "Retry",
+                        onClick() { app.books.retryLookups() }
+                        ]
+                    ]
+                ],
+            overview: OverviewScreen [ visible = { app.ready && app.screen == "overview" } ],
+            transactions: TransactionsScreen [ visible = { app.ready && app.screen == "transactions" } ],
+            insights: InsightsScreen [ visible = { app.ready && app.screen == "insights" } ],
+            budgets: BudgetsScreen [ visible = { app.ready && app.screen == "budgets" } ]
+            ]
+        ],
+
+    phoneTabs: View [ visible = { app.phone }, height = { 56 + app.safeBottom }, padding = { [0, 4, app.safeBottom, 4] },
+        accessibilityRole = navigation, accessibilityLabel = "Ledger",
+        fill = { provided("theme").surface }, stroke = { [Stroke(1, provided("theme").line), null, null, null] },
+        layout: SimpleLayout [ axis = x, align = center ],
+        PhoneTab [ place = "overview", label = "Overview" ],
+        PhoneTab [ place = "transactions", label = "Transactions" ],
+        recordTab: Control [ flexes = true, height = 56, accessibilityLabel = "Record",
+            menu = { app.recordMenu },
+            col: View [ x = center, y = center,
+                layout: SimpleLayout [ axis = y, spacing = 3, align = center ],
+                View [ width = 30, height = 30, cornerRadius = 15, fill = { provided("theme").accent },
+                    PlusIcon [ x = center, y = center, iconSize = 14, weight = 2.2, ink = { provided("theme").accentTextColor } ]
+                    ],
+                Text [ fontSize = 11, fontWeight = medium, wrap = false, textColor = { provided("theme").accent }, text = "Record" ]
+                ]
+            ]
+        ],
+
+    recordMenu: Menu [
+        items = { [ ({ id: "expense", label: "New expense" }), ({ id: "sale", label: "New sale" }) ] },
+        picked(id: string) { app.record(id) }
+        ],
+
+    // ── layers
+
+    customRange: Popover [ anchorTo = { app.topBar.dates.range }, shown = { app.customOpen },
+        commit(open: boolean) { app.customOpen = open },
+        accessibilityLabel = "Custom range",
+        CustomRange [ ]
+        ],
+
+    filterPanel: Popover [ anchorTo = { app.topBar.filters }, accessibilityLabel = "Filters",
+        shown = { app.filtersOpen && !app.phone },
+        commit(open: boolean) { app.filtersOpen = open },
+        View [ width = 340, height = { Math.min(this.contentHeight, app.height - 120) }, scrolls = y,
+            FilterPanel [ ]
+            ]
+        ],
+    filterSheet: Sheet [ accessibilityLabel = "Filters",
+        shown = { app.filtersOpen && app.phone },
+        commit(open: boolean) { app.filtersOpen = open },
+        Text [ fontSize = 17, fontWeight = semibold, text = "Filters" ],
+        DateBar [ ],
+        Button [ height = 44, label = { app.compareText }, menu = { app.compareMenu } ],
+        FilterPanel [ ],
+        Button [ width = 100%, height = 44, primary = true, label = "Done",
+            onClick() { app.filtersOpen = false }
+            ]
+        ],
+    filtersOpen: boolean = false,
+
+    // the open transaction where there is no room beside the list: a sheet
+
+    detailSheet: Sheet [ edge = { app.phone ? "bottom" : "end" }, accessibilityLabel = "Transaction detail",
+        shown = { app.detailOpen && app.openId != "" && !app.roomy && app.screen == "transactions" },
+        commit(open: boolean) { app.detailOpen = open },
+        TransactionDetail [ State [ applied = { !app.phone }, width = 340 ]
+            ]
+        ],
+
+    recordSheet: RecordSheet [ ],
+
+    toast: Toast [ duration = 6000,
+        picked(id: string) {
+            if (id == "undo") app.undoLast()
+            else if (id == "retry") app.books.retryPatch()
+            }
+        ]
+    ]
+
+
+// The bar over every screen: the screen's name and the back way to where a
+// number was opened from; the date range; search; the filters; on the
+// Transactions screen, export.
+
+class TopBar [ width = 100%, padding = { app.phone ? [8 + app.safeTop, 12, 8, 12] : [14, 24, 12, 24] },
+    layout: WrappingLayout [ spacing = 10, rowSpacing = 8, align = center ],
+    back: Button [ visible = { app.returnTo != null && app.screen == "transactions" }, height = { app.tap }, fontSize = 13,
+        label = { "← Back to " + (app.returnTo?.label ?? "") },
+        onClick() { app.goBack() }
+        ],
+    title: Text [ visible = { app.returnTo == null || app.screen != "transactions" }, fontSize = { app.phone ? 20 : 22 },
+        fontWeight = bold, accessibilityRole = heading, wrap = false,
+        text = { app.screen.charAt(0).toUpperCase() + app.screen.slice(1) } ],
+    dates: DateBar [ ],
+    search: SearchField [ width = { app.phone ? 160 : 220 }, height = { app.tap }, placeholder = "Search   /",
+        accessibilityLabel = "Search transactions",
+        fontSize = { app.touchFirst ? 16 : 13 },
+        value = { app.filter.q },
+        commit(v: string) { app.setSearch(v) }
+        ],
+    filters: ActionButton [ glyph = "filter", label = { app.filtered ? "Filters · " + app.chipRows().length : "Filters" },
+        on = { app.filtersOpen },
+        press() { app.filtersOpen = true }
+        ]
+    ]

@@ -1,0 +1,273 @@
+/*
+# Ledger: the filters
+
+One set of filters shapes every list, chart and summary at once. The filter
+itself is one record on the App (`app.filter`); everything here shows it and
+hands changes back to the App's verbs (`setFilter`, `setRange`, `stepRange`,
+`clearFilters`). Nothing here fetches: each read on screen names the filter in
+its address and follows it.
+
+- `DateBar` — the date range, always present: presets, two dates, the arrows
+  that step it, and the comparison period beside it.
+- `FilterChips` — every active filter as a chip with a way to remove it, and
+  "Clear all".
+- `AmountFilter` — the two-handled slider on a friendly, non-linear scale, a
+  histogram of amounts above it, and two exact number fields.
+- `FilterPanel` — amount, kind, category (with counts) and contact.
+*/
+
+// ── the date range ──────────────────────────────────────────────────────────
+
+class DateBar [
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    prev: IconControl [ shape = "back", accessibilityLabel = "Previous period", tooltipLabel = "Previous period  [",
+        disabled = { app.filter.preset == "all" },
+        press() { app.stepRange(-1) }
+        ],
+    range: Button [ height = { app.tap }, fontSize = 13,
+        accessibilityLabel = { "Date range, " + app.rangeText },
+        label = { app.rangeText }, menu = { app.rangeMenu } ],
+    next: IconControl [ shape = "back", flip = true, accessibilityLabel = "Next period", tooltipLabel = "Next period  ]",
+        disabled = { app.filter.preset == "all" },
+        press() { app.stepRange(1) }
+        ],
+    compare: Button [ visible = { !app.phone }, height = { app.tap }, fontSize = 13,
+        accessibilityLabel = { "Compare with: " + app.compareText },
+        label = { app.compareText }, menu = { app.compareMenu } ]
+    ]
+
+
+// A small control that is only an icon: the date arrows, a chip's ×.
+
+class IconControl extends Control [ width = { app.tap }, height = { app.tap }, cornerRadius = 8,
+    shape: string = "",
+    flip: boolean = false,
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    State [ applied = { classroot.disabled }, opacity = 0.4 ],
+    g: Glyph [ x = center, y = center, iconSize = 14, weight = 1.8, shape = { classroot.shape },
+        scale = { classroot.flip ? -1 : 1 }, pivotX = 7, pivotY = 7, ink = { provided("theme").text } ]
+    ]
+
+
+// The custom range: two dates, applied as they change.
+
+class CustomRange [ width = 300, padding = 4,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 14, fontWeight = semibold, text = "Custom range" ],
+    Field [ label = "From", labelWidth = 50,
+        DatePicker [ width = 200, value = { app.fromDate }, accessibilityLabel = "From",
+            commit(v: string) { app.setRange(v, v > app.toDate && app.toDate != "" ? v : app.toDate) }
+            ]
+        ],
+    Field [ label = "To", labelWidth = 50,
+        DatePicker [ width = 200, value = { app.toDate }, accessibilityLabel = "To",
+            commit(v: string) { app.setRange(v < app.fromDate ? v : app.fromDate, v) }
+            ]
+        ]
+    ]
+
+
+// ── the chips ───────────────────────────────────────────────────────────────
+
+schema FilterChipRec [ id: string, label: string ]
+
+class FilterChip extends Control [ height = { app.tap - 4 }, cornerRadius = { this.height / 2 }, padding = [0, 4, 0, 12],
+    chipId: string = "",
+    label: string = "",
+    accessibilityLabel = { "Remove filter " + classroot.label },
+    fill = { hovered ? provided("theme").controlHovered : provided("theme").controlSelected },
+    press() { app.removeChip(classroot.chipId) },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    TextLabel [ fontSize = 12.5, fontWeight = medium, wrap = false, maxLines = 1, text = { classroot.label } ],
+    View [ width = 22, height = 22,
+        CloseIcon [ x = center, y = center, iconSize = 9, ink = { provided("theme").textMuted } ]
+        ]
+    ]
+
+
+class FilterChips [ width = 100%,
+    datapath = { app.chips.value },
+    layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+    FilterChip [ datapath = :rows[], chipId = :id, label = :label ],
+    clear: Control [ visible = { app.filtered }, height = { app.tap - 4 }, padding = [0, 8, 0, 8], cornerRadius = 8,
+        fill = { hovered ? provided("theme").hover : null },
+        accessibilityLabel = "Clear all filters",
+        press() { app.clearFilters() },
+        TextLabel [ fontSize = 12.5, fontWeight = medium, textColor = { provided("theme").accent }, text = "Clear all" ]
+        ]
+    ]
+
+
+// The line every filtered screen carries, so a filtered total is never read
+// as the whole.
+
+class FilteredNote [ width = 100%, visible = { app.filtered }, padding = [8, 12, 8, 12], cornerRadius = 8,
+    fill = { provided("theme").warnTint },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Glyph [ shape = "filter", iconSize = 14, ink = { provided("theme").warn } ],
+    Text [ flexes = true, fontSize = 13, textColor = { provided("theme").text },
+        text = { "Filtered: these figures cover only " + app.filterWords + "." } ]
+    ]
+
+
+// ── the amount ──────────────────────────────────────────────────────────────
+//
+// The slider moves along friendly steps ($0, $1, $2, $5, $10 … $5,000 and
+// "no limit"), so the many small amounts get most of the track and the few
+// rents still fit. Above it, how the transactions the other filters let
+// through are spread by amount, the chosen range in the accent; below it,
+// labels at $10, $50, $100, $500, $1k, $5k. The fields take exact cents.
+
+class AmountFilter [ width = 100%,
+    top: number = { amountStepCount() },
+    lowStep: number = { app.filter.min == null ? 0 : stepOf(app.filter.min) },
+    highStep: number = { app.filter.max == null ? classroot.top : stepOf(app.filter.max) },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+
+    // the histogram, on the same scale as the track (the track runs 9pt in from each end)
+
+    hist: View [ width = 100%, height = 40, accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const b = app.amountsSrc.value?.buckets ?? []
+            const peak = Math.max(1, ...b.map((k) => k.count))
+            const n = classroot.top
+            const at = (cents: number) => 9 + (d.w - 18) * Math.min(1, stepOf(cents) / n)
+            for (const k of b) {
+                if (k.count == 0) continue
+                const x0 = at(k.min), x1 = k.max == null ? d.w - 9 : at(k.max)
+                const h = Math.max(2, (d.h - 2) * k.count / peak)
+                const mid = (stepOf(k.min) + (k.max == null ? n : stepOf(k.max))) / 2
+                d.fillStyle = mid >= classroot.lowStep && mid <= classroot.highStep ? provided("theme").accent : provided("theme").lineStrong
+                d.fillRect(x0 + 0.5, d.h - h, Math.max(1, x1 - x0 - 1), h)
+            }
+            }
+        ],
+    slider: RangeSlider [ width = 100%, min = 0, max = { classroot.top }, step = 1,
+        accessibilityLabel = "Amount", lowLabel = "Minimum amount", highLabel = "Maximum amount",
+        value = { ({ low: classroot.lowStep, high: classroot.highStep }) },
+        valueText(v: number) -> string {
+            if (v <= 0) return "no minimum"
+            if (v >= classroot.top) return "no maximum"
+            return money(amountAt(v)).replace(".00", "")
+            },
+        commit(v: object) {
+            app.setAmount(v.low <= 0 ? null : amountAt(v.low), v.high >= classroot.top ? null : amountAt(v.high))
+            }
+        ],
+    ticks: View [ width = 100%, height = 16, accessibilityHidden = true,
+        tickData: Dataset [ contents = { ({ rows: amountTicks().map((c) => ({ id: "t" + c, cents: c })) }) } ],
+        datapath = { this.tickData.value },
+        Text [ datapath = :rows[], fontSize = 11, wrap = false, textColor = { provided("theme").textMuted },
+            text = { friendlyDollars(:cents) },
+            x = { 9 + (parent.width - 18) * stepOf(:cents) / classroot.top - this.width / 2 } ]
+        ],
+    fields: View [ width = 100%, padding = [6, 0, 0, 0],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        MoneyField [ flexes = true, accessibilityLabel = "Minimum amount, exact", placeholder = "No minimum",
+            cents = { app.filter.min },
+            commitCents(v: number?) { app.setAmount(v, app.filter.max) }
+            ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "to" ],
+        MoneyField [ flexes = true, accessibilityLabel = "Maximum amount, exact", placeholder = "No maximum",
+            cents = { app.filter.max },
+            commitCents(v: number?) { app.setAmount(app.filter.min, v) }
+            ]
+        ]
+    ]
+
+
+// A field for money: shows cents as dollars, takes only what could be money,
+// and hands back cents (or null when emptied) once the person leaves it or
+// presses Return.
+
+class MoneyField extends TextInput [ height = { app.tap }, commitOn = "end", purpose = decimal,
+    cents: number? = null,
+    value = { classroot.cents == null ? "" : moneyField(classroot.cents) },
+    admit(t: string) -> string | null { return /^\$?[0-9,]*\.?[0-9]{0,2}$/.test(t) ? t : null },
+    commit(t: string) { commitCents(t.trim() == "" ? null : parseMoney(t)) },
+    commitCents(v: number?) { }
+    ]
+
+
+// ── kind, category, contact ─────────────────────────────────────────────────
+
+// A choice that toggles: a kind, a category. Its count is how many it would
+// have under the other filters.
+
+class ToggleRow extends Control [ width = 100%, height = { app.tap }, cornerRadius = 7, padding = [0, 8, 0, 8],
+    label: string = "",
+    count: number = -1,
+    on: boolean = false,
+    tone: number = 0,
+    accessibilityRole = checkbox,
+    accessibilityChecked = { classroot.on },
+    accessibilityLabel = { classroot.label + (classroot.count >= 0 ? ", " + classroot.count : "") },
+    fill = { hovered ? provided("theme").hover : null },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    box: View [ width = 16, height = 16, cornerRadius = 4,
+        fill = { classroot.on ? provided("theme").accent : null },
+        stroke = { classroot.on ? null : Stroke(1.5, provided("theme").lineStrong) },
+        CheckIcon [ visible = { classroot.on }, x = center, y = center, iconSize = 11, weight = 2, ink = { provided("theme").accentTextColor } ]
+        ],
+    dot: View [ visible = { classroot.tone != 0 }, width = 8, height = 8, cornerRadius = 4, fill = { classroot.tone } ],
+    TextLabel [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { classroot.label } ],
+    TextLabel [ visible = { classroot.count >= 0 }, fontSize = 12, numeralWidth = tabular,
+        textColor = { provided("theme").textMuted }, text = { classroot.count.toLocaleString("en-US") } ]
+    ]
+
+
+schema KindRec [ id: string, label: string ]
+
+class FilterPanel [ width = 100%,
+    kindData: Dataset [ schema = [ rows[]: KindRec ] ] { { "rows": [
+        { "id": "sale", "label": "Sales" }, { "id": "refund", "label": "Refunds" }, { "id": "expense", "label": "Expenses" } ] } },
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    amount: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        SectionLabel [ text = "Amount" ],
+        AmountFilter [ ]
+        ],
+
+    kinds: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        SectionLabel [ text = "Kind" ],
+        list: View [ width = 100%, datapath = { classroot.kindData.value },
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            ToggleRow [ datapath = :rows[], label = :label, on = { app.filter.kinds.includes(:id) },
+                press() { app.toggleIn("kinds", :id) }
+                ]
+            ]
+        ],
+
+    cats: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        SectionLabel [ text = "Category" ],
+        list: View [ width = 100%, datapath = { app.catCountRows.value },
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            ToggleRow [ datapath = :rows[], label = :label, count = :count, tone = :tone,
+                on = { app.filter.cats.includes(:id) },
+                press() { app.toggleIn("cats", :id) }
+                ]
+            ]
+        ],
+
+    contacts: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        SectionLabel [ text = "Contact" ],
+        Combobox [ width = 100%, placeholder = "Add a customer or vendor…", accessibilityLabel = "Filter by contact",
+            items = { app.books.contacts.filter((c) => !app.filter.contacts.includes(c.id)).map((c) => ({ id: c.id, label: c.name })) },
+            value = { null },
+            commit(v: object) { if (v != null) app.toggleIn("contacts", v.id) }
+            ],
+        chosen: View [ width = 100%, datapath = { app.contactChips.value },
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            FilterChip [ datapath = :rows[], chipId = :id, label = :label ]
+            ]
+        ]
+    ]
+
+
+class SectionLabel extends Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6,
+    textTransform = uppercase, wrap = false, textColor = { provided("theme").textMuted }
+    ]

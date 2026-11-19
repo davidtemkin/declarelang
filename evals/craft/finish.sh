@@ -15,11 +15,17 @@
 set -u
 RUN="${1:?usage: finish.sh <run-dir>}"
 LOGS="$RUN/logs"
-PID=$(grep -o 'AGENT_PID=[0-9]*' "$LOGS/started.txt" | cut -d= -f2)
+# the agent now running: a resumed session (`claude -p --resume`) adds its own
+# AGENT_PID line below the first, and it is the last one that is live
+PID=$(grep -o 'AGENT_PID=[0-9]*' "$LOGS/started.txt" | tail -1 | cut -d= -f2)
 [ -n "$PID" ] || { echo "finish: no AGENT_PID in $LOGS/started.txt"; exit 1; }
 
-# wait for the final record, or for the agent to be gone
-until grep -q '"type":"result"' "$LOGS/agent.stream.jsonl" 2>/dev/null || ! kill -0 "$PID" 2>/dev/null; do sleep 5; done
+# wait for the final record, or for the agent to be gone. Only a record written
+# after this starts counts, and only one with turns in it: a resume first replays
+# the session's last result with "num_turns":0, before it has done anything
+BASE=$(wc -l < "$LOGS/agent.stream.jsonl" 2>/dev/null || echo 0)
+finished() { tail -n +"$((BASE + 1))" "$LOGS/agent.stream.jsonl" 2>/dev/null | grep '"type":"result"' | grep -vq '"num_turns":0,'; }
+until finished || ! kill -0 "$PID" 2>/dev/null; do sleep 5; done
 echo "finish: $(date -u +%H:%M:%SZ) the build's result is in (or the agent is gone)"
 
 # STRAYS: what the agent started detached (`nohup npm start &`, a server sent to the

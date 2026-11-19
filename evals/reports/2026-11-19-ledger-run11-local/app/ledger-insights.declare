@@ -1,0 +1,288 @@
+/*
+# Ledger: Insights
+
+Charts of the filtered data, as tabs: Trends, Income vs expenses, Breakdown,
+Products. Each has a title, one plain sentence saying what it shows, the
+chart, and a way to see it as a table that holds everything the chart shows.
+Every bar and every table row opens Transactions filtered to exactly its
+records; Back returns here as it was, because the screen stays built.
+*/
+
+// A row of a chart's table: the period (or name), what it shows, and what
+// opens it. Numbers are formatted here and set right by the cell.
+
+schema TableRec [ id: string, name: string, a: string, b: string, c: string, d: string, e: string,
+    from: string, to: string, key: string, measure: string,
+    sa: number, sb: number, sc: number, sd: number, se: number ]
+
+class NameCell [ width = 100%, height = 100%,
+    TextLabel [ x = 10, fontSize = 13, wrap = false, maxLines = 1, width = { parent.width - 16 }, text = :name ]
+    ]
+
+
+class NumCell [ width = 100%, height = 100%,
+    TextLabel [ x = end, padding = [0, 10, 0, 6], fontSize = 13, wrap = false, numeralWidth = tabular,
+        text = { "" + :@[(provided("column").id)] } ]
+    ]
+
+
+// A chart's table: the same figures, rows a keyboard walks and Enter opens.
+
+class ChartTable extends DataGrid [ width = 100%, selects = "single",
+    rows: TableRec[] = [],
+    headers: string[] = [],
+    items = { classroot.sorted() },
+    sortKey: string = "",
+    sortWay: string = "asc",
+    sortOn = { classroot.sortKey }, sortDir = { classroot.sortWay },
+    applySort(column: string, direction: string) { sortKey = column; sortWay = direction },
+
+    // each column sorts by its number (`sa` … `se`), the first by name
+
+    sortValue(r: TableRec) -> number {
+        switch (sortKey) {
+            case "a": return r.sa
+            case "b": return r.sb
+            case "c": return r.sc
+            case "d": return r.sd
+            default: return r.se
+            }
+        },
+    sorted() -> TableRec[] {
+        if (sortKey == "") return rows
+        const out = [...rows].sort((x, y) => sortKey == "name" ? x.name.localeCompare(y.name) : sortValue(x) - sortValue(y))
+        return sortWay == "desc" ? out.reverse() : out
+        },
+    height = { Math.min(420, provided("theme").gridHeaderHeight + this.rows.length * provided("theme").gridRowHeight + 4) },
+    columns = { classroot.headers.map((h, i) => ({ id: ["name", "a", "b", "c", "d", "e"][i], title: h,
+        width: i == 0 ? 200 : 128, cell: i == 0 ? "NameCell" : "NumCell" })) },
+    activateRequested() { const r = this.selectedItem as TableRec?; if (r != null) this.openRow(r) },
+
+    // a click on a row opens it, as Enter does
+
+    rowClick(i: number, m: object, toggle: boolean, range: boolean) { super.rowClick(i, m, toggle, range); this.openRow(m as TableRec) },
+    openRow(r: TableRec) { }
+    ]
+
+
+// A chart's frame: the title, the sentence, the chart or its table.
+
+class InsightCard extends Panel [
+    sentence: string = "",
+    asTable: boolean = false,
+    tooLittle: boolean = false,
+    tableOnly: boolean = false,
+    chartShown: boolean = { !classroot.asTable && !classroot.tooLittle },
+    note = { classroot.sentence },
+    toggle: View [ width = 100%, visible = { !classroot.tableOnly },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Spacer [ ],
+        Segmented [ accessibilityLabel = "Show as", value = { classroot.asTable ? "table" : "chart" },
+            items = { [ ({ id: "chart", label: "Chart" }), ({ id: "table", label: "Table" }) ] },
+            commit(v: string) { classroot.asTable = v == "table" }
+            ]
+        ],
+    little: Text [ width = 100%, visible = { classroot.tooLittle && !classroot.asTable }, padding = [24, 0, 24, 0],
+        textAlign = center, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = "Too little data to chart honestly here — widen the date range, or choose a finer step." ]
+    ]
+
+
+schema MeasureRec [ id: string, label: string ]
+
+class InsightsScreen [ width = 100%, height = 100%, scrolls = y,
+    tab: string = "trends",
+
+    // ── Trends: one measure over time
+
+    measure: string = "expenses",
+    measures: MeasureRec[] = { [ ({ id: "revenue", label: "Revenue" }), ({ id: "expenses", label: "Expenses" }),
+        ({ id: "net", label: "Net profit" }), ({ id: "margin", label: "Gross margin %" }), ({ id: "sales", label: "Number of sales" }) ] },
+    measureLabel: string = { this.measures.find((m) => m.id == this.measure)?.label ?? "" },
+
+    // the step: chosen from the range until the person picks one
+
+    by: string = { suitedBy(app.fromDate, app.toDate, app.today) },
+    trend: Remote [ url = { app.api("aggregates/periods", ({ by: classroot.by })) }, schema = Periods ],
+    trendBefore: Remote [ url = { app.compareFrom == "" ? "" : app.api("aggregates/periods", ({ by: classroot.by, from: app.compareFrom, to: app.compareTo })) },
+        schema = Periods ],
+
+    // periods that haven't begun yet are left off: nothing in them can be read
+
+    periods: Period[] = { (this.trend.value?.periods ?? []).filter((p) => p.start <= app.today) },
+    before: Period[] = { app.compare == "none" ? [] : this.trendBefore.value?.periods ?? [] },
+    nonEmpty: number = { this.periods.filter((p) => p.revenue.count + p.expenses.count > 0).length },
+    trendSentence: string = { classroot.trendSays() },
+    measureValue(p: Period) -> number {
+        return measure == "revenue" ? p.revenue.amount : measure == "expenses" ? p.expenses.amount : measure == "net" ? p.net.amount
+            : measure == "margin" ? (p.grossMargin.percent ?? 0) : p.sales.count
+        },
+    sayValue(v: number) -> string { return measure == "margin" ? pct(v) : measure == "sales" ? v + " sales" : money(v) },
+    trendSays() -> string {
+        const done = periods.filter((p) => !p.partial || periods.length == 1)
+        if (done.length == 0) return ""
+        let hi = done[0], lo = done[0]
+        for (const p of done) { if (measureValue(p) > measureValue(hi)) hi = p; if (measureValue(p) < measureValue(lo)) lo = p }
+        const verb = measure == "sales" ? "Sales were" : measureLabel + (measure == "expenses" ? " were" : " was")
+        return verb + " highest in " + periodName(hi.period, by) + " (" + sayValue(measureValue(hi)) + ") and lowest in "
+            + periodName(lo.period, by) + " (" + sayValue(measureValue(lo)) + ")" + (periods.some((p) => p.partial) ? "; the last period isn't over yet." : ".")
+        },
+    trendTable: TableRec[] = { this.periods.map((p, i) => ({ id: p.period, name: periodName(p.period, this.by) + (p.partial ? " (so far)" : ""),
+        a: this.sayValue(this.measureValue(p)), b: i > 0 ? pctChange(this.measureValue(p), this.measureValue(this.periods[i - 1])) : "",
+        c: this.before[i] != null ? this.sayValue(this.measureValue(this.before[i])) : "", d: "" + (this.measure == "expenses" ? p.expenses.count : this.measure == "sales" ? p.sales.count : p.revenue.count + (this.measure == "net" ? p.expenses.count : 0)), e: "",
+        from: p.from, to: p.to, key: "", measure: this.measure,
+        sa: this.measureValue(p), sb: 0, sc: this.before[i] != null ? this.measureValue(this.before[i]) : 0, sd: 0, se: 0 })) },
+
+    // ── Income vs expenses, with the running total of net profit
+
+    ivePeriods: Period[] = { this.periods },
+    breakEven: string = { classroot.breakEvenSays() },
+    breakEvenSays() -> string {
+        let run = 0, wasBelow = false, when = ""
+        for (const p of periods) {
+            run = run + p.net.amount
+            if (run < 0) { wasBelow = true; when = "" }
+            else if (wasBelow && when == "") when = p.period
+            }
+        const total = periods.reduce((n, p) => n + p.net.amount, 0)
+        if (periods.length == 0) return ""
+        const head = "Net profit over the range is " + money(total) + ". "
+        if (!wasBelow) return head + "The running total never went below zero."
+        if (when == "") return head + "The running total hasn't yet climbed back to break-even."
+        return head + "The running total broke even in " + periodName(when, by) + "."
+        },
+    iveTable: TableRec[] = { classroot.iveRows() },
+    iveRows() -> TableRec[] {
+        let run = 0
+        return periods.map((p) => { run = run + p.net.amount; return ({ id: p.period, name: periodName(p.period, by) + (p.partial ? " (so far)" : ""),
+            a: money(p.revenue.amount), b: money(p.expenses.amount), c: money(p.net.amount), d: money(run), e: "" + p.net.count,
+            from: p.from, to: p.to, key: "", measure: "net", sa: p.revenue.amount, sb: p.expenses.amount, sc: p.net.amount, sd: run, se: p.net.count }) })
+        },
+
+    // ── Breakdown: categories, sorted, with share and change
+
+    side: string = "expense",
+    cats: Remote [ url = { app.api("aggregates/categories", ({ side: classroot.side })) }, schema = CatAgg ],
+    catsBefore: Remote [ url = { app.compareFrom == "" ? "" : app.api("aggregates/categories", ({ side: classroot.side, from: app.compareFrom, to: app.compareTo })) },
+        schema = CatAgg ],
+    catTotal: number = { this.cats.value?.total.amount ?? 0 },
+    breakdown: NamedRec[] = { classroot.breakdownRows() },
+    breakdownRows() -> NamedRec[] {
+        const now = cats.value?.categories ?? []
+        const was = app.compare == "none" ? [] : catsBefore.value?.categories ?? []
+        return now.map((c) => {
+            const prev = was.find((w) => (w.categoryId ?? null) == (c.categoryId ?? null))
+            const name = app.books.categoryName(c.categoryId ?? null)
+            const share = catTotal != 0 ? c.amount / catTotal : 0
+            return ({ id: c.categoryId ?? "none", key: c.categoryId ?? "none", label: name, amount: c.amount, count: c.count,
+                share: share, before: prev == null ? (app.compare == "none" ? null : 0) : prev.amount,
+                tone: c.categoryId == null ? provided("theme").warn : provided("theme").cats[Math.max(0, app.books.colourOf(c.categoryId))],
+                sentence: name + ", " + money(c.amount) + ", " + Math.round(share * 100) + "% of the total"
+                    + (prev != null && prev.amount != 0 ? ", " + pctChange(c.amount, prev.amount) + " vs " + app.compareShort : "")
+                    + ", " + c.count + " transactions" })
+            })
+        },
+    breakdownSentence: string = { this.breakdown.length == 0 ? "Nothing in this range."
+        : this.breakdown[0].label + (this.side == "expense" ? " was the largest expense (" : " brought in the most (") + money(this.breakdown[0].amount)
+            + ", " + Math.round((this.breakdown[0].share ?? 0) * 100) + "% of " + money(this.catTotal) + ")." },
+    breakdownTable: TableRec[] = { this.breakdown.map((r) => ({ id: r.id, name: r.label, a: money(r.amount), b: Math.round((r.share ?? 0) * 100) + "%",
+        c: r.before == null ? "" : money(r.before ?? 0), d: r.before == null || r.before == 0 ? "" : pctChange(r.amount, r.before ?? 0), e: "" + r.count,
+        from: "", to: "", key: r.key ?? r.id, measure: this.side, sa: r.amount, sb: r.share ?? 0, sc: r.before ?? 0, sd: r.amount - (r.before ?? 0), se: r.count })) },
+
+    // ── Products
+
+    products: Remote [ url = { app.api("aggregates/products", ({ })) }, schema = ProdAgg ],
+    productTable: TableRec[] = { (this.products.value?.products ?? []).map((p) => ({ id: p.productId ?? "none",
+        name: app.books.productName(p.productId ?? null), a: "" + p.units, b: money(p.revenue), c: money(p.cost), d: money(p.margin),
+        e: pct(p.marginPercent ?? null), from: "", to: "", key: p.productId ?? "none", measure: "product",
+        sa: p.units, sb: p.revenue, sc: p.cost, sd: p.margin, se: p.marginPercent ?? 0 })) },
+    productSentence: string = { this.productTable.length == 0 ? "No products sold in this range."
+        : this.productTable[0].name + " brought in the most revenue (" + this.productTable[0].b + " from " + this.productTable[0].a + " sold)." },
+
+    col: View [ x = center, width = { Math.min(parent.width - (app.phone ? 24 : 48), 1200) },
+        padding = { app.phone ? [12, 0, 24, 0] : [20, 0, 40, 0] },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+        FilteredNote [ ],
+        tabs: TabBar [ value = { classroot.tab }, accessibilityLabel = "Insights",
+            items = { [ ({ id: "trends", label: "Trends" }), ({ id: "ive", label: "Income vs expenses" }),
+                ({ id: "breakdown", label: "Breakdown" }), ({ id: "products", label: "Products" }) ] },
+            commit(v: string) { classroot.tab = v }
+            ],
+
+        // ── Trends
+
+        trends: InsightCard [ visible = { classroot.tab == "trends" }, source = { classroot.trend },
+            heading = { classroot.measureLabel + " by " + (classroot.by == "day" ? "day" : classroot.by) },
+            sentence = { classroot.trendSentence }, tooLittle = { classroot.nonEmpty < 2 },
+            controls: View [ width = 100%,
+                layout: WrappingLayout [ spacing = 10, rowSpacing = 8, align = center ],
+                Segmented [ accessibilityLabel = "Measure", value = { classroot.measure },
+                    items = { classroot.measures.map((m) => ({ id: m.id, label: m.label })) },
+                    commit(v: string) { classroot.measure = v }
+                    ],
+                Segmented [ accessibilityLabel = "Step", value = { classroot.by },
+                    items = { [ ({ id: "day", label: "Days" }), ({ id: "week", label: "Weeks" }), ({ id: "month", label: "Months" }), ({ id: "quarter", label: "Quarters" }) ] },
+                    commit(v: string) { classroot.by = v }
+                    ]
+                ],
+            PeriodChart [ visible = { classroot.col.trends.chartShown }, periods = { classroot.periods }, compare = { classroot.before },
+                compareText = { app.compareShort }, by = { classroot.by },
+                chartTitle = { classroot.measureLabel + " by " + classroot.by },
+                series = { [ ({ key: classroot.measure, label: classroot.measureLabel,
+                    tone: classroot.measure == "expenses" ? provided("theme").expense : classroot.measure == "net" ? provided("theme").netLine : provided("theme").income }) ] },
+                open(r: BarRec) { app.openFigure(r.series, r.from, r.to) }
+                ],
+            ChartTable [ visible = { classroot.col.trends.asTable }, rows = { classroot.trendTable },
+                headers = { ["Period", classroot.measureLabel, "Change", "Comparison", "Transactions"] },
+                openRow(r: TableRec) { app.openFigure(r.measure, r.from, r.to) }
+                ]
+            ],
+
+        // ── Income vs expenses
+
+        ive: InsightCard [ visible = { classroot.tab == "ive" }, source = { classroot.trend },
+            heading = "Income vs expenses", sentence = { classroot.breakEven }, tooLittle = { classroot.nonEmpty < 2 },
+            PeriodChart [ visible = { classroot.col.ive.chartShown }, periods = { classroot.ivePeriods }, by = { classroot.by },
+                netLine = true, runningLine = true, chartTitle = "Income vs expenses",
+                series = { [ ({ key: "revenue", label: "Revenue", tone: provided("theme").income }),
+                             ({ key: "expenses", label: "Expenses", tone: provided("theme").expense }) ] },
+                open(r: BarRec) { app.openFigure(r.series, r.from, r.to) }
+                ],
+            ChartTable [ visible = { classroot.col.ive.asTable }, rows = { classroot.iveTable },
+                headers = ["Period", "Revenue", "Expenses", "Net profit", "Running net", "Transactions"],
+                openRow(r: TableRec) { app.openFigure("net", r.from, r.to) }
+                ]
+            ],
+
+        // ── Breakdown
+
+        breakdownCard: InsightCard [ visible = { classroot.tab == "breakdown" }, source = { classroot.cats },
+            heading = { classroot.side == "expense" ? "Expenses by category" : "Income by category" },
+            sentence = { classroot.breakdownSentence },
+            Segmented [ accessibilityLabel = "Side", value = { classroot.side },
+                items = { [ ({ id: "expense", label: "Expenses" }), ({ id: "income", label: "Income" }) ] },
+                commit(v: string) { classroot.side = v }
+                ],
+            total: Text [ fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                text = { "Total " + money(classroot.catTotal) + " · " + (classroot.cats.value?.total.count ?? 0) + " transactions" } ],
+            NamedBars [ visible = { !classroot.col.breakdownCard.asTable }, rows = { classroot.breakdown }, share = true,
+                change = { app.compare != "none" }, upIsGood = { classroot.side != "expense" }, against = { app.compareShort },
+                open(r: NamedRec) { app.openCategories([r.key ?? r.id], classroot.side) }
+                ],
+            ChartTable [ visible = { classroot.col.breakdownCard.asTable }, rows = { classroot.breakdownTable },
+                headers = ["Category", "Amount", "Share", "Comparison", "Change", "Transactions"],
+                openRow(r: TableRec) { app.openCategories([r.key], classroot.side) }
+                ]
+            ],
+
+        // ── Products
+
+        productsCard: InsightCard [ visible = { classroot.tab == "products" }, source = { classroot.products },
+            heading = "Products", sentence = { classroot.productSentence }, asTable = true, tableOnly = true,
+            ChartTable [ rows = { classroot.productTable }, headers = ["Product", "Units sold", "Revenue", "Cost", "Margin", "Margin %"],
+                openRow(r: TableRec) { app.openProduct(r.key) }
+                ]
+            ]
+        ]
+    ]

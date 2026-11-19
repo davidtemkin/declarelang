@@ -1,0 +1,459 @@
+/*
+# Ledger: the charts
+
+Two charts, used on Overview and in Insights:
+
+- `PeriodChart` — measures over time: bars per period for one or two series
+  (revenue and expenses, or one measure), with lines drawn over them (net
+  profit, its running total, the comparison period dashed).
+- `CategoryBars` — categories (or anything named) as sorted horizontal bars.
+
+What every chart does, it does the same way:
+
+- **Every number opens its records.** Each bar is a `Control`: pressing it
+  (or Enter on it) calls `open(record)` on the chart, which the screen sets to
+  open Transactions filtered to exactly that bar.
+- **One stop for the keyboard.** The bars are a `focusScope = stop`: Tab
+  lands on the chart once, the arrows move along it, and each bar is named for
+  a screen reader in a sentence ("March 2026, Expenses, $4,120.00, up 6% from
+  February, 87 transactions").
+- **Pointing at a bar, focusing it or tapping it on a phone** shows that
+  sentence in the line under the chart; on a phone a second tap (or the line's
+  button) opens the records.
+- **Motion explains a change**: a bar springs from its old height to its new
+  one when the filters change, and not at all when the person asks for less.
+- Bars and their marks are views laid over a drawing; the gridlines, axis and
+  lines are drawn.
+*/
+
+// One bar in a period chart: what the chart's derived dataset holds per bar.
+
+schema BarRec [ id: string, period: string, series: string, label: string, slot: number, lane: number,
+    lanes: number, value: number, count: number, from: string, to: string, partial: boolean, sentence: string ]
+schema Tick [ id: string, value: number, label: string ]
+schema SlotRec [ id: string, slot: number, label: string, partial: boolean ]
+
+// A series a chart shows: which measure, what it is called, its colour.
+
+schema Series [ key: string, label: string, tone: number ]
+
+
+// ── a bar ───────────────────────────────────────────────────────────────────
+
+class ChartBar extends Control [
+    rec: BarRec = { :@ },
+    chart: PeriodChart = { provided("chart") },
+    pointed: boolean = { classroot.hovered || classroot.focused },
+    trackChanges = ["pointed"],
+    onChange(e: ChangeEvent) { if (pointed) chart.point(rec) },
+
+    // where it stands: a scene, so the bar places itself from the chart's scale
+
+    target: number = { classroot.chart.heightOf(classroot.rec.value) },
+    shownH: number = 0,
+    Spring [ attribute = shownH, to = { classroot.target },
+        stiffness = { app.reduceMotion ? 4000 : 210 }, damping = { app.reduceMotion ? 200 : 26 } ],
+    x = { classroot.chart.slotX(classroot.rec.slot) + classroot.chart.laneX(classroot.rec.lane, classroot.rec.lanes) },
+    width = { classroot.chart.laneW(classroot.rec.lanes) },
+    y = { classroot.rec.value >= 0 ? classroot.chart.zeroY - Math.max(1, classroot.shownH) : classroot.chart.zeroY },
+    height = { Math.max(1, Math.abs(classroot.shownH)) },
+    cornerRadius = 2,
+    tone: number = { classroot.chart.toneOf(classroot.rec.series) },
+    fill = { classroot.tone },
+    opacity = { classroot.rec.partial ? 0.5 : classroot.chart.picked == classroot.rec.id || classroot.pointed ? 1 : 0.88 },
+    stroke = { classroot.rec.partial ? Stroke(1, classroot.tone) : classroot.pointed ? Stroke(2, provided("theme").text) : null },
+    accessibilityLabel = { classroot.rec.sentence },
+    press() { chart.choose(rec) }
+    ]
+
+
+// On a touch device a bar is too thin for a finger: the bars are drawn shapes,
+// and each period is one target (`SlotHit`) the full height of the plot.
+
+class BarShape [
+    rec: BarRec = { :@ },
+    chart: PeriodChart = { provided("chart") },
+    target: number = { classroot.chart.heightOf(classroot.rec.value) },
+    shownH: number = 0,
+    Spring [ attribute = shownH, to = { classroot.target },
+        stiffness = { app.reduceMotion ? 4000 : 210 }, damping = { app.reduceMotion ? 200 : 26 } ],
+    x = { classroot.chart.slotX(classroot.rec.slot) + classroot.chart.laneX(classroot.rec.lane, classroot.rec.lanes) },
+    width = { classroot.chart.laneW(classroot.rec.lanes) },
+    y = { classroot.rec.value >= 0 ? classroot.chart.zeroY - Math.max(1, classroot.shownH) : classroot.chart.zeroY },
+    height = { Math.max(1, Math.abs(classroot.shownH)) },
+    cornerRadius = 2,
+    fill = { classroot.chart.toneOf(classroot.rec.series) },
+    opacity = { classroot.rec.partial ? 0.5 : classroot.chart.pickedSlot == classroot.rec.slot ? 1 : 0.85 },
+    accessibilityHidden = true
+    ]
+
+
+class SlotHit extends Control [
+    rec: SlotRec = { :@ },
+    chart: PeriodChart = { provided("chart") },
+    x = { classroot.chart.slotX(classroot.rec.slot) }, y = 0,
+    width = { classroot.chart.slotW }, height = { classroot.chart.plotH },
+    accessibilityLabel = { classroot.chart.slotSentence(classroot.rec.slot) },
+    fill = { classroot.chart.pickedSlot == classroot.rec.slot ? provided("theme").controlSelected : null },
+    opacity = 0.5,
+    press() { chart.pickSlot(rec.slot) }
+    ]
+
+
+// ── a chart of periods ──────────────────────────────────────────────────────
+
+class PeriodChart [ width = 100%,
+    periods: Period[] = [],
+    compare: Period[] = [],           // the comparison period, drawn dashed (one series only)
+    by: string = "month",
+    series: Series[] = [],
+    netLine: boolean = false,         // net profit as a line
+    runningLine: boolean = false,     // the running total of net profit
+    plotH: number = 220,
+    chartTitle: string = "",
+    compareText: string = "",
+
+    seriesData: Dataset [ schema = [ rows[]: Series ], contents = { ({ rows: classroot.series.map((s) => ({ ...s, id: s.key })) }) } ],
+
+    // what the bars are: one per period per series
+
+    bars: Dataset [ schema = [ rows[]: BarRec ], contents = { ({ rows: classroot.makeBars() }) } ],
+    slots: Dataset [ schema = [ rows[]: SlotRec ], contents = { ({ rows: classroot.periods.map((p, i) => ({ id: p.period, slot: i,
+        label: periodTick(p.period, classroot.by), partial: p.partial })) }) } ],
+
+    measureOf(p: Period, key: string) -> number {
+        switch (key) {
+            case "revenue": return p.revenue.amount
+            case "expenses": return p.expenses.amount
+            case "net": return p.net.amount
+            case "margin": return p.grossMargin.percent ?? 0
+            case "sales": return p.sales.count
+            default: return 0
+            }
+        },
+    countOf(p: Period, key: string) -> number {
+        switch (key) {
+            case "revenue": return p.revenue.count
+            case "expenses": return p.expenses.count
+            case "net": return p.net.count
+            case "margin": return p.grossMargin.count
+            case "sales": return p.sales.count
+            default: return 0
+            }
+        },
+    say(v: number, key: string) -> string {
+        if (key == "margin") return pct(v)
+        if (key == "sales") return v.toLocaleString("en-US") + " sales"
+        return money(v)
+        },
+    axisSay(v: number, key: string) -> string {
+        if (key == "margin") return Math.round(v) + "%"
+        if (key == "sales") return "" + Math.round(v)
+        return compactMoney(v)
+        },
+    unitKey: string = { classroot.series[0]?.key ?? "revenue" },
+
+    makeBars() -> BarRec[] {
+        const out: BarRec[] = []
+        const n = series.length
+        periods.forEach((p, i) => {
+            series.forEach((s, j) => {
+                const v = measureOf(p, s.key)
+                const prev = i > 0 ? measureOf(periods[i - 1], s.key) : null
+                let change = ""
+                if (prev != null && prev != 0 && s.key != "margin") {
+                    const r = Math.round((v - prev) / Math.abs(prev) * 100)
+                    change = r == 0 ? ", unchanged from " : r > 0 ? ", up " + r + "% from " : ", down " + (-r) + "% from "
+                    change = change + periodName(periods[i - 1].period, by)
+                } else if (prev != null && s.key == "margin") {
+                    const d = Math.round((v - prev) * 10) / 10
+                    change = ", " + (d >= 0 ? "up " : "down ") + Math.abs(d) + " points from " + periodName(periods[i - 1].period, by)
+                }
+                const cnt = countOf(p, s.key)
+                out.push({ id: p.period + ":" + s.key, period: p.period, series: s.key, label: s.label, slot: i, lane: j, lanes: n,
+                    value: v, count: cnt, from: p.from, to: p.to, partial: p.partial,
+                    sentence: periodName(p.period, by) + (p.partial ? " (so far)" : "") + ", " + s.label + ", " + say(v, s.key) + change
+                        + ", " + cnt.toLocaleString("en-US") + (cnt == 1 ? " transaction" : " transactions") })
+                })
+            })
+        return out
+        },
+
+    // the scale: from zero (or below it, when net goes negative) to the largest value
+
+    extent: number[] = { classroot.extentOf() },
+    extentOf() -> number[] {
+        const vals: number[] = [0]
+        for (const p of periods) for (const s of series) vals.push(measureOf(p, s.key))
+        if (netLine) for (const p of periods) vals.push(p.net.amount)
+        if (runningLine) { let r = 0; for (const p of periods) { r = r + p.net.amount; vals.push(r) } }
+        for (const p of compare) for (const s of series) vals.push(measureOf(p, s.key))
+        const lo = Math.min(...vals), hi = Math.max(...vals)
+        const step = niceStep(Math.max(hi - lo, 1) / 4)
+        return [Math.floor(lo / step) * step, Math.max(step, Math.ceil(hi / step) * step), step]
+        },
+    ticks: Dataset [ schema = [ rows[]: Tick ], contents = { ({ rows: classroot.tickRows() }) } ],
+    tickRows() -> Tick[] {
+        const out: Tick[] = []
+        const [lo, hi, step] = extent
+        for (let v = lo; v <= hi + 0.0001; v = v + step) out.push({ id: "y" + v, value: v, label: axisSay(v, unitKey) })
+        return out
+        },
+
+    // geometry, all from the plot's size
+
+    axisW: number = 52,
+    plotW: number = { Math.max(10, classroot.width - classroot.axisW) },
+    n: number = { Math.max(1, classroot.periods.length) },
+    slotW: number = { classroot.plotW / classroot.n },
+    yOf(v: number) -> number {
+        const [lo, hi] = extent
+        return 6 + (plotH - 12) * (1 - (v - lo) / ((hi - lo) || 1))
+        },
+    zeroY: number = { classroot.yOf(0) },
+    heightOf(v: number) -> number { return Math.abs(yOf(0) - yOf(v)) * (v < 0 ? -1 : 1) },
+    slotX(i: number) -> number { return axisW + i * slotW },
+    laneW(lanes: number) -> number { return Math.max(2, Math.min(36, slotW * 0.72 / Math.max(1, lanes))) },
+    laneX(lane: number, lanes: number) -> number {
+        const w = laneW(lanes)
+        return (slotW - w * lanes - 2 * (lanes - 1)) / 2 + lane * (w + 2)
+        },
+    toneOf(key: string) -> number { return series.find((s) => s.key == key)?.tone ?? provided("theme").accent },
+
+    // what is pointed at, and what a tap chose (a phone's first tap)
+
+    pointedRec: BarRec? = null,
+    picked: string = "",
+    point(r: BarRec) { pointedRec = r },
+    choose(r: BarRec) { open(r) },
+    open(r: BarRec) { },
+
+    // a phone: a tap picks a period; its figures show below, each a way into its records
+
+    pickedSlot: number = -1,
+    pickSlot(i: number) { pickedSlot = i },
+    pickedBars: Dataset [ schema = [ rows[]: BarRec ], contents = { ({ rows: (classroot.bars.value?.rows ?? []).filter((b) => b.slot == classroot.pickedSlot) }) } ],
+    slotSentence(i: number) -> string {
+        return (bars.value?.rows ?? []).filter((b) => b.slot == i).map((b) => b.sentence).join(". ")
+        },
+
+    // what the line under the chart says
+
+    infoText() -> string {
+        if (dragged) return "Selected " + periodName(periods[Math.min(dragFrom, dragTo)]?.period ?? "", by)
+            + " – " + periodName(periods[Math.max(dragFrom, dragTo)]?.period ?? "", by)
+        if (app.touchFirst && pickedSlot >= 0) return slotSentence(pickedSlot)
+        if (pointedRec != null) return pointedRec.sentence
+        return app.touchFirst ? "Tap a period for its figures." : "Point at a bar for its figures; press it to open its records. Drag across to pick a range."
+        },
+
+    // a range dragged across the chart, offered as the date filter
+
+    dragFrom: number = -1,
+    dragTo: number = -1,
+    dragged: boolean = { classroot.dragFrom >= 0 && classroot.dragTo >= 0 && classroot.dragFrom != classroot.dragTo },
+    slotAt(x: number) -> number { return Math.max(0, Math.min(periods.length - 1, Math.floor((x - axisW) / slotW))) },
+    takeRange() {
+        const a = Math.min(dragFrom, dragTo), b = Math.max(dragFrom, dragTo)
+        const p = periods[a], q = periods[b]
+        dragFrom = -1; dragTo = -1
+        if (p != null && q != null) app.setRange(p.start, q.end)
+        },
+
+    chart: PeriodChart = { this },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+
+    // the legend, in words as well as colour
+
+    legend: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 14, rowSpacing = 4, align = center ],
+        sw: View [ datapath = { classroot.seriesData.value },
+            layout: SimpleLayout [ axis = x, spacing = 14 ],
+            View [ datapath = :rows[],
+                layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+                View [ width = 10, height = 10, cornerRadius = 2, fill = :tone ],
+                Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = :label ]
+                ]
+            ],
+        netKey: View [ visible = { classroot.netLine },
+            layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+            View [ width = 14, height = 2, fill = { provided("theme").netLine } ],
+            Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = "Net profit" ]
+            ],
+        runKey: View [ visible = { classroot.runningLine },
+            layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+            View [ width = 14, height = 2, fill = { provided("theme").accent } ],
+            Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = "Running net profit" ]
+            ],
+        cmpKey: View [ visible = { classroot.compare.length > 0 },
+            layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+            View [ width = 14, height = 2, fill = { provided("theme").compareInk } ],
+            Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted },
+                text = { "Comparison: " + classroot.compareText + " (dashed)" } ]
+            ],
+        partKey: View [ visible = { classroot.periods.some((p) => p.partial) },
+            layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+            View [ width = 10, height = 10, cornerRadius = 2, stroke = { Stroke(1, provided("theme").textMuted) } ],
+            Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = "Not over yet" ]
+            ]
+        ],
+
+    // the plot: drawn grid and lines, a Text per axis label, a control per bar
+
+    plot: View [ width = 100%, height = { classroot.plotH }, clip = true,
+        draw(d: DrawContext) {
+            const c = classroot
+            d.lineWidth = 1
+            d.strokeStyle = provided("theme").line
+            for (const t of c.ticks.value?.rows ?? []) {
+                const y = Math.round(c.yOf(t.value)) + 0.5
+                d.beginPath(); d.moveTo(c.axisW, y); d.lineTo(d.w, y); d.stroke()
+            }
+            d.strokeStyle = provided("theme").lineStrong
+            d.beginPath(); d.moveTo(c.axisW, Math.round(c.zeroY) + 0.5); d.lineTo(d.w, Math.round(c.zeroY) + 0.5); d.stroke()
+            // a partial period's slot is shaded, so its dip isn't misread
+            c.periods.forEach((p, i) => { if (p.partial) { d.fillStyle = provided("theme").partial; d.fillRect(c.slotX(i), 0, c.slotW, d.h) } })
+            // a dragged range
+            if (c.dragged) {
+                const a = Math.min(c.dragFrom, c.dragTo), b = Math.max(c.dragFrom, c.dragTo)
+                d.fillStyle = provided("theme").controlSelected
+                d.fillRect(c.slotX(a), 0, c.slotW * (b - a + 1), d.h)
+            }
+            const mid = (i: number) => c.slotX(i) + c.slotW / 2
+            const line = (vals: number[], ink: number, dash: boolean) => {
+                if (vals.length == 0) return
+                d.strokeStyle = ink
+                d.lineWidth = 2
+                d.lineJoin = "round"
+                if (dash) d.setLineDash([5, 4])
+                d.beginPath()
+                vals.forEach((v, i) => { if (i == 0) d.moveTo(mid(i), c.yOf(v)); else d.lineTo(mid(i), c.yOf(v)) })
+                d.stroke()
+                d.setLineDash([])
+                d.fillStyle = ink
+                if (!dash) vals.forEach((v, i) => { d.beginPath(); d.arc(mid(i), c.yOf(v), 2.6, 0, 6.3); d.fill() })
+            }
+            if (c.compare.length > 0 && c.series.length > 0) line(c.compare.slice(0, c.periods.length).map((p) => c.measureOf(p, c.series[0].key)), provided("theme").compareInk, true)
+            if (c.netLine) line(c.periods.map((p) => p.net.amount), provided("theme").netLine, false)
+            if (c.runningLine) { let r = 0; line(c.periods.map((p) => { r = r + p.net.amount; return r }), provided("theme").accent, false) }
+            },
+
+        // a drag across the plot selects a range of periods; only a sideways
+        // drag, so a finger moving down still scrolls the page
+
+        claim = x,
+        onDragStart(e: PointerEvent) { classroot.dragFrom = classroot.slotAt(e.x); classroot.dragTo = classroot.dragFrom },
+        onDrag(e: PointerEvent) { classroot.dragTo = classroot.slotAt(e.x) },
+        onDragEnd(e: DragEndEvent) { if (e.canceled) { classroot.dragFrom = -1; classroot.dragTo = -1 } },
+
+        axis: View [ width = { classroot.axisW - 6 }, height = 100%, accessibilityHidden = true,
+            datapath = { classroot.ticks.value },
+            Text [ datapath = :rows[], x = end, fontSize = 11, wrap = false, numeralWidth = tabular,
+                textColor = { provided("theme").textMuted }, text = :label,
+                y = { classroot.yOf(:value) - this.height / 2 } ]
+            ],
+        barsView: View [ visible = { !app.touchFirst }, width = 100%, height = 100%, datapath = { classroot.bars.value },
+            focusScope = stop,
+            accessibilityRole = group,
+            accessibilityLabel = { classroot.chartTitle + ". Arrow keys move between bars; Enter opens the records." },
+            ChartBar [ datapath = :rows[] ]
+            ],
+        shapes: View [ visible = { app.touchFirst }, width = 100%, height = 100%, datapath = { classroot.bars.value },
+            BarShape [ datapath = :rows[] ]
+            ],
+        hits: View [ visible = { app.touchFirst }, width = 100%, height = 100%, datapath = { classroot.slots.value },
+            focusScope = stop, accessibilityRole = group, accessibilityLabel = { classroot.chartTitle },
+            SlotHit [ datapath = :rows[] ]
+            ]
+        ],
+
+    // the periods along the bottom
+
+    xAxis: View [ width = 100%, height = 16, accessibilityHidden = true, datapath = { classroot.slots.value },
+        Text [ datapath = :rows[], fontSize = 11, wrap = false,
+            visible = { classroot.n <= 14 || :slot % Math.ceil(classroot.n / 12) == 0 },
+            textColor = { provided("theme").textMuted },
+            text = { :label + (:partial ? "*" : "") },
+            x = { classroot.slotX(:slot) + classroot.slotW / 2 - this.width / 2 } ]
+        ],
+
+    // the line that says what is pointed at, and the dragged range's offer
+
+    info: View [ width = 100%, height = { app.tap },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ flexes = true, fontSize = 12.5, maxLines = 2, textColor = { provided("theme").textMuted },
+            accessibilityLive = polite,
+            text = { classroot.infoText() } ],
+        Button [ visible = { classroot.dragged }, height = 30, fontSize = 12.5, label = "Use as date filter",
+            onClick() { classroot.takeRange() }
+            ],
+        Button [ visible = { classroot.dragged }, height = 30, fontSize = 12.5, label = "Cancel",
+            onClick() { classroot.dragFrom = -1; classroot.dragTo = -1 }
+            ]
+        ],
+
+    // a phone: each figure of the picked period opens its records
+
+    opens: View [ visible = { app.touchFirst && classroot.pickedSlot >= 0 }, width = 100%, datapath = { classroot.pickedBars.value },
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+        Button [ datapath = :rows[], height = 44, fontSize = 13, label = { "Open " + :label.toLowerCase() },
+            onClick() { classroot.open(:@) }
+            ]
+        ]
+    ]
+
+
+// ── named amounts as horizontal bars ────────────────────────────────────────
+//
+// Categories, products, customers: one row each, a bar against the largest,
+// the amount, and (when given) its share and change. Each row is a control
+// that opens its records.
+
+schema NamedRec [ id: string, key?: string, label: string, amount: number, count: number,
+    share?: number, before?: number, tone: number, sentence: string ]
+
+class NamedBar extends Control [ width = 100%, cornerRadius = 6, padding = { app.touchFirst ? [10, 6, 10, 6] : [5, 6, 5, 6] },
+    rec: NamedRec = { :@ },
+    peak: number = { provided("namedPeak") },
+    showShare: boolean = { provided("namedShare") },
+    showChange: boolean = { provided("namedChange") },
+    upIsGood: boolean = { provided("namedUpIsGood") },
+    against: string = { provided("namedAgainst") },
+    accessibilityLabel = { classroot.rec.sentence },
+    fill = { hovered ? provided("theme").hover : null },
+    press() { },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { classroot.rec.label } ],
+        Text [ visible = { classroot.showShare }, fontSize = 12, wrap = false, numeralWidth = tabular,
+            textColor = { provided("theme").textMuted }, text = { Math.round((classroot.rec.share ?? 0) * 100) + "%" } ],
+        Money [ fontSize = 13, fontWeight = medium, cents = { classroot.rec.amount } ]
+        ],
+    MiniBar [ share = { classroot.rec.amount / Math.max(1, classroot.peak) }, tone = { classroot.rec.tone } ],
+    Change [ visible = { classroot.showChange }, fontSize = 11.5, now = { classroot.rec.amount },
+        before = { classroot.rec.before ?? 0 }, known = { classroot.rec.before != null },
+        upIsGood = { classroot.upIsGood }, against = { classroot.against } ]
+    ]
+
+
+class NamedBars [ width = 100%,
+    rows: NamedRec[] = [],
+    share: boolean = false,
+    change: boolean = false,
+    upIsGood: boolean = false,
+    against: string = "",
+    list: Dataset [ schema = [ rows[]: NamedRec ], contents = { ({ rows: classroot.rows }) } ],
+    namedPeak: number = { Math.max(1, ...classroot.rows.map((r) => r.amount)) },
+    namedShare: boolean = { classroot.share },
+    namedChange: boolean = { classroot.change },
+    namedUpIsGood: boolean = { classroot.upIsGood },
+    namedAgainst: string = { classroot.against },
+    open(r: NamedRec) { },
+    datapath = { this.list.value },
+    focusScope = stop,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    NamedBar [ datapath = :rows[],
+        press() { classroot.open(:@) }
+        ]
+    ]

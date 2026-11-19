@@ -1,0 +1,13 @@
+STARTED=2026-11-19T04:05:15Z
+APP=venue
+MODEL=claude-opus-5-5
+SUBJECT=local tree at e349b316 derived artifacts + 247 changed, 9 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=standard
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=/Users/temkin/Code/eval-venue-39/work (logs outside it)
+PORT=8350 (the brief names 8350)
+DEV_PORT=8604 (the agent's dev server: PORT in its environment)
+SERVICE=node /Users/temkin/Code/Declare/evals/apps/venue/api/server.mjs --port=8350 --seed=1
+AGENT_PID=14392
