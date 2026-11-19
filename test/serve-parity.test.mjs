@@ -17,6 +17,7 @@ import { test, summarize, tempDir } from "./harness.mjs";
 import { requestType, REQ, viewerTab, runWrapper, programName, directoryProgram, stubPage, launchTarget, isEntryPage } from "../browser/serve-core.js";
 import { preloadsFor } from "../tools/internal/bake-app-stubs.mjs";
 import { programDirs } from "../tools/internal/program-dirs.mjs";
+import { programPageColor } from "../compiler/dist/compile-node.js";
 
 const params = (q) => new URLSearchParams(q);
 
@@ -202,6 +203,7 @@ await test("every committed app stub matches the current stubPage template", () 
       serveCoreUrl: `${toRoot}browser/serve-core.js`,
       iconBase: `${toRoot}assets/`,
       preloads: preloadsFor(`${dir}/${basename(dir)}.declare`, toRoot),
+      pageColor: programPageColor(readFileSync(join(abs, `${basename(dir)}.declare`), "utf8")),
     });
     // committed = one generator marker line + the template (with a stamped ?v=)
     const body = committed.slice(committed.indexOf("\n") + 1);
@@ -211,6 +213,25 @@ await test("every committed app stub matches the current stubPage template", () 
   }
   assert.ok(checked > 0, "no committed stubs found to check");
   assert.ok(nested > 0, "no stub below apps/<group>/ checked — the depth case is untested");
+});
+
+// A page opens on the color its App declares: the stub and the service worker (which
+// serves the same shell on every later visit) carry the same colors, from one reading.
+await test("the service worker's page colors are the stubs' (an App's literal fill; a rule opens on the browser's own)", () => {
+  const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const sw = readFileSync(join(ROOT, "service-worker.js"), "utf8");
+  const table = JSON.parse(sw.match(/const PAGE_COLORS = (\{[^\n]*\});/)[1]);
+  const expected = {};
+  for (const abs of programDirs(ROOT)) {
+    const dir = relative(ROOT, abs).split(sep).join("/");
+    const color = programPageColor(readFileSync(join(abs, `${basename(dir)}.declare`), "utf8"));
+    if (color !== null) expected[`${dir}/${basename(dir)}.declare`] = color;
+  }
+  assert.deepEqual(table, expected, "service-worker.js PAGE_COLORS is stale — run tools/internal/bake-app-stubs.mjs");
+  assert.equal(expected["apps/games/asteroids/asteroids.declare"], "#000000", "a literal named fill (black) reads as its color");
+  assert.equal(expected["apps/calendar/calendar.declare"], undefined, "a fill that is a rule has no color before the program runs");
+  assert.match(runWrapper({ name: "x", bootUrl: "b.js" }), /background:Canvas\}/, "with no color, the page is the browser's own");
+  assert.match(runWrapper({ name: "x", bootUrl: "b.js", pageColor: "#000000" }), /background:#000000\}/);
 });
 
 // THE TREE RULE: a program directory is any directory under apps/, at any depth, holding

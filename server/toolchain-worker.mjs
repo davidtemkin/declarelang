@@ -15,6 +15,7 @@
 //   { type:"compileProgram", id, source, opts } → { program, diagnostics, report, closure }
 //   { type:"extract",    id, source, originDir, document } → { ok, html, title, doc?, report? }
 //   { type:"flags",      id, source, originDir } → the program's own flags, or undefined
+//   { type:"pageColor",  id, source }         → the App's literal fill as CSS, or null
 //   { type:"production", id, args }           → writeProduction's result, errors projected
 //   { type:"sizes",      id, args }           → the build's sizes report, nothing written
 //   { type:"fresh",      id, closure, props } → boolean (isUpToDate over diskProbe)
@@ -23,7 +24,7 @@
 
 import { parentPort } from "node:worker_threads";
 import path from "node:path";
-import { isUpToDate, diskProbe, crawlExtract, diskDataResolver, crawlerDocument, programFlags } from "../compiler/dist/compile-node.js";
+import { isUpToDate, diskProbe, crawlExtract, diskDataResolver, crawlerDocument, programFlags, programPageColor } from "../compiler/dist/compile-node.js";
 // the PROGRAM-shaped compile (compiler/src/declarec.ts: the Node front over the
 // shared program tail) — what /compile answers with, so a page never parses
 import { compileProgram } from "../compiler/dist/declarec.js";
@@ -52,6 +53,8 @@ async function handle(m) {
     }
     case "flags":
       return programFlags(m.source, m.originDir);
+    case "pageColor":
+      return programPageColor(m.source);
     case "production": {
       const built = await writeProduction(m.args);
       // plain projection: the server reads .ok/.report/.errors[].message and the manifest fields

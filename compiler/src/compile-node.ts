@@ -18,6 +18,8 @@ import { DiskTracker } from "./cache-node.js";
 import type { Closure } from "./closure.js";
 import { parseProgram, type Flags } from "../../runtime/dist/parser.js";
 import { resolveIncludes } from "../../runtime/dist/include.js";
+import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
+import { colorToCss } from "../../runtime/dist/value.js";
 
 // The real lib.*.d.ts sit beside typescript.js — register the disk reader as
 // the checker's standard-library source (consulted lazily, only when a
@@ -91,6 +93,27 @@ export async function programFlags(source: string, originDir: string): Promise<F
     return errors.length > 0 ? undefined : program.flags;
   } catch {
     return undefined;
+  }
+}
+
+/** The page color a host paints before the program runs: the App's `fill` when it
+ *  is a literal color (`black`, `#1E3A49`, `0x0A0A0A`), as CSS; null when the fill
+ *  is a rule, is absent, or the source does not parse. Once the program mounts, the
+ *  runtime paints the page with the App's live fill (dom-backend setFill); this only
+ *  covers the moment before, so a page opens on the color its app declares. */
+export function programPageColor(source: string): string | null {
+  try {
+    const fill = parseProgram(source).root?.attrs.find((a) => a.name === "fill")?.value;
+    if (fill === undefined) return null;
+    if (fill.kind === "ident") {
+      const n = CSS_COLORS[fill.name.toLowerCase()];
+      return n === undefined ? null : colorToCss(n);
+    }
+    if (fill.kind === "hexColor") return /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(fill.raw) ? fill.raw.toLowerCase() : null;
+    if (fill.kind === "number" && fill.hex === true) return colorToCss(fill.value);
+    return null;
+  } catch {
+    return null;
   }
 }
 

@@ -39,7 +39,7 @@ import { highlight, programIndex } from "./compiler/dist/highlight.js";
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "62dc823ddeb0";
+const BUILD_ID = "b786aa4935d8";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -187,6 +187,11 @@ async function revalidate(req) {
 // the ONE platform bundle with `main` = the program's own URL; boot-uniform then
 // gives it the prewarm → cache → compile path — a revisit renders from cache, no
 // compiler. The bundle is imported by ABSOLUTE URL with ?v=BUILD_ID, busting per deploy.
+// The page color each program's run page opens on: its App's literal fill, keyed by
+// the program's path from the root. Stamped by tools/internal/bake-app-stubs.mjs, which
+// gives the program's stub the same color; a program not here opens on the browser's own.
+const PAGE_COLORS = {"apps/desktop/desktop.declare":"#0a0612","apps/games/asteroids/asteroids.declare":"#000000","apps/games/stargate/stargate.declare":"#000000","apps/games/tempest/tempest.declare":"#000000","apps/lzx-calendar/lzx-calendar.declare":"#1e3a49","apps/lzx-dashboard/lzx-dashboard.declare":"#80807e","apps/lzx-weather/lzx-weather.declare":"#eaeaea"};
+
 async function hostPageResponse(url) {
   const html = runWrapper({
     name: programName(url.pathname),
@@ -195,6 +200,7 @@ async function hostPageResponse(url) {
     // explicit, so the shell also works at a directory-program URL (the caller
     // passes the CANDIDATE pathname there, not the page's own)
     main: url.pathname,
+    pageColor: PAGE_COLORS[relativize(url.href, ROOT.href)] ?? null,
   });
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
 }

@@ -355,11 +355,13 @@ bootHost(cfg);
   async function declareRunPage(urlPath, crawler) {
     let staticBlock = "";
     let title = "";
+    let pageColor = null;
     let abs = null, source = null;
     try {
       const hit = mounts.resolve(urlPath);
       if (hit && existsSync(hit.abs)) { abs = hit.abs; source = readFileSync(abs, "utf8"); }
       if (crawler === undefined && source !== null) crawler = (await toolchain.flags(source, path.dirname(abs)))?.crawler;
+      if (source !== null) pageColor = await toolchain.pageColor(source);
     } catch (e) { console.error("run page: could not read the program's flags:", e.message); }
     if (crawler && source !== null) {
       try {
@@ -373,7 +375,7 @@ bootHost(cfg);
     }
     return runWrapper({
       name: programName(urlPath), bootUrl: bootURL("bundles/declare-boot.js"),
-      staticBlock, iconBase: bootURL("assets/"), main: urlPath, title,
+      staticBlock, iconBase: bootURL("assets/"), main: urlPath, title, pageColor,
     });
   }
 

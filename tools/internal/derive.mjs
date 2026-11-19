@@ -220,9 +220,12 @@ const RULES = [
     inputs: ["tools/internal/bake-app-stubs.mjs", "browser/serve-core.js",
              // the stub preloads the program's artifact: which programs have one, and its key
              "browser/prewarm-manifest.js", "browser/prewarm-cache.js",
+             // the page color, read from each program by the compiler
+             "compiler/dist/compile-node.js",
              { dir: "apps", ext: ".declare", exclude: ["dist"], notPre: "seg_" }],
     outputs: [],
-    stamps: ["apps/*/index.html"],
+    // the stubs, and the service worker's table of the same page colors
+    stamps: ["apps/*/index.html", "service-worker.js"],
     run: () => run("node", ["tools/internal/bake-app-stubs.mjs"]),
   },
   {

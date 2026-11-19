@@ -100,15 +100,17 @@ export function programName(urlPath) {
  *   staticBlock?: string,     // baked #declare-static for a crawler (the server's ?crawler=true flag);
  *                             //   the SW never bakes at request time (crawlers don't install workers)
  *   iconBase?: string|null,   // if set, emit favicon links resolved against it (…/ ending in a slash)
+ *   pageColor?: string|null,  // the App's literal fill as "#rrggbb", painted before the program runs
+ *                             //   (pageBackground); null paints the browser's own page color
  * }}
  */
-export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, main = null, title = "", preloads = [] }) {
+export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, main = null, title = "", preloads = [], pageColor = null }) {
   const script = `<script type="module">
   import boot from ${JSON.stringify(bootUrl)};
   const q = new URLSearchParams(location.search);
   boot({ main: ${JSON.stringify(main)} ?? location.pathname, backend: { dom: "DomBackend", canvas: "CanvasBackend" }[q.get("render")] });
 </script>`;
-  return shell({ name, staticBlock, iconBase, title, script, bootUrl, preloads });
+  return shell({ name, staticBlock, iconBase, title, script, bootUrl, preloads, pageColor });
 }
 
 /**
@@ -129,9 +131,10 @@ export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, m
  *    navigation is SW-served in the requested mode, and the stub is out of the loop.
  *
  * @param cfg {{ name: string, bootUrl: string, serveCoreUrl: string, iconBase?: string|null,
- *              preloads?: string[] }}     // what boot will fetch before it can render (preloadLinks)
+ *              preloads?: string[],      // what boot will fetch before it can render (preloadLinks)
+ *              pageColor?: string|null }} // as runWrapper's
  */
-export function stubPage({ name, bootUrl, serveCoreUrl, iconBase = null, preloads = [] }) {
+export function stubPage({ name, bootUrl, serveCoreUrl, iconBase = null, preloads = [], pageColor = null }) {
   const script = `<script type="module">
   import boot from ${JSON.stringify(bootUrl)};
   import { requestType, REQ, directoryProgram } from ${JSON.stringify(serveCoreUrl)};
@@ -140,7 +143,7 @@ export function stubPage({ name, bootUrl, serveCoreUrl, iconBase = null, preload
     navigator.serviceWorker.ready.then(() => location.reload());
   boot({ main: directoryProgram(location.pathname) ?? location.pathname, backend: { dom: "DomBackend", canvas: "CanvasBackend" }[q.get("render")] });
 </script>`;
-  return shell({ name, staticBlock: "", iconBase, title: "", script, bootUrl, preloads });
+  return shell({ name, staticBlock: "", iconBase, title: "", script, bootUrl, preloads, pageColor });
 }
 
 /** The `<link rel="preload">` lines for what boot fetches BEFORE it can render — the
@@ -156,10 +159,19 @@ export function preloadLinks(hrefs) {
   return hrefs.map((h) => `<link rel="preload" href="${escapeHtml(h)}" as="fetch" crossorigin>\n`).join("");
 }
 
+/** The page's color before the program paints: the App's literal fill when its
+ *  producer knows one (compiler programPageColor), else the browser's own page
+ *  color, which follows the system's light or dark (as an app on the system
+ *  theme does). The runtime repaints the page with the App's live fill at mount. */
+export const PAGE_COLOR_RE = /^#[0-9a-f]{3,8}$/i;
+function pageBackground(pageColor) {
+  return typeof pageColor === "string" && PAGE_COLOR_RE.test(pageColor) ? pageColor : "Canvas";
+}
+
 /** The one HTML shell both page kinds share — parameterized ONLY by the script block,
  *  so the stub and the run page cannot drift in shape (the serve-parity oracle locks
  *  this: identical head, identical host element, script differences documented above). */
-function shell({ name, staticBlock, iconBase, title, script, bootUrl, preloads = [] }) {
+function shell({ name, staticBlock, iconBase, title, script, bootUrl, preloads = [], pageColor = null }) {
   const icons = iconBase
     ? `<link rel="icon" type="image/svg+xml" href="${escapeHtml(iconBase + "favicon.svg")}">\n` +
       `<link rel="icon" type="image/png" sizes="256x256" href="${escapeHtml(iconBase + "favicon.png")}">\n`
@@ -186,7 +198,7 @@ function shell({ name, staticBlock, iconBase, title, script, bootUrl, preloads =
 <title>${escapeHtml(title || name + " · Declare")}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
-${icons}${preload}<style>html,body{margin:0;padding:0;background:#0B141B}</style>
+${icons}${preload}<style>html,body{margin:0;padding:0;background:${pageBackground(pageColor)}}</style>
 <div id="host">${staticBlock}</div>${clearStatic}
 ${script}`;
 }
