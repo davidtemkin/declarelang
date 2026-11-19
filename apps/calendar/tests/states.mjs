@@ -17,19 +17,22 @@ const CLOCK = "2026-08-12T10:30:00";
 
 const st = (name, extra = {}) => ({ name, clock: CLOCK, ...extra });
 
-export default [
-  // The default surface: the month grid, the brand, the nav arrows (‹ ›, glyphs
-  // today), the Today button, and the bespoke tab strip with its sliding pill.
-  st("month"),
+// the calendar opens in week view; the month states choose Month (just "M"
+// where the tabs shorten to letters)
+const toMonth = async ({ drive }) => {
+  await drive.click((await drive.read("app.tabsCompact")) ? "app.bar.tabs.M" : "app.bar.tabs.Month");
+  await drive.settleMotion();
+};
 
-  // One row of the same grid — the focus rectangle collapsed. Carries the hour
-  // gutter and the weekday strip, the two things a bad `nr` breaks.
-  st("week", {
-    route: async ({ drive }) => {
-      await drive.click("app.bar.tabs.Week");
-      await drive.settleMotion();
-    },
-  }),
+export default [
+  // The month grid, the brand, the nav arrows (‹ ›, glyphs today), the Today
+  // button, and the bespoke tab strip with its sliding pill.
+  st("month", { route: toMonth }),
+
+  // The default surface: one row of the same grid — the focus rectangle
+  // collapsed. Carries the hour gutter and the weekday strip, the two things a
+  // bad `nr` breaks.
+  st("week"),
 
   // One cell, fully zoomed: time blocks rather than chips.
   st("day", {
@@ -48,13 +51,13 @@ export default [
   }),
 
   // Narrow: no brand, and the date shortened to the room between the sides.
-  st("month-narrow", { viewport: { width: 560, height: 820 } }),
+  st("month-narrow", { viewport: { width: 560, height: 820 }, route: toMonth }),
 
-  // Narrowest: the views behind one menu button, and the month without its year.
-  st("month-phone", { viewport: { width: 390, height: 760 } }),
+  // Narrowest: Today gives way to the date, and the month without its year.
+  st("month-phone", { viewport: { width: 390, height: 760 }, route: toMonth }),
 
   // WIDE, because the appearance switch is gated on `width >= 1030` and would
   // otherwise appear in no baseline at all — the sun/half-disc/moon migrated to
   // drawn icons with nothing watching. Found by making that change.
-  st("month-wide", { viewport: { width: 1200, height: 768 } }),
+  st("month-wide", { viewport: { width: 1200, height: 768 }, route: toMonth }),
 ];

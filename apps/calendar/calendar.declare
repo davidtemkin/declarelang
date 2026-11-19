@@ -11,7 +11,7 @@ further out, each month folding into a mini.
 */
 
 
-// date arithmetic, names and colour blending: functions of their arguments
+// date arithmetic, names and color blending: functions of their arguments
 
 script {
     const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
@@ -170,7 +170,8 @@ class Drag extends Node [
    The App's theme is the San Francisco preset with these records laid over it
    (see `theme` on the App), so each one holds only what the calendar adds or
    changes: its own names (weekendBg, holidayText, miniCurrentBg …) in both
-   modes, and in dark a few of the preset's own colors.
+   modes, and a few of the preset's own colors: the page's background in both,
+   and in dark its surfaces, lines and controls.
 
    Dark changes them because of the grid. San Francisco's dark surfaces step
    visibly apart, which suits a list; across a month of 42 equal cells the
@@ -180,9 +181,13 @@ class Drag extends Node [
    stands out. */
 
 theme CalendarLight [
+    // the bar white over a darker page; in the day and week views a column
+    // keeps columnOpacity of its fill, so the hour lines under it show through
+
+    barBg = #FFFFFF, background = #E6EAF0, columnOpacity = 0.6,
     cellBg = #FFFFFF, outOfMonthBg = #EDF0F5,
     weekendBg = #F1F4F8, todayBg = #DCE9FF, dropTargetBg = #C7DDFF, dropTargetRing = #2E6FE0,
-    gridLine = #E4E9EF, dayNumber = #2A3542, bodyText = #3E4C59, hourLabel = #99A5B0,
+    gridLine = #BDC6D1, dayNumber = #2A3542, bodyText = #3E4C59, hourLabel = #99A5B0,
     accentSecondary = #12A594, currentDayText = #2E6FE0, todayText = #2E6FE0,
     fieldBg = #FFFFFF, fieldEdge = #DBE1E9,
     sectionBg = #F1F5F9, sectionOpenBg = #E6EEF8, miniBg = #FFFFFF, miniCurrentBg = #E7F0FF,
@@ -193,12 +198,15 @@ theme CalendarLight [
 
 
 theme CalendarDark [
+    // the bar a step above the page, its buttons above it and the tab track below
+
+    barBg = #16212C, columnOpacity = 0.65,
     background = #0D151E, surface = #101A24, cellBg = #18242F, outOfMonthBg = #101922,
     weekendBg = #141F2A, todayBg = #14304F, dropTargetBg = #1E3C5E, dropTargetRing = #6BA4F0,
-    line = #22323E, gridLine = #1B2934, textMuted = #8A9BA6,
+    line = #22323E, gridLine = #35485B, textMuted = #8A9BA6,
     textFaint = #54626E, dayNumber = #C7D3DC, bodyText = #B4C2CC, hourLabel = #53636F,
     accentSecondary = #37E0C8, currentDayText = #9CC4FF, todayText = #7FB0FF,
-    control = #131F29, controlSelected = #244463, fieldBg = #0F1A25, fieldEdge = #2A3B49,
+    control = #243344, controlHovered = #2C3C4E, controlPressed = #34475A, controlSelected = #2A4A6A, trackFill = #0F1822, fieldBg = #0F1A25, fieldEdge = #2A3B49,
     sectionBg = #16222E, sectionOpenBg = #1B2B3B, miniBg = #121C26, miniCurrentBg = #14283F,
     miniDayText = #9FB0BB, miniDayFaint = #33414C, holidayBg = #14321F, holidayText = #74D89B,
     astroBg = #241F3D, astroText = #B6A6F0, milestoneBg = #33280F, milestoneText = #F0C36B,
@@ -230,7 +238,10 @@ class Ev extends Control [ clip = true,
     width = { lerp(parent.width - 8, 3, app.yearZoom) },
     y      = { lerp(lerp(26 + rowIndex * 20, :start / 1440 * parent.height, classroot.rowBlock),
                     parent.height - 6, app.yearZoom) },
-    height = { lerp(lerp(17, Math.max(18, (:end - :start) / 1440 * parent.height), classroot.rowBlock),
+
+    // as a time block it stops 2 short of its end, so back-to-back events stay apart
+
+    height = { lerp(lerp(17, Math.max(16, (:end - :start) / 1440 * parent.height - 2), classroot.rowBlock),
                     3, app.yearZoom) },
 
     rail: View [ width = 3, height = 100%, fill = { app.catText(:category) }, opacity = { classroot.rowBlock } ],
@@ -281,6 +292,12 @@ class Cell [ clip = true,
 
     rowBlock: number = { :row == app.anchorRow ? app.blockness : 0 },
 
+    // how much of the day is in view: 1 inside the columns in view, 0 a column or
+    // more outside them, so the week narrowing to one day fades the other six out
+
+    shown: number = { clamp(Math.min(:col + 1 - app.c0, app.c0 + app.nc - :col), 0, 1) },
+    opacity = { shown },
+
     // inside the rectangle the view is heading for (its targets, not the
     // sprung values, so reachability does not flicker mid-transition)
 
@@ -293,11 +310,11 @@ class Cell [ clip = true,
     width = { lerp(app.colW - app.gap, app.miniCellW, app.yearZoom) },
     height = { lerp(app.rowH - app.gap, app.miniRowH, app.yearZoom) },
 
-    // the fill fades as the cell becomes a column, then melts to the mini's
-    // highlight in the year view; only the drop target draws a ring
+    // the fill fades to the theme's columnOpacity as the cell becomes a column, then
+    // melts to the mini's highlight in the year view; only the drop target draws a ring
 
     bg: View [ width = 100%, height = 100%, cornerRadius = 8,
-        opacity = { 1 - 0.82 * classroot.rowBlock },
+        opacity = { 1 - (1 - provided("theme").columnOpacity) * classroot.rowBlock },
         dayBg: number = { !:inMonth ? provided("theme").outOfMonthBg
                         : :weekend  ? provided("theme").weekendBg
                         :             provided("theme").cellBg },
@@ -490,7 +507,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
 
     // view + paging state
 
-    mode: "day" | "week" | "month" | "year" = "month",
+    mode: "day" | "week" | "month" | "year" = "week",
 
     // Where the user has paged to: the only date state, and all navigation
     // writes here. `0` / `""` mean "today".
@@ -565,7 +582,12 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
-    colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
+
+    // in the time views the days and the times reach into the board's padding, to
+    // one gap from each edge, so every gap in the row is the same
+
+    edgeReach: number = { (app.pad - app.gap / 2) * app.blockness },
+    colW: number = { (app.bodyW - 2 * app.pad - app.gutter + app.edgeReach) / app.nc },
     rowH: number = { (app.bodyH - app.headH) / app.nr },
 
     // 0 = month chips, 1 = time blocks. Keyed on the focus span (one focused
@@ -578,6 +600,10 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     blockness: number = { clamp(2 - app.nr, 0, 1) },
 
     gutter: number = { app.blockness * 52 },                             // hour-label gutter, opens in time views
+
+    // where hour h's line sits in the time views
+
+    hourY(h: number) -> number { return this.headH + h / 24 * (this.bodyH - this.headH) },
 
     /* Year zoom: `yearZoom` (0→1) shrinks the month surface into its slot in the 4×3 year
        grid while the other eleven months resolve around it. `yearScale` scales the
@@ -758,25 +784,54 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     board: View [ x = 0, y = { app.barH }, width = { app.bodyW }, height = { app.bodyH }, clip = true,
 
         // the month's backdrop: authored at the destination slot and scaled up about
-        // its centre, so it starts full-bleed and converges by a pure scale to the mini
+        // its center, so it starts full-bleed and converges by a pure scale to the mini
 
         monthBg: View [ x = { app.slotX }, y = { app.slotY }, width = { app.miniW }, height = { app.miniH },
             cornerRadius = 12, fill = { Color.mix(provided("theme").background, provided("theme").miniCurrentBg, app.yearZoom) },
             scale = { app.yearScale }, pivotX = { app.miniW / 2 }, pivotY = { app.miniH / 2 } ],
         weekdays: View [ opacity = { (1 - app.blockness) * (1 - app.yearZoom) }, datapath = { app.labels.value },
-            View [ datapath = :cols[], identityKey = :col, x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
+            // each name keeps to its column, moving with it as the hour gutter opens, while it fades
+
+            View [ datapath = :cols[], identityKey = :col, x = { app.pad + app.gutter + (:col - app.c0) * app.colW + 11 },
                 l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { provided("theme").textMuted }, text = { :name } ]
                 ]
             ],
-        hours: View [ opacity = { app.blockness }, datapath = { app.labels.value },
-            View [ datapath = :hours[], identityKey = :h, y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { provided("theme").gridLine },
-                lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { provided("theme").hourLabel }, text = { :label } ]
+
+        // the hour lines, ruled across each day's column and nowhere else, so
+        // the gaps between columns stay clear; they fade with their day as Cell's
+        // `shown` does
+
+        hours: View [ width = 100%, height = 100%, opacity = { app.blockness }, datapath = { app.labels.value },
+            View [ datapath = :cols[], identityKey = :col, height = 100%,
+                x = { app.pad + app.gutter + (:col - app.c0) * app.colW + app.gap / 2 }, width = { app.colW - app.gap },
+                opacity = { clamp(Math.min(:col + 1 - app.c0, app.c0 + app.nc - :col), 0, 1) },
+                draw(d: DrawContext) {
+                    d.fillStyle = provided("theme").gridLine
+                    for (let h = 1; h < 24; h++) d.fillRect(0, Math.round(app.hourY(h)), d.w, 1)
+                    }
                 ]
             ],
         grid: View [ datapath = { app.cal.value },
             Cell [ datapath = :grid[], identityKey = :key ]
             ],
-        yearName: Text [ x = { app.slotX + 14 }, y = { app.slotY + 11 }, fontSize = 13, fontWeight = semibold, wrap = false,
+
+        // the times, in the bar's color so the two frame the grid, and drawn
+        // over the grid so the day before slides under them rather than over them;
+        // they reach across the board's padding (edgeReach) to one gap from the first day
+
+        times: View [ width = { app.gutter + app.edgeReach }, height = 100%, fill = { provided("theme").barBg },
+            opacity = { app.blockness }, datapath = { app.labels.value },
+            View [ datapath = :hours[], identityKey = :h, y = { app.hourY(:h) }, width = 100%, height = 1,
+                fill = { Color.mix(provided("theme").gridLine, provided("theme").barBg, 0.4) },
+                lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { provided("theme").hourLabel }, text = { :label } ]
+                ]
+            ],
+
+        // the month's name keeps just above the month's first cell as the cells
+        // converge on the month's slot (the cell's own x and y, at row 0, column 0)
+
+        yearName: Text [ x = { lerp(app.pad + app.gutter - app.c0 * app.colW + app.gap / 2, app.slotX + 10, app.yearZoom) + 4 },
+            y = { lerp(app.headH - app.r0 * app.rowH + app.gap / 2, app.slotY + 34, app.yearZoom) - 23 }, fontSize = 13, fontWeight = semibold, wrap = false,
             textColor = { provided("theme").todayText }, text = { monthName(app.month) },
             opacity = { clamp((app.yearZoom - 0.5) / 0.5, 0, 1) } ]
         ],
@@ -857,7 +912,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        between them. */
 
     bar: View [ width = { app.width }, height = { app.barH }, padding = [0, 20, 0, 20],
-        fill = { provided("theme").background },
+        fill = { provided("theme").barBg },
         stroke = { [null, null, Stroke(1, provided("theme").line), null] },   // the rule under the bar is its own bottom edge
         layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
 
