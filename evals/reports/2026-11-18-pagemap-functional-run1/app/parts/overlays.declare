@@ -1,0 +1,1069 @@
+/*
+# Pagemap: the frame, and what opens over the plan
+
+The bars around the plan (the issue and its commands above, the issue's figures under them, a
+move in progress, a phone's bar at the foot), the screen for signing in, and every sheet and
+dialog. Each sheet that is a place the person went — the issues, the team, a story — is opened
+by `app.show(name)`, which writes the App's `waypoint`, so Back closes it and Forward opens it
+again.
+*/
+
+// ── Signing in ──────────────────────────────────────────────────────────────────────────────
+
+class SignInScreen [ scrolls = y,
+    mode: string = "in",
+    email: string = "",
+    password: string = "",
+    name: string = "",
+    magazine: string = "",
+    sent: string = "",
+    card: View [ x = center, width = { Math.min(400, parent.width - 32) }, padding = [56, 0, 40, 0],
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        brand: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ fontSize = 30, fontWeight = bold, letterSpacing = -0.5, accessibilityRole = heading, text = "Pagemap" ],
+            Text [ width = 100%, fontSize = 14, textColor = { provided("theme").textMuted }, text = "The plan of every page of your issue, for the whole team, always current." ]
+            ],
+        off: View [ visible = { app.turnedOff }, width = 100%, padding = 12, cornerRadius = 8, fill = { provided("theme").notice },
+            Text [ width = 100%, fontSize = 13, textColor = { provided("theme").noticeInk },
+                text = "This account has been turned off, so it can't get in. Ask the people who run Pagemap to turn it back on." ]
+            ],
+        problem: View [ visible = { app.signInProblem != "" }, width = 100%, padding = 12, cornerRadius = 8, fill = { provided("theme").notice },
+            Text [ width = 100%, fontSize = 13, textColor = { provided("theme").noticeInk }, text = { app.signInProblem } ]
+            ],
+        gone: View [ visible = { app.fpId != "" && app.linkGone }, width = 100%, padding = 12, cornerRadius = 8, fill = { provided("theme").notice },
+            Text [ width = 100%, fontSize = 13, textColor = { provided("theme").noticeInk },
+                text = "That link doesn't open an issue without signing in: its view-only link is off, or the issue is gone. Sign in to see your team's issues." ]
+            ],
+        which: Segmented [ visible = { classroot.mode != "reset" }, width = 100%, accessibilityLabel = "Sign in or create an account",
+            items = { [ ({ id: "in", label: "Sign in" }), ({ id: "up", label: "Create an account" }) ] },
+            value = { classroot.mode },
+            commit(v: string) { classroot.mode = v }
+            ],
+
+        signIn: Form [ visible = { classroot.mode == "in" }, width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            Field [ label = "Email", stacked = true, width = 100%,
+                TextInput [ width = 100%, name = "email", purpose = email, required = "Enter your email address.",
+                    value <-> classroot.email,
+                    validate(v: string) -> string { return validEmail(v) ? "" : "That isn't a valid email address — it should look like name@example.com." }
+                    ]
+                ],
+            Field [ label = "Password", stacked = true, width = 100%,
+                TextInput [ width = 100%, name = "password", purpose = password, required = "Enter your password.",
+                    value <-> classroot.password ]
+                ],
+            Button [ width = 100%, primary = true, label = { parent.pending ? "Signing in…" : "Sign in" }, disabled = { parent.pending },
+                onClick() { parent.submit() }
+                ],
+            Text [ visible = { parent.error != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { parent.error } ],
+            Control [ height = { Math.max(32, app.tap) }, accessibilityLabel = "Forgot your password, or never set one?",
+                press() { classroot.mode = "reset"; classroot.sent = "" },
+                TextLabel [ y = center, fontSize = 13, textColor = { provided("theme").accent }, text = "Forgot your password, or never set one?" ]
+                ],
+            send() {
+                this.pending = true
+                app.signInProblem = ""
+                const f = this
+                S.signIn(classroot.email, classroot.password).then(() => { f.pending = false }, (e: Error) => {
+                    f.pending = false
+                    const m = S.plainError(e)
+                    f.refuse([({ name: /password/i.test(m) ? "password" : "", message: m })])
+                    })
+                }
+            ],
+
+        signUp: Form [ visible = { classroot.mode == "up" }, width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            View [ width = 100%, padding = 10, cornerRadius = 8, fill = { provided("theme").raised }, stroke = { Stroke(1, provided("theme").line) },
+                Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+                    text = "Creating an account makes a workspace of your own, named for your magazine, with a first issue — unless your address has been invited to a team, in which case you join that team instead." ]
+                ],
+            Field [ label = "Your name", stacked = true, width = 100%,
+                TextInput [ width = 100%, name = "name", purpose = name, required = "Enter your name.", value <-> classroot.name ]
+                ],
+            Field [ label = "Email", stacked = true, width = 100%,
+                TextInput [ width = 100%, name = "email", purpose = email, required = "Enter your email address.", value <-> classroot.email,
+                    validate(v: string) -> string { return validEmail(v) ? "" : "That isn't a valid email address — it should look like name@example.com." }
+                    ]
+                ],
+            Field [ label = "Password", stacked = true, width = 100%,
+                TextInput [ width = 100%, name = "password", purpose = newPassword, required = "Choose a password.", value <-> classroot.password,
+                    validate(v: string) -> string { return v.length >= 6 ? "" : "Use at least six characters." }
+                    ]
+                ],
+            Field [ label = "Your magazine (optional)", stacked = true, width = 100%,
+                TextInput [ width = 100%, name = "magazine", value <-> classroot.magazine ]
+                ],
+            Button [ width = 100%, primary = true, label = { parent.pending ? "Creating your account…" : "Create account" }, disabled = { parent.pending },
+                onClick() { parent.submit() }
+                ],
+            Text [ visible = { parent.error != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { parent.error } ],
+            send() {
+                this.pending = true
+                app.signInProblem = ""
+                app.signUpMagazine = classroot.magazine
+                const f = this
+                S.signUp(classroot.name, classroot.email, classroot.password).then(() => { f.pending = false }, (e: Error) => {
+                    f.pending = false
+                    const m = S.plainError(e)
+                    if (/already uses/.test(m)) f.refuse([({ name: "email", message: m })])
+                    else f.refuse([({ name: /password/i.test(m) ? "password" : "", message: m })])
+                    })
+                }
+            ],
+        useSignIn: Control [ visible = { classroot.mode == "up" && /already uses/.test(classroot.card.signUp.error + (classroot.card.signUp.problems[0]?.message ?? "")) },
+            height = { Math.max(32, app.tap) }, accessibilityLabel = "Sign in instead",
+            press() { classroot.mode = "in" },
+            TextLabel [ y = center, fontSize = 13, textColor = { provided("theme").accent }, text = "Sign in instead" ]
+            ],
+
+        reset: Form [ visible = { classroot.mode == "reset" }, width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            Text [ width = 100%, fontSize = 14, text = "Enter your address, and Pagemap will send an email with a link to set a new password." ],
+            Field [ label = "Email", stacked = true, width = 100%,
+                TextInput [ width = 100%, name = "email", purpose = email, required = "Enter your email address.", value <-> classroot.email,
+                    validate(v: string) -> string { return validEmail(v) ? "" : "That isn't a valid email address — it should look like name@example.com." }
+                    ]
+                ],
+            Button [ width = 100%, primary = true, label = { parent.pending ? "Sending…" : "Send the email" }, disabled = { parent.pending },
+                onClick() { parent.submit() }
+                ],
+            Text [ visible = { classroot.sent != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").ok }, text = { classroot.sent } ],
+            Text [ visible = { parent.error != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { parent.error } ],
+            Control [ height = { Math.max(32, app.tap) }, accessibilityLabel = "Back to signing in",
+                press() { classroot.mode = "in" },
+                TextLabel [ y = center, fontSize = 13, textColor = { provided("theme").accent }, text = "Back to signing in" ]
+                ],
+            send() {
+                this.pending = true
+                const f = this
+                S.resetPassword(classroot.email).then(() => {
+                    f.pending = false
+                    classroot.sent = "If there's an account for " + classroot.email.trim() + ", an email is on its way with a link to set a password. Then sign in with it."
+                    }, (e: Error) => { f.pending = false; f.refuse([({ name: "email", message: S.plainError(e) })]) })
+                }
+            ]
+        ]
+    ]
+
+
+// ── When the issue isn't open ───────────────────────────────────────────────────────────────
+
+class OpenState [ padding = [80, 24, 24, 24],
+    layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+    Text [ fontSize = 18, fontWeight = semibold, accessibilityRole = heading, text = { app.openTitle } ],
+    Text [ width = { Math.min(420, app.width - 48) }, textAlign = center, fontSize = 14, textColor = { provided("theme").textMuted }, text = { app.openLine } ],
+    Button [ visible = { app.signedIn && app.openState != "opening" }, label = "See the team's issues", primary = true,
+        onClick() { app.show("issues") }
+        ],
+    Button [ visible = { app.signedIn && app.openState != "opening" && app.wsHome != "" && app.wsHome != app.fpId }, label = "Open the home issue",
+        onClick() { app.openIssue(app.wsHome) }
+        ]
+    ]
+
+
+// ── The bar above the plan ──────────────────────────────────────────────────────────────────
+
+class TopBar [ height = { app.desk ? 52 : 52 }, padding = [0, 10, 0, 10], fill = { provided("theme").surface },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] }, accessibilityRole = banner,
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+
+    issue: Control [ shrinks = true, minWidth = 120, clip = true, height = { Math.max(40, app.tap) }, padding = [0, 10, 0, 8], cornerRadius = 8, accessibilityLabel = { "Issue: " + app.issueTitle + ". Open the team's issues" },
+        fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+        press() { app.show("issues") },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        View [ width = { app.wide ? 230 : app.desk ? 160 : Math.max(120, app.width - 230) },
+            layout: SimpleLayout [ axis = y ],
+            Text [ width = 100%, fontSize = 15, fontWeight = bold, wrap = false, maxLines = 1, text = { app.issueTitle } ],
+            Text [ width = 100%, fontSize = 11, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted },
+                text = { (app.fp.publication != "" ? app.fp.publication : app.wsName) + (app.fp.edition != "" ? " · " + app.fp.edition : "") } ]
+            ],
+        Glyph [ shape = "down", iconSize = 12, ink = { provided("theme").textMuted } ]
+        ],
+    readOnly: View [ visible = { !app.canEdit && app.openState == "open" }, height = 22, padding = [0, 8, 0, 8], cornerRadius = 11,
+        fill = { provided("theme").notice },
+        TextLabel [ y = center, fontSize = 11, fontWeight = semibold, textColor = { provided("theme").noticeInk }, text = { app.visitor ? "View only" : "Read only" } ]
+        ],
+    Spacer [ ],
+
+    search: SearchField [ visible = { app.desk }, width = { app.wide ? 220 : 150 }, height = 32, placeholder = "Find a page or story",
+        accessibilityLabel = "Find a page by folio, or a story by title", value <-> app.query ],
+    filterPick: Button [ visible = { app.desk && !app.wide }, label = { app.filterName }, accessibilityLabel = { "Show: " + app.filterName }, menu = { app.filterMenu } ],
+    filter: Segmented [ visible = { app.wide }, accessibilityLabel = "Show",
+        items = { [ ({ id: "all", label: "All" }), ({ id: "editorial", label: "Editorial" }), ({ id: "advertising", label: "Ads" }), ({ id: "open", label: "Open" }) ] },
+        value = { app.filter },
+        commit(v: string) { app.filter = v }
+        ],
+    zoomOut: IconButton [ visible = { app.desk }, shape = "zoom-out", accessibilityLabel = "See more of the issue", tooltipLabel = "Smaller pages",
+        disabled = { app.zoom <= 0.6 },
+        press() { app.setZoom(app.zoom / 1.35) }
+        ],
+    zoomIn: IconButton [ visible = { app.desk }, shape = "zoom-in", accessibilityLabel = "Look closer", tooltipLabel = "Larger pages",
+        disabled = { app.zoom >= 5 },
+        press() { app.setZoom(app.zoom * 1.35) }
+        ],
+    art: IconButton [ shape = "art", on = { app.artMode }, accessibilityLabel = "Show artwork", accessibilityPressed = { app.artMode },
+        tooltipLabel = { app.artMode ? "Showing artwork — press for the plan" : "Showing the plan — press for artwork" },
+        press() { app.artMode = !app.artMode }
+        ],
+    read: IconButton [ visible = { app.desk }, shape = "read", accessibilityLabel = "Read the issue spread by spread", tooltipLabel = "Read",
+        press() { app.read(app.pageId != "" ? app.pageId : app.fp.pages[0]?.id ?? "") }
+        ],
+
+    people: Control [ visible = { app.wide && app.openState == "open" }, height = { app.tap }, padding = [0, 4, 0, 4], cornerRadius = 8,
+        accessibilityLabel = { app.hereText }, tooltipLabel = { app.hereText }, menu = { app.peopleMenu },
+        fill = { hovered ? provided("theme").hover : null },
+        faces: View [ y = center, datapath = { app.herePeople.value },
+            layout: SimpleLayout [ axis = x, spacing = -6, align = center ],
+            View [ datapath = :rows[], width = 26, height = 26,
+                Avatar [ tone = { :color ?? "#80a7ff" }, initials = { :initials ?? "" } ]
+                ]
+            ]
+        ],
+    count: Control [ visible = { !app.wide && app.openState == "open" }, height = { app.tap }, padding = [0, 6, 0, 6], cornerRadius = 8,
+        accessibilityLabel = { app.hereText }, menu = { app.peopleMenu },
+        fill = { hovered ? provided("theme").hover : null },
+        layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+        Glyph [ shape = "people", iconSize = 16, ink = { provided("theme").textMuted } ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { "" + app.hereCount } ]
+        ],
+    panelsButton: IconButton [ visible = { app.desk && !app.wide && app.openState == "open" }, shape = "panels", accessibilityLabel = "Issue panels",
+        tooltipLabel = "Sections, stories, ads, art, talk, print",
+        press() { app.show("panels") }
+        ],
+
+    saved: View [ visible = { app.canEdit },
+        layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+        accessibilityRole = status, accessibilityLabel = { app.savedText }, tooltipLabel = { app.savedText },
+        Glyph [ shape = { app.pending > 0 || app.problem == "" && app.online ? "cloud" : "warn" }, iconSize = 14,
+            ink = { app.problem != "" || !app.online ? provided("theme").warn : provided("theme").textMuted } ],
+        Text [ visible = { app.desk }, fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = { app.savedShort } ]
+        ],
+    undo: IconButton [ visible = { app.canEdit }, shape = "undo", disabled = { app.undoLabel == "" },
+        accessibilityLabel = { app.undoLabel == "" ? "Nothing to undo" : "Undo " + app.undoLabel },
+        tooltipLabel = { app.undoLabel == "" ? "Nothing to undo" : "Undo “" + app.undoLabel + "” (⌘Z)" },
+        press() { app.undo() }
+        ],
+    redo: IconButton [ visible = { app.canEdit && app.desk }, shape = "redo", disabled = { app.redoLabel == "" },
+        accessibilityLabel = { app.redoLabel == "" ? "Nothing to redo" : "Redo " + app.redoLabel },
+        tooltipLabel = { app.redoLabel == "" ? "Nothing to redo" : "Redo “" + app.redoLabel + "” (⇧⌘Z)" },
+        press() { app.redo() }
+        ],
+    share: IconButton [ visible = { app.signedIn && app.wide }, shape = "share", accessibilityLabel = "Share and team", tooltipLabel = "Share and team",
+        press() { app.show("team") }
+        ],
+    help: IconButton [ visible = { app.wide }, shape = "help", accessibilityLabel = "How to use Pagemap", tooltipLabel = "How to…",
+        press() { app.show("help") }
+        ],
+    me: Control [ width = { app.tap }, height = { app.tap }, cornerRadius = { app.tap / 2 },
+        accessibilityLabel = { app.signedIn ? "Account: " + (app.person?.name ?? "") + " in " + app.wsName : "Sign in" },
+        menu = { app.accountMenu },
+        Avatar [ x = center, y = center, visible = { app.signedIn }, tone = { app.memberOf(app.uid)?.color ?? "#80a7ff" },
+            initials = { S.initials(app.person?.name ?? "") } ],
+        Glyph [ x = center, y = center, visible = { !app.signedIn }, shape = "people", iconSize = 18, ink = { provided("theme").textMuted } ]
+        ]
+    ]
+
+
+// ── The issue at a glance ───────────────────────────────────────────────────────────────────
+
+class StatsBar [ padding = { app.desk ? [6, 14, 6, 14] : [4, 10, 4, 10] }, fill = { provided("theme").raised },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] }, visible = { app.openState == "open" },
+    accessibilityRole = region, accessibilityLabel = "The issue at a glance",
+    layout: WrappingLayout [ spacing = { app.desk ? 14 : 8 }, rowSpacing = 0, align = center ],
+    Stat [ label = "Pages", value = { "" + app.fp.pages.length } ],
+    Stat [ label = "Stories", value = { "" + app.fp.stories.length } ],
+    Stat [ label = { app.desk ? "Editorial" : "Ed." }, tone = { provided("theme").editorialInk }, swatch = { provided("theme").editorial },
+        value = { pagesText(app.split.editorial) + " · " + pct(app.split.editorial, app.split.pages) } ],
+    Stat [ label = { app.desk ? "Advertising" : "Ads" }, tone = { provided("theme").advertInk }, swatch = { provided("theme").advert },
+        value = { pagesText(app.split.advertising) + " · " + pct(app.split.advertising, app.split.pages) } ],
+    Stat [ label = "Open", swatch = { provided("theme").sheet },
+        value = { pagesText(app.split.open) + " · " + pct(app.split.open, app.split.pages) } ],
+    waitingStat: Control [ height = { app.touchFirst ? 44 : 26 }, padding = [0, 6, 0, 6], cornerRadius = 6, accessibilityLabel = { app.waitingText + ". Show what is waiting" },
+        fill = { hovered ? provided("theme").hover : null },
+        press() { app.openPanel("waiting") },
+        TextLabel [ y = center, fontSize = 12, textColor = { app.waiting > 0 ? provided("theme").warn : provided("theme").textMuted },
+            text = { app.desk ? app.waitingText : app.waiting == 0 ? "Nothing waiting" : app.waiting + " waiting" } ]
+        ],
+    bookingStat: Control [ height = { app.touchFirst ? 44 : 26 }, padding = [0, 6, 0, 6], cornerRadius = 6, accessibilityLabel = { app.bookingText + ". Show the bookings" },
+        fill = { hovered ? provided("theme").hover : null },
+        press() { app.openPanel("ads") },
+        TextLabel [ y = center, fontSize = 12, textColor = { app.openBookings > 0 ? provided("theme").warn : provided("theme").textMuted },
+            text = { app.desk ? app.bookingText : app.bookingsBrief } ]
+        ],
+    foundStat: View [ visible = { app.searching },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Text [ fontSize = 12, fontWeight = semibold, text = { app.found.length + (app.found.length == 1 ? " page matches" : " pages match") } ],
+        Button [ visible = { app.found.length > 0 }, label = "Select them", height = { app.touchFirst ? 44 : 26 },
+            onClick() { app.selectFound() }
+            ],
+        Button [ label = "Clear", height = { app.touchFirst ? 44 : 26 },
+            onClick() { app.query = ""; app.filter = "all" }
+            ]
+        ]
+    ]
+
+
+class Stat [ height = 26,
+    label: string = "",
+    value: string = "",
+    tone: Color = { provided("theme").text },
+    swatch: Color = null,
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    View [ visible = { classroot.swatch != null }, width = 10, height = 10, cornerRadius = 2, fill = { classroot.swatch },
+        stroke = { Stroke(1, provided("theme").lineStrong) } ],
+    Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    Text [ fontSize = 12, fontWeight = semibold, textColor = { classroot.tone }, text = { classroot.value } ]
+    ]
+
+
+// ── A move, an exchange or a copy in progress ───────────────────────────────────────────────
+
+class MoveBar [ padding = [8, 14, 8, 14], fill = { provided("theme").movingTint },
+    stroke = { [null, null, Stroke(1, provided("theme").moving), null] }, accessibilityRole = region, accessibilityLabel = "Moving pages",
+    layout: WrappingLayout [ spacing = 10, rowSpacing = 8, align = center ],
+    Text [ width = { app.desk ? Math.min(560, app.width - 420) : app.width - 28 }, fontSize = 13, fontWeight = medium,
+        accessibilityRole = status, text = { app.modeText } ],
+    whereTo: Segmented [ visible = { app.movingIds.length > 0 }, accessibilityLabel = "Before or after",
+        items = { [ ({ id: "before", label: "Before" }), ({ id: "after", label: "After" }) ] },
+        value = { app.moveWhere },
+        commit(v: string) { app.moveWhere = v }
+        ],
+    go: Button [ visible = { app.movingIds.length > 0 }, primary = true, label = "Move", disabled = { app.moveTarget == "" },
+        onClick() { app.doMove() }
+        ],
+    copyGo: Button [ visible = { app.copyFrom != "" }, primary = true, label = { "Copy onto " + app.copyTargets.length }, disabled = { app.copyTargets.length == 0 },
+        onClick() { app.doCopy() }
+        ],
+    Button [ label = "Cancel",
+        onClick() { app.cancelMove() }
+        ]
+    ]
+
+
+// ── A phone's bar at the foot ───────────────────────────────────────────────────────────────
+
+class PhoneBar [ fill = { provided("theme").surface }, stroke = { [Stroke(1, provided("theme").line), null, null, null] },
+    accessibilityRole = navigation, accessibilityLabel = "Tools",
+    layout: SimpleLayout [ axis = y ],
+    picking: View [ visible = { app.selecting }, width = 100%, padding = [6, 10, 0, 10],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 13, accessibilityRole = status,
+            text = { app.sel.length == 0 ? "Tap pages to take them in hand." : app.sel.length + (app.sel.length == 1 ? " page" : " pages") + " in hand: " + app.runText(app.sel) } ],
+        Button [ label = "Act on them", primary = true, disabled = { app.sel.length == 0 },
+            onClick() { app.show("selection") }
+            ]
+        ],
+    tools: PhoneTools [ width = 100% ]
+    ]
+
+
+class PhoneTools [ height = { 58 + app.safeBottom }, padding = { [6, 6, app.safeBottom + 6, 6] },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    BarButton [ label = "Panels", shape = "panels",
+        press() { app.show("panels") }
+        ],
+    BarButton [ label = "Find", shape = "search", on = { app.searching },
+        press() { app.show("find") }
+        ],
+    BarButton [ label = { app.selecting ? "Done" : "Select" }, shape = "select", on = { app.selecting },
+        accessibilityLabel = { app.selecting ? "Stop selecting" : "Select several pages" },
+        press() { app.selecting = !app.selecting; if (!app.selecting) { app.clearSel(); app.dismiss("selection") } }
+        ],
+    BarButton [ label = "Read", shape = "read",
+        press() { app.read(app.pageId != "" ? app.pageId : app.fp.pages[0]?.id ?? "") }
+        ],
+    BarButton [ label = "Size", shape = "zoom-in", accessibilityLabel = "Page size", menu = { app.zoomMenu } ]
+    ]
+
+
+class BarButton extends Control [ flexes = true, height = 46, cornerRadius = 8,
+    label: string = "",
+    shape: string = "",
+    on: boolean = false,
+    accessibilityLabel = { classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : classroot.on ? provided("theme").controlSelected : null },
+    layout: SimpleLayout [ axis = y, spacing = 2, align = center ],
+    View [ height = 4 ],
+    Glyph [ shape = { classroot.shape }, iconSize = 18, ink = { classroot.on ? provided("theme").accent : provided("theme").text } ],
+    Text [ fontSize = 10, textColor = { classroot.on ? provided("theme").accent : provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// ── The team's issues ───────────────────────────────────────────────────────────────────────
+
+class IssueRow extends Control [ width = 100%, cornerRadius = 8, padding = [8, 10, 8, 10],
+    iid: string = { :id ?? "" },
+    here: boolean = { classroot.iid == app.fpId },
+    accessibilityLabel = { (:name ?? "") + ", " + (:edition ?? "") + ", " + (:pages ?? 0) + " pages" + (classroot.here ? ", open now" : "") },
+    fill = { hovered ? provided("theme").hover : null },
+    State [ applied = { pressed }, fill = { provided("theme").controlPressed } ],
+    State [ applied = { classroot.here }, fill = { provided("theme").controlSelected } ],
+    press() { app.openIssue(classroot.iid) },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 15, fontWeight = semibold, text = { :name ?? "" } ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { [(:edition ?? ""), (:pages ?? 0) + " pages", "changed " + when(:updated ?? 0, app.clock.now)].filter((s) => s != "").join(" · ") } ]
+        ],
+    Text [ visible = { classroot.here }, fontSize = 12, textColor = { provided("theme").accent }, text = "Open" ]
+    ]
+
+
+class IssuesList [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = center ],
+        Text [ flexes = true, fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = { app.wsName + "'s issues" } ],
+        Button [ visible = { app.signedIn && app.role != "viewer" && app.account?.role != "viewer" }, label = "New issue", primary = true,
+            onClick() { app.show("new-issue") }
+            ]
+        ],
+    current: View [ width = 100%, datapath = { app.issueRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        IssueRow [ datapath = :current[] ]
+        ],
+    Text [ visible = { (app.issueRows.value?.current ?? []).length == 0 }, fontSize = 13, textColor = { provided("theme").textFaint }, text = "No current issues." ],
+    archived: Disclosure [ width = 100%, label = { "Archived (" + (app.issueRows.value?.archived ?? []).length + ")" },
+        View [ width = 100%, datapath = { app.issueRows.value },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            IssueRow [ datapath = :archived[] ]
+            ]
+        ]
+    ]
+
+
+// A new issue: a name, an edition, and where it starts from.
+
+class NewIssueForm extends Form [ width = 100%,
+    name: string = "",
+    edition: string = "",
+    start: string = "plan",
+    pages: string = "96",
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = "A new issue" ],
+    Field [ label = "Name", stacked = true, width = 100%,
+        TextInput [ width = 100%, name = "name", required = "Give the issue a name, like “Issue 05”.", value <-> classroot.name ]
+        ],
+    Field [ label = "Edition (optional)", stacked = true, width = 100%,
+        TextInput [ width = 100%, name = "edition", placeholder = "Spring 2026", value <-> classroot.edition ]
+        ],
+    Field [ label = { "Start from " + app.fp.name }, stacked = true, width = 100%,
+        RadioGroup [ value <-> classroot.start,
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            Radio [ choice = "plan", label = "The same plan" ],
+            Radio [ choice = "copy", label = "A copy, everything included" ],
+            Radio [ choice = "empty", label = "Empty pages" ]
+            ]
+        ],
+    Hint [ text = { ({ plan: "Its pages, sections, layouts and kinds of content — no stories, ads, bookings, artwork, tags, notes, locks, labels, stitch-ins or set-aside pages.",
+        copy: "Everything in it: stories, ads, bookings, artwork, notes and all.",
+        empty: "Blank pages in its first section after the covers, with its sections, statuses and tags" + (coversOn(app.fp) ? ", and separate covers." : ".") })[classroot.start] ?? "" } ],
+    Field [ visible = { classroot.start == "empty" }, label = "How many pages", stacked = true, width = 100%,
+        TextInput [ width = 100, name = "pages", purpose = digits, value <-> classroot.pages,
+            validate(v: string) -> string { const n = Number(v); return Number.isInteger(n) && n >= 4 && n % 2 == 0 ? "" : "An even number, at least 4." }
+            ]
+        ],
+    Button [ width = 100%, primary = true, label = { classroot.pending ? "Making it…" : "Make the issue" }, disabled = { classroot.pending },
+        onClick() { classroot.submit() }
+        ],
+    Text [ visible = { classroot.error != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { classroot.error } ],
+    send() { app.makeIssue(this) }
+    ]
+
+
+// ── The team, and sharing ───────────────────────────────────────────────────────────────────
+
+class TeamPanel [ width = 100%,
+    inviteEmail: string = "",
+    inviteRole: string = "editor",
+    invited: string = "",
+    copied: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = { "The team of " + app.wsName } ],
+    people: View [ width = 100%, datapath = { app.members.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        View [ datapath = :rows[], width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Avatar [ tone = { :color ?? "#80a7ff" }, initials = { :initials ?? "" } ],
+            View [ flexes = true,
+                layout: SimpleLayout [ axis = y ],
+                Text [ fontSize = 14, fontWeight = semibold, text = { (:name ?? "") + ((:uid ?? "") == app.uid ? " (you)" : "") } ],
+                Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { :email ?? "" } ]
+                ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { app.roleName(:role ?? "") } ]
+            ]
+        ],
+
+    invite: Form [ visible = { app.account?.role == "admin" }, width = 100%, padding = [12, 0, 0, 0],
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        PanelHeading [ text = "INVITE SOMEONE" ],
+        Field [ label = "Their email", stacked = true, width = 100%,
+            TextInput [ width = 100%, name = "email", purpose = email, required = "Enter their email address.", value <-> classroot.inviteEmail,
+                validate(v: string) -> string { return validEmail(v) ? "" : "That isn't a valid email address." }
+                ]
+            ],
+        Segmented [ accessibilityLabel = "Invite them to", value <-> classroot.inviteRole,
+            items = { [ ({ id: "editor", label: "Edit" }), ({ id: "viewer", label: "View and comment" }) ] } ],
+        Button [ primary = true, label = { parent.pending ? "Inviting…" : "Invite" }, disabled = { parent.pending },
+            onClick() { parent.submit() }
+            ],
+        Text [ visible = { classroot.invited != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").ok }, text = { classroot.invited } ],
+        Text [ visible = { parent.error != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { parent.error } ],
+        send() {
+            this.pending = true
+            const f = this
+            const email = classroot.inviteEmail.trim()
+            const role = classroot.inviteRole
+            S.invite(app.account?.ws ?? "", app.uid, email, role).then(() => {
+                f.pending = false
+                classroot.invited = "The invitation is waiting. Ask " + email + " to open Pagemap and sign in — or create an account — with that address; they'll join " + app.wsName + " to " + (role == "editor" ? "edit" : "view and comment") + ". Pagemap doesn't send the email itself."
+                classroot.inviteEmail = ""
+                }, (e: Error) => { f.pending = false; f.refuse([({ name: "", message: S.plainError(e) })]) })
+            }
+        ],
+    Hint [ visible = { app.account?.role != "admin" }, text = "Only the team's admins can invite people." ],
+
+    PanelHeading [ text = "VIEW-ONLY LINK" ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { app.viewable ? "Anyone with this link can read " + app.fp.name + " as it is now, and save a copy of it, without signing in — but not change it."
+            : "Sharing a view-only link turns it on: anyone with the link can then read " + app.fp.name + " as it is now, and save a copy of it, without signing in — but not change it." } ],
+    Button [ visible = { !app.viewable && app.canEdit }, label = "Turn on the view-only link",
+        onClick() { app.shareLink() }
+        ],
+    linkRow: View [ visible = { app.viewable }, width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        TextInput [ flexes = true, accessibilityLabel = "The view-only link", value = { app.linkUrl },
+            commit(v: string) { }
+            ],
+        Button [ label = "Copy",
+            onClick() { S.copyText(app.linkUrl); classroot.copied = "Copied." }
+            ]
+        ],
+    Text [ visible = { classroot.copied != "" }, fontSize = 12, textColor = { provided("theme").ok }, text = { classroot.copied } ],
+
+    PanelHeading [ text = "SENDING IT TO THE TEAM" ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = "Pagemap doesn't send email. To send the issue to people, share the view-only link above, print the plan (or save it as a PDF), or save a backup and send the file." ],
+    sendActs: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Action [ label = "Print the plan…",
+            press() { app.printPlan() }
+            ],
+        Action [ label = "Back up",
+            press() { app.backUp() }
+            ]
+        ]
+    ]
+
+
+// ── Running Pagemap ─────────────────────────────────────────────────────────────────────────
+
+class AdminPanel [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = "Every account" ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted }, text = "Newest first. Turning an account off keeps it out; clearing one removes what it owns." ],
+    list: View [ width = 100%, datapath = { app.accounts.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ datapath = :rows[], width = 100%, padding = 10, cornerRadius = 8, fill = { provided("theme").raised },
+            stroke = { Stroke(1, provided("theme").line) },
+            aid: string = { :uid ?? "" },
+            mine: boolean = { this.aid == app.uid },
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, fontSize = 14, fontWeight = semibold, text = { (:name ?? "") + (parent.mine ? " (you)" : "") + ((:blocked ?? false) ? " — turned off" : "") } ],
+            Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, text = { :email ?? "" } ],
+            Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+                text = { ((:wsName ?? "") != "" ? :wsName : "No workspace") + " · uploaded " + bytesText(:bytes ?? 0) + " · joined " + when(:created ?? 0, app.clock.now) + ((:cleared ?? 0) > 0 ? " · cleared " + when(:cleared ?? 0, app.clock.now) : "") } ],
+            acts: View [ visible = { !parent.mine }, width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 6 ],
+                Action [ label = { (:blocked ?? false) ? "Turn on" : "Turn off" }, accessibilityLabel = { ((:blocked ?? false) ? "Turn on " : "Turn off ") + (:email ?? "") },
+                    press() { S.setBlocked(parent.parent.aid, !(:blocked ?? false)) }
+                    ],
+                Action [ label = "Clear…", danger = true, accessibilityLabel = { "Clear " + (:email ?? "") },
+                    press() { app.clearAccount(parent.parent.aid, :email ?? "") }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── Reading the issue ───────────────────────────────────────────────────────────────────────
+
+class Reader [ width = { app.width }, height = { app.height }, fill = #111110,
+    byPage: boolean = { !app.desk },
+    idx: number = { Math.max(0, pageIndex(app.fp, app.pageId)) },
+    spread: number = { app.sl[classroot.idx]?.spread ?? 0 },
+    shownIds: string[] = { classroot.byPage ? [app.pageId] : app.fp.pages.filter((p, i) => app.sl[i].spread == classroot.spread).map((p) => p.id) },
+    lastSpread: number = { app.sl[app.sl.length - 1]?.spread ?? 0 },
+    readerPw: number = { Math.max(80, Math.min((app.width - 32) / Math.max(1, classroot.shownIds.length), (app.height - 140 - app.safeBottom) * app.fp.trimW / Math.max(0.1, app.fp.trimH))) },
+    stepBy(d: number) {
+        if (classroot.byPage) { const i = classroot.idx + d; if (i >= 0 && i < app.fp.pages.length) app.readAt(app.fp.pages[i].id); return }
+        const target = classroot.spread + d
+        const i = app.sl.findIndex((s) => s.spread == target)
+        if (i >= 0) app.readAt(app.fp.pages[i].id)
+        },
+    keyBindings = { [ ({ key: "ArrowRight", command: "stepBy", args: [1] }), ({ key: "ArrowLeft", command: "stepBy", args: [-1] }),
+        ({ key: "PageDown", command: "stepBy", args: [1] }), ({ key: "PageUp", command: "stepBy", args: [-1] }) ] },
+    focusable = true,
+    accessibilityRole = region, accessibilityLabel = { "Reading " + app.runText(classroot.shownIds) },
+    claim = x,
+    onDragEnd(e: DragEndEvent) { if (!e.canceled && Math.abs(e.deltaX) > 60) classroot.stepBy(e.deltaX < 0 ? 1 : -1) },
+    layout: SimpleLayout [ axis = y ],
+    bar: View [ width = 100%, height = 52, padding = [0, 10, 0, 10],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 15, fontWeight = semibold, textColor = #F2F1ED, wrap = false, maxLines = 1,
+            text = { app.fp.name + " · " + app.runText(classroot.shownIds) } ],
+        Segmented [ accessibilityLabel = "Read by", items = { [ ({ id: "spread", label: "Spreads" }), ({ id: "page", label: "Pages" }) ] },
+            value = { classroot.byPage ? "page" : "spread" },
+            commit(v: string) { classroot.byPage = v == "page" }
+            ],
+        IconButton [ shape = "close", tone = #F2F1ED, accessibilityLabel = "Stop reading",
+            press() { app.stopReading() }
+            ]
+        ],
+    stage: View [ width = 100%, flexes = true,
+        pagesRow: View [ x = center, y = center, datapath = { app.readerPages.value },
+            layout: SimpleLayout [ axis = x, spacing = 0 ],
+            ReaderPage [ datapath = :rows[] ]
+            ]
+        ],
+    foot: View [ width = 100%, height = { 64 + app.safeBottom }, padding = { [6, 12, app.safeBottom + 6, 12] },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        IconButton [ shape = "left", tone = #F2F1ED, accessibilityLabel = { classroot.byPage ? "Previous page" : "Previous spread" },
+            press() { classroot.stepBy(-1) }
+            ],
+        Slider [ flexes = true, height = { app.tap }, accessibilityLabel = { classroot.byPage ? "Page" : "Spread" }, min = 0,
+            max = { classroot.byPage ? app.fp.pages.length - 1 : classroot.lastSpread }, step = 1,
+            value = { classroot.byPage ? classroot.idx : classroot.spread },
+            commit(v: number) {
+                const i = classroot.byPage ? Math.round(v) : app.sl.findIndex((s) => s.spread == Math.round(v))
+                if (i >= 0 && i < app.fp.pages.length) app.readAt(app.fp.pages[i].id)
+                }
+            ],
+        IconButton [ shape = "right", tone = #F2F1ED, accessibilityLabel = { classroot.byPage ? "Next page" : "Next spread" },
+            press() { classroot.stepBy(1) }
+            ]
+        ]
+    ]
+
+
+class ReaderPage [ clip = true,
+    pid: string = { :id ?? "" },
+    pg: Page? = { app.fp.pages.find((p) => p.id == this.pid) ?? null },
+    pw: number = { provided("readerPw") as number },
+    width = { classroot.pw },
+    height = { classroot.pw * app.fp.trimH / Math.max(0.1, app.fp.trimW) },
+    fill = #FFFFFF,
+    url: string = "",
+    key: string = { app.artKeyFor(classroot.pg?.art ?? null, 1200) },
+    trackChanges = ["key"],
+    onChange() { app.loadReaderArt(this) },
+    onInit() { app.loadReaderArt(this) },
+    planView: View [ visible = { (classroot.pg?.art ?? null) == null }, width = 100%, height = 100%,
+        View [ datapath = :page.regions[],
+            rect: object = { regionRects(classroot.pg?.layout ?? "full", classroot.pg?.turn ?? 0, classroot.pg?.flip ?? false)[rowIndex] ?? ({ x: 0, y: 0, w: 1, h: 1 }) },
+            x = { this.rect.x * classroot.width + 4 }, y = { this.rect.y * classroot.height + 4 },
+            width = { this.rect.w * classroot.width - 8 }, height = { this.rect.h * classroot.height - 8 },
+            fill = { (:kind ?? "") == "editorial" ? 0xE7ECF7 : (:kind ?? "") == "advertising" ? 0xFBE3BC : null },
+            stroke = { (:kind ?? "") == "unassigned" ? Stroke(1, 0xBDB8AB) : null },
+            Text [ x = 10, y = 10, width = { Math.max(0, parent.width - 20) }, fontSize = 16, textColor = #22324F, text = { app.regionWords(:@) } ]
+            ]
+        ],
+    Image [ visible = { (classroot.pg?.art ?? null) != null }, width = 100%, height = 100%, fit = contain,
+        source = { app.artSource(classroot.pg?.art ?? null, 1200, classroot.url) } ],
+    Text [ x = 8, y = { parent.height - 22 }, fontSize = 12, fontWeight = bold, textColor = #807C72, text = { :folio ?? "" } ]
+    ]
+
+
+// ── Everything that opens over the plan ─────────────────────────────────────────────────────
+
+class Overlays [ width = 0, height = 0,
+    issues: Sheet [ edge = { app.desk ? "end" : "bottom" }, sheetWidth = 480, accessibilityLabel = "The team's issues",
+        shown = { app.opened == "issues" && app.signedIn },
+        commit(open: boolean) { if (!open) app.dismiss("issues") },
+        IssuesList [ width = 100% ]
+        ],
+    newIssue: Sheet [ edge = { app.desk ? "end" : "bottom" }, sheetWidth = 480, accessibilityLabel = "A new issue",
+        shown = { app.opened == "new-issue" && app.signedIn },
+        commit(open: boolean) { if (!open) app.dismiss("new-issue") },
+        NewIssueForm [ exists = { classroot.newIssue.present }, width = 100% ]
+        ],
+    team: Sheet [ edge = { app.desk ? "end" : "bottom" }, sheetWidth = 480, accessibilityLabel = "Share and team",
+        shown = { app.opened == "team" && app.signedIn },
+        commit(open: boolean) { if (!open) app.dismiss("team") },
+        TeamPanel [ exists = { classroot.team.present }, width = 100% ]
+        ],
+    admin: Sheet [ edge = { app.desk ? "end" : "bottom" }, sheetWidth = 480, accessibilityLabel = "Running Pagemap",
+        shown = { app.opened == "admin" && app.siteAdmin },
+        commit(open: boolean) { if (!open) app.dismiss("admin") },
+        AdminPanel [ exists = { classroot.admin.present }, width = 100% ]
+        ],
+    help: Sheet [ edge = { app.desk ? "end" : "bottom" }, sheetWidth = 480, accessibilityLabel = "How to use Pagemap",
+        shown = { app.opened == "help" },
+        commit(open: boolean) { if (!open) app.dismiss("help") },
+        HelpPanel [ width = 100% ]
+        ],
+    panels: Sheet [ edge = { app.desk ? "start" : "bottom" }, sheetWidth = 420, accessibilityLabel = "Issue panels",
+        shown = { app.opened == "panels" && !app.wide },
+        commit(open: boolean) { if (!open) app.dismiss("panels") },
+        ChoiceControl [ width = { app.desk ? 388 : app.width - 32 }, accessibilityLabel = "Panel", value <-> app.panel,
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            RailItem [ choice = "sections", label = "Sections", shape = "panels" ],
+            RailItem [ choice = "waiting", label = "Stories", shape = "note", count = { app.waiting } ],
+            RailItem [ choice = "ads", label = "Ads", shape = "ad", count = { app.openBookings } ],
+            RailItem [ choice = "artwork", label = "Art", shape = "art" ],
+            RailItem [ choice = "talk", label = "Talk", shape = "comment", count = { (app.comments.value?.rows ?? []).length } ],
+            RailItem [ choice = "print", label = "Print", shape = "stitch" ]
+            ],
+        PanelBody [ width = { app.desk ? 388 : app.width - 32 }, scrolls = none, padding = [8, 0, 20, 0] ]
+        ],
+    find: Sheet [ edge = "bottom", accessibilityLabel = "Find",
+        shown = { app.opened == "find" && !app.desk },
+        commit(open: boolean) { if (!open) app.dismiss("find") },
+        Text [ fontSize = 17, fontWeight = bold, accessibilityRole = heading, text = "Find" ],
+        SearchField [ width = { app.width - 32 }, placeholder = "A folio, or words in a title", accessibilityLabel = "Find a page by folio, or a story by title", value <-> app.query ],
+        Segmented [ width = { app.width - 32 }, accessibilityLabel = "Show",
+            items = { [ ({ id: "all", label: "All" }), ({ id: "editorial", label: "Editorial" }), ({ id: "advertising", label: "Ads" }), ({ id: "open", label: "Open" }) ] },
+            value = { app.filter },
+            commit(v: string) { app.filter = v }
+            ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { app.searching ? app.found.length + " pages match; the rest are dimmed." : "Every page shows." } ],
+        Button [ label = "Done", primary = true,
+            onClick() { app.dismiss("find") }
+            ]
+        ],
+    pageSheet: Sheet [ edge = "bottom", accessibilityLabel = "Page panel",
+        shown = { app.pageSheetOpen },
+        commit(open: boolean) { if (!open) { if (app.selecting) app.dismiss("selection"); else { app.clearSel(); app.go("") } } },
+        PageEditor [ exists = { app.currentIndex >= 0 && classroot.pageSheet.present }, visible = { app.sel.length <= 1 }, width = { app.width - 32 }, datapath = { app.plan.value.pages[app.currentIndex] } ],
+        SelectionEditor [ exists = { app.sel.length > 1 && classroot.pageSheet.present }, width = { app.width - 32 } ]
+        ],
+    story: Sheet [ edge = { app.desk ? "end" : "bottom" }, sheetWidth = 480, accessibilityLabel = "Story",
+        shown = { app.opened == "story" && app.openState == "open" },
+        commit(open: boolean) { if (!open) app.dismiss("story") },
+        form: StoryForm [ exists = { classroot.story.present }, width = 100% ]
+        ],
+    place: Sheet [ edge = { app.desk ? "end" : "bottom" }, sheetWidth = 480, accessibilityLabel = "Place a story",
+        shown = { app.opened == "place" && app.openState == "open" },
+        commit(open: boolean) { if (!open) app.dismiss("place") },
+        PlacePanel [ exists = { classroot.place.present }, width = 100% ]
+        ],
+    booking: Sheet [ edge = { app.desk ? "end" : "bottom" }, sheetWidth = 480, accessibilityLabel = "Add a booking",
+        shown = { app.opened == "booking" && app.openState == "open" },
+        commit(open: boolean) { if (!open) app.dismiss("booking") },
+        BookingForm [ exists = { classroot.booking.present }, width = 100% ]
+        ],
+    attach: Sheet [ edge = { app.desk ? "end" : "bottom" }, sheetWidth = 480, accessibilityLabel = "Attach artwork",
+        shown = { app.opened == "attach" && app.openState == "open" },
+        commit(open: boolean) { if (!open) app.dismiss("attach") },
+        AttachPanel [ exists = { classroot.attach.present }, width = 100% ]
+        ],
+    tool: Sheet [ edge = { app.desk ? "end" : "bottom" }, sheetWidth = 480, accessibilityLabel = { app.toolTitle },
+        shown = { app.opened.startsWith("tool:") && app.openState == "open" },
+        commit(open: boolean) { if (!open) app.waypoint = "" },
+        PageTool [ exists = { classroot.tool.present }, width = 100% ]
+        ],
+    reader: Dialog [ presentation = "full", accessibilityLabel = "Reading the issue",
+        shown = { app.reading && app.openState == "open" },
+        commit(open: boolean) { if (!open) app.stopReading() },
+        view: Reader [ exists = { classroot.reader.present } ]
+        ],
+    art: Dialog [ presentation = "full", accessibilityLabel = "Artwork, close up",
+        shown = { app.opened == "art" && app.openState == "open" },
+        commit(open: boolean) { if (!open) app.dismiss("art") },
+        ArtCloseUp [ exists = { classroot.art.present } ]
+        ],
+    pdf: Dialog [ presentation = "full", accessibilityLabel = "The PDF",
+        shown = { app.opened == "pdf" && app.openState == "open" },
+        commit(open: boolean) { if (!open) app.dismiss("pdf") },
+        PdfView [ exists = { classroot.pdf.present } ]
+        ]
+    ]
+
+
+// ── A story: added, or changed ──────────────────────────────────────────────────────────────
+
+class StoryForm extends Form [ width = 100%,
+    sid: string = { app.storyId },
+    story: Story? = { storyById(app.fp, classroot.sid) ?? null },
+    isNew: boolean = { classroot.story == null },
+    placed: boolean = { classroot.sid != "" && pagesOfStory(app.fp, classroot.sid).length > 0 },
+    title: string = { classroot.story?.title ?? "" },
+    sectionId: string = { classroot.story?.sectionId ?? (app.currentPage != null && !coverSections(app.fp).includes(app.currentPage.sectionId) ? app.currentPage.sectionId : firstInteriorSectionOf(app.fp)) },
+    pages: string = { String(classroot.story?.pages ?? 4) },
+    editor: string = { classroot.story?.editor ?? app.uid },
+    status: string = { classroot.story?.status ?? (app.fp.statuses[0]?.id ?? "") },
+    kind: string = { classroot.story?.kind ?? "editorial" },
+    rightStart: boolean = { classroot.story?.rightStart ?? false },
+    notes: string = { classroot.story?.notes ?? "" },
+    where: string = "unplaced",
+    ro: boolean = { !app.canEdit },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = { classroot.isNew ? "A new story" : classroot.ro ? classroot.title : "The story" } ],
+    Text [ visible = { classroot.placed }, width = 100%, fontSize = 13, textColor = { provided("theme").textMuted }, text = { storyPagesTextOf(app.fp, classroot.sid, app.fol) } ],
+    Field [ visible = { !classroot.ro }, label = "Title", stacked = true, width = 100%,
+        TextInput [ width = 100%, name = "title", required = "A story needs a title.", value <-> classroot.title ]
+        ],
+    Field [ label = "Kind", stacked = true, width = 100%,
+        Segmented [ disabled = { classroot.placed || classroot.ro }, accessibilityLabel = "Kind", value <-> classroot.kind,
+            items = { [ ({ id: "editorial", label: "Editorial" }), ({ id: "advertising", label: "Advertising" }) ] } ]
+        ],
+    Field [ label = "Section", stacked = true, width = 100%,
+        Button [ disabled = { classroot.placed || classroot.ro }, label = { app.sectionName(classroot.sectionId) }, menu = { app.formSectionMenu } ]
+        ],
+    Field [ label = "Planned pages", stacked = true, width = 100%,
+        TextInput [ width = 100, disabled = { classroot.placed || classroot.ro }, name = "pages", purpose = digits, value <-> classroot.pages,
+            validate(v: string) -> string { const n = Number(v); return Number.isInteger(n) && n >= 1 && n <= 400 ? "" : "A whole number from 1 to 400." }
+            ]
+        ],
+    Field [ visible = { classroot.kind == "editorial" }, label = "Editor", stacked = true, width = 100%,
+        Button [ disabled = { classroot.ro }, label = { app.nameOf(classroot.editor) }, menu = { app.editorMenu } ]
+        ],
+    Field [ label = "Status", stacked = true, width = 100%,
+        Button [ disabled = { classroot.ro }, label = { app.statusName(classroot.status) }, menu = { app.formStatusMenu } ]
+        ],
+    Checkbox [ disabled = { classroot.ro }, label = "Must open on a right-hand page", checked <-> classroot.rightStart ],
+    Field [ label = "Notes", stacked = true, width = 100%,
+        TextInput [ width = 100%, disabled = { classroot.ro }, multiline = true, height = { Math.max(60, Math.min(this.contentHeight, 160)) }, value <-> classroot.notes ]
+        ],
+    Field [ visible = { classroot.isNew }, label = "Where it goes", stacked = true, width = 100%,
+        RadioGroup [ value <-> classroot.where,
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            Radio [ choice = "unplaced", label = "Unplaced, waiting for a place" ],
+            Radio [ choice = "end", label = "At the end of its section, on new pages" ]
+            ]
+        ],
+    Hint [ visible = { classroot.isNew && classroot.where == "end" }, text = "As many blank pages as it plans are added at the end of its section, and it is placed on them." ],
+    buttons: View [ visible = { !classroot.ro }, width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Button [ primary = true, label = { classroot.isNew ? "Add the story" : "Save" },
+            onClick() { classroot.submit() }
+            ],
+        Button [ label = "Cancel",
+            onClick() { app.dismiss("story") }
+            ],
+        Spacer [ ],
+        Button [ visible = { !classroot.isNew && !classroot.placed }, label = "Delete",
+            onClick() { app.deleteStory(classroot.sid) }
+            ]
+        ],
+    Text [ visible = { classroot.error != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { classroot.error } ],
+    send() { app.saveStory(this) }
+    ]
+
+
+// ── Placing a story ─────────────────────────────────────────────────────────────────────────
+
+class PlacePanel [ width = 100%,
+    sid: string = { app.storyId },
+    story: Story? = { storyById(app.fp, classroot.sid) ?? null },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = { "Place “" + (classroot.story?.title ?? "") + "”" } ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { "It needs " + (classroot.story?.pages ?? 0) + " blank, unlocked pages in a row inside the covers" + ((classroot.story?.rightStart ?? false) && app.fp.facing ? ", starting on a right-hand page." : ".") + " Placing never overwrites anything." } ],
+    none: View [ visible = { (app.fitRows.value?.rows ?? []).length == 0 }, width = 100%, padding = 10, cornerRadius = 8, fill = { provided("theme").notice },
+        Text [ width = 100%, fontSize = 13, textColor = { provided("theme").noticeInk },
+            text = "There's no place for it yet. Add blank pages (from a page's More menu, or in Print), clear or move what is on some pages, or plan it for fewer pages — then come back here." ]
+        ],
+    Text [ visible = { (app.fitRows.value?.rows ?? []).length > 0 }, fontSize = 13, fontWeight = semibold,
+        text = { (app.fitRows.value?.rows ?? []).length + ((app.fitRows.value?.rows ?? []).length == 1 ? " place it fits" : " places it fits") } ],
+    fits: View [ width = 100%, datapath = { app.fitRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        RowButton [ datapath = :rows[], accessibilityLabel = { "Place it on " + (:text ?? "") },
+            press() { app.placeAt(classroot.sid, :id ?? "") },
+            Text [ flexes = true, fontSize = 14, text = { :text ?? "" } ],
+            TextLabel [ fontSize = 13, textColor = { provided("theme").accent }, text = "Place here" ]
+            ]
+        ]
+    ]
+
+
+// ── A booking, by hand ──────────────────────────────────────────────────────────────────────
+
+class BookingForm extends Form [ width = 100%,
+    text: string = "",
+    ref: string = "",
+    size: string = "",
+    shape: string = "",
+    want: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = "A booking" ],
+    Field [ label = "Text", stacked = true, width = 100%,
+        TextInput [ width = 100%, name = "text", required = "A booking needs its text.", value <-> classroot.text ]
+        ],
+    Field [ label = "Reference (optional)", stacked = true, width = 100%,
+        TextInput [ width = 100%, name = "ref", value <-> classroot.ref ]
+        ],
+    Field [ label = "Size (optional): a fraction of a page, like 1/2", stacked = true, width = 100%,
+        TextInput [ width = 120, name = "size", value <-> classroot.size,
+            validate(v: string) -> string { return v.trim() == "" || parseSize(v) != null ? "" : "Write it as a fraction, like 1/2, or a number, like 0.5." }
+            ]
+        ],
+    Field [ label = "Shape (optional)", stacked = true, width = 100%,
+        Segmented [ accessibilityLabel = "Shape", value <-> classroot.shape,
+            items = { [ ({ id: "", label: "Any" }), ({ id: "full", label: "Full" }), ({ id: "vertical", label: "Vertical" }), ({ id: "horizontal", label: "Horizontal" }), ({ id: "square", label: "Square" }) ] } ]
+        ],
+    Field [ label = "Wanted pages (optional), separated by ;", stacked = true, width = 100%,
+        TextInput [ width = 100%, name = "want", placeholder = "12; 13; IFC", value <-> classroot.want ]
+        ],
+    Button [ primary = true, label = "Add the booking",
+        onClick() { classroot.submit() }
+        ],
+    send() {
+        if (app.apply("Add a booking", P.addBooking(app.fp, ({ ref: this.ref, text: this.text, size: this.size, shape: this.shape,
+            want: this.want.split(";").map((w) => w.trim()).filter((w) => w != "") })))) app.dismiss("booking")
+        }
+    ]
+
+
+// ── Attaching artwork ───────────────────────────────────────────────────────────────────────
+
+class AttachPanel [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = { app.attachAsset != "" ? "Reassign a PDF" : "Attach artwork" } ],
+    choose: View [ visible = { app.pdfName == "" }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = "Choose a PDF of finished pages. Each of its pages can then go to a page of the issue, and from then on is that page's artwork." ],
+        Button [ primary = true, label = "Choose a PDF…",
+            onClick() { app.choosePdf() }
+            ],
+        Text [ visible = { app.pdfProblem != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { app.pdfProblem } ]
+        ],
+    chosen: View [ visible = { app.pdfName != "" }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Text [ width = 100%, fontSize = 14, fontWeight = semibold, text = { app.pdfName } ],
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { bytesText(app.pdfSize) + " · " + app.assign.length + (app.assign.length == 1 ? " page" : " pages") + " · " + app.assign.filter((a) => a != "").length + " assigned. Unassigned pages change nothing." } ],
+        from: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+            Text [ fontSize = 13, text = "Assign in order from page" ],
+            TextInput [ width = 70, accessibilityLabel = "Assign in order from page", value = { app.assignFrom },
+                commit(v: string) { app.assignFrom = v }
+                ],
+            Button [ label = "Assign",
+                onClick() { app.assignConsecutive() }
+                ],
+            Button [ label = "Clear all",
+                onClick() { app.assign = app.assign.map((a) => "") }
+                ]
+            ],
+        warn: View [ visible = { app.replacing != "" }, width = 100%, padding = 8, cornerRadius = 6, fill = { provided("theme").notice },
+            Text [ width = 100%, fontSize = 12, textColor = { provided("theme").noticeInk }, text = { app.replacing } ]
+            ],
+        rows: View [ width = 100%, datapath = { app.assignRows.value },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            View [ datapath = :rows[], width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                k: number = { :k ?? 0 },
+                Text [ width = 90, fontSize = 13, text = { "PDF page " + ((:k ?? 0) + 1) } ],
+                Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "→" ],
+                TextInput [ width = 80, accessibilityLabel = { "Issue page for PDF page " + ((:k ?? 0) + 1) }, placeholder = "none", commitOn = "end",
+                    value = { :folio ?? "" },
+                    commit(v: string) { app.assignOne(parent.k, v) }
+                    ],
+                Text [ flexes = true, fontSize = 12, textColor = { (:note ?? "") != "" ? provided("theme").warn : provided("theme").textFaint }, text = { :note ?? "" } ]
+                ]
+            ],
+        Hint [ text = "Type a folio (like 12, or FC) to put that PDF page on it, or clear it to leave the PDF page unassigned." ],
+        progress: ProgressBar [ visible = { app.uploading }, width = 100%, value = { app.uploadDone }, min = 0, max = 1, accessibilityLabel = "Upload progress" ],
+        Text [ visible = { app.uploading }, fontSize = 12, textColor = { provided("theme").textMuted }, text = { "Uploading… " + Math.round(app.uploadDone * 100) + "%" } ],
+        Text [ visible = { app.pdfProblem != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { app.pdfProblem } ],
+        buttons: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            Button [ primary = true, label = { app.uploading ? "Saving…" : "Save" }, disabled = { app.uploading || !app.assign.some((a) => a != "") },
+                onClick() { app.saveArtwork() }
+                ],
+            Button [ label = "Cancel", disabled = { app.uploading },
+                onClick() { app.dismiss("attach") }
+                ]
+            ],
+        Hint [ visible = { !app.assign.some((a) => a != "") }, text = "Assign at least one page to save." ]
+        ]
+    ]
+
+
+// ── Small tools for one page: add pages, restart the numbering, copy onto what follows ──────
+
+class PageTool [ width = 100%,
+    kind: string = { app.opened.slice(5) },
+    n: string = { classroot.kind == "add" ? "2" : classroot.kind == "restart" ? String(app.currentPage?.restart ?? 1) : "1" },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = { app.toolTitle } ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { classroot.kind == "add" ? "Blank pages go after page " + app.folioOf(app.pageId) + ", in " + app.sectionName(app.currentPage?.sectionId ?? "") + ". An even number keeps the spreads as they are."
+            : classroot.kind == "restart" ? "From page " + app.folioOf(app.pageId) + ", the count starts again at the number you give."
+            : "The layout, contents and artwork of page " + app.folioOf(app.pageId) + " go onto the pages that follow it, replacing what is there." } ],
+    TextInput [ width = 100, accessibilityLabel = { classroot.kind == "add" ? "How many pages" : classroot.kind == "restart" ? "Start again at" : "How many pages that follow" },
+        purpose = digits, value <-> classroot.n,
+        admit(t: string) -> string | null { return /^[0-9]{0,3}$/.test(t) ? t : null }
+        ],
+    buttons: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Button [ primary = true, label = { classroot.kind == "add" ? "Add the pages" : classroot.kind == "restart" ? "Restart here" : "Copy" },
+            disabled = { classroot.n == "" },
+            onClick() { app.runTool(classroot.kind, Number(classroot.n)) }
+            ],
+        Button [ visible = { classroot.kind == "restart" && (app.currentPage?.restart ?? null) != null }, label = "Take the restart away",
+            onClick() { if (app.apply("Take a numbering restart away", P.setRestart(app.fp, app.pageId, null))) app.waypoint = "" }
+            ],
+        Button [ label = "Cancel",
+            onClick() { app.waypoint = "" }
+            ]
+        ]
+    ]
+
+
+// ── Artwork close up, and the PDF itself ────────────────────────────────────────────────────
+
+class ArtCloseUp [ width = { app.width }, height = { app.height }, fill = #111110,
+    url: string = "",
+    pg: Page? = { app.currentPage },
+    key: string = { app.artKeyFor(classroot.pg?.art ?? null, 1200) },
+    trackChanges = ["key"],
+    onChange() { app.loadReaderArt(this) },
+    onInit() { app.loadReaderArt(this) },
+    layout: SimpleLayout [ axis = y ],
+    bar: View [ width = 100%, height = 52, padding = [0, 10, 0, 14],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 14, textColor = #F2F1ED, wrap = false, maxLines = 1,
+            text = { "Page " + app.folioOf(app.pageId) + " — " + app.artFrom(classroot.pg?.art ?? null) } ],
+        Button [ visible = { app.pdfOf(classroot.pg?.art ?? null) != "" }, label = "Open the PDF",
+            onClick() { app.viewPdf(classroot.pg?.art?.assetId ?? "", classroot.pg?.art?.page ?? 1) }
+            ],
+        IconButton [ shape = "close", tone = #F2F1ED, accessibilityLabel = "Close",
+            press() { app.dismiss("art") }
+            ]
+        ],
+    Image [ width = 100%, flexes = true, fit = contain, accessibilityLabel = { "Artwork of page " + app.folioOf(app.pageId) },
+        source = { app.artSource(classroot.pg?.art ?? null, 1200, classroot.url) } ]
+    ]
+
+
+class PdfView [ width = { app.width }, height = { app.height }, fill = #111110,
+    layout: SimpleLayout [ axis = y ],
+    bar: View [ width = 100%, height = 52, padding = [0, 10, 0, 14],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 14, textColor = #F2F1ED, wrap = false, maxLines = 1, text = { app.pdfTitle } ],
+        IconButton [ shape = "close", tone = #F2F1ED, accessibilityLabel = "Close the PDF",
+            press() { app.dismiss("pdf") }
+            ]
+        ],
+    frame: DOMIsland [ width = 100%, flexes = true, slot = "pdf", provides = ["src"],
+        src: string = { app.pdfSrc },
+        accessibilityLabel = "The PDF, with its text selectable",
+        onInit() { afterSettle(() => S.mountFrame("pdf")) }
+        ]
+    ]
+
+
+// ── How to ──────────────────────────────────────────────────────────────────────────────────
+
+class HelpPanel [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, text = "How to…" ],
+    Markdown [ width = 100%, fontSize = 14, text = { app.helpText } ]
+    ]

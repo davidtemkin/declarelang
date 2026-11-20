@@ -1,0 +1,1078 @@
+/*
+# Pagemap: the model
+
+The open flatplan is one dataset, `Plan`. Its value is the flatplan exactly as the
+service stores it (§2), assembled from its records by `service.ts`. Everything the
+screen shows about it derives from that value: folios, spreads, sides, a story's pages,
+the composition. And every change to it is a **proposal**: a method that takes the
+flatplan, works out the next one, and checks it against the rules every edit keeps
+(F-RULE). A proposal never writes; the App sends a good one (`app.apply`), and says why
+a refused one was refused.
+
+Where things are, in order:
+- **The shapes** — the schemas of §2.
+- **Plan** — the facts it derives, then the proposals, grouped as the brief groups them:
+  moving, a page, stories, sections and lists, artwork and bookings, print and settings.
+*/
+
+// ── The shapes ──────────────────────────────────────────────────────────────
+
+schema Named [ id: string, name: string, color: string ]
+schema Region [ id: string, kind: string, storyId?: string, bookingId?: string, label: string ]
+schema Art [ assetId: string, page: number ]
+schema Page [ id: string, sectionId: string, layout: string, turn: number, flip: boolean, cover?: string,
+    regions[]: Region, art?: Art, tags[]: string, notes: string, locked: boolean, restart?: number ]
+schema Story [ id: string, title: string, sectionId: string, kind: string, pages: number, editor: string,
+    status: string, notes: string, rightStart: boolean ]
+schema Asset [ id: string, name: string, pages: number, size: number, url: string, images?: string ]
+schema Booking [ id: string, ref: string, text: string, size: string, shape: string, want[]: string ]
+schema StitchIn [ id: string, after: string, front: string, back: string ]
+schema Signatures [ cover[]: number, body[]: number ]
+schema Flatplan [ id: string, name: string, edition: string, publication: string, trimW: number, trimH: number,
+    facing: boolean, numbering: string, firstFolio: number, notes: string, archived: boolean,
+    sections[]: Named, statuses[]: Named, tags[]: Named, stories[]: Story, pages[]: Page, holding[]: Page,
+    assets[]: Asset, bookings[]: Booking, stitchIns[]: StitchIn, signatures: Signatures ]
+
+// What the book's order makes of each page: its folio label, its name, its side, the
+// spread it is in. Parallel to `pages`.
+
+schema Facts [ labels[]: string, names[]: string, sides[]: string, spreads[]: number, cover[]: boolean ]
+
+// A proposed edit: the next flatplan, or why not; and what to choose afterwards.
+
+schema Proposal [ error: string, doc?: Flatplan, select[]?: string ]
+
+// A region drawn: its record, its place on the page, and what it says.
+
+schema Fit [ verdict: string, checks: number, passed: number ]
+
+
+class Plan extends Dataset [ schema = [ fp?: Flatplan ],
+
+    // ── what the flatplan is ────────────────────────────────────────────────
+
+    doc: Flatplan? = { this.value?.fp ?? null },
+    loaded: boolean = { this.doc != null },
+    pages: Page[] = { this.doc?.pages ?? [] },
+    covers: boolean = { (this.doc?.numbering ?? "plain") == "covers" },
+    facing: boolean = { this.doc?.facing ?? true },
+    aspect: number = { (this.doc?.trimH ?? 12) / Math.max(0.1, this.doc?.trimW ?? 9) },
+    facts: Facts = { this.derive(this.pages, this.covers, this.facing, this.doc?.firstFolio ?? 1) },
+
+    // Folios, names, sides and spreads, in one pass over the book (F-MAP-02, F-MAP-03).
+
+    derive(pages: Page[], covers: boolean, facing: boolean, first: number) -> Facts {
+        const labels: string[] = [], names: string[] = [], sides: string[] = [], spreads: number[] = [], cover: boolean[] = []
+        const n = pages.length
+        let folio = first
+        let spread = -1
+        let inPair = false
+        const coverName: Record<string, string> = { "front": "Front cover", "inside-front": "Inside front cover",
+            "inside-back": "Inside back cover", "back": "Back cover" }
+        const coverLabel: Record<string, string> = { "front": "FC", "inside-front": "IFC", "inside-back": "IBC", "back": "BC" }
+        let interior = 0
+        for (let i = 0; i < n; i++) {
+            const p = pages[i]
+            const face = covers && p.cover != null && p.cover != ""
+            cover.push(face)
+            if (face) {
+                labels.push(coverLabel[p.cover ?? ""] ?? "C")
+                names.push(coverName[p.cover ?? ""] ?? "Cover")
+            } else {
+                if (p.restart != null) folio = p.restart
+                const t = folio < 10 && folio >= 0 ? "0" + folio : "" + folio
+                labels.push(t)
+                names.push("Page " + t)
+                folio = folio + 1
+            }
+            // Sides and spreads.
+            if (!facing) { spread = spread + 1; sides.push(face && (p.cover == "inside-front" || p.cover == "back") ? "left" : "right"); spreads.push(spread); continue }
+            if (face) {
+                spread = spread + 1
+                inPair = false
+                sides.push(p.cover == "front" || p.cover == "inside-back" ? "right" : "left")
+                spreads.push(spread)
+                continue
+            }
+            // Interior (or every page, without separate covers): the first alone on the right, then pairs.
+            if (interior == 0) { spread = spread + 1; sides.push("right"); inPair = false }
+            else if (interior % 2 == 1) { spread = spread + 1; sides.push("left"); inPair = true }
+            else { if (!inPair) spread = spread + 1; sides.push("right"); inPair = false }
+            spreads.push(spread)
+            interior = interior + 1
+        }
+        return ({ labels: labels, names: names, sides: sides, spreads: spreads, cover: cover })
+        },
+
+    indexOf(id: string) -> number { return this.pages.findIndex((p) => p.id == id) },
+    page(id: string) -> Page? { return this.pages.find((p) => p.id == id) ?? null },
+    label(id: string) -> string { const i = this.indexOf(id); return i < 0 ? "" : this.facts.labels[i] ?? "" },
+    pageName(id: string) -> string { const i = this.indexOf(id); return i < 0 ? "a page" : this.facts.names[i] ?? "" },
+    isCover(id: string) -> boolean { const i = this.indexOf(id); return i >= 0 && (this.facts.cover[i] ?? false) },
+    side(id: string) -> string { const i = this.indexOf(id); return i < 0 ? "" : this.facts.sides[i] ?? "" },
+    sectionOf(id: string) -> Named? { return (this.doc?.sections ?? []).find((s) => s.id == id) ?? null },
+    sectionName(id: string) -> string { return this.sectionOf(id)?.name ?? "No section" },
+    sectionColor(id: string) -> string { return this.sectionOf(id)?.color ?? "#8794a9" },
+    story(id: string) -> Story? { return (this.doc?.stories ?? []).find((s) => s.id == id) ?? null },
+    status(id: string) -> Named? { return (this.doc?.statuses ?? []).find((s) => s.id == id) ?? null },
+    tag(id: string) -> Named? { return (this.doc?.tags ?? []).find((s) => s.id == id) ?? null },
+    asset(id: string) -> Asset? { return (this.doc?.assets ?? []).find((s) => s.id == id) ?? null },
+    booking(id: string) -> Booking? { return (this.doc?.bookings ?? []).find((s) => s.id == id) ?? null },
+    held(id: string) -> Page? { return (this.doc?.holding ?? []).find((s) => s.id == id) ?? null },
+    stitchAfter(id: string) -> StitchIn? { return (this.doc?.stitchIns ?? []).find((s) => s.after == id) ?? null },
+
+    // A story's pages, in book order (§2.4), and its range ("08–37").
+
+    storyPages(sid: string) -> string[] {
+        return this.pages.filter((p) => p.regions.some((r) => r.storyId == sid)).map((p) => p.id)
+        },
+    rangeOf(ids: string[]) -> string {
+        if (ids.length == 0) return "Unplaced"
+        const a = this.label(ids[0]), b = this.label(ids[ids.length - 1])
+        return a == b ? a : a + "–" + b
+        },
+    storyRange(sid: string) -> string { return this.rangeOf(this.storyPages(sid)) },
+    placed(sid: string) -> boolean { return this.pages.some((p) => p.regions.some((r) => r.storyId == sid)) },
+    unplaced: Story[] = { (this.doc?.stories ?? []).filter((s) => !this.placed(s.id)) },
+    bookingPages(bid: string) -> string[] {
+        return this.pages.filter((p) => p.regions.some((r) => r.bookingId == bid)).map((p) => p.id)
+        },
+    unbooked: Booking[] = { (this.doc?.bookings ?? []).filter((b) => this.bookingPages(b.id).length == 0) },
+
+    // A region's title: its story's, else its booking's text, else its label.
+
+    regionTitle(r: Region) -> string {
+        if (r.storyId != null && r.storyId != "") return this.story(r.storyId)?.title ?? ""
+        if (r.bookingId != null && r.bookingId != "") return this.booking(r.bookingId)?.text ?? ""
+        return r.label ?? ""
+        },
+    titlesOn(p: Page) -> string[] { return p.regions.map((r) => this.regionTitle(r)).filter((t) => t != "") },
+
+    // A blank page: no artwork, and every region open with no story, booking or label.
+
+    blank(p: Page) -> boolean {
+        return p.art == null && p.regions.every((r) => r.kind == "unassigned" && (r.storyId ?? "") == ""
+            && (r.bookingId ?? "") == "" && (r.label ?? "") == "")
+        },
+
+    // The composition (§2.4), in pages.
+
+    shareOf(p: Page, kind: string) -> number {
+        let s = 0
+        p.regions.forEach((r, i) => { if (r.kind == kind) s = s + regionShare(p.layout, i) })
+        return s
+        },
+    composition: number[] = { [this.sum("editorial"), this.sum("advertising"), this.sum("unassigned")] },
+    sum(kind: string) -> number { return this.pages.reduce((n, p) => n + this.shareOf(p, kind), 0) },
+    statusShare(stid: string) -> number {
+        let s = 0
+        for (const p of this.pages) p.regions.forEach((r, i) => {
+            if (r.storyId != null && this.story(r.storyId)?.status == stid) s = s + regionShare(p.layout, i)
+            })
+        return s
+        },
+    tagCount(tid: string) -> number { return this.pages.filter((p) => p.tags.includes(tid)).length },
+    adPages(ids: string[]) -> number {
+        return this.pages.filter((p) => ids.includes(p.id)).reduce((n, p) => n + this.shareOf(p, "advertising"), 0)
+        },
+
+    // ── groups (§2.4) ───────────────────────────────────────────────────────
+
+    // What a drag of this page carries, by move mode.
+
+    moveGroup(id: string, mode: string) -> string[] {
+        const i = this.indexOf(id)
+        if (i < 0) return []
+        const p = this.pages[i]
+        if (mode == "page") return [id]
+        if (mode == "spread") { const s = this.facts.spreads[i]; return this.pages.filter((q, j) => this.facts.spreads[j] == s).map((q) => q.id) }
+        if (mode == "section") return this.pages.filter((q) => q.sectionId == p.sectionId).map((q) => q.id)
+        // story: every page carrying a story on this page, then on those, until nothing new joins.
+        const ids = new Set<string>([id])
+        let stories = new Set<string>(p.regions.map((r) => r.storyId ?? "").filter((s) => s != ""))
+        let grew = true
+        while (grew) {
+            grew = false
+            for (const q of this.pages) {
+                if (ids.has(q.id)) continue
+                if (q.regions.some((r) => stories.has(r.storyId ?? ""))) {
+                    ids.add(q.id)
+                    grew = true
+                    q.regions.forEach((r) => { if ((r.storyId ?? "") != "") stories.add(r.storyId ?? "") })
+                }
+            }
+        }
+        return this.pages.filter((q) => ids.has(q.id)).map((q) => q.id)
+        },
+
+    inOrder(ids: string[]) -> string[] { return this.pages.filter((p) => ids.includes(p.id)).map((p) => p.id) },
+    adjacent(ids: string[]) -> boolean {
+        const ix = ids.map((id) => this.indexOf(id)).sort((a, b) => a - b)
+        return ix.every((v, k) => k == 0 || v == ix[k - 1] + 1)
+        },
+
+    // Where an unplaced story fits: the first page of every run of as many consecutive
+    // pages as it plans, each interior, unlocked and blank.
+
+    fits(n: number) -> string[] {
+        const out: string[] = []
+        const ok = this.pages.map((p, i) => !this.facts.cover[i] && !p.locked && this.blank(p))
+        for (let i = 0; i + n <= this.pages.length; i++) {
+            let all = true
+            for (let k = 0; k < n; k++) if (!ok[i + k]) { all = false; break }
+            if (all) out.push(this.pages[i].id)
+        }
+        return out
+        },
+
+    // A booking's fit to a region (§2.4).
+
+    fitOf(b: Booking, p: Page, ri: number) -> Fit {
+        const doc = this.doc
+        if (doc == null) return ({ verdict: "any", checks: 0, passed: 0 })
+        const rect = regionRects(p.layout, p.turn, p.flip)[ri]
+        if (rect == null) return ({ verdict: "any", checks: 0, passed: 0 })
+        const share = rect.w * rect.h
+        let checks = 0, passed = 0
+        const size = this.sizeValue(b.size)
+        if (size > 0) { checks++; if (Math.abs(size - share) <= 0.02) passed++ }
+        const shape = (b.shape ?? "").trim().toLowerCase()
+        if (shape != "") {
+            checks++
+            if (shape == regionShape(rect, doc.trimW, doc.trimH) || (shape == "full" && share > 0.99)) passed++
+        }
+        const wants = (b.want ?? []).map((w) => w.trim().toUpperCase()).filter((w) => /^(\d+|FC|IFC|IBC|BC|COVER|BACK)$/.test(w))
+        if (wants.length > 0) {
+            checks++
+            const lab = this.label(p.id).toUpperCase()
+            const alias = lab == "FC" ? ["FC", "COVER"] : lab == "BC" ? ["BC", "BACK"] : [lab]
+            if (wants.some((w) => alias.includes(w) || (/^\d+$/.test(w) && /^\d+$/.test(lab) && Number(w) == Number(lab)))) passed++
+        }
+        const verdict = checks == 0 ? "any" : passed == checks ? "match" : passed == 0 ? "mismatch" : "partial"
+        return ({ verdict: verdict, checks: checks, passed: passed })
+        },
+    sizeValue(s: string) -> number {
+        const t = (s ?? "").trim()
+        if (t == "") return 0
+        const m = t.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/)
+        if (m != null) return Number(m[1]) / Math.max(0.0001, Number(m[2]))
+        const v = Number(t)
+        return isNaN(v) ? 0 : v
+        },
+
+    // ── proposals: the shared machinery ─────────────────────────────────────
+
+    no(msg: string) -> Proposal { return ({ error: msg }) },
+    work() -> Flatplan { return structuredClone(this.doc) as Flatplan },
+
+    // Every edit ends here: tidy what follows from it, then check it against the rules
+    // (F-RULE). `moved` names the pages a page move moved (the only locked pages it checks
+    // for position).
+
+    finish(d: Flatplan, select: string[]) -> Proposal {
+        const before = this.doc
+        if (before == null) return this.no("The flatplan isn't open yet.")
+        // F-STORY-09: a story whose pages all sit in one section belongs to it.
+        const secOf = new Map<string, Set<string>>()
+        for (const p of d.pages) for (const r of p.regions) {
+            const s = r.storyId ?? ""
+            if (s == "") continue
+            if (!secOf.has(s)) secOf.set(s, new Set<string>())
+            secOf.get(s)?.add(p.sectionId)
+        }
+        d.stories = d.stories.map((s) => {
+            const set = secOf.get(s.id)
+            if (set != null && set.size == 1) { const only = [...set][0]; if (only != s.sectionId) return ({ ...s, sectionId: only }) }
+            return s
+            })
+        // A stitch-in goes with the page it follows.
+        d.stitchIns = d.stitchIns.filter((x) => d.pages.some((p) => p.id == x.after))
+        // F-RULE-01.
+        if (d.pages.length < 2) return this.no("A flatplan keeps at least two pages.")
+        if (d.sections.length < 1) return this.no("A flatplan keeps at least one section.")
+        for (const p of [...d.pages, ...d.holding]) {
+            if (!d.sections.some((s) => s.id == p.sectionId)) return this.no("Every page needs a section that exists.")
+            if (p.regions.length != regionCount(p.layout)) return this.no("A page must have as many regions as its layout.")
+        }
+        if (!(d.trimW > 0) || !(d.trimH > 0)) return this.no("Trim width and height must be more than zero.")
+        // F-RULE-02: with separate covers, the four faces are the first two and last two.
+        if (d.numbering == "covers") {
+            const n = d.pages.length
+            const want = ["front", "inside-front", "inside-back", "back"]
+            const at = [0, 1, n - 2, n - 1]
+            for (let k = 0; k < 4; k++) if ((d.pages[at[k]]?.cover ?? "") != want[k]) return this.no("The four cover faces stay outside the numbered interior.")
+            if (d.pages.some((p, i) => !at.includes(i) && (p.cover ?? "") != "")) return this.no("The four cover faces stay outside the numbered interior.")
+        }
+        // F-RULE-03: a locked page doesn't change (its lock aside).
+        for (const p of before.pages) {
+            if (!p.locked) continue
+            const q = d.pages.find((x) => x.id == p.id)
+            if (q == null || !q.locked || canonText(q) != canonText(p)) return this.no(this.pageName(p.id) + " is locked. Unlock it to change it.")
+        }
+        // F-RULE-04: a story that must begin on a right-hand page.
+        if (d.facing) {
+            const was = this.firstSides(before)
+            const now = this.firstSides(d)
+            for (const s of d.stories) {
+                if (!s.rightStart) continue
+                const a = now.get(s.id) ?? "", b = was.get(s.id) ?? ""
+                if (a == "left" && b != "left") return this.no("“" + s.title + "” must begin on a right-hand page. Move an even number of pages, or choose another place.")
+            }
+        }
+        return ({ error: "", doc: d, select: select })
+        },
+
+    // Each story's first page's side, in a flatplan.
+
+    firstSides(d: Flatplan) -> Map<string, string> {
+        const f = this.derive(d.pages, d.numbering == "covers", d.facing, d.firstFolio)
+        const out = new Map<string, string>()
+        d.pages.forEach((p, i) => p.regions.forEach((r) => {
+            const s = r.storyId ?? ""
+            if (s != "" && !out.has(s)) out.set(s, f.sides[i])
+            }))
+        return out
+        },
+
+    lockedIn(ids: string[]) -> string {
+        const p = this.pages.find((q) => ids.includes(q.id) && q.locked)
+        return p == null ? "" : this.pageName(p.id) + " is locked. Unlock it to change it."
+        },
+    coverIn(ids: string[]) -> boolean { return ids.some((id) => this.isCover(id)) },
+
+    blankPage(sectionId: string) -> Page {
+        return ({ id: newId("p"), sectionId: sectionId, layout: "full", turn: 0, flip: false,
+            regions: [({ id: newId("r"), kind: "unassigned", label: "" })], tags: [], notes: "", locked: false })
+        },
+
+    // ── moving pages (F-MOVE) ───────────────────────────────────────────────
+
+    // Insert the group before or after the target. `spreadMode` holds a two-page group to
+    // beginning on a left-hand page.
+
+    movePages(ids0: string[], target: string, after: boolean, spreadMode: boolean) -> Proposal {
+        const ids = this.inOrder(ids0)
+        if (ids.length == 0) return this.no("Choose pages to move first.")
+        if (this.coverIn(ids)) return this.no("Cover faces stay in place. Choose interior pages.")
+        const lk = this.lockedIn(ids)
+        if (lk != "") return this.no(lk)
+        if (ids.includes(target)) return this.no("Choose a place outside the pages being moved.")
+        const ti = this.indexOf(target)
+        if (ti < 0) return this.no("Choose a page to move beside.")
+        if (this.isCover(target)) {
+            const c = this.pages[ti].cover ?? ""
+            if ((c == "front" || c == "inside-front") && !(c == "inside-front" && after)) return this.no("Insert between the front and back covers.")
+            if ((c == "back" || c == "inside-back") && !(c == "inside-back" && !after)) return this.no("Insert between the front and back covers.")
+        }
+        const d = this.work()
+        const moving = d.pages.filter((p) => ids.includes(p.id))
+        const rest = d.pages.filter((p) => !ids.includes(p.id))
+        const at = rest.findIndex((p) => p.id == target) + (after ? 1 : 0)
+        const anchor = this.pages[ti]
+        const sec = anchor.cover != null && anchor.cover != "" ? (after ? rest[at]?.sectionId : rest[at - 1]?.sectionId) ?? anchor.sectionId : anchor.sectionId
+        for (const p of moving) p.sectionId = sec
+        d.pages = [...rest.slice(0, at), ...moving, ...rest.slice(at)]
+        if (spreadMode && ids.length == 2 && d.facing) {
+            const f = this.derive(d.pages, d.numbering == "covers", d.facing, d.firstFolio)
+            if (f.sides[at] != "left") return this.no("A spread must begin on a left-hand page. Choose another place.")
+        }
+        return this.finish(d, ids)
+        },
+
+    // Trade the carried run with as many pages starting at the target.
+
+    swapPages(ids0: string[], target: string) -> Proposal {
+        const ids = this.inOrder(ids0)
+        if (ids.length == 0) return this.no("Choose pages to move first.")
+        if (!this.adjacent(ids)) return this.no("A swap moves pages that sit side by side. Choose adjacent pages.")
+        const a = this.indexOf(ids[0]), t = this.indexOf(target), n = ids.length
+        if (t < 0) return this.no("Choose a page to swap with.")
+        if (t + n > this.pages.length) return this.no("There aren't enough pages from there to swap with.")
+        if (t < a + n && a < t + n) return this.no("The two runs overlap. Choose pages further away.")
+        const other = this.pages.slice(t, t + n).map((p) => p.id)
+        if (this.coverIn(ids) || this.coverIn(other)) return this.no("Cover faces stay in place. Choose interior pages.")
+        const lk = this.lockedIn([...ids, ...other])
+        if (lk != "") return this.no(lk)
+        const d = this.work()
+        const runA = d.pages.slice(a, a + n), runB = d.pages.slice(t, t + n)
+        const secA = runA.map((p) => p.sectionId), secB = runB.map((p) => p.sectionId)
+        runA.forEach((p, k) => { p.sectionId = secB[k] })
+        runB.forEach((p, k) => { p.sectionId = secA[k] })
+        const out = [...d.pages]
+        for (let k = 0; k < n; k++) { out[a + k] = runB[k]; out[t + k] = runA[k] }
+        d.pages = out
+        return this.finish(d, ids)
+        },
+
+    // The pages the swap would trade with (to mark them while dragging).
+
+    swapRun(n: number, target: string) -> string[] {
+        const t = this.indexOf(target)
+        return t < 0 ? [] : this.pages.slice(t, t + n).map((p) => p.id)
+        },
+
+    // Move a whole section before or after another.
+
+    moveSection(sid: string, target: string, after: boolean) -> Proposal {
+        if (sid == target) return this.no("Choose another section to move it beside.")
+        const d = this.work()
+        if (d.numbering == "covers") {
+            const coverSecs = this.coverSections()
+            if (coverSecs.includes(sid)) return this.no("Cover sections stay at the outside while covers are separate.")
+            if (coverSecs[0] == target && !after) return this.no("Cover sections stay at the outside while covers are separate.")
+            if (coverSecs[1] == target && after) return this.no("Cover sections stay at the outside while covers are separate.")
+        }
+        // The section list.
+        const s = d.sections.find((x) => x.id == sid)
+        if (s == null) return this.no("That section isn't in this flatplan.")
+        const others = d.sections.filter((x) => x.id != sid)
+        const si = others.findIndex((x) => x.id == target) + (after ? 1 : 0)
+        d.sections = [...others.slice(0, si), s, ...others.slice(si)]
+        // Its pages travel with it: placed before the target section's first page, or after its last.
+        const mine = d.pages.filter((p) => p.sectionId == sid && (p.cover ?? "") == "")
+        const rest = d.pages.filter((p) => !(p.sectionId == sid && (p.cover ?? "") == ""))
+        if (mine.length > 0) {
+            const tIdx = rest.map((p, i) => p.sectionId == target ? i : -1).filter((i) => i >= 0)
+            let at = tIdx.length == 0 ? rest.length : after ? tIdx[tIdx.length - 1] + 1 : tIdx[0]
+            if (d.numbering == "covers") at = Math.max(2, Math.min(at, rest.length - 2))
+            d.pages = [...rest.slice(0, at), ...mine, ...rest.slice(at)]
+        }
+        // A locked page may not change place.
+        for (const p of this.pages) {
+            if (!p.locked) continue
+            if (d.pages.findIndex((q) => q.id == p.id) != this.indexOf(p.id)) return this.no("Moving that section would move " + this.pageName(p.id) + ", which is locked. Unlock it first.")
+        }
+        return this.finish(d, [])
+        },
+
+    coverSections() -> string[] {
+        const ps = this.pages
+        if (ps.length < 2) return []
+        return [ps[0].sectionId, ps[ps.length - 1].sectionId]
+        },
+
+    // Put pages in another section without moving them.
+
+    setSection(ids: string[], sid: string) -> Proposal {
+        if (this.coverIn(ids) && ids.some((id) => this.page(id)?.sectionId != sid)) return this.no("Cover faces stay in their cover section.")
+        const d = this.work()
+        for (const p of d.pages) if (ids.includes(p.id)) p.sectionId = sid
+        return this.finish(d, ids)
+        },
+
+    // One page earlier or later (F-MOVE-08).
+
+    nudge(ids0: string[], dir: number) -> Proposal {
+        const ids = this.inOrder(ids0)
+        if (ids.length == 0) return this.no("Choose a page first.")
+        const first = this.indexOf(ids[0]), last = this.indexOf(ids[ids.length - 1])
+        const lo = this.covers ? 2 : 0, hi = this.pages.length - 1 - (this.covers ? 2 : 0)
+        if (dir < 0) {
+            if (first <= lo) return this.no("Already at the first interior position.")
+            return this.movePages(ids, this.pages[first - 1].id, false, false)
+        }
+        if (last >= hi) return this.no("Already at the last interior position.")
+        return this.movePages(ids, this.pages[last + 1].id, true, false)
+        },
+
+    // ── a page (F-PAGE) ─────────────────────────────────────────────────────
+
+    withPage(id: string, f: (p: Page, d: Flatplan) => string) -> Proposal {
+        const d = this.work()
+        const p = d.pages.find((q) => q.id == id) ?? d.holding.find((q) => q.id == id)
+        if (p == null) return this.no("That page isn't on the flatplan any more.")
+        const err = f(p, d)
+        if (err != "") return this.no(err)
+        return this.finish(d, [])
+        },
+    withPages(ids: string[], f: (p: Page, d: Flatplan) => string) -> Proposal {
+        const d = this.work()
+        for (const p of d.pages) if (ids.includes(p.id)) { const e = f(p, d); if (e != "") return this.no(e) }
+        return this.finish(d, ids)
+        },
+
+    setLayout(id: string, layout: string) -> Proposal {
+        return this.withPage(id, (p, d) => {
+            const n = regionCount(layout)
+            if (n < p.regions.length) {
+                const dropped = p.regions.slice(n)
+                if (dropped.some((r) => r.kind != "unassigned" || (r.storyId ?? "") != "" || (r.bookingId ?? "") != "" || (r.label ?? "") != ""))
+                    return "The new layout has fewer regions than this page uses. Clear the extra regions first; nothing has been removed."
+                p.regions = p.regions.slice(0, n)
+            }
+            while (p.regions.length < n) p.regions.push(({ id: newId("r"), kind: p.regions[0]?.kind == "advertising" ? "advertising" : "unassigned", label: "" }))
+            p.layout = layout
+            return ""
+            })
+        },
+    rotate(id: string) -> Proposal { return this.withPage(id, (p, d) => { p.turn = (p.turn + 1) % 4; return "" }) },
+    flip(id: string) -> Proposal { return this.withPage(id, (p, d) => { p.flip = !p.flip; return "" }) },
+
+    withRegion(id: string, ri: number, f: (r: Region, p: Page, d: Flatplan) => string) -> Proposal {
+        return this.withPage(id, (p, d) => {
+            const r = p.regions[ri]
+            if (r == null) return "That region isn't on the page any more."
+            return f(r, p, d)
+            })
+        },
+    clean(r: Region) { delete r.storyId; delete r.bookingId; r.label = "" },
+    setKind(id: string, ri: number, kind: string) -> Proposal {
+        return this.withRegion(id, ri, (r, p, d) => {
+            r.kind = kind
+            if (r.storyId != null && r.storyId != "") {
+                const s = d.stories.find((x) => x.id == r.storyId)
+                if (s != null && kind != "unassigned" && s.kind != kind) delete r.storyId
+                if (kind == "unassigned") delete r.storyId
+            }
+            if (kind != "advertising") delete r.bookingId
+            return ""
+            })
+        },
+    placement(id: string, ri: number) -> Proposal { return this.withRegion(id, ri, (r, p, d) => { delete r.storyId; return "" }) },
+    putStory(id: string, ri: number, sid: string) -> Proposal {
+        return this.withRegion(id, ri, (r, p, d) => {
+            const s = d.stories.find((x) => x.id == sid)
+            if (s == null) return "That story isn't in this flatplan."
+            this.clean(r)
+            r.storyId = sid
+            r.kind = s.kind == "advertising" ? "advertising" : "editorial"
+            return ""
+            })
+        },
+    setLabel(id: string, ri: number, label: string) -> Proposal { return this.withRegion(id, ri, (r, p, d) => { r.label = label; return "" }) },
+    placeBooking(id: string, ri: number, bid: string) -> Proposal {
+        return this.withRegion(id, ri, (r, p, d) => {
+            const b = d.bookings.find((x) => x.id == bid)
+            if (b == null) return "That booking isn't in the list any more."
+            this.clean(r)
+            r.kind = "advertising"
+            r.bookingId = bid
+            r.label = b.text
+            return ""
+            })
+        },
+    clearRegion(id: string, ri: number) -> Proposal { return this.withRegion(id, ri, (r, p, d) => { this.clean(r); r.kind = "unassigned"; return "" }) },
+    toggleTag(ids: string[], tid: string, on: boolean) -> Proposal {
+        return this.withPages(ids, (p, d) => {
+            p.tags = on ? (p.tags.includes(tid) ? p.tags : [...p.tags, tid]) : p.tags.filter((t) => t != tid)
+            return ""
+            })
+        },
+    setNotes(id: string, notes: string) -> Proposal { return this.withPage(id, (p, d) => { p.notes = notes; return "" }) },
+    setLock(id: string, on: boolean) -> Proposal {
+        // The one change a locked page allows.
+        const d = this.work()
+        const p = d.pages.find((q) => q.id == id)
+        if (p == null) return this.no("That page isn't on the flatplan any more.")
+        p.locked = on
+        const before = this.doc
+        if (before == null) return this.no("The flatplan isn't open yet.")
+        return ({ error: "", doc: d, select: [id] })
+        },
+    setRestart(id: string, n: number) -> Proposal {
+        if (this.isCover(id)) return this.no("Cover faces stand outside the numbering. Choose a numbered page.")
+        return this.withPage(id, (p, d) => { if (n < 0) delete p.restart; else p.restart = Math.round(n); return "" })
+        },
+
+    // Paste: each chosen page takes the copied page's layout, rotation, flip and regions.
+
+    paste(src: Page, ids: string[]) -> Proposal {
+        return this.withPages(ids, (p, d) => {
+            if (this.isCover(p.id) && false) return ""
+            p.layout = src.layout
+            p.turn = src.turn
+            p.flip = src.flip
+            p.regions = src.regions.map((r) => ({ ...r, id: newId("r") }))
+            return ""
+            })
+        },
+    copyAcross(id: string, n: number) -> Proposal {
+        const src = this.page(id)
+        if (src == null) return this.no("Choose a page first.")
+        const i = this.indexOf(id)
+        const ids: string[] = []
+        for (let j = i + 1; j < this.pages.length && ids.length < n; j++) if (!this.facts.cover[j]) ids.push(this.pages[j].id)
+        if (ids.length == 0) return this.no("There are no pages after this one to copy onto.")
+        return this.paste(src, ids)
+        },
+
+    insertAfter(id: string, n: number) -> Proposal {
+        const i = this.indexOf(id)
+        if (i < 0) return this.no("Choose a page first.")
+        if (this.covers) {
+            const c = this.pages[i].cover ?? ""
+            if (c == "front" || c == "inside-back" || c == "back") return this.no("Insert between the front and back covers.")
+        }
+        const d = this.work()
+        const sec = this.covers && (this.pages[i].cover ?? "") == "inside-front" ? (d.pages[i + 1]?.sectionId ?? d.pages[i].sectionId) : d.pages[i].sectionId
+        const fresh: Page[] = []
+        for (let k = 0; k < n; k++) fresh.push(this.blankPage(sec))
+        d.pages = [...d.pages.slice(0, i + 1), ...fresh, ...d.pages.slice(i + 1)]
+        return this.finish(d, [fresh[0]?.id ?? id])
+        },
+
+    hold(ids0: string[]) -> Proposal {
+        const ids = this.inOrder(ids0)
+        if (ids.length == 0) return this.no("Choose pages first.")
+        if (this.coverIn(ids)) return this.no("Cover faces stay on the flatplan.")
+        const lk = this.lockedIn(ids)
+        if (lk != "") return this.no(lk)
+        const d = this.work()
+        d.holding = [...d.holding, ...d.pages.filter((p) => ids.includes(p.id))]
+        d.pages = d.pages.filter((p) => !ids.includes(p.id))
+        return this.finish(d, [])
+        },
+    deletePages(ids0: string[]) -> Proposal {
+        const ids = this.inOrder(ids0)
+        if (ids.length == 0) return this.no("Choose pages first.")
+        if (this.coverIn(ids)) return this.no("Cover faces can't be deleted. Switch off separate covers in flatplan settings first.")
+        const lk = this.lockedIn(ids)
+        if (lk != "") return this.no(lk)
+        const d = this.work()
+        d.pages = d.pages.filter((p) => !ids.includes(p.id))
+        return this.finish(d, [])
+        },
+    putBack(hid: string, target: string, after: boolean) -> Proposal {
+        const d = this.work()
+        const h = d.holding.find((p) => p.id == hid)
+        if (h == null) return this.no("That page isn't held any more.")
+        d.holding = d.holding.filter((p) => p.id != hid)
+        let at = d.pages.length - (d.numbering == "covers" ? 2 : 0)
+        if (target != "") {
+            const ti = d.pages.findIndex((p) => p.id == target)
+            if (ti < 0) return this.no("Choose a page to put it beside.")
+            if (this.isCover(target)) {
+                const c = d.pages[ti].cover ?? ""
+                if (!(c == "inside-front" && after) && !(c == "inside-back" && !after)) return this.no("Insert between the front and back covers.")
+            }
+            at = ti + (after ? 1 : 0)
+            const beside = d.pages[ti]
+            h.sectionId = (beside.cover ?? "") != "" ? (after ? d.pages[ti + 1] : d.pages[ti - 1])?.sectionId ?? beside.sectionId : beside.sectionId
+        } else {
+            const last = d.pages[at - 1]
+            if (last != null && (last.cover ?? "") == "") h.sectionId = last.sectionId
+        }
+        delete h.cover
+        d.pages = [...d.pages.slice(0, at), h, ...d.pages.slice(at)]
+        return this.finish(d, [hid])
+        },
+    deleteHeld(hid: string) -> Proposal {
+        const d = this.work()
+        d.holding = d.holding.filter((p) => p.id != hid)
+        return this.finish(d, [])
+        },
+
+    // ── stories (F-STORY) ───────────────────────────────────────────────────
+
+    newStory(s: Story) -> Proposal {
+        const d = this.work()
+        d.stories = [...d.stories, s]
+        return this.finish(d, [])
+        },
+    newStoryOn(s: Story, id: string, ri: number) -> Proposal {
+        const d = this.work()
+        d.stories = [...d.stories, s]
+        const p = d.pages.find((q) => q.id == id)
+        if (p == null) return this.no("That page isn't on the flatplan any more.")
+        const r = p.regions[ri] ?? p.regions[0]
+        this.clean(r)
+        r.storyId = s.id
+        r.kind = s.kind == "advertising" ? "advertising" : "editorial"
+        return this.finish(d, [id])
+        },
+
+    // N blank pages after the section's last interior page, carrying the story.
+
+    newStoryAtEnd(s: Story, sid: string) -> Proposal {
+        const d = this.work()
+        let last = -1
+        d.pages.forEach((p, i) => { if (p.sectionId == sid && (d.numbering != "covers" || (p.cover ?? "") == "")) last = i })
+        if (last < 0) return this.no("That section has no numbered pages to add after.")
+        const fresh: Page[] = []
+        for (let k = 0; k < Math.max(1, s.pages); k++) {
+            const p = this.blankPage(sid)
+            p.regions[0].kind = s.kind == "advertising" ? "advertising" : "editorial"
+            p.regions[0].storyId = s.id
+            fresh.push(p)
+        }
+        d.stories = [...d.stories, s]
+        d.pages = [...d.pages.slice(0, last + 1), ...fresh, ...d.pages.slice(last + 1)]
+        return this.finish(d, [fresh[0].id])
+        },
+
+    // Place an unplaced story on the empty pages from there (F-STORY-05).
+
+    placeStory(sid: string, from: string) -> Proposal {
+        const s = this.story(sid)
+        if (s == null) return this.no("That story isn't in this flatplan.")
+        const n = Math.max(1, s.pages)
+        const i = this.indexOf(from)
+        const ok = i >= 0 && i + n <= this.pages.length && this.pages.slice(i, i + n).every((p, k) => !this.facts.cover[i + k] && !p.locked && this.blank(p))
+        if (!ok) return this.no("“" + s.title + "” needs " + n + " empty interior pages in a row from there. Clear them first; nothing has been overwritten.")
+        const d = this.work()
+        const ids = d.pages.slice(i, i + n).map((p) => p.id)
+        d.pages.slice(i, i + n).forEach((p) => {
+            p.regions[0].storyId = sid
+            p.regions[0].kind = s.kind == "advertising" ? "advertising" : "editorial"
+            })
+        const st = d.stories.find((x) => x.id == sid)
+        if (st != null) st.sectionId = d.pages[i].sectionId
+        return this.finish(d, [ids[0]])
+        },
+
+    // The pages a drop from `from` would take.
+
+    runFrom(from: string, n: number) -> string[] {
+        const i = this.indexOf(from)
+        return i < 0 ? [] : this.pages.slice(i, i + n).map((p) => p.id)
+        },
+    runFree(from: string, n: number) -> boolean {
+        const i = this.indexOf(from)
+        return i >= 0 && i + n <= this.pages.length && this.pages.slice(i, i + n).every((p, k) => !this.facts.cover[i + k] && !p.locked && this.blank(p))
+        },
+    editStory(sid: string, f: (s: Story) => string) -> Proposal {
+        const d = this.work()
+        const s = d.stories.find((x) => x.id == sid)
+        if (s == null) return this.no("That story isn't in this flatplan.")
+        const e = f(s)
+        if (e != "") return this.no(e)
+        // Content type changes carry to the regions that carry it.
+        for (const p of d.pages) for (const r of p.regions) if (r.storyId == sid) r.kind = s.kind == "advertising" ? "advertising" : "editorial"
+        return this.finish(d, [])
+        },
+    deleteStory(sid: string) -> Proposal {
+        const d = this.work()
+        d.stories = d.stories.filter((s) => s.id != sid)
+        for (const p of d.pages) for (const r of p.regions) if (r.storyId == sid) delete r.storyId
+        return this.finish(d, [])
+        },
+
+    // Mark every story on these pages.
+
+    markStatus(ids: string[], stid: string) -> Proposal {
+        const sids = new Set<string>()
+        for (const p of this.pages) if (ids.includes(p.id)) for (const r of p.regions) if ((r.storyId ?? "") != "") sids.add(r.storyId ?? "")
+        if (sids.size == 0) return this.no("None of those pages carries a story yet.")
+        const d = this.work()
+        for (const s of d.stories) if (sids.has(s.id)) s.status = stid
+        return this.finish(d, ids)
+        },
+
+    // ── sections, statuses and tags (F-SEC) ─────────────────────────────────
+
+    palette: string[] = { ["#54ddbb", "#ff3fa4", "#3fa9f5", "#ff9a2e", "#b4dc2a", "#ffd75e", "#c59aff", "#ff6b8b", "#7fd1ff", "#c2f04c"] },
+    nextColor(c: string) -> string {
+        const i = this.palette.indexOf((c ?? "").toLowerCase())
+        return this.palette[(i + 1) % this.palette.length]
+        },
+    editList(list: string, id: string, f: (x: Named) => void) -> Proposal {
+        const d = this.work()
+        const arr = (list == "sections" ? d.sections : list == "statuses" ? d.statuses : d.tags)
+        const x = arr.find((e) => e.id == id)
+        if (x == null) return this.no("That isn't in the list any more.")
+        f(x)
+        return this.finish(d, [])
+        },
+    addSection(after: string) -> Proposal {
+        const d = this.work()
+        const i = after == "" ? d.sections.length - 1 : d.sections.findIndex((s) => s.id == after)
+        let at = after == "" ? d.sections.length : i + 1
+        if (d.numbering == "covers" && after == "") at = Math.max(0, d.sections.length - 1)
+        const base = d.sections[Math.max(0, Math.min(d.sections.length - 1, after == "" ? at - 1 : i))]
+        const s = ({ id: newId("sec-"), name: "New section", color: this.nextColor(base?.color ?? "") })
+        d.sections = [...d.sections.slice(0, at), s, ...d.sections.slice(at)]
+        return this.finish(d, [])
+        },
+    removeSection(sid: string) -> Proposal {
+        const d = this.work()
+        if (d.sections.length <= 1) return this.no("A flatplan keeps at least one section.")
+        if (d.numbering == "covers" && this.coverSections().includes(sid)) return this.no("Cover sections stay while covers are separate. Switch off separate covers first.")
+        const i = d.sections.findIndex((s) => s.id == sid)
+        if (i < 0) return this.no("That section isn't in this flatplan.")
+        const heir = (i > 0 ? d.sections[i - 1] : d.sections[i + 1]).id
+        for (const p of [...d.pages, ...d.holding]) if (p.sectionId == sid) p.sectionId = heir
+        for (const s of d.stories) if (s.sectionId == sid) s.sectionId = heir
+        d.sections = d.sections.filter((s) => s.id != sid)
+        return this.finish(d, [])
+        },
+    addNamed(list: string, name: string) -> Proposal {
+        const d = this.work()
+        if (list == "statuses") d.statuses = [...d.statuses, ({ id: newId("st-"), name: name, color: this.palette[d.statuses.length % 10] })]
+        else d.tags = [...d.tags, ({ id: newId("t-"), name: name, color: this.palette[d.tags.length % 10] })]
+        return this.finish(d, [])
+        },
+    removeStatus(stid: string) -> Proposal {
+        const d = this.work()
+        if (d.statuses.length <= 1) return this.no("Keep at least one status.")
+        const other = d.statuses.find((s) => s.id != stid)
+        for (const s of d.stories) if (s.status == stid) s.status = other?.id ?? ""
+        d.statuses = d.statuses.filter((s) => s.id != stid)
+        return this.finish(d, [])
+        },
+    removeTag(tid: string) -> Proposal {
+        const d = this.work()
+        d.tags = d.tags.filter((s) => s.id != tid)
+        for (const p of [...d.pages, ...d.holding]) p.tags = p.tags.filter((t) => t != tid)
+        return this.finish(d, [])
+        },
+
+    // ── artwork (F-ART) ─────────────────────────────────────────────────────
+
+    // Attach (or remap) an asset: each mapped page's art; a page that had this asset's
+    // artwork and is no longer mapped loses it.
+
+    attach(a: Asset, map: string[]) -> Proposal {
+        const d = this.work()
+        const at = d.assets.findIndex((x) => x.id == a.id)
+        d.assets = at < 0 ? [...d.assets, a] : d.assets.map((x) => x.id == a.id ? a : x)
+        for (const p of [...d.pages, ...d.holding]) if (p.art != null && p.art.assetId == a.id) delete p.art
+        map.forEach((pid, k) => {
+            if (pid == "") return
+            const p = d.pages.find((q) => q.id == pid)
+            if (p != null) p.art = ({ assetId: a.id, page: k + 1 })
+            })
+        return this.finish(d, [])
+        },
+    removeAsset(aid: string) -> Proposal {
+        const d = this.work()
+        d.assets = d.assets.filter((x) => x.id != aid)
+        for (const p of [...d.pages, ...d.holding]) if (p.art != null && p.art.assetId == aid) delete p.art
+        return this.finish(d, [])
+        },
+    detach(ids: string[]) -> Proposal { return this.withPages(ids, (p, d) => { delete p.art; return "" }) },
+
+    // Several chosen pages take consecutive PDF pages of an asset.
+
+    assetUse(aid: string) -> number { return this.pages.filter((p) => p.art != null && p.art.assetId == aid).length },
+    mapping(aid: string, n: number) -> string[] {
+        const out: string[] = []
+        for (let k = 0; k < n; k++) out.push("")
+        for (const p of this.pages) if (p.art != null && p.art.assetId == aid && p.art.page >= 1 && p.art.page <= n) out[p.art.page - 1] = p.id
+        return out
+        },
+
+    // ── bookings (F-ADS) ────────────────────────────────────────────────────
+
+    addBooking(b: Booking) -> Proposal {
+        const d = this.work()
+        d.bookings = [...d.bookings, b]
+        return this.finish(d, [])
+        },
+    removeBooking(bid: string) -> Proposal {
+        const d = this.work()
+        d.bookings = d.bookings.filter((b) => b.id != bid)
+        for (const p of d.pages) for (const r of p.regions) if (r.bookingId == bid) { this.clean(r); r.kind = "unassigned" }
+        return this.finish(d, [])
+        },
+    importBookings(rows: string[][]) -> Proposal {
+        if (rows.length < 2) return this.no("No rows under the header.")
+        const d = this.work()
+        for (const row of rows.slice(1)) {
+            const ref = (row[0] ?? "").trim(), text = (row[1] ?? "").trim()
+            if (text == "") continue
+            const want = (row[2] ?? "").split(";").map((w) => w.trim()).filter((w) => w != "")
+            const size = (row[3] ?? "").trim(), shape = (row[4] ?? "").trim().toLowerCase()
+            if (ref != "") {
+                const old = d.bookings.find((b) => b.ref == ref)
+                if (old != null) { old.text = text; old.want = want; old.size = size; old.shape = shape; continue }
+            } else if (d.bookings.some((b) => b.text == text)) {
+                return this.no("“" + text + "” is already in the list. Give each row an identifier to update instead.")
+            }
+            d.bookings.push(({ id: newId("b-"), ref: ref, text: text, size: size, shape: shape, want: want }))
+        }
+        return this.finish(d, [])
+        },
+
+    // ── print and settings (F-PRINT) ────────────────────────────────────────
+
+    setField(f: (d: Flatplan) => string) -> Proposal {
+        const d = this.work()
+        const e = f(d)
+        if (e != "") return this.no(e)
+        return this.finish(d, [])
+        },
+
+    // Add blank pages before the back covers, in the last interior page's section.
+
+    addPages(n: number) -> Proposal {
+        const d = this.work()
+        const at = d.pages.length - (d.numbering == "covers" ? 2 : 0)
+        const sec = d.pages[at - 1]?.sectionId ?? d.sections[0].id
+        const fresh: Page[] = []
+        for (let k = 0; k < n; k++) fresh.push(this.blankPage(sec))
+        d.pages = [...d.pages.slice(0, at), ...fresh, ...d.pages.slice(at)]
+        return this.finish(d, [])
+        },
+    removeLastTwo() -> Proposal {
+        const d = this.work()
+        const end = d.pages.length - (d.numbering == "covers" ? 2 : 0)
+        const two = d.pages.slice(end - 2, end)
+        const lo = d.numbering == "covers" ? 2 : 0
+        if (end - 2 < lo || two.length < 2 || !two.every((p) => this.blank(p) && !p.locked)) return this.no("The last two interior pages aren't empty. Clear them first, or delete pages from the flatplan.")
+        d.pages = [...d.pages.slice(0, end - 2), ...d.pages.slice(end)]
+        return this.finish(d, [])
+        },
+
+    // Separate covers on or off (F-PRINT-05).
+
+    setCovers(on: boolean) -> Proposal {
+        const d = this.work()
+        if (on) {
+            if (d.pages.length < 6) return this.no("Separate covers need at least six pages.")
+            let front = d.sections.find((s) => s.name == "Covers")
+            let back = d.sections.find((s) => s.name == "Back Covers")
+            if (front == null) { front = ({ id: newId("sec-"), name: "Covers", color: "#c2f04c" }); d.sections = [front, ...d.sections] }
+            else d.sections = [front, ...d.sections.filter((s) => s.id != front?.id)]
+            if (back == null) { back = ({ id: newId("sec-"), name: "Back Covers", color: "#c2f04c" }); d.sections = [...d.sections, back] }
+            else d.sections = [...d.sections.filter((s) => s.id != back?.id), back]
+            const n = d.pages.length
+            const faces = ["front", "inside-front", "inside-back", "back"]
+            const at = [0, 1, n - 2, n - 1]
+            for (const p of d.pages) delete p.cover
+            for (let k = 0; k < 4; k++) { d.pages[at[k]].cover = faces[k]; d.pages[at[k]].sectionId = k < 2 ? front.id : back.id }
+            d.numbering = "covers"
+        } else {
+            for (const p of d.pages) delete p.cover
+            d.numbering = "plain"
+        }
+        return this.finish(d, [])
+        },
+
+    // Stitch-ins.
+
+    addStitch(after: string) -> Proposal {
+        const d = this.work()
+        d.stitchIns = [...d.stitchIns, ({ id: newId("x-"), after: after, front: "", back: "" })]
+        return this.finish(d, [])
+        },
+    editStitch(xid: string, front: string, back: string) -> Proposal {
+        const d = this.work()
+        const x = d.stitchIns.find((s) => s.id == xid)
+        if (x == null) return this.no("That stitch-in isn't there any more.")
+        x.front = front
+        x.back = back
+        return this.finish(d, [])
+        },
+    removeStitch(xid: string) -> Proposal {
+        const d = this.work()
+        d.stitchIns = d.stitchIns.filter((s) => s.id != xid)
+        return this.finish(d, [])
+        },
+
+    // A backup's flatplan replaces this one's content, keeping its id.
+
+    replaceWith(next: Flatplan) -> Proposal {
+        const d = structuredClone(next) as Flatplan
+        d.id = this.doc?.id ?? d.id
+        return this.finish(d, [])
+        },
+
+    // ── new flatplans (F-WS-05) ─────────────────────────────────────────────
+
+    // Same layout: pages, sections, templates and region kinds, with new ids; every
+    // story, ad, booking, artwork, tag, note, lock, label, stitch-in and held page off.
+
+    sameLayout(name: string, edition: string) -> Flatplan {
+        const d = this.work()
+        d.id = newId("flatplan-")
+        d.name = name
+        d.edition = edition
+        d.notes = ""
+        d.archived = false
+        d.stories = []
+        d.bookings = []
+        d.assets = []
+        d.stitchIns = []
+        d.holding = []
+        d.pages = d.pages.map((p) => {
+            const q: Page = ({ id: newId("p"), sectionId: p.sectionId, layout: p.layout, turn: p.turn, flip: p.flip,
+                regions: p.regions.map((r) => ({ id: newId("r"), kind: r.kind == "advertising" ? "advertising" : r.kind == "editorial" ? "editorial" : "unassigned", label: "" })),
+                tags: [], notes: "", locked: false })
+            if ((p.cover ?? "") != "") q.cover = p.cover
+            if (p.restart != null) q.restart = p.restart
+            return q
+            })
+        return d
+        },
+
+    // A copy: everything, duplicated (new ids for the flatplan's pages and regions, so
+    // the two never share a record).
+
+    copyAll(name: string, edition: string) -> Flatplan {
+        const d = this.work()
+        d.id = newId("flatplan-")
+        d.name = name
+        d.edition = edition
+        d.archived = false
+        const ids = new Map<string, string>()
+        d.pages = d.pages.map((p) => { const nid = newId("p"); ids.set(p.id, nid); return ({ ...p, id: nid, regions: p.regions.map((r) => ({ ...r, id: newId("r") })) }) })
+        d.stitchIns = d.stitchIns.map((x) => ({ ...x, id: newId("x-"), after: ids.get(x.after) ?? x.after }))
+        return d
+        },
+
+    // Empty: blank pages in the first non-cover section, the same sections, statuses and
+    // tags; separate covers if this flatplan has them.
+
+    emptyOf(name: string, edition: string, n0: number) -> Flatplan {
+        const d = this.work()
+        const n = Math.max(4, Math.round(n0 / 2) * 2)
+        const covers = d.numbering == "covers"
+        const cs = this.coverSections()
+        const first = d.sections.find((s) => !covers || !cs.includes(s.id)) ?? d.sections[0]
+        const pages: Page[] = []
+        for (let k = 0; k < n; k++) pages.push(this.blankPage(first.id))
+        if (covers && n >= 6) {
+            const faces = ["front", "inside-front", "inside-back", "back"]
+            const at = [0, 1, n - 2, n - 1]
+            for (let k = 0; k < 4; k++) { pages[at[k]].cover = faces[k]; pages[at[k]].sectionId = k < 2 ? cs[0] : cs[1] }
+        }
+        return ({ id: newId("flatplan-"), name: name, edition: edition, publication: d.publication, trimW: d.trimW, trimH: d.trimH,
+            facing: d.facing, numbering: covers && n >= 6 ? "covers" : "plain", firstFolio: d.firstFolio, notes: "", archived: false,
+            sections: d.sections, statuses: d.statuses, tags: d.tags, stories: [], pages: pages, holding: [], assets: [],
+            bookings: [], stitchIns: [], signatures: d.signatures })
+        }
+    ]
+
+
+// A workspace's first flatplan, the starter (F-WS-05.5).
+
+class Starter extends Node [
+    make(magazine: string, uid: string) -> Flatplan {
+        const sec = [({ id: "sec-covers", name: "Covers", color: "#c2f04c" }), ({ id: "sec-front", name: "Front of Book", color: "#54ddbb" }),
+            ({ id: "sec-features", name: "Features", color: "#3fa9f5" }), ({ id: "sec-back", name: "Back of Book", color: "#ffd75e" }),
+            ({ id: "sec-backcovers", name: "Back Covers", color: "#c2f04c" })]
+        const pages: Page[] = []
+        for (let i = 1; i <= 32; i++) {
+            const s = i <= 2 ? "sec-covers" : i <= 8 ? "sec-front" : i <= 26 ? "sec-features" : i <= 30 ? "sec-back" : "sec-backcovers"
+            const p: Page = ({ id: newId("p"), sectionId: s, layout: "full", turn: 0, flip: false,
+                regions: [({ id: newId("r"), kind: "unassigned", label: "" })], tags: [], notes: "", locked: false })
+            if (i == 1) p.cover = "front"
+            if (i == 2) p.cover = "inside-front"
+            if (i == 31) p.cover = "inside-back"
+            if (i == 32) p.cover = "back"
+            pages.push(p)
+        }
+        return ({ id: newId("flatplan-"), name: "Issue 01", edition: "First issue", publication: magazine, trimW: 9, trimH: 12,
+            facing: true, numbering: "covers", firstFolio: 1, notes: "", archived: false, sections: sec,
+            statuses: [({ id: "st-idea", name: "Idea", color: "#8794a9" }), ({ id: "st-assigned", name: "Assigned", color: "#80a7ff" }),
+                ({ id: "st-progress", name: "In progress", color: "#98a4a6" }), ({ id: "st-review", name: "In review", color: "#d9b45b" }),
+                ({ id: "st-ready", name: "Ready", color: "#c2f04c" })],
+            tags: [({ id: "t-awaiting", name: "Awaiting copy", color: "#ffd75e" }), ({ id: "t-signed", name: "Signed off", color: "#54ddbb" })],
+            stories: [({ id: newId("s-"), title: "The cover story", sectionId: "sec-features", kind: "editorial", pages: 6, editor: uid,
+                status: "st-idea", notes: "Drag me onto six empty pages, or place me from the inspector.", rightStart: false })],
+            pages: pages, holding: [], assets: [], bookings: [], stitchIns: [], signatures: ({ cover: [4], body: [16, 12] }) })
+        }
+    ]
+
+
+// ── New flatplans (F-WS-05) ─────────────────────────────────────────────────
+
+script {
+    // Sorted-key JSON, so two equal records compare equal.
+    function canonText(v: unknown): string {
+        if (v === undefined || v === null || typeof v != "object") return JSON.stringify(v ?? null)
+        if (Array.isArray(v)) return "[" + v.map(canonText).join(",") + "]"
+        const o = v as Record<string, unknown>
+        return "{" + Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => JSON.stringify(k) + ":" + canonText(o[k])).join(",") + "}"
+    }
+    }

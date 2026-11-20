@@ -382,8 +382,17 @@ function bindWith(x, mem, image, c, hooks) {
     };
     return self;
 }
-/** Decode the embedded module (kernel-wasm.ts carries it base64: no fetch,
- *  no file, no host plumbing — one artifact on every host). */
+/** The embedded module's bytes (kernel-wasm.ts carries it as a string of one
+ *  character per byte: no fetch, no file, no host plumbing — one artifact on
+ *  every host). */
+export function latin1Bytes(s) {
+    const out = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++)
+        out[i] = s.charCodeAt(i);
+    return out;
+}
+/** Decode a module served as base64 text: what a sibling kernel file may be
+ *  given as on a host that mangles binary (reactive.ts kernelBytes). */
 export function decodeWasm(b64) {
     const T = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     const n = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;

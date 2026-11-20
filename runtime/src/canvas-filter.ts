@@ -90,7 +90,7 @@ export function parseFilter(css: string): FilterSpec {
   return out;
 }
 
-import { FILTER_WASM_B64 } from "./filter-wasm.js";
+import { FILTER_WASM_LATIN1 } from "./filter-wasm.js";
 
 // ── THE WEBASSEMBLY LOOPS (kernel/filter/filter.c) ───────────────────────────
 // The blur and the colour matrix below, bit-identical (filtercheck.mjs) and ~6×
@@ -109,10 +109,11 @@ function filterWasm(): FilterWasm | null {
   if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareNoWasmFilter?: boolean }).__declareNoWasmFilter === true) return null;
   if (fx !== null || fxStarted) return fx;
   fxStarted = true;
-  if (typeof WebAssembly === "undefined" || typeof atob !== "function") return null;
+  if (typeof WebAssembly === "undefined") return null;
   try {
-    const bin = atob(FILTER_WASM_B64), bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    // one character per byte (filter-wasm.ts)
+    const bytes = new Uint8Array(FILTER_WASM_LATIN1.length);
+    for (let i = 0; i < bytes.length; i++) bytes[i] = FILTER_WASM_LATIN1.charCodeAt(i);
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes), {}).exports as unknown as { filter_blur: FilterWasm["blur"]; filter_matrix: FilterWasm["matrix"]; memory: WebAssembly.Memory; __heap_base: WebAssembly.Global };
     fx = { blur: x.filter_blur, matrix: x.filter_matrix, mem: x.memory, heap: ((x.__heap_base.value as number) + 15) & ~15 };
   } catch { /* no SIMD128 here: the JavaScript loops stay */ }

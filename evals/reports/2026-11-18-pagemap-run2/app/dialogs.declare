@@ -1,0 +1,1217 @@
+/*
+# Pagemap: the dialogs
+
+Every dialog is a step (`app.waypoint`), so Back closes it and Forward opens it
+again (F-APP-02). `StepDialog` is that once: it is shown while its step is the
+current one, and closing it any way goes Back. Content that would be taller
+than the window scrolls inside it.
+
+Each opening starts fresh: a dialog's working values are built while it is
+open (`exists = { … present }`), so they start from their defaults each time.
+*/
+
+class StepDialog extends Dialog [ defaultPlacement = body,
+    step: string = "",
+    wide: number = 480,
+    shown = { app.stepIs(classroot.step) },
+    commit(open: boolean) { if (!open) app.closeStep() },
+    width = { Math.min(app.width - 24, classroot.wide) },
+
+    // A button does its work in act(); true goes Back (closing the step),
+    // false leaves it open, or to a handler that has gone somewhere itself.
+
+    pick(id: string) { if (this.shown && this.act(id)) app.closeStep() },
+    act(id: string) -> boolean { return true },
+    body: View [ width = 100%, height = { Math.min(this.contentHeight, app.height - 220) }, scrolls = y,
+        layout: SimpleLayout [ axis = y, spacing = 10 ]
+        ]
+    ]
+
+
+class Field2 [ width = 100%,
+    label: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    Caption [ text = { classroot.label } ]
+    ]
+
+
+// ── All flatplans (F-WS-04, -05, -07) ───────────────────────────────────────
+
+class PlanRow extends Control [ width = 100%, height = 46, cornerRadius = 6, padding = [0, 10, 0, 10],
+    current: boolean = { (:id ?? "") == app.fp?.id },
+    accessibilityPressed = { classroot.current },
+    accessibilityLabel = { (:name ?? "") + ", " + (:edition ?? "") },
+    fill = { classroot.current ? provided("theme").controlSelected : hovered ? provided("theme").controlHovered : null },
+    press() { app.leaveStep(); app.location = :id ?? "" },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ fontSize = 14, fontWeight = semibold, wrap = false, text = { :name ?? "" } ],
+        Muted [ wrap = false, text = { (:edition ?? "") + " · " + (:pages ?? 0) + " pages" } ]
+        ],
+    Caption [ visible = { classroot.current }, textColor = { provided("theme").accent }, text = "OPEN" ]
+    ]
+
+
+class FlatplansDialog extends StepDialog [ step = "flatplans", title = "All flatplans",
+    buttons = { [ ({ id: "new", label: "New flatplan…" }), ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+    act(id: string) -> boolean { if (id == "new") { app.waypoint = "newplan"; return false } return true },
+    View [ width = 100%,
+        src: Dataset [ contents = { ({ rows: (app.flatplans.value?.rows ?? []).filter((r) => !(r.archived ?? false)) }) } ],
+        datapath = { this.src.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        PlanRow [ datapath = :rows[] ]
+        ],
+    Caption [ visible = { (app.flatplans.value?.rows ?? []).some((r) => r.archived ?? false) }, text = "ARCHIVED" ],
+    View [ width = 100%,
+        src: Dataset [ contents = { ({ rows: (app.flatplans.value?.rows ?? []).filter((r) => r.archived ?? false) }) } ],
+        datapath = { this.src.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        PlanRow [ datapath = :rows[], opacity = 0.75 ]
+        ]
+    ]
+
+
+class NewFlatplanForm [ width = 100%,
+    name: string = "",
+    edition: string = "",
+    start: string = "same",
+    count: number = 96,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Field2 [ label = "ISSUE NAME",
+        TextInput [ width = 100%, height = 32, placeholder = "Issue 05", accessibilityLabel = "Issue name",
+            value <-> classroot.name ]
+        ],
+    Field2 [ label = "EDITION",
+        TextInput [ width = 100%, height = 32, placeholder = "Winter 2025", accessibilityLabel = "Edition",
+            value <-> classroot.edition ]
+        ],
+    Field2 [ label = "START FROM",
+        Segmented [ value = { classroot.start }, accessibilityLabel = "Start from",
+            items = { [ ({ id: "same", label: "Same layout" }), ({ id: "copy", label: "A copy" }), ({ id: "empty", label: "Empty" }) ] },
+            commit(v: string) { classroot.start = v }
+            ]
+        ],
+    Muted [ width = 100%, text = { classroot.start == "same" ? "This flatplan's pages, sections, templates and region kinds, with every story, ad, artwork, tag, note and lock taken off."
+        : classroot.start == "copy" ? "Everything in this flatplan, duplicated." : "Blank pages in this flatplan's first section, with its sections, statuses and tags." } ],
+    Field2 [ visible = { classroot.start == "empty" }, label = "PAGES",
+        Stepper [ min = 4, max = 600, step = 2, value = { classroot.count }, accessibilityLabel = "Pages",
+            commit(v: number) { classroot.count = v }
+            ]
+        ]
+    ]
+
+
+class NewFlatplanDialog extends StepDialog [ step = "newplan", title = "New flatplan",
+    buttons = { [ ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "make", label: "Create", default: true }) ] },
+    f: NewFlatplanForm [ exists = { classroot.present } ],
+    act(id: string) -> boolean {
+        if (id != "make") return true
+        const f = this.f as NewFlatplanForm
+        if (f == null) return false
+        if (f.name.trim() == "") { app.say("Give the issue a name."); return false }
+        app.makeFlatplan(f.name.trim(), f.edition.trim(), f.start, f.count)
+        app.leaveStep()
+        return false
+        }
+    ]
+
+
+// ── Flatplan settings (F-PRINT-01 to -05, F-WS-06, -07) ─────────────────────
+
+class SettingsDialog extends StepDialog [ step = "settings", title = "Flatplan settings", wide = 520,
+    buttons = { [ ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+    fp: Flatplan? = { app.fp },
+    ro: boolean = { app.readOnly },
+    set(label: string, field: string, v: any) {
+        const id = app.fp?.id ?? ""
+        if (app.plan.apply(label, (fp: Flatplan) => { (fp as any)[field] = v; return "" }, true)) {
+            if (field == "name" || field == "edition" || field == "archived") updateIndex(app.fpWs, id, ({ [field]: v })).catch(() => { })
+            }
+        },
+    Field2 [ label = "PUBLICATION",
+        TextInput [ width = 100%, height = 32, disabled = { classroot.ro }, commitOn = "end", accessibilityLabel = "Publication",
+            value = { classroot.fp?.publication ?? "" },
+            commit(v: string) { if (v != classroot.fp?.publication) classroot.set("Rename publication", "publication", v.trim()) }
+            ]
+        ],
+    Row [ Field2 [ flexes = true, label = "ISSUE",
+            TextInput [ width = 100%, height = 32, disabled = { classroot.ro }, commitOn = "end", accessibilityLabel = "Issue",
+                value = { classroot.fp?.name ?? "" },
+                commit(v: string) { if (v.trim() == "") { app.say("The issue needs a name."); return } if (v.trim() != classroot.fp?.name) classroot.set("Rename issue", "name", v.trim()) }
+                ]
+            ],
+        Field2 [ flexes = true, label = "EDITION",
+            TextInput [ width = 100%, height = 32, disabled = { classroot.ro }, commitOn = "end", accessibilityLabel = "Edition",
+                value = { classroot.fp?.edition ?? "" },
+                commit(v: string) { if (v != classroot.fp?.edition) classroot.set("Rename edition", "edition", v.trim()) }
+                ]
+            ]
+        ],
+    Field2 [ label = "TRIM (INCHES)",
+        Row [ TextInput [ width = 70, height = 32, disabled = { classroot.ro }, commitOn = "end", accessibilityLabel = "Trim width", purpose = decimal,
+                value = { String(classroot.fp?.trimW ?? 9) },
+                commit(v: string) { const n = Number(v); if (!(n > 0)) { app.say("Trim width must be more than zero."); return } if (n != classroot.fp?.trimW) classroot.set("Trim width " + n, "trimW", n) }
+                ],
+            Muted [ text = "×" ],
+            TextInput [ width = 70, height = 32, disabled = { classroot.ro }, commitOn = "end", accessibilityLabel = "Trim height", purpose = decimal,
+                value = { String(classroot.fp?.trimH ?? 12) },
+                commit(v: string) { const n = Number(v); if (!(n > 0)) { app.say("Trim height must be more than zero."); return } if (n != classroot.fp?.trimH) classroot.set("Trim height " + n, "trimH", n) }
+                ]
+            ],
+        Segmented [ disabled = { classroot.ro }, accessibilityLabel = "Page shape",
+            value = { (classroot.fp?.trimW ?? 9) < (classroot.fp?.trimH ?? 12) ? "portrait" : (classroot.fp?.trimW ?? 9) == (classroot.fp?.trimH ?? 12) ? "square" : "landscape" },
+            items = { [ ({ id: "portrait", label: "Portrait 9 × 12" }), ({ id: "square", label: "Square 10 × 10" }), ({ id: "landscape", label: "Landscape 12 × 9" }) ] },
+            commit(v: string) {
+                const w = v == "portrait" ? 9 : v == "square" ? 10 : 12, h = v == "portrait" ? 12 : v == "square" ? 10 : 9
+                app.plan.apply(v == "portrait" ? "Make pages portrait" : v == "square" ? "Make pages square" : "Make pages landscape",
+                    (fp: Flatplan) => { fp.trimW = w; fp.trimH = h; return "" }, true)
+                }
+            ]
+        ],
+    Checkbox [ label = "Facing pages (spreads)", disabled = { classroot.ro }, checked = { classroot.fp?.facing ?? true },
+        commit(v: boolean) { classroot.set(v ? "Show spreads" : "Show single pages", "facing", v) }
+        ],
+    Checkbox [ label = "Separate covers (FC, IFC, IBC, BC)", disabled = { classroot.ro }, checked = { classroot.fp?.numbering == "covers" },
+        commit(v: boolean) { app.plan.apply(v ? "Separate the covers" : "Number the covers", (fp: Flatplan) => app.plan.opCovers(fp, v), true) }
+        ],
+    Row [ Caption [ text = "NUMBERING STARTS AT" ],
+        Stepper [ min = -999, max = 9999, disabled = { classroot.ro }, value = { classroot.fp?.firstFolio ?? 1 }, accessibilityLabel = "Numbering starts at",
+            commit(v: number) { const n = Math.round(v); classroot.set("Number from " + n, "firstFolio", n) }
+            ]
+        ],
+    Row [ Caption [ text = { "PHYSICAL PAGES · " + app.plan.pages.length } ],
+        Act [ visible = { !classroot.ro }, label = "Add 2",
+            press() { app.plan.apply("Add 2 pages", (fp: Flatplan) => app.plan.opAddPages(fp, 2)) }
+            ],
+        Act [ visible = { !classroot.ro }, label = "Add 4",
+            press() { app.plan.apply("Add 4 pages", (fp: Flatplan) => app.plan.opAddPages(fp, 4)) }
+            ],
+        Act [ visible = { !classroot.ro }, label = "Remove 2",
+            press() { app.plan.apply("Remove 2 pages", (fp: Flatplan) => app.plan.opRemoveLast(fp, 2)) }
+            ]
+        ],
+    Act [ visible = { !classroot.ro }, label = { (classroot.fp?.archived ?? false) ? "Bring back from the archive" : "Archive this flatplan" },
+        press() {
+            const on = !(classroot.fp?.archived ?? false)
+            classroot.set(on ? "Archive this flatplan" : "Bring back from the archive", "archived", on)
+            if (on) app.say("Archived. It stays in the list of flatplans.")
+            }
+        ]
+    ]
+
+
+// ── Sections, statuses and tags (F-SEC-02) ──────────────────────────────────
+
+class NamedRow [ width = 100%, height = 34,
+    list: string = "sections",
+    nid: string = { :id ?? "" },
+    count: string = "",
+    ro: boolean = { app.readOnly },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    rename(v: string) {
+        const id = this.nid, list = this.list
+        app.plan.apply(list == "sections" ? "Rename section" : list == "statuses" ? "Rename status" : "Rename tag",
+            (fp: Flatplan) => { const it = ((fp as any)[list] as Named[]).find((x) => x.id == id); if (it != null) it.name = v; return "" }, true)
+        },
+    recolor() {
+        const id = this.nid, list = this.list
+        app.plan.apply("Recolor", (fp: Flatplan) => { const it = ((fp as any)[list] as Named[]).find((x) => x.id == id); if (it != null) it.color = nextColor(it.color); return "" }, true)
+        },
+    remove() {
+        const id = this.nid, list = this.list, plan = app.plan
+        if (list == "sections") plan.apply("Remove a section", (fp: Flatplan) => plan.opRemoveSection(fp, id), true)
+        else if (list == "statuses") plan.apply("Remove a status", (fp: Flatplan) => plan.opRemoveStatus(fp, id), true)
+        else plan.apply("Remove a tag", (fp: Flatplan) => plan.opRemoveTag(fp, id), true)
+        },
+    Swatch [ color = { :color ?? "#888888" }, disabled = { classroot.ro }, accessibilityLabel = "Recolor",
+        press() { classroot.recolor() }
+        ],
+    TextInput [ flexes = true, height = 30, disabled = { classroot.ro }, commitOn = "end", accessibilityLabel = "Name", value = { :name ?? "" },
+        commit(v: string) { if (v.trim() != "" && v.trim() != (:name ?? "")) classroot.rename(v.trim()) }
+        ],
+    Muted [ width = 90, textAlign = end, wrap = false, text = { classroot.count } ],
+    IconAct [ visible = { !classroot.ro }, shape = "close", accessibilityLabel = "Remove",
+        press() { classroot.remove() }
+        ]
+    ]
+
+
+class VocabularyDialog extends StepDialog [ step = "vocab", title = "Sections, statuses and tags", wide = 560,
+    buttons = { [ ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+    add(list: string, name: string) {
+        const after = list == "sections" ? (app.page?.sectionId ?? "") : ""
+        app.plan.apply(list == "sections" ? "Add a section" : list == "statuses" ? "Add a status" : "Add a tag",
+            (fp: Flatplan) => app.plan.opAddNamed(fp, list, name, after), true)
+        },
+    Caption [ text = "SECTIONS" ],
+    View [ width = 100%, datapath = { app.plan.value?.open },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        NamedRow [ datapath = :sections[], list = "sections",
+            count = { app.plan.sectionCount(:id ?? "") + " pages" } ]
+        ],
+    Act [ visible = { !app.readOnly }, label = "Add a section",
+        press() { classroot.add("sections", "New section") }
+        ],
+    Caption [ text = "STATUSES" ],
+    View [ width = 100%, datapath = { app.plan.value?.open },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        NamedRow [ datapath = :statuses[], list = "statuses",
+            count = { pagesNum(app.plan.statusShare(:id ?? "")) + " pp · " + pct(app.plan.statusShare(:id ?? ""), app.plan.pages.length) } ]
+        ],
+    Act [ visible = { !app.readOnly }, label = "Add a status",
+        press() { classroot.add("statuses", "New status") }
+        ],
+    Caption [ text = "TAGS" ],
+    View [ width = 100%, datapath = { app.plan.value?.open },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        NamedRow [ datapath = :tags[], list = "tags",
+            count = { app.plan.pages.filter((p) => p.tags.includes(:id ?? "")).length + " pp" } ]
+        ],
+    Act [ visible = { !app.readOnly }, label = "Add a tag",
+        press() { classroot.add("tags", "New tag") }
+        ]
+    ]
+
+
+// ── Ads and content to place (F-ADS-01 to -05) ──────────────────────────────
+
+class BookingRow [ width = 100%, padding = [6, 0, 6, 0],
+    bid: string = { :id ?? "" },
+    on: string[] = { app.plan.bookingPages(classroot.bid) },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, fontSize = 13, fontWeight = semibold, text = { :text ?? "" } ],
+        Muted [ width = 100%, text = { [(:ref ?? "") == "" ? "" : :ref ?? "", (:size ?? "") == "" ? "any size" : :size ?? "", (:shape ?? "") == "" ? "" : :shape ?? "",
+            ((:want ?? []).length == 0 ? "" : "wants " + (:want ?? []).join(", "))].filter((x) => x != "").join(" · ") } ]
+        ],
+    Control [ visible = { classroot.on.length > 0 }, height = 28, padding = [0, 6, 0, 6],
+        press() { const first = classroot.on[0]; app.leaveStep(); app.goPage(first) },
+        TextLabel [ y = center, fontSize = 12, textColor = { provided("theme").linkColor }, text = { "on " + app.plan.rangeOf(classroot.on) } ]
+        ],
+    Muted [ visible = { classroot.on.length == 0 }, text = "Not placed" ],
+    IconAct [ visible = { !app.readOnly }, shape = "close", accessibilityLabel = "Remove a booking",
+        press() { const id = classroot.bid; app.plan.apply("Remove a booking", (fp: Flatplan) => app.plan.opRemoveBooking(fp, id), true) }
+        ]
+    ]
+
+
+class BookingForm [ width = 100%,
+    text: string = "",
+    size: string = "",
+    shape: string = "",
+    want: string = "",
+    add() {
+        if (text.trim() == "") { app.say("Give the booking its text."); return }
+        const b: Booking = ({ id: makeId("b-"), ref: "", text: text.trim(), size: size.trim(), shape: shape.trim().toLowerCase(),
+            want: want.split(/[;,]/).map((w) => w.trim()).filter((w) => w != "") })
+        if (app.plan.apply("Add " + b.text, (fp: Flatplan) => { fp.bookings.push(b); return "" }, true)) { text = ""; size = ""; shape = ""; want = "" }
+        },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    TextInput [ width = 100%, height = 32, placeholder = "What's booked (an ad, a promo)", accessibilityLabel = "Booking text",
+        value <-> classroot.text,
+        onEnter() { classroot.add() }
+        ],
+    Row [ TextInput [ width = 80, height = 32, placeholder = "Size 1/2", accessibilityLabel = "Size", value <-> classroot.size,
+            onEnter() { classroot.add() }
+            ],
+        TextInput [ width = 110, height = 32, placeholder = "Shape", accessibilityLabel = "Shape", value <-> classroot.shape,
+            onEnter() { classroot.add() }
+            ],
+        TextInput [ flexes = true, height = 32, placeholder = "Pages it wants: 3; IBC", accessibilityLabel = "Wanted pages", value <-> classroot.want,
+            onEnter() { classroot.add() }
+            ],
+        Button [ label = "Add",
+            onClick() { classroot.add() }
+            ]
+        ]
+    ]
+
+
+class BookingsDialog extends StepDialog [ step = "bookings", title = "Ads and content to place", wide = 600,
+    buttons = { [ ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+    Muted [ visible = { (app.fp?.bookings.length ?? 0) == 0 }, text = "Nothing booked yet." ],
+    View [ width = 100%, datapath = { app.plan.value?.open },
+        layout: SimpleLayout [ axis = y ],
+        BookingRow [ datapath = :bookings[] ]
+        ],
+    BookingForm [ visible = { !app.readOnly }, exists = { classroot.present } ],
+    Row [ visible = { !app.readOnly },
+        Act [ label = "Import CSV or TSV…",
+            press() { app.importBookings() }
+            ],
+        Act [ label = "Download a template",
+            press() {
+                FilePicker.save("identifier,text,pages,size,shape\nAD-101,Acme Watches,3;IBC,1,full\nAD-102,Northwind Travel,12,1/2,horizontal\nPR-7,Subscribe promo,,1/4,square\n",
+                    ({ name: "ads-to-place.csv", type: "text/csv" }))
+                }
+            ]
+        ]
+    ]
+
+
+// ── Print sections (F-PRINT-07) ─────────────────────────────────────────────
+
+class SigList [ width = 100%,
+    which: string = "body",
+    sizes: number[] = { classroot.which == "cover" ? app.fp?.signatures.cover ?? [] : app.fp?.signatures.body ?? [] },
+    edit(label: string, f: (l: number[]) => number[]) {
+        const which = this.which
+        app.plan.apply(label, (fp: Flatplan) => {
+            if (which == "cover") fp.signatures.cover = f([...fp.signatures.cover])
+            else fp.signatures.body = f([...fp.signatures.body])
+            return ""
+            }, true)
+        },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    Row [ Caption [ flexes = true, text = { (classroot.which == "cover" ? "COVER SECTIONS" : "CONTENT SECTIONS") + " · " + classroot.sizes.reduce((a, b) => a + b, 0) + " PAGES" } ]
+        ],
+    View [ width = 100%,
+        src: Dataset [ contents = { ({ rows: classroot.sizes.map((n, i) => ({ id: "s" + i, n: n, i: i })) }) } ],
+        datapath = { this.src.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Act [ datapath = :rows[], label = { (:n ?? 0) + " ×" }, accessibilityLabel = "Remove a print section", disabled = { app.readOnly },
+            press() { const i = :i ?? 0; classroot.edit("Remove a print section", (l: number[]) => l.filter((x, k) => k != i)) }
+            ]
+        ],
+    Row [ visible = { !app.readOnly },
+        Muted [ text = "Add" ],
+        Act [ label = "4", accessibilityLabel = "Add a 4-page section",
+            press() { classroot.edit("Add a 4-page section", (l: number[]) => [...l, 4]) }
+            ],
+        Act [ label = "8", accessibilityLabel = "Add an 8-page section",
+            press() { classroot.edit("Add an 8-page section", (l: number[]) => [...l, 8]) }
+            ],
+        Act [ label = "16", accessibilityLabel = "Add a 16-page section",
+            press() { classroot.edit("Add a 16-page section", (l: number[]) => [...l, 16]) }
+            ],
+        Act [ label = "24", accessibilityLabel = "Add a 24-page section",
+            press() { classroot.edit("Add a 24-page section", (l: number[]) => [...l, 24]) }
+            ],
+        Act [ label = "32", accessibilityLabel = "Add a 32-page section",
+            press() { classroot.edit("Add a 32-page section", (l: number[]) => [...l, 32]) }
+            ]
+        ]
+    ]
+
+
+class PrintDialog extends StepDialog [ step = "print", title = "Print sections", wide = 520,
+    buttons = { [ ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+    total: number = { app.printTotal },
+    have: number = { app.plan.pages.length + (app.fp?.holding.length ?? 0) },
+    diff: number = { classroot.total - classroot.have },
+    Muted [ width = 100%, text = "A calculator for the signatures the printer binds the book from. It never changes a page." ],
+    SigList [ which = "cover" ],
+    SigList [ which = "body" ],
+    Row [ Caption [ width = 220, text = "TOTAL PAGES, BY SECTIONS" ],
+        Text [ text = { "" + classroot.total } ]
+        ],
+    Row [ Caption [ width = 220, text = "PAGES ON THE FLATPLAN AND HELD" ],
+        Text [ text = { "" + classroot.have } ]
+        ],
+    Row [ Caption [ width = 220, text = "DIFFERENCE" ],
+        Text [ text = { (classroot.diff > 0 ? "+" : "") + classroot.diff } ]
+        ],
+    Text [ width = 100%, fontWeight = semibold,
+        textColor = { classroot.diff == 0 ? provided("theme").ok : provided("theme").warn },
+        text = { classroot.diff == 0 ? "The pages fit the sections exactly."
+            : classroot.diff < 0 ? "Remove " + (-classroot.diff) + " pages from the flatplan, or add sections."
+            : "Add " + classroot.diff + " pages to the flatplan, or remove sections." } ]
+    ]
+
+
+// ── Stitch-ins (F-PRINT-08) ─────────────────────────────────────────────────
+
+class StitchRow [ width = 100%, padding = [6, 0, 6, 0],
+    sid: string = { :id ?? "" },
+    edit(f: (s: StitchIn) => void) {
+        const id = this.sid
+        app.plan.apply("Edit stitch-in", (fp: Flatplan) => { const s = fp.stitchIns.find((x) => x.id == id); if (s != null) f(s); return "" }, true)
+        },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    Row [ Text [ flexes = true, fontWeight = semibold, text = { "After " + app.plan.nameOf(:after ?? "").replace("Page", "page") } ],
+        IconAct [ visible = { !app.readOnly }, shape = "close", accessibilityLabel = "Remove a stitch-in",
+            press() { const id = classroot.sid; app.plan.apply("Remove a stitch-in", (fp: Flatplan) => { fp.stitchIns = fp.stitchIns.filter((x) => x.id != id); return "" }, true) }
+            ]
+        ],
+    TextInput [ width = 100%, height = 30, placeholder = "Front", accessibilityLabel = "Front", disabled = { app.readOnly }, commitOn = "end", value = { :front ?? "" },
+        commit(v: string) { if (v != (:front ?? "")) classroot.edit((s: StitchIn) => { s.front = v }) }
+        ],
+    TextInput [ width = 100%, height = 30, placeholder = "Back", accessibilityLabel = "Back", disabled = { app.readOnly }, commitOn = "end", value = { :back ?? "" },
+        commit(v: string) { if (v != (:back ?? "")) classroot.edit((s: StitchIn) => { s.back = v }) }
+        ]
+    ]
+
+
+class StitchDialog extends StepDialog [ step = "stitch", title = "Stitch-ins",
+    buttons = { [ ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+    Muted [ visible = { (app.fp?.stitchIns.length ?? 0) == 0 }, text = "Nothing is bound in yet." ],
+    View [ width = 100%, datapath = { app.plan.value?.open },
+        layout: SimpleLayout [ axis = y ],
+        StitchRow [ datapath = :stitchIns[] ]
+        ],
+    Act [ visible = { !app.readOnly }, disabled = { app.pageId == "" },
+        label = { app.pageId == "" ? "Choose a page first" : "Add after " + app.plan.nameOf(app.pageId).replace("Page", "page") },
+        press() {
+            const after = app.pageId
+            if (after == "") return
+            app.plan.apply("Add a stitch-in", (fp: Flatplan) => { fp.stitchIns.push(({ id: makeId("x-"), after: after, front: "", back: "" })); return "" }, true)
+            }
+        ]
+    ]
+
+
+// ── Notes and activity (F-PRINT-06, F-COLLAB-08) ────────────────────────────
+
+class NoteRow extends Control [ width = 100%, padding = [6, 4, 6, 4], cornerRadius = 6,
+    fill = { hovered ? provided("theme").controlHovered : null },
+    press() { const p = :pageId ?? ""; if (p != "") { app.leaveStep(); app.goPage(p) } },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Row [ Text [ fontSize = 12, fontWeight = semibold, wrap = false, text = { app.personName(:by ?? "") } ],
+        Muted [ visible = { (:pageId ?? "") != "" }, fontSize = 11, wrap = false, text = { "on " + app.plan.nameOf(:pageId ?? "").replace("Page", "page") } ],
+        Spacer [ ],
+        Muted [ fontSize = 11, wrap = false, text = { app.ago(:at ?? 0) } ]
+        ],
+    Text [ width = 100%, fontSize = 13, text = { :text ?? "" } ]
+    ]
+
+
+class NotesDialog extends StepDialog [ step = "notes", title = "Notes and activity", wide = 560,
+    buttons = { [ ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+    tab: string = "notes",
+    Segmented [ value = { classroot.tab }, accessibilityLabel = "Show",
+        items = { [ ({ id: "notes", label: "Notes" }), ({ id: "comments", label: "Comments" }), ({ id: "activity", label: "Activity" }) ] },
+        commit(v: string) { classroot.tab = v }
+        ],
+    View [ visible = { classroot.tab == "notes" }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Muted [ text = "Notes for the whole flatplan. They print with it." ],
+        TextInput [ width = 100%, height = 160, multiline = true, wrap = true, disabled = { app.readOnly }, commitOn = "end",
+            accessibilityLabel = "Flatplan notes", value = { app.fp?.notes ?? "" },
+            commit(v: string) { if (v != (app.fp?.notes ?? "")) app.plan.apply("Edit the notes", (fp: Flatplan) => { fp.notes = v; return "" }, true) }
+            ]
+        ],
+    View [ visible = { classroot.tab == "comments" }, width = 100%,
+        src: Dataset [ contents = { ({ rows: [...(app.comments.value?.rows ?? [])].reverse() }) } ],
+        datapath = { this.src.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        NoteRow [ datapath = :rows[] ]
+        ],
+    Muted [ visible = { classroot.tab == "comments" && (app.comments.value?.rows.length ?? 0) == 0 }, text = "No comments yet." ],
+    View [ visible = { classroot.tab == "activity" }, width = 100%, datapath = { app.activity.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        NoteRow [ datapath = :rows[] ]
+        ]
+    ]
+
+
+// ── Sharing (F-SHARE-01 to -04) ─────────────────────────────────────────────
+
+class PersonRow [ width = 100%, height = 40,
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Avatar [ initials = { :initials ?? "" }, tint = { :color ?? "#888888" } ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ fontSize = 13, fontWeight = semibold, wrap = false, text = { (:name ?? "") + ((:uid ?? "") == app.uid ? " (you)" : "") } ],
+        Muted [ fontSize = 11, wrap = false, text = { :email ?? "" } ]
+        ],
+    Caption [ text = { (:role ?? "") == "admin" ? "ADMIN" : (:role ?? "") == "editor" ? "CAN EDIT" : "CAN VIEW" } ]
+    ]
+
+
+class ShareDialog extends StepDialog [ step = "share", title = "Share", wide = 540,
+    buttons = { [ ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+    email: string = "",
+    inviteRole: string = "editor",
+    valid: boolean = { /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(classroot.email.trim()) },
+    isAdmin: boolean = { app.role == "admin" },
+    viewLink: string = { appAddress() + "#view/" + (app.fp?.id ?? "") },
+    invite() {
+        if (!isAdmin) { app.say("Only an admin can invite people."); return }
+        if (!valid) return
+        const e = email.trim().toLowerCase()
+        writeMany(({ ["invites/" + emailKey(e)]: ({ ws: app.ws, role: inviteRole, by: app.uid, at: "__now__" }) })).then(() => {
+            app.say(e + " is invited. Tell them to create an account with that address at " + appAddress())
+            email = ""
+            }, (err: any) => { app.say("The invitation wasn't saved: " + authMessage(err)) })
+        },
+    copyLink() {
+        const ws = app.ws, id = app.fp?.id ?? ""
+        Clipboard.copy(viewLink)
+        turnOnLink(ws, id).then(() => { app.say("Link copied.") }, (err: any) => { app.say("The link couldn't be turned on: " + authMessage(err)) })
+        },
+    Caption [ text = "PEOPLE IN THE WORKSPACE" ],
+    View [ width = 100%, datapath = { app.members.value },
+        layout: SimpleLayout [ axis = y ],
+        PersonRow [ datapath = :rows[] ]
+        ],
+    Caption [ text = "INVITE" ],
+    Row [ TextInput [ flexes = true, height = 32, placeholder = "name@example.com", accessibilityLabel = "Email to invite", purpose = email,
+            value <-> classroot.email,
+            onEnter() { classroot.invite() }
+            ],
+        Segmented [ value = { classroot.inviteRole }, accessibilityLabel = "Role",
+            items = { [ ({ id: "editor", label: "Can edit" }), ({ id: "viewer", label: "Can view" }) ] },
+            commit(v: string) { classroot.inviteRole = v }
+            ],
+        Button [ label = "Invite", disabled = { !classroot.isAdmin || !classroot.valid },
+            onClick() { classroot.invite() }
+            ]
+        ],
+    Muted [ visible = { !classroot.isAdmin }, text = "Only an admin can invite people." ],
+    Caption [ text = "VIEW-ONLY LINK" ],
+    Muted [ width = 100%, text = "Copying the link turns it on. Anyone with it can read and export the live flatplan, but not change it." ],
+    Row [ TextInput [ flexes = true, height = 32, accessibilityLabel = "View-only link", value = { classroot.viewLink },
+            commit(v: string) { }
+            ],
+        Button [ label = "Copy", disabled = { app.readOnly },
+            onClick() { classroot.copyLink() }
+            ]
+        ],
+    Caption [ text = "EMAIL THE FLATPLAN TO THE TEAM" ],
+    Muted [ width = 100%, text = "Pagemap doesn't send email yet. Copy the view-only link, or print or save the flatplan as a PDF." ],
+    Row [ Act [ label = "Print or save as PDF",
+            press() { app.leaveStep(); app.printPlan() }
+            ],
+        Act [ label = "Export a backup",
+            press() { app.exportBackup() }
+            ]
+        ]
+    ]
+
+
+// ── Move (F-MOVE-07) ────────────────────────────────────────────────────────
+
+class MoveForm [ width = 100%,
+    ids: string[] = { app.moveGroupIds },
+    how: string = "before",
+    target: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ width = 100%, fontSize = 13,
+        text = { "Move " + classroot.ids.length + (classroot.ids.length == 1 ? " physical page (" : " physical pages (") + app.plan.rangeOf(classroot.ids) + ") as one group. Placements, artwork and notes travel with them." } ],
+    Segmented [ value = { classroot.how }, accessibilityLabel = "How",
+        items = { [ ({ id: "before", label: "Insert before" }), ({ id: "after", label: "Insert after" }), ({ id: "swap", label: "Swap" }) ] },
+        commit(v: string) { classroot.how = v }
+        ],
+    Field2 [ label = "TARGET PAGE",
+        Button [ width = 100%, menu = { classroot.targets },
+            label = { classroot.target == "" ? "Choose a page" : app.plan.nameOf(classroot.target) + " — " + app.pageTitle(app.plan.page(classroot.target)) } ]
+        ],
+    targets: Menu [
+        items = { app.plan.pages.map((p) => ({ id: p.id, label: app.plan.nameOf(p.id) + " — " + app.pageTitle(p), group: "t", checked: classroot.target == p.id })) },
+        picked(id: string) { classroot.target = id }
+        ]
+    ]
+
+
+class MoveDialog extends StepDialog [ step = "move", title = "Move pages",
+    buttons = { [ ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "move", label: "Move", default: true }) ] },
+    f: MoveForm [ exists = { classroot.present } ],
+    act(id: string) -> boolean {
+        if (id != "move") return true
+        const f = this.f as MoveForm
+        if (f == null) return false
+        const ids = f.ids, t = f.target
+        if (t == "") { app.say("Choose a target page first."); return false }
+        const ok = f.how == "swap"
+            ? app.plan.apply("Swap " + app.pagesWord(ids.length), (fp: Flatplan) => app.plan.opSwap(fp, ids, t))
+            : app.plan.apply("Move " + app.pagesWord(ids.length), (fp: Flatplan) => app.plan.opMove(fp, ids, t, f.how == "after", app.moveMode == "spread"))
+        if (ok) app.say(f.how == "swap" ? "Swapped. Folios updated." : "Moved. Folios updated automatically.")
+        return ok
+        }
+    ]
+
+
+// ── Insert pages, copy across, numbering (F-PAGE-11, -12, -13) ──────────────
+
+class CountForm [ width = 100%,
+    n: number = 2,
+    note: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Stepper [ min = 1, max = 200, value = { classroot.n }, accessibilityLabel = "How many",
+        commit(v: number) { classroot.n = Math.max(1, Math.round(v)) }
+        ],
+    Muted [ width = 100%, text = { classroot.note } ]
+    ]
+
+
+class InsertDialog extends StepDialog [ step = "insert", title = "Insert pages after",
+    buttons = { [ ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "go", label: "Insert", default: true }) ] },
+    f: CountForm [ exists = { classroot.present }, n = 2, note = "Blank pages, in this page's section. An even number keeps the spreads as they are." ],
+    act(id: string) -> boolean {
+        if (id != "go") return true
+        const f = this.f as CountForm
+        const after = app.pageId
+        if (f == null || after == "") return false
+        const n = f.n
+        return app.plan.apply("Insert " + app.pagesWord(n), (fp: Flatplan) => app.plan.opInsert(fp, after, n))
+        }
+    ]
+
+
+class AcrossDialog extends StepDialog [ step = "across", title = "Copy content across next pages",
+    buttons = { [ ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "go", label: "Copy", default: true }) ] },
+    f: CountForm [ exists = { classroot.present }, n = 1, note = "This page's layout and regions go onto the next pages, skipping cover faces." ],
+    act(id: string) -> boolean {
+        if (id != "go") return true
+        const f = this.f as CountForm
+        const from = app.pageId
+        if (f == null || from == "") return false
+        const n = f.n
+        return app.plan.apply("Copy content across " + n + " pages", (fp: Flatplan) => app.plan.opCopyAcross(fp, from, n))
+        }
+    ]
+
+
+class NumberForm [ width = 100%,
+    n: number = { app.plan.fact(app.pageId)?.num ?? 1 },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Muted [ width = 100%, text = "The count starts again at this page, and goes on from there." ],
+    Stepper [ min = -999, max = 9999, value = { classroot.n }, accessibilityLabel = "Number from",
+        commit(v: number) { classroot.n = Math.round(v) }
+        ],
+    Act [ visible = { (app.page?.restart ?? 0) > 0 }, label = "Remove the restart",
+        press() {
+            const id = app.pageId
+            if (app.plan.apply("Continue numbering", (fp: Flatplan) => app.plan.opPages(fp, [id], (q: Page) => { q.restart = null }))) app.closeStep()
+            }
+        ]
+    ]
+
+
+class NumberDialog extends StepDialog [ step = "number", title = "Start numbering here",
+    buttons = { [ ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "go", label: "Renumber", default: true }) ] },
+    f: NumberForm [ exists = { classroot.present } ],
+    act(id: string) -> boolean {
+        if (id != "go") return true
+        const f = this.f as NumberForm
+        const pid = app.pageId
+        if (f == null || pid == "") return false
+        const n = f.n
+        return app.plan.apply("Number from " + n, (fp: Flatplan) => app.plan.opPages(fp, [pid], (q: Page) => { q.restart = n }))
+        }
+    ]
+
+
+// ── New story (F-STORY-01, -02, -03) ────────────────────────────────────────
+
+class StoryForm [ width = 100%,
+    where: string = { app.stepArg.split(":")[0] ?? "hold" },
+    fixedSection: string = { app.stepArg.split(":")[1] ?? "" },
+    title: string = "",
+    section: string = { classroot.fixedSection != "" ? classroot.fixedSection : app.page?.sectionId ?? (app.fp?.sections[1] ?? app.fp?.sections[0])?.id ?? "" },
+    pages: number = { classroot.where == "here" ? 1 : 4 },
+    editor: string = { app.uid },
+    advert: boolean = false,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Field2 [ label = "TITLE",
+        TextInput [ width = 100%, height = 32, accessibilityLabel = "Title", value <-> classroot.title,
+            onEnter() { app.storyDlg.pick("go") }
+            ]
+        ],
+    Row [ Field2 [ flexes = true, label = "SECTION",
+            Button [ disabled = { classroot.fixedSection != "" }, menu = { classroot.secMenu }, label = { app.plan.section(classroot.section)?.name ?? "" } ]
+            ],
+        Field2 [ width = 120, label = "PLANNED PAGES",
+            Stepper [ min = 1, max = 400, value = { classroot.pages }, accessibilityLabel = "Planned pages",
+                commit(v: number) { classroot.pages = Math.max(1, Math.round(v)); app.storyDlg.endPages = classroot.pages }
+                ]
+            ]
+        ],
+    Field2 [ visible = { !classroot.advert }, label = "EDITOR",
+        Button [ menu = { classroot.edMenu }, label = { classroot.editor == "" ? "Unassigned" : app.personName(classroot.editor) } ]
+        ],
+    Checkbox [ label = "It's an advertisement", checked = { classroot.advert },
+        commit(v: boolean) { classroot.advert = v }
+        ],
+    secMenu: Menu [ items = { (app.fp?.sections ?? []).map((s) => ({ id: s.id, label: s.name, group: "s", checked: classroot.section == s.id })) },
+        picked(id: string) { classroot.section = id }
+        ],
+    edMenu: Menu [ items = { [ ({ id: "", label: "Unassigned", group: "e", checked: classroot.editor == "" }),
+            ...app.editors.map((m) => ({ id: m.uid, label: m.name, group: "e", checked: classroot.editor == m.uid })) ] },
+        picked(id: string) { classroot.editor = id }
+        ]
+    ]
+
+
+class NewStoryDialog extends StepDialog [ step = "story",
+    where: string = { app.stepArg.split(":")[0] ?? "hold" },
+    title = { classroot.where == "end" ? "New story at the end of " + (app.plan.section(app.stepArg.split(":")[1] ?? "")?.name ?? "") : classroot.where == "here" ? "New story on this page" : "Add a story" },
+    buttons = { [ ({ id: "cancel", label: "Cancel", cancel: true }),
+        ({ id: "go", default: true, label: classroot.where == "here" ? "Add and place here"
+            : classroot.where == "end" ? "Add " + classroot.endPages + " pages at the end of " + (app.plan.section(app.stepArg.split(":")[1] ?? "")?.name ?? "")
+            : "Add story" }) ] },
+    endPages: number = 4,
+    form: StoryForm [ exists = { classroot.present } ],
+    act(id: string) -> boolean {
+        if (id != "go") return true
+        const f = this.form as StoryForm
+        if (f == null) return false
+        if (f.title.trim() == "") { app.say("A story needs a title."); return false }
+        const s: Story = ({ id: makeId("s-"), title: f.title.trim(), sectionId: f.section, kind: f.advert ? "advertising" : "editorial",
+            pages: Math.max(1, f.pages), editor: f.advert ? "" : f.editor, status: app.fp?.statuses[0]?.id ?? "", notes: "", rightStart: false })
+        const plan = app.plan
+        if (f.where == "here") {
+            const pid = app.pageId, idx = app.regionIdx
+            return plan.apply("New story " + s.title, (fp: Flatplan) => {
+                fp.stories.push(s)
+                return plan.opRegion(fp, pid, idx, (r: Region) => { r.storyId = s.id; r.kind = s.kind == "advertising" ? "advertising" : "editorial"; r.bookingId = null; r.label = ""; return "" })
+                })
+            }
+        if (f.where == "end") {
+            const sec = f.section, n = s.pages
+            let first = ""
+            const ok = plan.apply("Add " + n + " pages at the end of " + (plan.section(sec)?.name ?? ""), (fp: Flatplan) => {
+                fp.stories.push(s)
+                let last = -1
+                fp.pages.forEach((p, i) => { if (p.sectionId == sec && !(fp.numbering == "covers" && p.cover != null)) last = i })
+                if (last < 0) return "That section has no interior page to add after."
+                const fresh: Page[] = []
+                for (let k = 0; k < n; k++) fresh.push(plan.blankPage(sec))
+                for (const p of fresh) { p.regions[0].kind = s.kind == "advertising" ? "advertising" : "editorial"; p.regions[0].storyId = s.id }
+                fp.pages.splice(last + 1, 0, ...fresh)
+                first = fresh[0].id
+                return ""
+                })
+            if (!ok) return false
+            app.leaveStep()
+            app.goPage(first)
+            return false
+            }
+        if (!plan.apply("New story " + s.title, (fp: Flatplan) => { fp.stories.push(s); return "" })) return false
+        app.leaveStep()
+        app.chooseHeld(s.id)
+        return false
+        }
+    ]
+
+
+// ── Artwork: upload, map, library (F-ART-01 to -05) ─────────────────────────
+
+class MapLine [ width = 100%, height = 32,
+    k: number = { :k ?? 0 },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ width = 90, fontSize = 12, text = { "PDF page " + (classroot.k + 1) } ],
+    Muted [ text = "→" ],
+    Button [ flexes = true, menu = { app.artDlg.lineMenu },
+        onClick() { app.artDlg.line = classroot.k },
+        label = { (:pid ?? "") == "" ? "Keep unmapped" : app.plan.nameOf(:pid ?? "") }
+        ],
+    Glyph [ visible = { app.artDlg.otherArt(:pid ?? "") }, iconSize = 13, shape = "art", ink = { provided("theme").warn },
+        tooltipLabel = "This page already has other artwork; saving replaces it there." ]
+    ]
+
+
+class AssetRow [ width = 100%, padding = [6, 0, 6, 0],
+    aid: string = { :id ?? "" },
+    on: number = { app.plan.pages.filter((p) => p.art?.assetId == classroot.aid).length },
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, fontSize = 13, fontWeight = semibold, text = { :name ?? "" } ],
+        Muted [ text = { (:pages ?? 0) + " PDF pages · on " + classroot.on + " physical pages" } ]
+        ],
+    Act [ visible = { (:url ?? "") != "" }, label = "View",
+        press() { app.openStep("pdf:" + classroot.aid + ":1") }
+        ],
+    Act [ visible = { !app.readOnly }, label = "Remap",
+        press() { app.artDlg.remap(classroot.aid) }
+        ],
+    Act [ visible = { !app.readOnly }, label = "Remove", danger = true,
+        press() { const id = classroot.aid; app.plan.apply("Remove a PDF", (fp: Flatplan) => app.plan.opRemoveAsset(fp, id)) }
+        ]
+    ]
+
+
+class ArtworkDialog extends StepDialog [ step = "art", title = "Upload artwork", wide = 600,
+
+    // the mapping in progress: a file (or an asset being remapped) and one page id per PDF page
+
+    mapping: boolean = false,
+    fileUrl: string = "",
+    fileName: string = "",
+    fileSize: number = 0,
+    pdfPages: number = 0,
+    assetId: string = "",
+    existing: Asset? = null,
+    lines: string[] = [],
+    line: number = 0,
+    progress: number = -1,
+    problem: string = "",
+    dropping: boolean = false,
+    unmapped: number = { classroot.lines.filter((x) => x == "").length },
+
+    closed() { mapping = false; lines = []; progress = -1; problem = ""; existing = null },
+
+    otherArt(pid: string) -> boolean {
+        if (pid == "") return false
+        const p = app.plan.page(pid)
+        return p != null && p.art != null && p.art.assetId != classroot.assetId
+        },
+
+    /** Where the mapping starts: the chosen pages, else the chosen region's story's, else from the chosen page on. */
+
+    startLines(n: number) -> string[] {
+        let targets: string[] = []
+        if (app.chosen.length > 1) targets = app.chosenPages.map((p) => p.id)
+        else if ((app.region?.storyId ?? "") != "") targets = app.plan.storyPages(app.region?.storyId ?? "")
+        else targets = classroot.fromChosen(n)
+        const out: string[] = []
+        for (let i = 0; i < n; i++) out.push(targets[i] ?? "")
+        return out
+        },
+    fromChosen(n: number) -> string[] {
+        const pages = app.plan.pages
+        const at = Math.max(0, app.pageId == "" ? 0 : app.plan.indexOf(app.pageId))
+        return pages.slice(at, at + n).map((p) => p.id)
+        },
+
+    choose() {
+        FilePicker.pick(({ accept: ["application/pdf", ".pdf"] })).then((files: File[]) => { if (files.length > 0) classroot.take(files[0]) })
+        },
+    take(f: File) {
+        problem = ""
+        if (!(f.type == "application/pdf" || f.name.toLowerCase().endsWith(".pdf"))) { problem = "That isn't a PDF."; app.say("That isn't a PDF."); return }
+        pdfPageCount(f.url).then((n: number) => {
+            fileUrl = f.url
+            fileName = f.name
+            fileSize = f.size
+            pdfPages = n
+            assetId = makeId("a-")
+            existing = null
+            lines = classroot.startLines(n)
+            mapping = true
+            }, (e: any) => { problem = "Couldn't read that PDF: " + String(e?.message ?? e) })
+        },
+    remap(id: string) {
+        const a = app.plan.asset(id)
+        if (a == null) return
+        const out: string[] = []
+        for (let i = 0; i < a.pages; i++) out.push(app.plan.pages.find((p) => p.art?.assetId == id && p.art?.page == i + 1)?.id ?? "")
+        existing = a
+        assetId = a.id
+        fileName = a.name
+        fileSize = a.size
+        pdfPages = a.pages
+        fileUrl = ""
+        lines = out
+        mapping = true
+        },
+    setLine(k: number, pid: string) {
+        const next = lines.map((x, i) => (i != k && x == pid && pid != "") ? "" : x)
+        next[k] = pid
+        lines = next
+        },
+    consecutive() {
+        const ids = classroot.fromChosen(pdfPages)
+        lines = lines.map((x, i) => ids[i] ?? "")
+        },
+
+    buttons = { classroot.mapping ? [ ({ id: "back", label: "Back" }), ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "save", label: "Save mapping", default: true }) ]
+        : [ ({ id: "cancel", label: "Close", default: true, cancel: true }) ] },
+    act(id: string) -> boolean {
+        if (id == "back") { mapping = false; lines = []; problem = ""; existing = null; return false }
+        if (id != "save" || !mapping) return true
+        if (lines.every((x) => x == "")) { app.say("Map at least one PDF page onto a page first."); return false }
+        const mapped = [...lines]
+        const name = fileName
+        const finish = (asset: Asset) => {
+            if (app.plan.apply("Attach " + name, (fp: Flatplan) => app.plan.opAttach(fp, asset, mapped))) {
+                app.viewMode = "art"
+                app.say("Attached. The artwork follows its pages wherever they move.")
+                app.closeStep()
+                }
+            }
+        if (existing != null) { finish(existing); return false }
+        const aid = assetId, size = fileSize, pages = pdfPages
+        progress = 0
+        uploadPdf(app.uid, aid, fileUrl, (f: number) => { classroot.progress = f }).then((url: string) => {
+            classroot.progress = -1
+            finish(({ id: aid, name: name, pages: pages, size: size, url: url }))
+            }, (e: any) => {
+            classroot.progress = -1
+            classroot.problem = "The PDF didn't upload: " + authMessage(e)
+            app.say(classroot.problem)
+            })
+        return false
+        },
+
+    lineMenu: Menu [
+        items = { [ ({ id: "", label: "Keep unmapped" }), ({ divider: true }),
+            ...app.plan.pages.map((p) => ({ id: p.id, label: app.plan.nameOf(p.id), group: "m", checked: classroot.lines[classroot.line] == p.id })) ] },
+        picked(id: string) { classroot.setLine(classroot.line, id) }
+        ],
+
+    // nothing being mapped: the drop place and the library
+
+    pickPart: View [ visible = { !classroot.mapping }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        well: Control [ visible = { !app.readOnly }, width = 100%, height = 110, cornerRadius = 10,
+            accessibilityLabel = "Choose a PDF, or drop one here",
+            stroke = { Stroke(1.5, classroot.dropping ? provided("theme").accent : provided("theme").lineStrong) },
+            fill = { classroot.dropping ? provided("theme").controlSelected : hovered ? provided("theme").controlHovered : null },
+            press() { classroot.choose() },
+            onFilesOver() { classroot.dropping = true },
+            onFilesOut() { classroot.dropping = false },
+            onFilesDrop(e: FilesDropEvent) { classroot.dropping = false; if (e.files.length > 0) classroot.take(e.files[0]) },
+            View [ x = center, y = center,
+                layout: SimpleLayout [ axis = y, spacing = 6, align = center ],
+                Glyph [ iconSize = 22, weight = 1.6, shape = "upload", ink = { provided("theme").textMuted } ],
+                Text [ fontSize = 13, fontWeight = semibold, text = "Choose a PDF, or drop one here" ]
+                ]
+            ],
+        Text [ visible = { classroot.problem != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { classroot.problem } ],
+        Caption [ text = "THIS FLATPLAN'S PDFS" ],
+        Muted [ visible = { (app.fp?.assets.length ?? 0) == 0 }, text = "No PDFs yet." ],
+        View [ width = 100%, datapath = { app.plan.value?.open },
+            layout: SimpleLayout [ axis = y ],
+            AssetRow [ datapath = :assets[] ]
+            ]
+        ],
+
+    // mapping
+
+    mapPart: View [ visible = { classroot.mapping }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ fontSize = 14, fontWeight = semibold, text = { classroot.fileName } ],
+        Muted [ text = { classroot.pdfPages + " PDF pages · " + (Math.round(classroot.fileSize / 1024 / 102.4) / 10) + " MB" } ],
+        Row [ Act [ label = "From the chosen page on",
+                press() { classroot.consecutive() }
+                ],
+            Act [ label = "Clear all",
+                press() { classroot.lines = classroot.lines.map((x) => "") }
+                ]
+            ],
+        Muted [ visible = { classroot.unmapped > 0 }, width = 100%,
+            text = { classroot.unmapped + (classroot.unmapped == 1 ? " PDF page stays" : " PDF pages stay") + " unmapped. Unmapped pages change nothing." } ],
+        Text [ visible = { classroot.lines.some((x) => classroot.otherArt(x)) }, width = 100%, fontSize = 12, textColor = { provided("theme").warn },
+            text = "Some of these pages already have other artwork. Saving replaces it there." ],
+        lines: View [ width = 100%,
+            src: Dataset [ contents = { ({ rows: classroot.lines.map((pid, k) => ({ id: "l" + k, k: k, pid: pid })) }) } ],
+            datapath = { this.src.value },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            MapLine [ datapath = :rows[] ]
+            ],
+        ProgressBar [ visible = { classroot.progress >= 0 }, width = 100%, min = 0, max = 1, accessibilityLabel = "Upload", value = { Math.max(0, classroot.progress) } ],
+        Text [ visible = { classroot.problem != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { classroot.problem } ]
+        ]
+    ]
+
+
+// ── Site admins (F-ADMIN-01 to -04) ─────────────────────────────────────────
+
+schema Account [ uid: string, name: string, email: string, ws?: string, wsName?: string, bytes?: number, created?: number, cleared?: number, blocked?: boolean ]
+
+class AccountRow [ width = 100%, padding = [6, 0, 6, 0],
+    auid: string = { :uid ?? "" },
+    mine: boolean = { classroot.auid == app.uid },
+    armed: boolean = false,
+    stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Row [ Text [ fontSize = 13, fontWeight = semibold, wrap = false, text = { (:name ?? "") + (classroot.mine ? " (you)" : "") } ],
+            Caption [ visible = { :blocked ?? false }, textColor = { provided("theme").danger }, text = "BLOCKED" ]
+            ],
+        Muted [ width = 100%, text = { (:email ?? "") + " · " + ((:cleared ?? 0) > 0 ? "Cleared" : (:wsName ?? "") != "" ? :wsName ?? "" : (:ws ?? "") != "" ? "Workspace " + (:ws ?? "") : "No workspace")
+            + " · " + (Math.round((:bytes ?? 0) / 1024 / 102.4) / 10).toFixed(1) + " MB · joined " + dateLabel(:created ?? 0) } ]
+        ],
+    Act [ visible = { !classroot.mine }, label = { (:blocked ?? false) ? "Unblock" : "Block" },
+        press() { app.accountsDlg.block(classroot.auid, !(:blocked ?? false)) }
+        ],
+    Act [ visible = { !classroot.mine }, danger = true, label = { classroot.armed ? "Press again to clear" : "Clear data" },
+        press() {
+            if (!classroot.armed) { classroot.armed = true; afterDelay(4000, () => { classroot.armed = false }); return }
+            classroot.armed = false
+            app.accountsDlg.clear(classroot.auid)
+            }
+        ]
+    ]
+
+
+class AccountsDialog extends StepDialog [ step = "accounts", title = "Manage accounts", wide = 680,
+    buttons = { [ ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+    rows: Dataset [ schema = [ rows[]: Account ] ] { { "rows": [] } },
+    loading: boolean = false,
+    load() {
+        loading = true
+        Promise.all([readPath("accounts"), readPath("blocked")]).then((r: any[]) => {
+            const acc = r[0] ?? {}, bl = r[1] ?? {}
+            const rows = Object.keys(acc).map((k) => ({ uid: k, name: acc[k].name ?? "", email: acc[k].email ?? "", ws: acc[k].ws ?? "", wsName: acc[k].wsName ?? "",
+                bytes: acc[k].bytes ?? 0, created: acc[k].created ?? 0, cleared: acc[k].cleared ?? 0, blocked: bl[k] === true }))
+            rows.sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
+            classroot.rows.set(["rows"], rows)
+            classroot.loading = false
+            }, () => { classroot.loading = false })
+        },
+    trackChanges = ["present"],
+    onChange() { if (this.present) this.load() },
+    block(uid: string, on: boolean) {
+        (on ? writeMany(({ ["blocked/" + uid]: true })) : removeAt("blocked/" + uid)).then(() => {
+            app.say(on ? "Blocked. They're signed out the next time Pagemap checks." : "Unblocked.")
+            classroot.load()
+            }, (e: any) => app.say(authMessage(e)))
+        },
+    clear(uid: string) {
+        clearAccount(uid).then(() => { app.say("Cleared. Their workspace, flatplans and files are gone."); classroot.load() },
+            (e: any) => { app.say("Not cleared: " + authMessage(e)) })
+        },
+    Muted [ width = 100%, text = "Clearing removes an account's workspace (if they founded it), flatplans and files. Their sign-in stays: block it too." ],
+    Muted [ visible = { classroot.loading }, text = "Loading…" ],
+    View [ width = 100%, datapath = { classroot.rows.value },
+        layout: SimpleLayout [ axis = y ],
+        AccountRow [ datapath = :rows[] ]
+        ]
+    ]
+
+
+// ── A quick guide (F-APP-05) ────────────────────────────────────────────────
+
+class GuidePart [ width = 100%,
+    head: string = "",
+    body: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    Text [ fontSize = 14, fontWeight = bold, text = { classroot.head } ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.body } ]
+    ]
+
+
+class GuideDialog extends StepDialog [ step = "guide", title = "A quick guide", wide = 560,
+    buttons = { [ ({ id: "done", label: "Done", default: true, cancel: true }) ] },
+    GuidePart [ head = "Find the rhythm",
+        body = "Pages sit in spreads, left and right, as the book opens. With separate covers on, FC, IFC, IBC and BC stand outside the numbering. Zoom from Overview to Detail, or Fit the whole issue in the window. Press a section's heading to fold it." ],
+    GuidePart [ head = "Move with intention",
+        body = "Drag a page and its whole story comes with it; choose Move single page, Move facing spread or Move section block beside the map. Hold ⌥ as you start to swap instead. ⇧-click chooses a run, ⌘-click adds a page; drag any chosen page to carry them all." ],
+    GuidePart [ head = "Make room",
+        body = "Give a page a layout from fourteen divisions, rotate and flip it, and set each region editorial, advertising or open. Place booked ads on advertising regions and see how well they fit. Unplaced stories and held pages wait in the holding area." ],
+    GuidePart [ head = "See the artwork",
+        body = "Upload a PDF, map its pages onto physical pages, and switch to Artwork to see them. The artwork follows its pages wherever they move. Read from any page spread by spread." ],
+    GuidePart [ head = "Work together",
+        body = "Everyone's changes appear live. Initials show who is here and which pages they have chosen. Comment on a page; Undo and Redo step through your own edits." ],
+    GuidePart [ head = "Keys",
+        body = "⌘Z undo · ⇧⌘Z redo · ⌘C copy page · ⌘V paste · ⌘A choose all matching · ⌫ delete · / find · P planning · A artwork · = and − zoom · ← → previous and next · Space read · Esc clear. Hold ⌘ to see them all." ]
+    ]
+
+
+// ── The reader (F-ART-08) ───────────────────────────────────────────────────
+
+class ReaderPage [ width = { app.reader.pageW }, height = { app.reader.pageW * app.aspect }, clip = true,
+    fill = { provided("theme").page },
+    p: Page? = { :@ ?? null },
+    showArt: boolean = { classroot.p?.art != null },
+    PageRegion [ visible = { !classroot.showArt }, datapath = :regions[], pageLayout = { classroot.p?.layout ?? "full" }, pageTurn = { classroot.p?.turn ?? 0 },
+        pageFlip = { classroot.p?.flip ?? false }, sectionTint = { app.plan.sectionColor(classroot.p?.sectionId ?? "") }, pageId = { classroot.p?.id ?? "" } ],
+    Image [ exists = { classroot.showArt }, width = 100%, height = 100%, fit = contain, source = { app.pictureOf(classroot.p?.art ?? null, 1200) } ],
+    want: string = { app.pictureWant(classroot.p?.art ?? null, 1200) },
+    trackChanges = ["want"],
+    onChange() { app.requestWanted(classroot.want) },
+    onInit() { afterSettle(() => app.requestWanted(classroot.want)) }
+    ]
+
+
+class Reader extends Dialog [ presentation = "full", fill = { provided("theme").canvas },
+    shown = { app.reading && app.fp != null },
+    commit(open: boolean) { if (!open) app.closeReader() },
+    singles: boolean = false,
+    at: number = { classroot.indexOfPage(app.readerAt != "" ? app.readerAt : app.pageId) },
+    groups: array = { classroot.singles || !app.plan.facing ? app.plan.pages.map((p) => [p.id]) : app.plan.facts.spreads },
+    indexOfPage(id: string) -> number { return Math.max(0, this.groups.findIndex((g: string[]) => g.includes(id))) },
+    current: string[] = { (classroot.groups[classroot.at] ?? []) as string[] },
+    go(i: number) {
+        const j = Math.max(0, Math.min(this.groups.length - 1, i))
+        app.readerAt = (this.groups[j] as string[])[0] ?? ""
+        },
+    pageW: number = { Math.max(80, Math.min((app.width - 120) / Math.max(1, classroot.current.length), (app.height - 200) / app.aspect)) },
+    keyBindings = { [ ({ key: "ArrowRight", command: "next" }), ({ key: "Space", command: "next" }), ({ key: "ArrowLeft", command: "prev" }) ] },
+    next() { this.go(this.at + 1) },
+    prev() { this.go(this.at - 1) },
+    layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+    bar: View [ width = 100%, height = 50, padding = [0, 16, 0, 16],
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ fontSize = 13, fontWeight = bold, letterSpacing = 0.6, wrap = false,
+            text = { classroot.current.map((id) => upper(app.plan.nameOf(id))).join(" · ") } ],
+        Spacer [ ],
+        Segmented [ value = { classroot.singles ? "pages" : "spreads" }, accessibilityLabel = "Show",
+            items = { [ ({ id: "spreads", label: "Spreads" }), ({ id: "pages", label: "Pages" }) ] },
+            commit(v: string) { classroot.singles = v == "pages" }
+            ],
+        IconAct [ shape = "left", accessibilityLabel = "Previous", disabled = { classroot.at <= 0 },
+            press() { classroot.prev() }
+            ],
+        IconAct [ shape = "right", accessibilityLabel = "Next", disabled = { classroot.at >= classroot.groups.length - 1 },
+            press() { classroot.next() }
+            ],
+        IconAct [ shape = "close", accessibilityLabel = "Close the reader",
+            press() { app.closeReader() }
+            ]
+        ],
+    stage: View [ flexes = true,
+        src: Dataset [ contents = { ({ rows: classroot.current.map((id) => app.plan.page(id)).filter((p) => p != null) }) } ],
+        datapath = { this.src.value },
+        layout: SimpleLayout [ axis = x, spacing = 0, align = center ],
+        ReaderPage [ datapath = :rows[] ]
+        ],
+    strip: View [ width = 100%, height = 64, scrolls = x, padding = [6, 16, 6, 16],
+        src: Dataset [ contents = { ({ rows: classroot.groups.map((g: string[], i: number) => ({ id: "g" + i, i: i, label: g.map((x) => app.plan.folioOf(x)).join("–") })) }) } ],
+        datapath = { this.src.value },
+        layout: SimpleLayout [ axis = x, spacing = 4 ],
+        Control [ datapath = :rows[], height = 40, padding = [0, 8, 0, 8], cornerRadius = 4,
+            accessibilityLabel = { "Spread " + (:label ?? "") },
+            fill = { (:i ?? 0) == classroot.at ? provided("theme").accent : hovered ? provided("theme").controlHovered : provided("theme").control },
+            press() { classroot.go(:i ?? 0) },
+            TextLabel [ y = center, fontSize = 11, wrap = false, textColor = { (:i ?? 0) == classroot.at ? 0xFFFFFF : provided("theme").text }, text = { :label ?? "" } ]
+            ]
+        ]
+    ]
+
+
+// ── The PDF viewer (F-ART-09) ───────────────────────────────────────────────
+
+class PdfPage [ width = { app.viewer.pageW }, height = { app.viewer.pageW * 1.3 },
+    url: string = { app.viewer.url },
+    n: number = { :n ?? 1 },
+    pic: string = "",
+    fill = { provided("theme").page },
+    onInit() { renderPdfPage(classroot.url, classroot.n, 1200).then((d: string) => { classroot.pic = d }, () => { }) },
+    Image [ width = 100%, height = 100%, fit = contain, source = { classroot.pic } ]
+    ]
+
+
+class PdfViewer extends Dialog [ presentation = "full", fill = { provided("theme").canvas },
+    shown = { app.stepIs("pdf") },
+    commit(open: boolean) { if (!open) app.closeStep() },
+    assetId: string = { app.stepArg.split(":")[0] ?? "" },
+    startAt: number = { Number(app.stepArg.split(":")[1] ?? "1") },
+    asset: Asset? = { app.plan.asset(classroot.assetId) },
+    url: string = { classroot.asset?.url ?? "" },
+    fitting: string = "width",
+    pageW: number = { classroot.fitting == "fit" ? Math.min(app.width - 80, (app.height - 120) / 1.3) : classroot.fitting == "100" ? 612
+        : classroot.fitting == "200" ? 1224 : app.width - 80 },
+    layout: SimpleLayout [ axis = y, align = stretch ],
+    bar: View [ height = 50, padding = [0, 16, 0, 16],
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ fontSize = 14, fontWeight = bold, wrap = false, shrinks = true, text = { classroot.asset?.name ?? "" } ],
+        Muted [ visible = { app.desk }, text = { "PAGE " + Math.min(classroot.asset?.pages ?? 1, 1 + Math.floor(classroot.pane.scrollY / (classroot.pageW * 1.3 + 12))) + " / " + (classroot.asset?.pages ?? 0) } ],
+        Spacer [ ],
+        Segmented [ value = { classroot.fitting }, accessibilityLabel = "Zoom",
+            items = { app.phone ? [ ({ id: "width", label: "Width" }), ({ id: "200", label: "200%" }) ]
+                : [ ({ id: "fit", label: "Fit" }), ({ id: "width", label: "Width" }), ({ id: "100", label: "100%" }), ({ id: "200", label: "200%" }) ] },
+            commit(v: string) { classroot.fitting = v }
+            ],
+        IconAct [ shape = "close", accessibilityLabel = "Close the viewer",
+            press() { app.closeStep() }
+            ]
+        ],
+    pane: View [ flexes = true, scrolls = both, padding = 20,
+        src: Dataset [ contents = { ({ rows: Array.from({ length: classroot.asset?.pages ?? 0 }, (_, i) => ({ id: "n" + (i + 1), n: i + 1 })) }) } ],
+        datapath = { this.src.value },
+        layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+        trackChanges = ["contentHeight"],
+        onChange() { if (classroot.startAt > 1) this.scrollTo((classroot.startAt - 1) * (classroot.pageW * 1.3 + 12)) },
+        PdfPage [ datapath = :rows[] ]
+        ]
+    ]

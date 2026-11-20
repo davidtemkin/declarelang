@@ -1,0 +1,210 @@
+/*
+# Pagemap: the look
+
+The two palettes, laid over the library's SanFrancisco preset so its controls read the same
+colors, and the drawn marks the screens use. Colors that mean something in a flatplan (an
+editorial region, an ad, open room, the selection, a page being moved) are tokens here, read
+by name everywhere else.
+*/
+
+theme PagemapLight [
+    background = #F2F1ED, surface = #FFFFFF, raised = #FAF9F6, line = #E2DFD7, lineStrong = #CCC8BD,
+    text = #1E1D1A, textMuted = #615E56, textFaint = #807C72,
+    accent = #2B57D6, accentHovered = #244BBC, accentPressed = #1E3F9E, accentTextColor = #FFFFFF, linkColor = #2B57D6,
+    control = #ECEAE4, controlHovered = #E3E0D8, controlPressed = #D8D4CA, controlSelected = #DCE4FA,
+    hover = #ECEAE4, selectionFill = #DCE4FA,
+    sheet = #FFFFFF, sheetLine = #C9C5BA, editorial = #E7ECF7, editorialInk = #22324F, advert = #FBE3BC,
+    advertInk = #6E4300, openLine = #BDB8AB, openInk = #8C877B,
+    picked = #2B57D6, moving = #D9480F, movingTint = #FFE8DC, landing = #2F9E44, fresh = #E8590C,
+    danger = #C92A2A, ok = #2B8A3E, warn = #A35F00, notice = #FFF4D6, noticeInk = #5C4300,
+    fits = [#2B8A3E, #A35F00, #C92A2A, #807C72]
+    ]
+
+
+theme PagemapDark [
+    background = #141413, surface = #1E1D1B, raised = #252421, line = #34322E, lineStrong = #4A4741,
+    text = #EDEBE5, textMuted = #B3AFA5, textFaint = #96928A,
+    accent = #7C9CFF, accentHovered = #91ACFF, accentPressed = #6A8AF0, accentTextColor = #0E1530, linkColor = #8EAAFF,
+    control = #2C2B28, controlHovered = #35332F, controlPressed = #3E3C37, controlSelected = #27345E,
+    hover = #2C2B28, selectionFill = #27345E,
+    sheet = #2A2926, sheetLine = #4D4A43, editorial = #2B3446, editorialInk = #DCE4F7, advert = #4A3613,
+    advertInk = #FFD9A0, openLine = #5E5A51, openInk = #A29D92,
+    picked = #7C9CFF, moving = #FF8A4C, movingTint = #3D2417, landing = #69DB7C, fresh = #FF922B,
+    danger = #FF6B6B, ok = #69DB7C, warn = #FFC266, notice = #3A3016, noticeInk = #FFE3A3,
+    fits = [#69DB7C, #FFC266, #FF6B6B, #96928A]
+    ]
+
+
+// On a touch screen the library's controls are finger-sized.
+
+theme TouchSizes [ segmentedHeight = 44, buttonHeight = 44, comboboxHeight = 44, searchFieldHeight = 44, menuRowHeight = 44,
+    checkboxSize = 24, radioSize = 24, switchHeight = 30
+    ]
+
+
+// ── Marks ───────────────────────────────────────────────────────────────────────────────────
+//
+// One pen for every mark: a stroke on the library's 16-unit grid, kept at `weight` device
+// pixels at every size. `shape` names the mark.
+
+class Glyph extends Icon [
+    shape: string = "",
+    filled: boolean = false,
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "lock") {
+            d.roundRect(3, 7, 10, 7.5, 1.5); d.moveTo(5.5, 7); d.lineTo(5.5, 5); d.arc(8, 5, 2.5, Math.PI, 0); d.lineTo(10.5, 7)
+            d.stroke()
+        } else if (shape == "unlock") {
+            d.roundRect(3, 7, 10, 7.5, 1.5); d.moveTo(5.5, 7); d.lineTo(5.5, 5); d.arc(8, 5, 2.5, Math.PI, -0.2)
+            d.stroke()
+        } else if (shape == "note") {
+            d.moveTo(3, 2.5); d.lineTo(10, 2.5); d.lineTo(13, 5.5); d.lineTo(13, 13.5); d.lineTo(3, 13.5); d.closePath()
+            d.moveTo(5.5, 7.5); d.lineTo(10.5, 7.5); d.moveTo(5.5, 10.5); d.lineTo(9, 10.5); d.stroke()
+        } else if (shape == "comment") {
+            d.moveTo(2.5, 3.5); d.lineTo(13.5, 3.5); d.lineTo(13.5, 11); d.lineTo(7, 11); d.lineTo(4, 13.8); d.lineTo(4, 11)
+            d.lineTo(2.5, 11); d.closePath()
+            if (filled) d.fill()
+            d.stroke()
+        } else if (shape == "art") {
+            d.roundRect(2.5, 2.5, 11, 11, 1.5); d.moveTo(2.5, 11); d.lineTo(6.5, 7); d.lineTo(9.5, 10); d.lineTo(11, 8.5)
+            d.lineTo(13.5, 11); d.stroke(); d.beginPath(); d.arc(10.5, 5.5, 1.1, 0, 6.3); d.fill()
+        } else if (shape == "ad") {
+            d.moveTo(3, 6); d.lineTo(9, 3); d.lineTo(9, 13); d.lineTo(3, 10); d.closePath()
+            d.moveTo(9, 6.5); d.lineTo(12.5, 5.5); d.moveTo(9, 9.5); d.lineTo(12.5, 10.5); d.moveTo(4.5, 10.5); d.lineTo(5.5, 14)
+            d.stroke()
+        } else if (shape == "tag") {
+            d.moveTo(2.5, 2.5); d.lineTo(8, 2.5); d.lineTo(14, 8.5); d.lineTo(8.5, 14); d.lineTo(2.5, 8); d.closePath()
+            d.stroke(); d.beginPath(); d.arc(5.5, 5.5, 1, 0, 6.3); d.fill()
+        } else if (shape == "stitch") {
+            d.moveTo(8, 1.5); d.lineTo(8, 14.5); d.moveTo(4, 4); d.lineTo(12, 4); d.moveTo(4, 12); d.lineTo(12, 12)
+            d.stroke()
+        } else if (shape == "undo") {
+            d.moveTo(5.5, 3); d.lineTo(2.5, 6); d.lineTo(5.5, 9); d.moveTo(2.5, 6); d.lineTo(10, 6)
+            d.arc(10, 9.5, 3.5, -Math.PI / 2, Math.PI / 2); d.lineTo(6, 13); d.stroke()
+        } else if (shape == "redo") {
+            d.moveTo(10.5, 3); d.lineTo(13.5, 6); d.lineTo(10.5, 9); d.moveTo(13.5, 6); d.lineTo(6, 6)
+            d.arc(6, 9.5, 3.5, -Math.PI / 2, Math.PI / 2, true); d.lineTo(10, 13); d.stroke()
+        } else if (shape == "search") {
+            d.arc(7, 7, 4.6, 0, 6.3); d.moveTo(10.4, 10.4); d.lineTo(14, 14); d.stroke()
+        } else if (shape == "menu") {
+            for (const y of [4, 8, 12]) { d.moveTo(2.5, y); d.lineTo(13.5, y) }
+            d.stroke()
+        } else if (shape == "more") {
+            for (const x of [3.5, 8, 12.5]) { d.moveTo(x + 1.1, 8); d.arc(x, 8, 1.1, 0, 6.3) }
+            d.fill()
+        } else if (shape == "read") {
+            d.moveTo(8, 4); d.lineTo(8, 14); d.moveTo(8, 4); d.quadraticCurveTo(5, 2.5, 1.5, 3.5); d.lineTo(1.5, 12.5)
+            d.quadraticCurveTo(5, 11.5, 8, 14); d.quadraticCurveTo(11, 11.5, 14.5, 12.5); d.lineTo(14.5, 3.5)
+            d.quadraticCurveTo(11, 2.5, 8, 4); d.stroke()
+        } else if (shape == "eye") {
+            d.moveTo(1.5, 8); d.quadraticCurveTo(8, 1, 14.5, 8); d.quadraticCurveTo(8, 15, 1.5, 8); d.stroke()
+            d.beginPath(); d.arc(8, 8, 2, 0, 6.3); d.fill()
+        } else if (shape == "eye-off") {
+            d.moveTo(1.5, 8); d.quadraticCurveTo(8, 1, 14.5, 8); d.quadraticCurveTo(8, 15, 1.5, 8)
+            d.moveTo(3, 13.5); d.lineTo(13, 2.5); d.stroke()
+        } else if (shape == "move") {
+            d.moveTo(8, 1.5); d.lineTo(8, 14.5); d.moveTo(1.5, 8); d.lineTo(14.5, 8)
+            d.moveTo(6, 3.5); d.lineTo(8, 1.5); d.lineTo(10, 3.5); d.moveTo(6, 12.5); d.lineTo(8, 14.5); d.lineTo(10, 12.5)
+            d.moveTo(3.5, 6); d.lineTo(1.5, 8); d.lineTo(3.5, 10); d.moveTo(12.5, 6); d.lineTo(14.5, 8); d.lineTo(12.5, 10)
+            d.stroke()
+        } else if (shape == "share") {
+            d.moveTo(8, 10); d.lineTo(8, 1.8); d.moveTo(5, 4.5); d.lineTo(8, 1.5); d.lineTo(11, 4.5)
+            d.moveTo(5.5, 7); d.lineTo(3, 7); d.lineTo(3, 14); d.lineTo(13, 14); d.lineTo(13, 7); d.lineTo(10.5, 7); d.stroke()
+        } else if (shape == "people") {
+            d.arc(6, 5.5, 2.5, 0, 6.3); d.moveTo(1.5, 14); d.quadraticCurveTo(6, 7.5, 10.5, 14)
+            d.moveTo(12.6, 5.5); d.arc(10.5, 5.5, 2.1, 0, 6.3); d.moveTo(11.5, 9.5); d.quadraticCurveTo(14, 10.5, 14.5, 13.5)
+            d.stroke()
+        } else if (shape == "plus") {
+            d.moveTo(8, 2.5); d.lineTo(8, 13.5); d.moveTo(2.5, 8); d.lineTo(13.5, 8); d.stroke()
+        } else if (shape == "left") {
+            d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (shape == "right") {
+            d.moveTo(6, 3); d.lineTo(11, 8); d.lineTo(6, 13); d.stroke()
+        } else if (shape == "up") {
+            d.moveTo(3, 10); d.lineTo(8, 5); d.lineTo(13, 10); d.stroke()
+        } else if (shape == "down") {
+            d.moveTo(3, 6); d.lineTo(8, 11); d.lineTo(13, 6); d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke()
+        } else if (shape == "rotate") {
+            d.arc(8, 8.5, 5, -2.6, 2.4); d.moveTo(1.8, 2.8); d.lineTo(3.6, 5.3); d.lineTo(6.4, 4.3); d.stroke()
+        } else if (shape == "flip") {
+            d.moveTo(8, 1.5); d.lineTo(8, 14.5); d.moveTo(6, 4); d.lineTo(2, 12); d.lineTo(6, 12); d.closePath()
+            d.moveTo(10, 4); d.lineTo(14, 12); d.lineTo(10, 12); d.closePath(); d.stroke()
+        } else if (shape == "check") {
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (shape == "cloud") {
+            d.moveTo(4.5, 12.5); d.arc(4.5, 9.5, 3, Math.PI / 2, -Math.PI / 2); d.arc(8.5, 6.5, 3.5, Math.PI, 0)
+            d.arc(12, 9.8, 2.7, -Math.PI / 2, Math.PI / 2); d.closePath(); d.stroke()
+        } else if (shape == "warn") {
+            d.moveTo(8, 2); d.lineTo(14.5, 13.5); d.lineTo(1.5, 13.5); d.closePath(); d.moveTo(8, 6.5); d.lineTo(8, 9.5); d.stroke()
+            d.beginPath(); d.arc(8, 11.6, 0.8, 0, 6.3); d.fill()
+        } else if (shape == "zoom-in") {
+            d.arc(7, 7, 4.6, 0, 6.3); d.moveTo(10.4, 10.4); d.lineTo(14, 14); d.moveTo(7, 4.8); d.lineTo(7, 9.2)
+            d.moveTo(4.8, 7); d.lineTo(9.2, 7); d.stroke()
+        } else if (shape == "zoom-out") {
+            d.arc(7, 7, 4.6, 0, 6.3); d.moveTo(10.4, 10.4); d.lineTo(14, 14); d.moveTo(4.8, 7); d.lineTo(9.2, 7); d.stroke()
+        } else if (shape == "select") {
+            d.roundRect(2.5, 2.5, 11, 11, 2); d.moveTo(5, 8); d.lineTo(7.2, 10.2); d.lineTo(11, 5.8); d.stroke()
+        } else if (shape == "panels") {
+            d.roundRect(2, 2.5, 12, 11, 1.5); d.moveTo(6.5, 2.5); d.lineTo(6.5, 13.5); d.stroke()
+        } else if (shape == "help") {
+            d.arc(8, 8, 6, 0, 6.3); d.moveTo(6, 6.3); d.quadraticCurveTo(6.2, 4.4, 8, 4.4); d.quadraticCurveTo(10, 4.4, 10, 6.2)
+            d.quadraticCurveTo(10, 7.6, 8, 8.4); d.lineTo(8, 9.6); d.stroke(); d.beginPath(); d.arc(8, 11.7, 0.8, 0, 6.3); d.fill()
+        } else {
+            d.roundRect(3, 3, 10, 10, 2); d.stroke()
+        }
+        }
+    ]
+
+
+// A round button carrying one mark: the bars' commands. Finger-sized on a touch screen.
+
+class IconButton extends Control [ width = { app.tap }, height = { app.tap }, cornerRadius = 8,
+    shape: string = "",
+    tone: Color = { provided("theme").textMuted },
+    on: boolean = false,
+    accessibilityPressed = { on },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").controlSelected } ],
+    Glyph [ x = center, y = center, iconSize = 16, weight = 1.6, shape = { classroot.shape },
+        ink = { classroot.disabled ? provided("theme").textFaint : classroot.on ? provided("theme").accent : classroot.tone } ]
+    ]
+
+
+// A dot of color: a section's, a status's, a tag's, a person's.
+
+class Dot [ width = 10, height = 10, cornerRadius = 5,
+    tone: string = "#999999",
+    fill = { Color.from(classroot.tone) }
+    ]
+
+
+// A person, as their initials on their tint.
+
+class Avatar [ width = 26, height = 26, cornerRadius = 13,
+    tone: string = "#80a7ff",
+    initials: string = "",
+    fill = { Color.from(classroot.tone) },
+    stroke = { Stroke(1.5, provided("theme").surface) },
+    TextLabel [ x = center, y = center, fontSize = 10, fontWeight = bold, textColor = #1E1D1A, text = { classroot.initials } ]
+    ]
+
+
+// A heading inside a panel.
+
+class PanelHeading extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 0.4,
+    textColor = { provided("theme").textMuted }, accessibilityRole = heading
+    ]
+
+
+// A line of help: what a thing does, in the panel where it is done.
+
+class Hint extends Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textFaint } ]

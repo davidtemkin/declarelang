@@ -1,0 +1,45 @@
+# eval-pagemap-1
+total 61.2 min · 164 turns · output 271367 tokens (thinking 67952)
+phases: reading 4.8 · writing 5.6 · checking 50.8 min
+tool time 20.7 min · model time 40.5 min
+tokens: input 324 · cache write 569370 · cache read 64198554 · output 271367 · thinking 67952
+rate: 6700 output tokens per model-minute
+tools:
+  verify    54×  20.21 min  (median 13.7 s)
+  help      16×   0.24 min  (median 0.4 s)
+  bash      44×   0.18 min  (median 0.1 s)
+  read      16×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     43×  10.26 min  (median 4.4 s)
+  after help     16×   9.50 min  (median 5.7 s)
+  after verify   54×   7.31 min  (median 6.0 s)
+  after write    11×   6.04 min  (median 17.1 s)
+  after image    20×   4.62 min  (median 13.6 s)
+  after edit      2×   1.20 min  (median 35.9 s)
+  after read     16×   1.15 min  (median 2.8 s)
+app: 7 .declare files, 4709 non-blank lines · 57 snapshots changed them: 7320 lines added, 2058 removed
+verify results mentioning accessibility: 4
+source reads: library 1 file(s), runtime/compiler 0 — each to be audited: never a stand-in for the docs
+            library  library/sheet.declare
+diagnostic codes, by tool results reporting them: DECLARE4033 3, DECLARE4035 3, DECLARE2000 2, DECLARE4025 2, DECLARE4022 2, DECLARE4017 2, DECLARE1000 1, DECLARE5000 1, DECLARE4006 1, DECLARE4039 1, DECLARE1002 1, DECLARE4002 1, DECLARE2006 1, DECLARE4005 1, DECLARE6001 1
+inside the agent's verify and look calls:
+  16.07 min    71×  R5 behavior, in all
+  14.87 min    71×  script: the assert script, in all
+  10.26 min   291×  drive.waitReal
+   1.96 min   149×  page: load, compile in the page and boot
+   1.43 min    42×  compile (R1–R3)
+   1.29 min    78×  R4 boot, in all
+   1.29 min   294×  drive.click
+   0.99 min   247×  drive.settleMotion
+   0.97 min    71×  open: the app loaded and arrived, in all
+   0.86 min   140×  drive.key
+   0.51 min   308×  check: scrolling come to rest
+   0.22 min   149×  page: a new page
+   0.20 min     7×  drive.chooseFiles
+   0.19 min   193×  drive.type
+   0.15 min    22×  drive.moveBy
+   0.15 min     8×  drive.device
+   0.13 min     8×  drive.hold
+   0.13 min   308×  check: the layout questions
+   0.12 min    61×  end: layout questions at the end of the script
+   0.12 min    29×  drive.selectAll

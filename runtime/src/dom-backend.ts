@@ -332,7 +332,7 @@ function realizeIgnoreScroll(el: HTMLElement): void {
     if (p.dataset !== undefined && p.dataset.declareApp !== undefined) {
       // the page regime — but only where the root's frame IS the viewport
       const embedded = p.parentElement?.closest("[data-declare-app], [data-declare-embed]") ?? null;
-      if (embedded === null) { el.style.position = "fixed"; unpromoteAbove(el); }
+      if (embedded === null) { el.style.position = "fixed"; FIXED_EVER.add(el); unpromoteAbove(el); }
       anchorEnds(el);
       sendHome(el);      // this regime is not a pane's — never leave it in a frame
       return;
@@ -340,12 +340,27 @@ function realizeIgnoreScroll(el: HTMLElement): void {
   }
 }
 
+/** Write a style property only when it differs from what the same writer last
+ *  wrote there (`written`). Each CSSOM write is parsed, and a push that changes
+ *  one input rewrites every property it owns; this keeps the unchanged ones off
+ *  the DOM. Safe only where that writer is the property's one writer. */
+function put(s: CSSStyleDeclaration, written: Record<string, string>, prop: string, v: string): void {
+  if (written[prop] !== v) { written[prop] = v; (s as unknown as Record<string, string>)[prop] = v; }
+}
+
 /** A view fixed against the window and placed at its end edge is anchored
  *  there by the browser (`bottom: 0` / `right: 0`), so it stays against the
  *  edge through Safari's bars moving and the overscroll bounce with no script
  *  in the loop; the written top/left would follow a frame late. Elsewhere the
- *  written position stands. */
+ *  written position stands.
+ *
+ *  Only an element ever made fixed (realizeIgnoreScroll, the page regime) can
+ *  hold an end anchor or a band-grown height, so every other element returns at
+ *  once: this runs on each x, y and height write, and those are most views on
+ *  every frame of a moving scene. */
+const FIXED_EVER = new WeakSet<HTMLElement>();
 function anchorEnds(el: HTMLElement): void {
+  if (!FIXED_EVER.has(el)) return;
   const fixed = el.style.position === "fixed";
   const y = fixed && el.dataset.declareEndY !== undefined, x = fixed && el.dataset.declareEndX !== undefined;
   // THE HOME INDICATOR'S BAND, by the browser. A bar at the window's foot runs
@@ -355,7 +370,8 @@ function anchorEnds(el: HTMLElement): void {
   // measuring the inset and writing a height popped a frame or more late. The
   // view model places the content above the band (alignRule) — 0 where the
   // page does not reach under the phone's chrome (no `edges = cover`).
-  const h = el.dataset.declareH;
+  const surface = DOM_SURFACE.get(el);
+  const h = surface !== undefined && surface.heightGiven ? String(surface.frameH) : undefined;
   if (y) {
     el.style.top = "auto"; el.style.bottom = "0px";
     if (h !== undefined) el.style.height = `calc(${h}px + env(safe-area-inset-bottom, 0px))`;
@@ -918,10 +934,12 @@ const GRIDDY = new Set(["grid", "treegrid", "table", "row"]);
  *  it a layer too, and 7–13% of frames never reached the screen (headed, 120 Hz);
  *  over them, none were lost. A view painted over later gives its layer back. */
 const PROMOTED = new Map<HTMLElement, number>();   // → when it last moved
-/** when it last moved, and in how many frames running (each within 100 ms of the last) */
-const MOVES = new WeakMap<HTMLElement, { t: number; n: number }>();
+/** when it last moved, in how many frames running (each within 100 ms of the last),
+ *  and when it was last found not to want a layer */
+const MOVES = new WeakMap<HTMLElement, { t: number; n: number; no: number }>();
 const LAYER_WOULD_CHANGE = '[style*="mix-blend-mode"], [style*="position: fixed"]';
 let restTimer: PlatformTimer | null = null;
+let frameMovedAt = -1, movedInFrame = 0;
 function noteMoved(el: HTMLElement): void {
   // a driven clock's steps are not frames on a screen: a layer for them would
   // depend on how fast the machine ran the steps, never on what moved
@@ -929,11 +947,18 @@ function noteMoved(el: HTMLElement): void {
   const now = performance.now();
   if (PROMOTED.has(el)) { PROMOTED.set(el, now); return; }
   const m = MOVES.get(el);
-  if (m === undefined || now - m.t > 100) { MOVES.set(el, { t: now, n: 1 }); return; }
+  if (m === undefined || now - m.t > 100) { MOVES.set(el, { t: now, n: 1, no: -Infinity }); return; }
   if (now - m.t < 4) return;   // the same frame: x and y, or two writes in one settle
   m.t = now;
-  // three frames running: moving, not placed and then moved once
-  if (++m.n < 3 || el.style.willChange !== "" || !paintedLast(el) || el.querySelector(LAYER_WOULD_CHANGE) !== null) return;
+  // three frames running: moving, not placed and then moved once. A "no" stands
+  // for 250 ms: the answer walks the tree, and a layer is a painting cost, never
+  // what is drawn, so asking a little late changes nothing on screen
+  if (++m.n < 3 || now - m.no < 250) return;
+  // when many views move in one frame (a grid zooming, a map scrubbing), a layer
+  // each would be wrong anyway: past the first sixteen in a frame, the answer is no
+  if (now - frameMovedAt > 8) { frameMovedAt = now; movedInFrame = 0; }
+  if (++movedInFrame > 16) { m.no = now; return; }
+  if (el.style.willChange !== "" || !paintedLast(el) || el.querySelector(LAYER_WOULD_CHANGE) !== null) { m.no = now; return; }
   el.style.willChange = "transform";
   PROMOTED.set(el, now);
   restTimer ??= platformTimeout(releaseRested, 250);   // the platform's time: a harness's clock does not rest it
@@ -1045,8 +1070,13 @@ export class DomSurface implements Surface {
   // same presented frame. Untransformed boxes keep the plain layout path.
   private posX = 0;
   private posY = 0;
-  setX(v: number): void { if (v !== this.posX) noteMoved(this.element); this.posX = v; this.placeSelf(); }
-  setY(v: number): void { if (v !== this.posY) noteMoved(this.element); this.posY = v; this.placeSelf(); }
+  setX(v: number): void { if (v !== this.posX) noteMoved(this.element); this.posX = v; this.placeAxis("left", v); }
+  setY(v: number): void { if (v !== this.posY) noteMoved(this.element); this.posY = v; this.placeAxis("top", v); }
+  /** One axis's move writes that axis alone; a transformed box places itself whole. */
+  private placeAxis(edge: "left" | "top", v: number): void {
+    if (!affineIsIdentity(this.xform) || this.spec3D !== null) this.applyTransform(this.pivotXCache, this.pivotYCache);
+    else { this.element.style[edge] = v + "px"; anchorEnds(this.element); }
+  }
   private placeSelf(): void {
     if (!affineIsIdentity(this.xform) || this.spec3D !== null) this.applyTransform(this.pivotXCache, this.pivotYCache);
     else {
@@ -1076,7 +1106,7 @@ export class DomSurface implements Surface {
     const was = this.frameH;
     this.frameH = v;
     this.element.style.height = v + "px";
-    this.element.dataset.declareH = String(v);
+    this.heightGiven = true;
     anchorEnds(this.element);
     this.box.height = v;
     if (this.isRoot) { this.applyRootSize(); this.refreshTouchAction(); }
@@ -1088,6 +1118,10 @@ export class DomSurface implements Surface {
   /** package-private: a mask stencil's bitmap reads its box (dom-effects.ts) */
   frameW = 0;
   frameH = 0;
+  /** whether a height was ever written: what anchorEnds grows by the band */
+  heightGiven = false;
+  /** the box decoration values decorate() last wrote (put): it is their one writer */
+  private boxWritten: Record<string, string> | null = null;
 
   /** ROOT only, stamped by attachRoot: this app is an EMBEDDED island in a
    *  host page — its gesture default is `manipulation`, never the geometry
@@ -1199,11 +1233,15 @@ export class DomSurface implements Surface {
    *  ring — a CSS `border` would shift absolutely-positioned children). */
   private decorate(): void {
     const s = this.element.style;
+    // each of the three is written only when it changed: a fill animating alone
+    // leaves the corners and the shadow list untouched (the background shorthand
+    // alone resets eight longhands)
+    const w = (this.boxWritten ??= Object.create(null) as Record<string, string>);
     const f = this.fillV;
-    s.background = f === null ? "" : isGradient(f) ? gradientCss(f) : colorToCss(f);
+    put(s, w, "background", f === null ? "" : isGradient(f) ? gradientCss(f) : colorToCss(f));
     // one value, or four (CSS's own order — top-left clockwise — is Radius's)
     const cr = this.box.cornerRadius;
-    s.borderRadius = radiusIsSquare(cr) ? "" : typeof cr === "number" ? cr + "px" : cr.map((v) => Math.max(0, v) + "px").join(" ");
+    put(s, w, "borderRadius", radiusIsSquare(cr) ? "" : typeof cr === "number" ? cr + "px" : cr.map((v) => Math.max(0, v) + "px").join(" "));
     const parts: string[] = [];
     const sh = this.box.shadow;
     if (sh !== null) parts.push(`${sh.dx}px ${sh.dy}px ${sh.blur}px ${colorToCss(sh.color)}`);
@@ -1216,7 +1254,7 @@ export class DomSurface implements Surface {
     } else if (uni !== null) {
       parts.push(`inset 0 0 0 ${uni.width}px ${colorToCss(uni.color)}`);
     }
-    s.boxShadow = parts.join(", ");
+    put(s, w, "boxShadow", parts.join(", "));
   }
 
   /** Arm the shared dpr watch once (the drawing raster must stay crisp across
@@ -2571,48 +2609,55 @@ export class DomSurface implements Surface {
   private renderClamped(): void { renderClamped(this.textRun(), this.rawText, this.clampRule!, this.frameW - this.textPadX); }
   /** The run's horizontal insets together (TextStyle padLeft + padRight). */
   private textPadX = 0;
+  /** The text-run style values setTextStyle last wrote (put), for the properties
+   *  it alone writes; width (padded below) and userSelect (the selection flush)
+   *  have other writers and are written plainly. */
+  private textWritten: Record<string, string> | null = null;
 
   setTextStyle(st: TextStyle): void {
     const s = this.textRun().style;
+    // what this method last wrote to the run: a push writes only the properties
+    // whose values changed (an animated color or size is one of some twenty)
+    const w = (this.textWritten ??= Object.create(null) as Record<string, string>);
     // PADDING: the run sits at the leading insets and, where it fills the box,
     // spans the box less both horizontal ones — so it wraps, aligns and clamps
     // inside the padding, as the canvas and the Mac lay it.
     const pl = st.padLeft ?? 0, pr = st.padRight ?? 0;
     this.textPadX = pl + pr;
-    s.left = pl + "px";
-    s.top = (st.padTop ?? 0) + "px";
+    put(s, w, "left", pl + "px");
+    put(s, w, "top", (st.padTop ?? 0) + "px");
     // The EFFECTIVE family, not the authored one: OpenType figures ride the
     // family name (font-features.ts), and this element must paint in the family
     // the shared measurer measured, or its width is a lie.
-    s.fontFamily = effectiveFamily(st);
-    s.fontSize = st.fontSize + "px";
-    s.fontWeight = cssWeight(st.fontWeight);
-    s.fontStyle = st.italic ? "italic" : "normal";
-    s.letterSpacing = st.letterSpacing === 0 ? "normal" : st.letterSpacing + "px";
+    put(s, w, "fontFamily", effectiveFamily(st));
+    put(s, w, "fontSize", st.fontSize + "px");
+    put(s, w, "fontWeight", cssWeight(st.fontWeight));
+    put(s, w, "fontStyle", st.italic ? "italic" : "normal");
+    put(s, w, "letterSpacing", st.letterSpacing === 0 ? "normal" : st.letterSpacing + "px");
     // A gradient text-fill clips a background to the glyphs (the canvas backend
     // realizes the same ramp over the box); a solid fill is the plain color.
     const tf = st.textFill;
     if (tf != null && isGradient(tf)) {
-      s.backgroundImage = gradientCss(tf);
+      put(s, w, "backgroundImage", gradientCss(tf));
       (s as CSSStyleDeclaration & { webkitBackgroundClip: string }).webkitBackgroundClip = "text";
-      s.backgroundClip = "text";
+      put(s, w, "backgroundClip", "text");
       (s as CSSStyleDeclaration & { webkitTextFillColor: string }).webkitTextFillColor = "transparent";
-      s.color = "transparent";
+      put(s, w, "color", "transparent");
     } else {
-      s.backgroundImage = "";
-      s.backgroundClip = "";
+      put(s, w, "backgroundImage", "");
+      put(s, w, "backgroundClip", "");
       (s as CSSStyleDeclaration & { webkitTextFillColor: string }).webkitTextFillColor = "";
       // A SOLID fill is a Color, and it overrides `textColor` — "like the box
       // `fill` but for the letters" (schema.ts). Every renderer read the gradient
       // arm and dropped this one, so `textFill = #E4572E` did nothing anywhere.
-      s.color = colorToCss(typeof tf === "number" ? tf : st.color);
+      put(s, w, "color", colorToCss(typeof tf === "number" ? tf : st.color));
     }
     const sh = st.shadow ?? null;
-    s.textShadow = sh === null ? "" : `${sh.dx}px ${sh.dy}px ${sh.blur}px ${colorToCss(sh.color)}`;
+    put(s, w, "textShadow", sh === null ? "" : `${sh.dx}px ${sh.dy}px ${sh.blur}px ${colorToCss(sh.color)}`);
     // Typographical treatments — set every frame (default clears a stale value):
     const ol = st.textStroke;
     (s as CSSStyleDeclaration & { webkitTextStroke: string }).webkitTextStroke = ol != null ? `${ol.width}px ${colorToCss(ol.color)}` : "";
-    s.paintOrder = ol != null ? "stroke fill" : "";
+    put(s, w, "paintOrder", ol != null ? "stroke fill" : "");
     // CAPITALIZE IS APPLIED TO THE TEXT, not by CSS: Chrome decides whether a
     // word starts by the character BEFORE it in document order, across separate
     // elements — absolutely positioned or not, whatever the display or
@@ -2623,14 +2668,14 @@ export class DomSurface implements Surface {
     const cap = st.textTransform === "capitalize";
     s.textTransform = cap ? "none" : st.textTransform ?? "none";
     if (cap !== this.capitalized) { this.capitalized = cap; this.textRun().textContent = cap ? transformText(this.rawText, "capitalize") : this.rawText; }
-    s.fontVariant = st.smallCaps ? "small-caps" : "normal";
-    s.textDecoration = ((st.underline ? "underline " : "") + (st.strike ? "line-through" : "")).trim() || "none";
+    put(s, w, "fontVariant", st.smallCaps ? "small-caps" : "normal");
+    put(s, w, "textDecoration", ((st.underline ? "underline " : "") + (st.strike ? "line-through" : "")).trim() || "none");
     // Wrapping: a bounded box wraps (`pre-wrap`) and the run fills the box
     // width so the browser breaks lines; an unbounded run stays a single line
     // (`pre`) and shrinks to content. (Canvas wrapping via pretext is its own rung.)
-    s.whiteSpace = st.wrap ? "pre-wrap" : "pre";
+    put(s, w, "whiteSpace", st.wrap ? "pre-wrap" : "pre");
     const align = st.align ?? "left";
-    s.textAlign = align;
+    put(s, w, "textAlign", align);
     // The run fills the box when it must: a wrapping run (to break lines), a
     // non-left single line (so textAlign has a box to align within), or a
     // gradient fill — laid over the view's box, as a box fill is, and as the
@@ -2645,12 +2690,12 @@ export class DomSurface implements Surface {
     if (clamp > 0) {
       // the run wraps into exactly the kept lines (renderClamped)
       s.width = "100%";
-      s.overflow = "hidden";
-      s.whiteSpace = st.wrap ? "pre-wrap" : "pre";
+      put(s, w, "overflow", "hidden");
+      put(s, w, "whiteSpace", st.wrap ? "pre-wrap" : "pre");
       this.clampRule = { max: clamp, wrap: st.wrap === true, font: fontString(st), letterSpacing: st.letterSpacing, transform: st.textTransform };
       this.renderClamped();
     } else {
-      s.overflow = "";
+      put(s, w, "overflow", "");
       if (this.clampRule !== null) {
         this.clampRule = null;
         this.textRun().textContent = this.capitalized ? transformText(this.rawText, "capitalize") : this.rawText;
@@ -2677,7 +2722,7 @@ export class DomSurface implements Surface {
     const sel = st.selectable === true;
     s.userSelect = sel ? "text" : "none";
     (s as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = sel ? "text" : "none";
-    s.pointerEvents = sel ? "auto" : "none";
+    put(s, w, "pointerEvents", sel ? "auto" : "none");
     if (sel) {
       el.dataset.declareSelectable = "1";
       refreshSelectableRegion(el);

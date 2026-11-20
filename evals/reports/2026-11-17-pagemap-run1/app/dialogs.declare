@@ -1,0 +1,809 @@
+/*
+# Pagemap: the dialogs
+
+Every dialog is a `Pane`: a sheet at the end edge on a desk, rising from the bottom on a
+phone, open while the App's `dlg` names it. `dlg` derives from the `waypoint`, so each
+opening is a step in the history: Back closes it, Forward reopens it (F-APP-02). What a
+dialog edits starts fresh each time it opens (its form `exists` while it is present).
+*/
+
+class Pane extends Sheet [ edge = "end", sheetWidth = { app.phone ? app.width : 460 },
+    name: string = "",
+    title: string = "",
+    accessibilityLabel = { classroot.title },
+    shown = { app.dlg == classroot.name },
+    commit(open: boolean) { if (!open) app.closeDialog(classroot.name) },
+    head: View [ width = 100%, padding = [0, 0, 6, 0],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 18, fontWeight = bold, maxLines = 2, accessibilityRole = heading, text = { classroot.title } ],
+        IconButton [ shape = "close", tone = { provided("theme").textMuted }, accessibilityLabel = "Close",
+            press() { app.closeDialog(classroot.name) }
+            ]
+        ]
+    ]
+
+
+// ── All flatplans (F-WS-04, F-WS-05) ───────────────────────────────────────
+
+class FlatplansPane extends Pane [ name = "flatplans", title = "All flatplans",
+    Caps [ text = "ACTIVE" ],
+    View [ width = 100%, datapath = { app.indexSet.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        FlatplanRow [ datapath = :active[] ]
+        ],
+    Caps [ visible = { (app.indexSet.value?.archived ?? []).length > 0 }, text = "ARCHIVED" ],
+    View [ width = 100%, datapath = { app.indexSet.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        FlatplanRow [ datapath = :archived[] ]
+        ],
+    NewFlatplan [ exists = { classroot.present && !app.readOnly && app.session == "in" } ]
+    ]
+
+
+class FlatplanRow extends Control [ width = 100%, height = { app.phone ? 56 : 48 }, cornerRadius = 7, padding = [0, 10, 0, 10],
+    fid: string = { :id ?? "" },
+    here: boolean = { app.fpId == classroot.fid },
+    accessibilityLabel = { (:name ?? "") + ", " + (:edition ?? "") },
+    fill = { classroot.here ? provided("theme").selection : hovered ? provided("theme").hover : provided("theme").sunken },
+    press() { app.openFlatplan(classroot.fid) },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 14, fontWeight = semibold, wrap = false, text = { :name ?? "" } ],
+        Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = { (:edition ?? "") + " · " + (:pages ?? 0) + " pages" } ]
+        ],
+    Text [ visible = { classroot.here }, fontSize = 11, fontWeight = bold, textColor = { provided("theme").accent }, text = "OPEN" ]
+    ]
+
+
+class NewFlatplan [ width = 100%, padding = [16, 0, 0, 0],
+    name: string = "",
+    edition: string = "",
+    start: string = "same",
+    count: number = 96,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Caps [ text = "NEW FLATPLAN" ],
+    TextInput [ width = 100%, placeholder = "Issue name, like Issue 05", accessibilityLabel = "Issue name",
+        value <-> classroot.name,
+        onEnter() { classroot.create() }
+        ],
+    TextInput [ width = 100%, placeholder = "Edition, like Spring 2026", accessibilityLabel = "Edition", value <-> classroot.edition ],
+    Segmented [ width = 100%, value <-> classroot.start,
+        items = { [ ({ id: "same", label: "Same layout" }), ({ id: "copy", label: "A copy" }), ({ id: "empty", label: "Empty" }) ] } ],
+    Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { classroot.start == "same" ? "This flatplan's pages, sections and layouts, with every story, ad, booking, artwork, tag, note, lock, label, stitch-in and held page taken off."
+            : classroot.start == "copy" ? "Everything in this flatplan, duplicated." : "Blank pages in this flatplan's first section, with the same sections, statuses and tags." } ],
+    View [ visible = { classroot.start == "empty" },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ fontSize = 13, text = "Pages" ],
+        Stepper [ width = 140, min = 4, max = 1000, step = 2, accessibilityLabel = "Pages", value <-> classroot.count ]
+        ],
+    Text [ visible = { classroot.problem != "" }, fontSize = 12, textColor = { provided("theme").danger }, text = { classroot.problem } ],
+    Act [ tone = "primary", label = "Create flatplan",
+        onClick() { classroot.create() }
+        ],
+    problem: string = "",
+    create() {
+        if (name.trim() == "") { problem = "Give the issue a name."; return }
+        problem = ""
+        app.createFlatplan(name.trim(), edition.trim(), start, count)
+        }
+    ]
+
+
+// ── Flatplan settings (F-PRINT-01 to -05, F-WS-06, -07, F-PRINT-10, -11) ────
+
+class SettingsPane extends Pane [ name = "settings", title = "Flatplan settings",
+    d: Flatplan? = { app.plan.doc },
+    ro: boolean = { app.readOnly },
+    Row [ caption = "PUBLICATION",
+        TextInput [ width = 100%, disabled = { classroot.ro }, accessibilityLabel = "Publication", commitOn = "end",
+            value = { classroot.d?.publication ?? "" },
+            commit(v: string) { app.setText("publication", v) }
+            ]
+        ],
+    Row [ caption = "ISSUE",
+        TextInput [ width = 100%, disabled = { classroot.ro }, accessibilityLabel = "Issue", commitOn = "end",
+            value = { classroot.d?.name ?? "" },
+            commit(v: string) { app.setText("name", v) }
+            ]
+        ],
+    Row [ caption = "EDITION",
+        TextInput [ width = 100%, disabled = { classroot.ro }, accessibilityLabel = "Edition", commitOn = "end",
+            value = { classroot.d?.edition ?? "" },
+            commit(v: string) { app.setText("edition", v) }
+            ]
+        ],
+    Row [ caption = "TRIM (INCHES)",
+        View [ layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            TextInput [ width = 80, disabled = { classroot.ro }, accessibilityLabel = "Trim width", commitOn = "end",
+                value = { String(classroot.d?.trimW ?? 9) },
+                commit(v: string) { app.setTrim("trimW", v) }
+                ],
+            Text [ text = "×" ],
+            TextInput [ width = 80, disabled = { classroot.ro }, accessibilityLabel = "Trim height", commitOn = "end",
+                value = { String(classroot.d?.trimH ?? 12) },
+                commit(v: string) { app.setTrim("trimH", v) }
+                ]
+            ],
+        View [ layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            Preset [ label = "Portrait 9 × 12", shapeName = "portrait", w = 9, h = 12 ],
+            Preset [ label = "Square 10 × 10", shapeName = "square", w = 10, h = 10 ],
+            Preset [ label = "Landscape 12 × 9", shapeName = "landscape", w = 12, h = 9 ]
+            ]
+        ],
+    Checkbox [ disabled = { classroot.ro }, label = "Facing pages (spreads)", checked = { classroot.d?.facing ?? true },
+        commit(v: boolean) { app.setFacing(v) }
+        ],
+    Checkbox [ disabled = { classroot.ro }, label = "Separate covers (FC, IFC, IBC, BC)", checked = { app.plan.covers },
+        commit(v: boolean) { app.setCovers(v) }
+        ],
+    Row [ caption = "NUMBERING STARTS AT",
+        TextInput [ width = 80, disabled = { classroot.ro }, accessibilityLabel = "Numbering starts at", commitOn = "end",
+            value = { String(classroot.d?.firstFolio ?? 1) },
+            commit(v: string) { app.setFirstFolio(v) }
+            ]
+        ],
+    Row [ caption = { "PHYSICAL PAGES · " + app.plan.pages.length },
+        View [ layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            Act [ disabled = { classroot.ro }, label = "Add 2",
+                onClick() { app.addPages(2) }
+                ],
+            Act [ disabled = { classroot.ro }, label = "Add 4",
+                onClick() { app.addPages(4) }
+                ],
+            Act [ disabled = { classroot.ro }, label = "Remove 2",
+                onClick() { app.removeTwo() }
+                ]
+            ]
+        ],
+    Row [ caption = "ARCHIVE",
+        Act [ disabled = { classroot.ro }, label = { (classroot.d?.archived ?? false) ? "Bring back from the archive" : "Archive this flatplan" },
+            onClick() { app.setArchived(!(classroot.d?.archived ?? false)) }
+            ]
+        ],
+    Row [ caption = "BACKUP",
+        View [ layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            Act [ label = "Export a backup",
+                onClick() { app.exportBackup() }
+                ],
+            Act [ disabled = { classroot.ro }, label = "Import a backup…",
+                onClick() { app.importBackup() }
+                ]
+            ]
+        ]
+    ]
+
+
+class Preset extends Control [ height = { app.tap }, cornerRadius = 7, padding = [0, 10, 0, 10],
+    label: string = "",
+    shapeName: string = "",
+    w: number = 9,
+    h: number = 12,
+    on: boolean = { app.trimShape == classroot.shapeName },
+    disabled = { app.readOnly },
+    accessibilityLabel = { classroot.label },
+    accessibilityPressed = { classroot.on },
+    stroke = { Stroke(classroot.on ? 2 : 1, classroot.on ? provided("theme").chosen : provided("theme").line) },
+    fill = { classroot.on ? provided("theme").selection : hovered ? provided("theme").hover : null },
+    press() { app.setTrimPreset(classroot.w, classroot.h, classroot.shapeName) },
+    TextLabel [ y = center, fontSize = 13, wrap = false, text = { classroot.label } ]
+    ]
+
+
+// ── Sections, statuses and tags (F-SEC-02) ──────────────────────────────────
+
+class ListsPane extends Pane [ name = "lists", title = "Sections, statuses and tags",
+    Caps [ text = "SECTIONS" ],
+    View [ width = 100%, datapath = { app.sectionRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        NamedRow [ datapath = :rows[], list = "sections" ]
+        ],
+    Act [ label = "Add a section",
+        onClick() { app.addSection() }
+        ],
+    Caps [ text = "STATUSES" ],
+    View [ width = 100%, datapath = { app.statusRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        NamedRow [ datapath = :rows[], list = "statuses" ]
+        ],
+    Act [ label = "Add a status",
+        onClick() { app.addNamed("statuses") }
+        ],
+    Caps [ text = "TAGS" ],
+    View [ width = 100%, datapath = { app.tagRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        NamedRow [ datapath = :rows[], list = "tags" ]
+        ],
+    Act [ label = "Add a tag",
+        onClick() { app.addNamed("tags") }
+        ]
+    ]
+
+
+class NamedRow [ width = 100%, height = { app.tap + 4 },
+    list: string = "sections",
+    nid: string = { :id ?? "" },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Control [ width = { app.tap }, height = { app.tap }, cornerRadius = 7, accessibilityLabel = "Recolor",
+        tooltipLabel = "Recolor", fill = { hovered ? provided("theme").hover : null },
+        press() { app.recolor(classroot.list, classroot.nid) },
+        Dot [ x = center, y = center, width = 16, height = 16, tone = { :color ?? "#888888" } ]
+        ],
+    TextInput [ flexes = true, accessibilityLabel = "Name", commitOn = "end", value = { :name ?? "" },
+        commit(v: string) { app.renameNamed(classroot.list, classroot.nid, v) }
+        ],
+    Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = { :info ?? "" } ],
+    IconButton [ shape = "trash", tone = { provided("theme").danger }, accessibilityLabel = "Remove",
+        press() { app.removeNamed(classroot.list, classroot.nid) }
+        ]
+    ]
+
+
+// ── Move (F-MOVE-07) ────────────────────────────────────────────────────────
+
+class MovePane extends Pane [ name = "move", title = "Move pages",
+    MoveForm [ exists = { classroot.present } ]
+    ]
+
+
+class MoveForm [ width = 100%,
+    group: string[] = { app.moveGroupNow },
+    how: string = "before",
+    target: string = { app.plan.pages.find((p) => !classroot.group.includes(p.id) && !app.plan.isCover(p.id))?.id ?? "" },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ width = 100%, fontSize = 14,
+        text = { "Move " + classroot.group.length + (classroot.group.length == 1 ? " physical page" : " physical pages") + " (" + app.plan.rangeOf(classroot.group) + ") as one group. Placements, artwork and notes travel with them." } ],
+    Segmented [ width = 100%, value <-> classroot.how,
+        items = { [ ({ id: "before", label: "Insert before" }), ({ id: "after", label: "Insert after" }), ({ id: "swap", label: "Swap" }) ] } ],
+    Row [ caption = "TARGET PAGE",
+        Combobox [ width = 100%, placeholder = "Choose a page", items = { app.pageChoices },
+            value = { app.pageChoices.find((c) => c.startsWith(app.plan.pageName(classroot.target) + " —")) ?? null },
+            commit(v: object) { classroot.target = app.pageFromChoice(v == null ? "" : String(v)) }
+            ]
+        ],
+    Act [ tone = "primary", label = "Move",
+        onClick() { app.moveByDialog(classroot.group, classroot.target, classroot.how) }
+        ]
+    ]
+
+
+// ── Insert pages, copy across, start numbering (F-PAGE-11 to -13) ───────────
+
+class InsertPane extends Pane [ name = "insert", title = "Insert pages",
+    CountForm [ exists = { classroot.present }, start = 2, verb = "Insert",
+        note = "An even number keeps the spreads as they are.",
+        go(n: number) { app.insertPages(n) }
+        ]
+    ]
+
+
+class CopyAcrossPane extends Pane [ name = "copyacross", title = "Copy content across next pages",
+    CountForm [ exists = { classroot.present }, start = 1, verb = "Copy",
+        note = "The chosen page's layout and regions go onto the next pages, skipping cover faces.",
+        go(n: number) { app.copyAcross(n) }
+        ]
+    ]
+
+
+class CountForm [ width = 100%,
+    start: number = 2,
+    n: number = { classroot.start },
+    verb: string = "",
+    note: string = "",
+    go(n: number) { },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.note } ],
+    Stepper [ width = 160, min = 1, max = 400, step = 1, accessibilityLabel = "Pages", value <-> classroot.n ],
+    Act [ tone = "primary", label = { classroot.verb + " " + classroot.n + (classroot.n == 1 ? " page" : " pages") },
+        onClick() { classroot.go(classroot.n) }
+        ]
+    ]
+
+
+class RestartPane extends Pane [ name = "restart", title = "Start numbering here",
+    RestartForm [ exists = { classroot.present } ]
+    ]
+
+
+class RestartForm [ width = 100%,
+    pg: Page? = { app.plan.page(app.cur) },
+    n: string = { String(Number(app.plan.label(app.cur)) || 1) },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ width = 100%, fontSize = 13, text = { app.plan.pageName(app.cur) + " is numbered " + app.plan.label(app.cur) + " now." } ],
+    TextInput [ width = 100, accessibilityLabel = "Number from", value <-> classroot.n ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Act [ tone = "primary", label = "Renumber",
+            onClick() { app.renumber(Number(classroot.n)) }
+            ],
+        Act [ visible = { classroot.pg?.restart != null }, label = "Remove the restart",
+            onClick() { app.renumber(-1) }
+            ]
+        ]
+    ]
+
+
+// ── New story (F-STORY-01 to -03) ───────────────────────────────────────────
+
+class StoryPane extends Pane [ name = "story", title = { app.newStoryMode == "page" ? "New story on this page" : app.newStoryMode == "end" ? "New story at the end of " + app.plan.sectionName(app.newStorySection) : "Add a story" },
+    form: NewStoryForm [ exists = { classroot.present } ]
+    ]
+
+
+class NewStoryForm [ width = 100%,
+    mode: string = { app.newStoryMode },
+    title: string = "",
+    section: string = { classroot.mode == "end" ? app.newStorySection : app.defaultStorySection },
+    pages: number = { classroot.mode == "page" ? 1 : 4 },
+    editor: string = { app.uid },
+    ad: boolean = false,
+    problem: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    TextInput [ width = 100%, placeholder = "Title", accessibilityLabel = "Title", value <-> classroot.title,
+        onEnter() { classroot.add() }
+        ],
+    Text [ visible = { classroot.problem != "" }, fontSize = 12, textColor = { provided("theme").danger }, text = { classroot.problem } ],
+    Row [ caption = "SECTION",
+        Button [ disabled = { classroot.mode == "end" }, label = { app.plan.sectionName(classroot.section) },
+            onClick() { app.formSectionMenu.showFor(this) }
+            ]
+        ],
+    Row [ caption = "PLANNED PAGES",
+        Stepper [ width = 140, min = 1, max = 400, step = 1, accessibilityLabel = "Planned pages", value <-> classroot.pages ]
+        ],
+    Row [ caption = "EDITOR",
+        Button [ disabled = { classroot.ad }, label = { classroot.ad ? "No editor (an advertisement)" : app.personLabel(classroot.editor) },
+            onClick() { app.formEditorMenu.showFor(this) }
+            ]
+        ],
+    Checkbox [ label = "It's an advertisement", checked <-> classroot.ad ],
+    Act [ tone = "primary", label = { classroot.mode == "page" ? "Add and place here" : classroot.mode == "end" ? "Add " + classroot.pages + " pages at the end of " + app.plan.sectionName(classroot.section) : "Add story" },
+        onClick() { classroot.add() }
+        ],
+    add() {
+        if (title.trim() == "") { problem = "Give the story a title."; return }
+        problem = ""
+        app.addStory(mode, title.trim(), section, Math.max(1, Math.min(400, Math.round(pages))), ad ? "" : editor, ad)
+        }
+    ]
+
+
+// ── Ads and content to place (F-ADS) ────────────────────────────────────────
+
+class AdsPane extends Pane [ name = "ads", title = "Ads and content to place",
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted }, text = { app.adsLine } ],
+    Text [ visible = { (app.plan.doc?.bookings ?? []).length == 0 }, fontSize = 13, text = "Nothing booked yet." ],
+    View [ width = 100%, datapath = { app.plan.value?.fp },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        BookingRow [ datapath = :bookings[] ]
+        ],
+    BookingForm [ exists = { classroot.present && !app.readOnly } ],
+    View [ visible = { !app.readOnly }, width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Act [ label = "Import CSV or TSV…",
+            onClick() { app.importBookings() }
+            ],
+        Act [ label = "Download a template",
+            onClick() { app.bookingTemplate() }
+            ]
+        ]
+    ]
+
+
+class BookingRow [ width = 100%, cornerRadius = 7, padding = [8, 10, 8, 10], fill = { provided("theme").sunken },
+    bid: string = { :id ?? "" },
+    pages: string[] = { app.plan.bookingPages(classroot.bid) },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, fontSize = 13, fontWeight = semibold, maxLines = 2, text = { :text ?? "" } ],
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, maxLines = 2, text = { app.bookingFacts(:@ as Booking) } ]
+        ],
+    Act [ visible = { classroot.pages.length > 0 }, label = { "on " + app.plan.rangeOf(classroot.pages) },
+        onClick() { app.goToBooking(classroot.bid) }
+        ],
+    Text [ visible = { classroot.pages.length == 0 }, fontSize = 11, fontWeight = bold, textColor = { provided("theme").warn }, text = "TO PLACE" ],
+    IconButton [ visible = { !app.readOnly }, shape = "trash", tone = { provided("theme").danger }, accessibilityLabel = "Remove booking",
+        press() { app.removeBooking(classroot.bid) }
+        ]
+    ]
+
+
+class BookingForm [ width = 100%, padding = [8, 0, 0, 0],
+    text: string = "",
+    size: string = "",
+    shape: string = "",
+    want: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Caps [ text = "ADD ONE" ],
+    TextInput [ width = 100%, placeholder = "Text, like Acme full page", accessibilityLabel = "Booking text", value <-> classroot.text,
+        onEnter() { classroot.add() }
+        ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        TextInput [ flexes = true, placeholder = "Size, like 1/2", accessibilityLabel = "Size", value <-> classroot.size ],
+        TextInput [ flexes = true, placeholder = "Shape: full, vertical…", accessibilityLabel = "Shape", value <-> classroot.shape ]
+        ],
+    TextInput [ width = 100%, placeholder = "Wanted pages, like 3; IBC", accessibilityLabel = "Wanted pages", value <-> classroot.want ],
+    Act [ tone = "primary", label = "Add", disabled = { classroot.text.trim() == "" },
+        onClick() { classroot.add() }
+        ],
+    add() {
+        if (text.trim() == "") return
+        app.addBooking(text.trim(), size.trim(), shape.trim().toLowerCase(), want)
+        text = ""; size = ""; shape = ""; want = ""
+        }
+    ]
+
+
+// ── Upload artwork (F-ART-01 to -05) ────────────────────────────────────────
+
+class UploadPane extends Pane [ name = "upload", title = "Upload artwork",
+    // The library, when nothing is being mapped.
+
+    View [ visible = { app.upFile == "" }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        drop: Control [ width = 100%, height = 110, cornerRadius = 10, accessibilityLabel = "Choose a PDF",
+            stroke = { Stroke(1.5, app.dropOver ? provided("theme").accent : provided("theme").lineStrong) },
+            fill = { app.dropOver ? provided("theme").selection : hovered ? provided("theme").hover : provided("theme").sunken },
+            press() { app.choosePdf() },
+            onFilesOver() { app.dropOver = true },
+            onFilesOut() { app.dropOver = false },
+            onFilesDrop(e: FilesDropEvent) { app.dropOver = false; app.takePdf(e.files) },
+            layout: SimpleLayout [ axis = y, spacing = 6, align = center ],
+            padding = [26, 10, 10, 10],
+            Glyph [ shape = "upload", iconSize = 22, ink = { provided("theme").textMuted } ],
+            Text [ fontSize = 13, text = "Choose a PDF, or drop one here" ]
+            ],
+        Text [ visible = { app.upError != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { app.upError } ],
+        Caps [ text = "THIS FLATPLAN'S PDFS" ],
+        Text [ visible = { (app.plan.doc?.assets ?? []).length == 0 }, fontSize = 12, textColor = { provided("theme").textMuted }, text = "No PDFs yet." ],
+        View [ width = 100%, datapath = { app.plan.value?.fp },
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            AssetRow [ datapath = :assets[] ]
+            ]
+        ],
+
+    // Mapping (F-ART-02, -03).
+
+    MapStep [ exists = { app.upFile != "" } ]
+    ]
+
+
+class AssetRow [ width = 100%, cornerRadius = 7, padding = [8, 10, 8, 10], fill = { provided("theme").sunken },
+    aid: string = { :id ?? "" },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    Text [ width = 100%, fontSize = 13, fontWeight = semibold, maxLines = 2, text = { :name ?? "" } ],
+    Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { (:pages ?? 0) + " PDF pages · on " + app.plan.assetUse(classroot.aid) + " physical pages" } ],
+    View [ layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Act [ visible = { (:url ?? "") != "" }, label = "View",
+            onClick() { app.openPdf(classroot.aid, 1) }
+            ],
+        Act [ visible = { !app.readOnly }, label = "Remap",
+            onClick() { app.remap(classroot.aid) }
+            ],
+        Act [ visible = { !app.readOnly }, tone = "danger", label = "Remove",
+            onClick() { app.removeAsset(classroot.aid) }
+            ]
+        ]
+    ]
+
+
+class MapStep [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ width = 100%, fontSize = 14, fontWeight = semibold, maxLines = 2, text = { app.upName } ],
+    Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { app.upPages + " PDF pages" + (app.upSize > 0 ? " · " + fileSize(app.upSize) : "") } ],
+    View [ width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Act [ label = "From the chosen page on",
+            onClick() { app.mapFromChosen() }
+            ],
+        Act [ label = "Clear all",
+            onClick() { app.mapClear() }
+            ]
+        ],
+    Text [ visible = { app.unmappedCount > 0 }, width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { app.unmappedCount + " PDF pages unmapped. Unmapped pages change nothing." } ],
+    Text [ visible = { app.replacing > 0 }, width = 100%, fontSize = 12, textColor = { provided("theme").warn },
+        text = { app.replacing + (app.replacing == 1 ? " page already has" : " pages already have") + " other artwork. Saving replaces it there." } ],
+    View [ width = 100%, datapath = { app.mapLines.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        MapLine [ datapath = :lines[] ]
+        ],
+    View [ visible = { app.uploading }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        ProgressBar [ width = 100%, accessibilityLabel = "Upload progress", value = { app.upProgress * 100 } ],
+        Text [ fontSize = 12, text = { "Uploading… " + Math.round(app.upProgress * 100) + "%" } ]
+        ],
+    Text [ visible = { app.upError != "" }, width = 100%, fontSize = 13, textColor = { provided("theme").danger }, text = { app.upError } ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Act [ tone = "primary", disabled = { app.uploading }, label = "Save",
+            onClick() { app.saveMapping() }
+            ],
+        Act [ disabled = { app.uploading }, label = "Cancel",
+            onClick() { app.cancelMapping() }
+            ]
+        ]
+    ]
+
+
+class MapLine [ width = 100%, height = { app.tap + 2 },
+    k: number = { :k ?? 0 },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ width = 90, fontSize = 13, wrap = false, text = { "PDF page " + (classroot.k + 1) } ],
+    Text [ fontSize = 13, text = "→" ],
+    Button [ flexes = true, label = { :label ?? "Keep unmapped" },
+        onClick() { app.mapLineFor = classroot.k; app.mapPageMenu.showFor(this) }
+        ]
+    ]
+
+
+// ── Print sections (F-PRINT-07), stitch-ins (F-PRINT-08) ────────────────────
+
+class PrintPane extends Pane [ name = "print", title = "Print sections",
+    Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, text = "A calculator for the printer: it never changes the flatplan." ],
+    SigList [ part = "cover", caption = "COVER SECTIONS" ],
+    SigList [ part = "body", caption = "CONTENT SECTIONS" ],
+    Block [
+        Text [ fontSize = 13, text = { "Total pages, by sections: " + app.sigTotal } ],
+        Text [ fontSize = 13, text = { "Pages on the flatplan and held: " + app.pagesAndHeld } ],
+        Text [ fontSize = 13, text = { "Difference: " + (app.sigTotal - app.pagesAndHeld) } ],
+        Text [ width = 100%, fontSize = 13, fontWeight = semibold,
+            textColor = { app.sigTotal == app.pagesAndHeld ? provided("theme").good : provided("theme").warn },
+            text = { app.sigTotal == app.pagesAndHeld ? "The pages fit the sections exactly."
+                : app.pagesAndHeld > app.sigTotal ? "Remove " + (app.pagesAndHeld - app.sigTotal) + " pages from the flatplan, or add sections."
+                : "Add " + (app.sigTotal - app.pagesAndHeld) + " pages to the flatplan, or remove sections." } ]
+        ]
+    ]
+
+
+class SigList [ width = 100%,
+    part: string = "body",
+    caption: string = "",
+    list: number[] = { classroot.part == "cover" ? app.plan.doc?.signatures.cover ?? [] : app.plan.doc?.signatures.body ?? [] },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    Caps [ text = { classroot.caption + " · " + classroot.list.reduce((a, b) => a + b, 0) + " PAGES" } ],
+    View [ width = 100%, datapath = { app.sigSet.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        SigChip [ datapath = :items[], visible = { (:part ?? "") == classroot.part } ]
+        ],
+    View [ visible = { !app.readOnly }, width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Act [ label = "+4", accessibilityLabel = "Add a 4-page section",
+            onClick() { app.addSig(classroot.part, 4) }
+            ],
+        Act [ label = "+8", accessibilityLabel = "Add an 8-page section",
+            onClick() { app.addSig(classroot.part, 8) }
+            ],
+        Act [ label = "+16", accessibilityLabel = "Add a 16-page section",
+            onClick() { app.addSig(classroot.part, 16) }
+            ],
+        Act [ label = "+24", accessibilityLabel = "Add a 24-page section",
+            onClick() { app.addSig(classroot.part, 24) }
+            ],
+        Act [ label = "+32", accessibilityLabel = "Add a 32-page section",
+            onClick() { app.addSig(classroot.part, 32) }
+            ]
+        ]
+    ]
+
+
+class SigChip extends Control [ height = { app.tap }, cornerRadius = 7, padding = [0, 8, 0, 10],
+    accessibilityLabel = { "Remove the " + (:n ?? 0) + "-page section" },
+    disabled = { app.readOnly },
+    fill = { hovered ? provided("theme").badSoft : provided("theme").sunken },
+    press() { app.removeSig(:part ?? "body", :k ?? 0) },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Text [ fontSize = 13, fontWeight = semibold, text = { "" + (:n ?? 0) } ],
+    Glyph [ shape = "close", iconSize = 10, ink = { provided("theme").textMuted } ]
+    ]
+
+
+class StitchPane extends Pane [ name = "stitch", title = { "Stitch-ins (" + (app.plan.doc?.stitchIns ?? []).length + ")" },
+    Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, text = "Something bound in after a page: a booklet, a card, a gatefold." ],
+    View [ width = 100%, datapath = { app.plan.value?.fp },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        StitchRow [ datapath = :stitchIns[] ]
+        ],
+    Act [ visible = { !app.readOnly }, disabled = { app.cur == "" }, label = { app.cur == "" ? "Choose a page first" : "Add after " + app.plan.pageName(app.cur).replace("Page", "page") },
+        onClick() { app.addStitch() }
+        ]
+    ]
+
+
+class StitchRow [ width = 100%, cornerRadius = 7, padding = 10, fill = { provided("theme").sunken },
+    xid: string = { :id ?? "" },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 13, fontWeight = semibold, text = { "After " + app.plan.pageName(:after ?? "").replace("Page", "page") } ],
+        IconButton [ visible = { !app.readOnly }, shape = "trash", tone = { provided("theme").danger }, accessibilityLabel = "Remove stitch-in",
+            press() { app.removeStitch(classroot.xid) }
+            ]
+        ],
+    TextInput [ width = 100%, disabled = { app.readOnly }, placeholder = "Front", accessibilityLabel = "Front", commitOn = "end",
+        value = { :front ?? "" },
+        commit(v: string) { app.editStitch(classroot.xid, v, :back ?? "") }
+        ],
+    TextInput [ width = 100%, disabled = { app.readOnly }, placeholder = "Back", accessibilityLabel = "Back", commitOn = "end",
+        value = { :back ?? "" },
+        commit(v: string) { app.editStitch(classroot.xid, :front ?? "", v) }
+        ]
+    ]
+
+
+// ── Notes and activity (F-COLLAB-08, F-PRINT-06) ────────────────────────────
+
+class NotesPane extends Pane [ name = "notes", title = "Notes and activity",
+    tab: string = "notes",
+    Segmented [ width = 100%, value <-> classroot.tab,
+        items = { [ ({ id: "notes", label: "Notes" }), ({ id: "comments", label: "Comments" }), ({ id: "activity", label: "Activity" }) ] } ],
+    View [ visible = { classroot.tab == "notes" }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "Notes for the whole flatplan. They print with it." ],
+        TextInput [ width = 100%, multiline = true, height = { Math.max(120, Math.min(contentHeight, 320)) }, disabled = { app.readOnly },
+            accessibilityLabel = "Flatplan notes", commitOn = "end",
+            value = { app.plan.doc?.notes ?? "" },
+            commit(v: string) { app.setText("notes", v) }
+            ]
+        ],
+    View [ visible = { classroot.tab == "comments" }, width = 100%, datapath = { app.allComments.value },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        AnyComment [ datapath = :rows[] ]
+        ],
+    Text [ visible = { classroot.tab == "comments" && (app.allComments.value?.rows ?? []).length == 0 }, fontSize = 13, text = "No comments yet." ],
+    View [ visible = { classroot.tab == "activity" }, width = 100%, datapath = { app.activity.value },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        ActivityRow [ datapath = :rows[] ]
+        ],
+    Text [ visible = { classroot.tab == "activity" && (app.activity.value?.rows ?? []).length == 0 }, fontSize = 13, text = "Nothing has happened here yet." ]
+    ]
+
+
+class AnyComment extends Control [ width = 100%, cornerRadius = 7, padding = 8,
+    accessibilityLabel = { app.plan.pageName(:pageId ?? "") + ": " + (:text ?? "") },
+    fill = { hovered ? provided("theme").hover : provided("theme").sunken },
+    press() { app.goToComment(:pageId ?? "") },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ width = 100%, fontSize = 11, textColor = { provided("theme").textMuted },
+        text = { app.plan.pageName(:pageId ?? "") + " · " + app.nameOf(:by ?? "") + " · " + ago(:at ?? 0, app.now) } ],
+    Text [ width = 100%, fontSize = 13, text = { :text ?? "" } ]
+    ]
+
+
+class ActivityRow [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ width = 100%, fontSize = 13, text = { :text ?? "" } ],
+    Text [ fontSize = 11, textColor = { provided("theme").textMuted }, text = { app.nameOf(:by ?? "") + " · " + ago(:at ?? 0, app.now) } ]
+    ]
+
+
+// ── Sharing (F-SHARE) ───────────────────────────────────────────────────────
+
+class SharePane extends Pane [ name = "share", title = "Share",
+    Caps [ text = { "PEOPLE IN " + app.wsName.toUpperCase() } ],
+    View [ width = 100%, datapath = { app.members.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        PersonRow [ datapath = :rows[] ]
+        ],
+    InviteForm [ exists = { classroot.present && app.session == "in" } ],
+    Caps [ text = "VIEW-ONLY LINK" ],
+    Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+        text = "Copying the link turns it on. Anyone with it can read and export the live flatplan, but not change it." ],
+    TextInput [ width = 100%, accessibilityLabel = "View-only link", value = { app.viewLink },
+        commit(v: string) { }
+        ],
+    Act [ disabled = { app.readOnly }, label = "Copy link",
+        onClick() { app.copyLink() }
+        ],
+    Caps [ text = "MORE" ],
+    View [ width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Act [ label = "Email the flatplan to the team",
+            onClick() { app.say("Pagemap doesn't send email yet. Copy the view-only link, or print or save the flatplan as a PDF.") }
+            ],
+        Act [ visible = { !app.phone }, label = "Print or save as PDF",
+            onClick() { app.printFlatplan() }
+            ],
+        Act [ label = "Export a backup",
+            onClick() { app.exportBackup() }
+            ]
+        ]
+    ]
+
+
+class PersonRow [ width = 100%, height = 44,
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Avatar [ width = 30, height = 30, initials = { :initials ?? "" }, tone = { :color ?? "#888888" } ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ fontSize = 13, fontWeight = semibold, wrap = false, text = { (:name ?? "") + ((:uid ?? "") == app.uid ? " (you)" : "") } ],
+        Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = { :email ?? "" } ]
+        ],
+    Text [ fontSize = 10, fontWeight = bold, letterSpacing = 0.4, textColor = { provided("theme").textMuted },
+        text = { (:role ?? "") == "admin" ? "ADMIN" : (:role ?? "") == "editor" ? "CAN EDIT" : "CAN VIEW" } ]
+    ]
+
+
+class InviteForm [ width = 100%, padding = [8, 0, 8, 0],
+    email: string = "",
+    role: string = "editor",
+    canInvite: boolean = { app.role == "admin" },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Caps [ text = "INVITE" ],
+    TextInput [ width = 100%, purpose = email, placeholder = "name@example.com", accessibilityLabel = "Email address to invite",
+        value <-> classroot.email,
+        onEnter() { classroot.send() }
+        ],
+    Segmented [ width = 220, value <-> classroot.role,
+        items = { [ ({ id: "editor", label: "Can edit" }), ({ id: "viewer", label: "Can view" }) ] } ],
+    Text [ visible = { !classroot.canInvite }, fontSize = 12, textColor = { provided("theme").textMuted }, text = "Only an admin can invite people." ],
+    Act [ tone = "primary", label = "Invite", disabled = { !classroot.canInvite || !validEmail(classroot.email) },
+        onClick() { classroot.send() }
+        ],
+    send() {
+        if (!canInvite) { app.say("Only an admin can invite people."); return }
+        if (!validEmail(email)) return
+        app.invite(email.trim(), role)
+        email = ""
+        }
+    ]
+
+
+// ── Manage accounts (F-ADMIN) ───────────────────────────────────────────────
+
+class AdminPane extends Pane [ name = "admin", title = "Manage accounts",
+    Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+        text = "Clearing removes an account's workspace, flatplans and files. The sign-in itself stays: block it too." ],
+    View [ width = 100%, datapath = { app.trackAccounts.value },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        AccountRow [ datapath = :rows[] ]
+        ]
+    ]
+
+
+class AccountRow [ width = 100%, cornerRadius = 7, padding = 10, fill = { provided("theme").sunken },
+    aid: string = { :uid ?? "" },
+    me: boolean = { classroot.aid == app.uid },
+    arming: boolean = { app.clearArmed == classroot.aid },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 13, fontWeight = semibold, maxLines = 1, text = { (:name ?? "") + (classroot.me ? " (you)" : "") } ],
+        Text [ visible = { :blocked ?? false }, fontSize = 10, fontWeight = bold, textColor = { provided("theme").danger }, text = "BLOCKED" ]
+        ],
+    Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, maxLines = 2,
+        text = { (:email ?? "") + " · " + (:wsLine ?? "") + " · " + (:mb ?? "0.0") + " MB · joined " + dayText(:created ?? 0) } ],
+    View [ visible = { !classroot.me },
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
+        Act [ label = { (:blocked ?? false) ? "Unblock" : "Block" },
+            onClick() { app.setBlocked(classroot.aid, !(:blocked ?? false)) }
+            ],
+        Act [ tone = "danger", label = { classroot.arming ? "Press again to clear" : "Clear data" },
+            onClick() { app.clearAccount(classroot.aid) }
+            ]
+        ]
+    ]
+
+
+// ── The quick guide (F-APP-05) ──────────────────────────────────────────────
+
+class GuidePane extends Pane [ name = "guide", title = "Quick guide",
+    GuideSection [ head = "Find the rhythm", body = "Pages pair into spreads, left and right, the way the book lies open. With separate covers on, the front cover, inside covers and back cover stand apart from the numbered interior. Zoom from Overview to Detail with the zoom control, or = and −; Fit shows the whole book at once." ],
+    GuideSection [ head = "Move with intention", body = "Drag a page and it carries its whole story; choose another move mode beside the map to carry one page, the facing spread, or the whole section. Hold ⌥ as you start a drag to swap. ⇧-click chooses a run of pages, ⌘-click adds one. On a phone, press and hold a page to pick it up." ],
+    GuideSection [ head = "Make room", body = "Each page takes one of fourteen layouts; each region is editorial, advertising or open, and carries a story, a booked ad, or a label. Unplaced stories and held pages wait in the holding area; drag them onto empty pages." ],
+    GuideSection [ head = "See the artwork", body = "Upload a PDF, map its pages onto physical pages, and switch the map to Artwork. The reader shows the book spread by spread, as it will be read." ],
+    GuideSection [ head = "Work together", body = "Everyone's changes appear as they're made. Initials show who else is here and which page they have. Comment on a page; undo and redo with ⌘Z and ⇧⌘Z." ],
+    GuideSection [ head = "Keys", body = "⌘Z undo · ⇧⌘Z redo · ⌘C copy page · ⌘V paste · ⌘A choose all · ⌫ delete · / find · P Planning · A Artwork · = and − zoom · ← → previous and next page · Space read · Esc clear. Hold ⌘ to see them all." ]
+    ]
+
+
+class GuideSection [ width = 100%,
+    head: string = "",
+    body: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    Text [ fontSize = 14, fontWeight = bold, text = { classroot.head } ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.body } ]
+    ]

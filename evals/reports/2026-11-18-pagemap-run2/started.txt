@@ -1,0 +1,13 @@
+STARTED=2026-11-18T19:24:40Z
+APP=pagemap
+MODEL=claude-opus-5-5
+SUBJECT=local tree at e349b316 derived artifacts + 183 changed, 3 new uncommitted (evals/, docs/system-design/ and test/ removed)
+TOOLS=Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent (the only tools that exist; all pre-approved)
+STACK=Declare
+LEVEL=minimal
+PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off
+CWD=~/Code/eval-pagemap-2/work (logs outside it)
+PORT=8390 (the brief names 8390)
+DEV_PORT=8602 (the agent's dev server: PORT in its environment)
+SERVICE=node ~/Code/Declare/evals/apps/pagemap/api/server.mjs --port=8390 --seed=1
+AGENT_PID=72450

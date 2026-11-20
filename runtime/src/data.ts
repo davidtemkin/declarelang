@@ -143,6 +143,14 @@ export function trackedView(v: unknown): unknown {
   return view;
 }
 
+/** Whether a dataset holds this container (it, or the record it is a view of):
+ *  only such a container is changed in place, by a dataset write that wakes its
+ *  cells. A freshly computed object belongs to no dataset; a change to it is a
+ *  new object, which its holder's own cell already announces. */
+export function inDataset(v: unknown): boolean {
+  return isContainer(v) && TAGS.has(unwrapValue(v));
+}
+
 function cellAt(container: object, key: string): Cell {
   let cells = CELLS.get(container);
   if (cells === undefined) { CELLS.set(container, (cells = new Map())); RETIRE?.register(container, cells); }

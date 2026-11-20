@@ -265,6 +265,136 @@ export const CASES = [
     ],
   },
 
+  // ── the wider set: what a person does in each bundled app ─────────────────
+  // Chosen where the runtime's per-view work shows: rows built as a list
+  // scrolls, many views moving on one spring, pages replaced, records edited.
+  // Each drives the app through its own verbs and slots, as its controls do.
+
+  {
+    name: "tracker:scroll",
+    app: "apps/tracker/tracker.declare",
+    what: "the issue list scrolled down 40,000 px over 3 s and back: rows built and recycled as they come into view",
+    landmarks: {},
+    steps: [
+      { bind: "list", to: "__find(app, (n) => n.accessibilityLabel == 'Issues' ? n : false)", or: "no issue list found" },
+      { wait: 600 },
+      { reset: true },
+      { ramp: ["@list.scrollTo"], as: "call", from: [0], to: [40000], frames: 180, round: true },
+      { ramp: ["@list.scrollTo"], as: "call", from: [40000], to: [0], frames: 90, round: true },
+      { wait: 400 },
+    ],
+  },
+  {
+    name: "tracker:sort",
+    app: "apps/tracker/tracker.declare",
+    what: "the sort changed and reversed, then grouping changed: the list re-projected and re-laid each time",
+    landmarks: {},
+    steps: [
+      { wait: 600 },
+      { reset: true },
+      ...["priority", "title", "updated"].flatMap((f) => [
+        { set: "app.sortOn", to: f, via: "frame" }, { wait: 400 },
+        { set: "app.sortDir", to: "asc", via: "frame" }, { wait: 400 },
+        { set: "app.sortDir", to: "desc", via: "frame" }, { wait: 400 },
+      ]),
+    ],
+  },
+  {
+    name: "calendar:navigate",
+    app: "apps/calendar/calendar.declare",
+    what: "twelve months forward and back in month view, then six weeks forward in week view",
+    landmarks: {},
+    steps: [
+      { call: "app.goMode", args: ["month"] }, { wait: 900 },
+      { reset: true },
+      ...Array.from({ length: 12 }, () => [{ call: "app.step", args: [1], via: "frame" }, { wait: 250 }]).flat(),
+      ...Array.from({ length: 12 }, () => [{ call: "app.step", args: [-1], via: "frame" }, { wait: 250 }]).flat(),
+      { call: "app.goMode", args: ["week"], via: "frame" }, { wait: 900 },
+      ...Array.from({ length: 6 }, () => [{ call: "app.step", args: [1], via: "frame" }, { wait: 300 }]).flat(),
+    ],
+  },
+  {
+    name: "calendar:year",
+    app: "apps/calendar/calendar.declare",
+    what: "month → year → month, three times: the month folding into its mini and back",
+    landmarks: {},
+    steps: [
+      { call: "app.goMode", args: ["month"] }, { wait: 900 },
+      { reset: true },
+      ...[0, 1, 2].flatMap(() => [
+        { call: "app.goMode", args: ["year"], via: "frame" }, { wait: 1100 },
+        { call: "app.goMode", args: ["month"], via: "frame" }, { wait: 1100 },
+      ]),
+    ],
+  },
+  {
+    name: "todo:views",
+    app: "apps/todo/todo.declare",
+    what: "through the views and lists, then tasks completed, opened and closed, and completed back",
+    landmarks: {},
+    steps: [
+      { until: "app.tasks.all().length > 5", timeout: 15000, or: "the tasks did not load" },
+      { bind: "ids", to: "app.tasks.all().slice(0, 6).map((t) => t.id)" },
+      { bind: "places", to: "['today', 'upcoming', ...app.tasks.lists().map((l) => l.id), 'done', 'today']" },
+      { reset: true },
+      ...Array.from({ length: 8 }, (_, i) => [{ set: "app.location", to: `@places[${i} % @places.length]`, via: "frame" }, { wait: 450 }]).flat(),
+      { set: "app.location", to: "today", via: "frame" }, { wait: 450 },
+      ...Array.from({ length: 6 }, (_, i) => [
+        { call: "app.tasks.toggle", args: [`@ids[${i}]`, "done"], via: "frame" }, { wait: 250 },
+        { call: "app.toggleOpen", args: [`@ids[${(i + 1) % 6}]`], via: "frame" }, { wait: 400 },
+        { call: "app.toggleOpen", args: [`@ids[${(i + 1) % 6}]`], via: "frame" }, { wait: 300 },
+      ]).flat(),
+      ...Array.from({ length: 6 }, (_, i) => [{ call: "app.tasks.toggle", args: [`@ids[${i}]`, "done"], via: "frame" }, { wait: 250 }]).flat(),
+    ],
+  },
+  {
+    name: "birds:pages",
+    app: "apps/birds/birds.declare",
+    what: "six birds opened from the shelf and closed again: a picture flying to its page and back",
+    landmarks: {},
+    steps: [
+      { until: "app.birds.length > 6", timeout: 15000, or: "the birds did not load" },
+      { bind: "slugs", to: "app.birds.slice(0, 6).map((b) => b.slug)" },
+      { wait: 600 },
+      { reset: true },
+      ...Array.from({ length: 6 }, (_, i) => [
+        { set: "app.location", to: `'b/' + @slugs[${i}]`, via: "frame" }, { wait: 1000 },
+        { set: "app.location", to: "", via: "frame" }, { wait: 1000 },
+      ]).flat(),
+    ],
+  },
+  {
+    name: "docs:chapters",
+    app: "apps/docs/docs.declare",
+    what: "five guide chapters opened in turn: long Markdown pages replaced",
+    landmarks: {},
+    steps: [
+      { wait: 1500 },
+      { reset: true },
+      ...["06-layout", "12-text", "14-data", "28-calendar", "01-what-declare-is"].flatMap((id) => [
+        { call: "app.goGuide", args: [id], via: "frame" }, { wait: 1500 },
+      ]),
+    ],
+  },
+  {
+    name: "marketmap:drill",
+    app: "apps/marketmap/marketmap.declare",
+    what: "a sector opened, drilled into three industries, and closed, twice",
+    landmarks: {},
+    steps: [
+      { until: "app.market?.ready && app.market.tree.length > 1", timeout: 30000, or: "the market data did not load within 30 s" },
+      { bind: "sec", to: "(app.market.decoded.value.sectors.find((s) => s.label == app.market.tree[0].name) ?? app.market.decoded.value.sectors[0]).id" },
+      { bind: "inds", to: "app.market.tree[0].inds.slice(0, 3).map((n) => n.key)" },
+      { wait: 1200 },
+      { reset: true },
+      ...[0, 1].flatMap(() => [
+        { call: "app.openGroup", args: ["'sec:' + @sec"], via: "frame" }, { wait: 1000 },
+        ...[0, 1, 2].flatMap((j) => [{ call: "app.drill", args: [`@inds[${j}]`], via: "frame" }, { wait: 900 }]),
+        { call: "app.closeGroup", via: "frame" }, { wait: 1000 },
+      ]),
+    ],
+  },
+
   // ── the raster-memo probe ─────────────────────────────────────────────────
   {
     name: "probe:memo",

@@ -1,0 +1,261 @@
+/*
+# Pagemap: dragging
+
+One drag at a time, as a class with no view: what is carried (pages, an
+unplaced story, a held page, or a section), where the pointer is, and where it
+would land. The views it passes over read it and draw what they would become
+(a bar and "INSERT BEFORE 12", the pages a story would take, "MOVE FEATURES
+HERE"); the ghost under the pointer reads it too. Dropping makes one edit.
+
+What is under the pointer is found by the same walk a press takes
+(`app.viewAt`), skipping the ghost.
+*/
+
+class Drag extends Node [
+    active: boolean = false,
+    kind: string = "",                 // pages · story · held · section
+    ids: string[] = [],                // the pages carried
+    storyId: string = "",
+    heldId: string = "",
+    sectionId: string = "",
+    sectionBlock: boolean = false,     // section-block mode: the page's whole section moves
+    swap: boolean = false,
+    x: number = 0,
+    y: number = 0,
+    grabX: number = 0,
+    grabY: number = 0,
+
+    // where it would land
+
+    over: View? = null,
+    targetId: string = "",
+    after: boolean = false,
+    targetSection: string = "",
+    swapIds: string[] = [],
+    placeIds: string[] = [],
+    placeOk: boolean = false,
+    pillOn: string = "",
+
+    count: number = { this.ids.length },
+    carriedPages: array = { this.ids.slice(0, app.plan.facing ? 4 : 2).map((id) => app.plan.page(id)).filter((p) => p != null) },
+    more: number = { Math.max(0, this.ids.length - (app.plan.facing ? 4 : 2)) },
+    modeWord: string = { this.swap ? "swap" : this.sectionBlock ? "section block" : app.moveModeWord },
+    info: string = { this.kind == "pages" ? this.count + (this.count == 1 ? " page" : " pages") + " · " + this.modeWord
+        : this.kind == "story" ? (app.plan.story(this.storyId)?.pages ?? 1) + " PP · place story"
+        : this.kind == "held" ? "1 held page · put back" : "section · " + (app.plan.section(this.sectionId)?.name ?? "") },
+    words: string = { classroot.describe() },
+
+    describe() -> string {
+        if (!this.active) return ""
+        if (this.kind == "story") {
+            if (this.placeIds.length == 0) return ""
+            return this.placeOk ? "PLACE HERE" : "NEEDS " + (app.plan.story(this.storyId)?.pages ?? 1) + " EMPTY PAGES"
+            }
+        if (this.targetId == "" || this.swap || this.kind == "section") return ""
+        const folio = app.plan.folioOf(this.targetId)
+        const t = app.plan.page(this.targetId)
+        let into = ""
+        if (this.kind == "pages" && !this.sectionBlock && t != null) {
+            const from = app.plan.page(this.ids[0])
+            if (from != null && from.sectionId != t.sectionId) into = " · INTO " + upper(app.plan.section(t.sectionId)?.name ?? "")
+            }
+        return (this.after ? "INSERT AFTER " : "INSERT BEFORE ") + folio + into
+        },
+
+    placeMarkOf(id: string) -> string {
+        if (!this.active || this.kind != "story" || !this.placeIds.includes(id)) return ""
+        return this.placeOk ? "ok" : "bad"
+        },
+
+    // ── beginning
+
+    start(kind: string, e: PointerEvent, v: View) {
+        const o = v.rootOrigin()
+        this.kind = kind
+        this.grabX = e.rootX - o.x
+        this.grabY = e.rootY - o.y
+        this.x = e.rootX
+        this.y = e.rootY
+        this.swap = false
+        this.sectionBlock = false
+        this.clearTarget()
+        this.active = true
+        },
+
+    beginPages(id: string, e: PointerEvent, v: View) {
+        if (app.readOnly) return
+        const p = app.plan.page(id)
+        if (p == null) return
+        let ids: string[] = []
+        let block = false
+        if (app.chosen.length > 1 && app.chosen.includes(id)) ids = app.plan.pages.filter((q) => app.chosen.includes(q.id)).map((q) => q.id)
+        else if (app.moveMode == "section") { ids = app.plan.moveGroup(id, "section"); block = true }
+        else ids = app.plan.moveGroup(id, app.moveMode)
+        if (ids.some((q) => app.plan.covers && app.plan.page(q)?.cover != null)) { app.say("Cover faces stay in place. Choose interior pages."); return }
+        this.ids = ids
+        this.sectionId = p.sectionId
+        this.start("pages", e, v)
+        this.grabX = 22
+        this.grabY = 20
+        this.sectionBlock = block
+        this.swap = e.alt && !block
+        },
+    beginStory(id: string, e: PointerEvent, v: View) {
+        if (app.readOnly) return
+        this.storyId = id
+        this.ids = []
+        this.start("story", e, v)
+        },
+    beginHeld(id: string, e: PointerEvent, v: View) {
+        if (app.readOnly) return
+        this.heldId = id
+        this.ids = [id]
+        this.start("held", e, v)
+        },
+    beginSection(id: string, e: PointerEvent, v: View) {
+        if (app.readOnly) return
+        if (app.plan.isCoverSection(id) && app.plan.covers) { app.say("Cover sections stay at the outside while covers are separate."); return }
+        this.sectionId = id
+        this.ids = []
+        this.start("section", e, v)
+        },
+
+    clearTarget() {
+        this.over = null
+        this.targetId = ""
+        this.targetSection = ""
+        this.after = false
+        this.swapIds = []
+        this.placeIds = []
+        this.placeOk = false
+        this.pillOn = ""
+        },
+
+    // ── following the pointer
+
+    move(e: PointerEvent) {
+        if (!this.active) return
+        this.x = e.rootX
+        this.y = e.rootY
+        this.find()
+        },
+
+    /** What the pointer is over: a page, a heading, a section's row, or the
+     *  blank space beside a row of pages. */
+
+    find() {
+        this.clearTarget()
+        let v: any = app.viewAt(this.x, this.y, app.ghost)
+        while (v != null && !(v instanceof MapEntry) && !(v instanceof SectionRow) && v != app.mapSurface && v != app.mapPane) v = v.parent
+        if (v == null) return
+        if (v == app.mapPane) v = app.mapSurface
+        if (v instanceof SectionRow) {
+            const row = v as SectionRow
+            this.over = row
+            this.targetSection = row.sectionId
+            this.after = this.y > row.rootOrigin().y + row.height / 2
+            return
+            }
+        if (v instanceof MapHeading) {
+            const h = v as MapHeading
+            if (this.kind == "section") { this.over = h; this.targetSection = h.sectionId; this.after = false; return }
+            const first = app.firstPageAfterHeading(h.entryId)
+            if (first == "") return
+            this.over = h
+            this.setPageTarget(first, false)
+            return
+            }
+        if (v instanceof PageCell) {
+            const c = v as PageCell
+            const o = c.rootOrigin()
+            this.setPageTarget(c.pageId, this.x > o.x + c.width / 2)
+            return
+            }
+        if (v == app.mapSurface) {
+            // the nearest page in the row the pointer is beside
+            let best: PageCell? = null
+            let bestD = 1e9
+            for (const k of app.mapSurface.children) {
+                if (!(k instanceof PageCell)) continue
+                const c = k as PageCell
+                if (!c.visible) continue
+                const o = c.rootOrigin()
+                if (this.y < o.y || this.y > o.y + c.height) continue
+                const d = Math.abs(this.x - (o.x + c.width / 2))
+                if (d < bestD) { bestD = d; best = c }
+                }
+            if (best != null) {
+                const o = best.rootOrigin()
+                this.setPageTarget(best.pageId, this.x > o.x + best.width / 2)
+                }
+            }
+        },
+
+    setPageTarget(id: string, after: boolean) {
+        if (this.kind == "section") {
+            const p = app.plan.page(id)
+            if (p != null) { this.targetSection = p.sectionId; this.after = after; this.pillOn = "" }
+            return
+            }
+        if (this.ids.includes(id)) return
+        this.targetId = id
+        this.after = after
+        if (this.kind == "pages" && this.swap) {
+            const at = app.plan.indexOf(id)
+            this.swapIds = app.plan.pages.slice(at, at + this.ids.length).map((p) => p.id)
+            }
+        if (this.kind == "story") {
+            const n = Math.max(1, app.plan.story(this.storyId)?.pages ?? 1)
+            const at = app.plan.indexOf(id)
+            const run = app.plan.pages.slice(at, at + n)
+            this.placeIds = run.map((p) => p.id)
+            this.placeOk = run.length == n && run.every((p) => !(app.plan.covers && p.cover != null) && !p.locked && app.plan.blank(p))
+            this.pillOn = id
+            }
+        },
+
+    // ── dropping
+
+    end(canceled: boolean) {
+        if (!this.active) return
+        const kind = this.kind
+        const ids = this.ids
+        const target = this.targetId
+        const after = this.after
+        const tsec = this.targetSection
+        const overRow = this.over instanceof SectionRow
+        this.active = false
+        this.kind = ""
+        if (canceled) { this.clearTarget(); return }
+        const plan = app.plan
+        if (kind == "pages") {
+            if (overRow && tsec != "") {
+                const name = plan.section(tsec)?.name ?? ""
+                plan.apply("Move to " + name, (fp: Flatplan) => plan.opSetSection(fp, ids, tsec))
+            } else if (target != "" && this.sectionBlock) {
+                const t = plan.page(target)
+                const name = plan.section(this.sectionId)?.name ?? ""
+                if (t != null && plan.apply("Move " + name, (fp: Flatplan) => plan.opMoveSection(fp, this.sectionId, t.sectionId, after)))
+                    app.say("Moved. Folios updated.")
+            } else if (target != "" && this.swap) {
+                if (plan.apply("Swap " + app.pagesWord(ids.length), (fp: Flatplan) => plan.opSwap(fp, ids, target)))
+                    app.say("Swapped. Folios updated.")
+            } else if (target != "") {
+                if (plan.apply("Move " + app.pagesWord(ids.length), (fp: Flatplan) => plan.opMove(fp, ids, target, after, app.moveMode == "spread")))
+                    app.say("Moved. Folios updated.")
+                }
+        } else if (kind == "story" && target != "") {
+            const s = plan.story(this.storyId)
+            const at = plan.indexOf(target)
+            if (s != null && plan.apply("Place " + s.title, (fp: Flatplan) => plan.opPlace(fp, s.id, at))) app.goPage(target)
+        } else if (kind == "held" && target != "") {
+            const id = this.heldId
+            if (plan.apply("Put back a held page", (fp: Flatplan) => plan.opPutBack(fp, id, target, after))) { app.holdSel = ""; app.goPage(id) }
+        } else if (kind == "section" && tsec != "") {
+            const name = plan.section(this.sectionId)?.name ?? ""
+            const sid = this.sectionId
+            plan.apply("Move " + name, (fp: Flatplan) => plan.opMoveSection(fp, sid, tsec, after))
+            }
+        this.clearTarget()
+        }
+    ]

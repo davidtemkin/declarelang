@@ -10,6 +10,11 @@ export interface Cursor {
 }
 export declare function unwrapValue<T>(v: T): T;
 export declare function trackedView(v: unknown): unknown;
+/** Whether a dataset holds this container (it, or the record it is a view of):
+ *  only such a container is changed in place, by a dataset write that wakes its
+ *  cells. A freshly computed object belongs to no dataset; a change to it is a
+ *  new object, which its holder's own cell already announces. */
+export declare function inDataset(v: unknown): boolean;
 /** A Dataset holds embedded JSON (language §9: `events: Dataset { … }` — the
  *  `{ }` carries its JSON meaning there) and is the data half every source
  *  shares: the reactive `value` slot, region reads, and the mutation API.

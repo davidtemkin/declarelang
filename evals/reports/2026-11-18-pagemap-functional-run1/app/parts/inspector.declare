@@ -1,0 +1,446 @@
+/*
+# Pagemap: the page panel
+
+What is known about the page the person is on, and every way to change it: its section, its
+layout, what each region carries, its tags, notes, lock, artwork and comments; and, with
+several pages in hand, what can be done to all of them at once. On a desk it stands beside
+the plan; on a phone it rises as a sheet. For someone who can't change the issue it says the
+same things, and offers nothing to change.
+*/
+
+// A row of a panel: a caption, then what it is about.
+
+class Facet [ width = 100%,
+    caption: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    defaultPlacement = body,
+    PanelHeading [ text = { classroot.caption } ],
+    body: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ]
+        ]
+    ]
+
+
+// One of the fourteen layouts, drawn: pressing it gives the page that layout.
+
+class LayoutChip extends ChoiceItem [ width = { app.touchFirst ? 44 : 38 }, height = { this.width * 1.25 }, cornerRadius = 4,
+    lid: string = "full",
+    turn: number = 0,
+    flip: boolean = false,
+    choice = { classroot.lid },
+    accessibilityLabel = { LAYOUTS.find((l) => l.id == classroot.lid)?.name ?? classroot.lid },
+    tooltipLabel = { LAYOUTS.find((l) => l.id == classroot.lid)?.name ?? classroot.lid },
+    fill = { on ? provided("theme").controlSelected : hovered ? provided("theme").hover : provided("theme").raised },
+    stroke = { Stroke(on ? 2 : 1, on ? provided("theme").accent : provided("theme").line) },
+    ink: Color = { provided("theme").textMuted },
+    draw(d: DrawContext) {
+        const pad = 5
+        const w = this.width - pad * 2
+        const h = this.height - pad * 2
+        d.strokeStyle = this.ink
+        d.lineWidth = 1
+        regionRects(this.lid, this.turn, this.flip).forEach((r) => d.strokeRect(pad + r.x * w + 0.5, pad + r.y * h + 0.5, r.w * w - 1, r.h * h - 1))
+        }
+    ]
+
+
+// A small toggle chip: a tag on or off.
+
+class ToggleChip extends Control [ height = { app.touchFirst ? 44 : 26 }, cornerRadius = { this.height / 2 }, padding = [0, 10, 0, 8],
+    label: string = "",
+    tone: string = "#999999",
+    on: boolean = false,
+    accessibilityRole = toggle,
+    accessibilityPressed = { on },
+    fill = { on ? provided("theme").controlSelected : hovered ? provided("theme").hover : null },
+    stroke = { Stroke(1, on ? provided("theme").accent : provided("theme").line) },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Dot [ width = 8, height = 8, tone = { classroot.tone } ],
+    Text [ fontSize = 12, wrap = false, textColor = { provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// A labelled button with a mark: the panel's actions.
+
+class Action extends Control [ height = { app.tap }, cornerRadius = 7, padding = [0, 10, 0, 8],
+    label: string = "",
+    shape: string = "",
+    danger: boolean = false,
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Glyph [ visible = { classroot.shape != "" }, shape = { classroot.shape }, iconSize = 14,
+        ink = { classroot.danger ? provided("theme").danger : provided("theme").text } ],
+    TextLabel [ fontSize = 13, fontWeight = medium, textColor = { classroot.danger ? provided("theme").danger : provided("theme").text },
+        text = { classroot.label } ]
+    ]
+
+
+// ── One region of the page ──────────────────────────────────────────────────────────────────
+
+class RegionEditor [ width = 100%, padding = 10, cornerRadius = 8,
+    pid: string = "",
+    ri: number = { rowIndex },
+    kind: string = { :kind ?? "unassigned" },
+    storyId: string = { :storyId ?? "" },
+    bookingId: string = { :bookingId ?? "" },
+    story: Story? = { storyById(app.fp, classroot.storyId) ?? null },
+    empty: boolean = { regionEmpty(:@) },
+    fill = { provided("theme").raised },
+    stroke = { Stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    set(label: string, patch: object, clear: string[]) { app.apply(label, P.updateRegion(app.fp, classroot.pid, classroot.ri, patch, clear)) },
+
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted },
+            text = { "Region " + (classroot.ri + 1) + " · " + app.shareText(classroot.pid, classroot.ri) } ],
+        Spacer [ ],
+        Control [ visible = { app.canEdit && !classroot.empty },
+            height = { app.tap }, minWidth = { app.tap }, padding = [0, 8, 0, 8], cornerRadius = 6, accessibilityLabel = { "Clear region " + (classroot.ri + 1) },
+            fill = { hovered ? provided("theme").hover : null },
+            press() { app.apply("Clear a region", P.clearRegion(app.fp, classroot.pid, classroot.ri)) },
+            TextLabel [ fontSize = 12, textColor = { provided("theme").accent }, text = "Clear" ]
+            ]
+        ],
+
+    kindPick: Segmented [ visible = { app.canEdit }, width = 100%, accessibilityLabel = { "Kind of content, region " + (classroot.ri + 1) },
+        items = { [ ({ id: "editorial", label: "Editorial" }), ({ id: "advertising", label: "Advertising" }), ({ id: "unassigned", label: "Open" }) ] },
+        value = { classroot.kind },
+        commit(v: string) {
+            const st = classroot.story
+            const keep = st != null && st.kind == v
+            classroot.set(v == "unassigned" ? "Make a region open" : v == "advertising" ? "Make a region advertising" : "Make a region editorial",
+                ({ kind: v }), keep ? (v == "advertising" ? [] : ["bookingId"]) : (v == "advertising" ? ["storyId"] : ["storyId", "bookingId"]))
+            }
+        ],
+    Text [ visible = { !app.canEdit }, fontSize = 13,
+        text = { classroot.kind == "unassigned" ? "Open" : classroot.kind == "advertising" ? "Advertising" : "Editorial" } ],
+
+    // the story it carries: any of the issue's, a new one, or none
+
+    storyPick: Combobox [ visible = { app.canEdit && classroot.kind != "unassigned" }, width = 100%, creates = true,
+        placeholder = "No story — type to find or make one", accessibilityLabel = { "Story, region " + (classroot.ri + 1) },
+        items = { app.storyChoices(classroot.kind) },
+        value = { classroot.storyId == "" ? null : app.storyChoices(classroot.kind).find((c) => c.id == classroot.storyId) ?? null },
+        commit(v: object?) {
+            const c = v as { id: string, label: string }?
+            if (c == null) classroot.set("Take the story off a region", ({}), ["storyId"])
+            else classroot.set("Put “" + c.label + "” on a region", ({ storyId: c.id }), ["bookingId"])
+            },
+        createRequested(text: string) {
+            const s = P.newStory(app.fp, ({ title: text, pages: 1, kind: classroot.kind == "advertising" ? "advertising" : "editorial",
+                sectionId: app.currentPage?.sectionId ?? "", editor: app.uid }))
+            app.apply("Add “" + text + "” on a region", P.addStoryOnRegion(app.fp, s, classroot.pid, classroot.ri))
+            }
+        ],
+    storyInfo: View [ visible = { classroot.story != null }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        Text [ visible = { !app.canEdit }, width = 100%, fontSize = 14, fontWeight = semibold, text = { classroot.story?.title ?? "" } ],
+        row: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 4, align = center ],
+            Dot [ tone = { app.statusColor(classroot.story?.status ?? "") } ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { app.statusName(classroot.story?.status ?? "") } ],
+            Text [ visible = { (classroot.story?.kind ?? "") == "editorial" }, fontSize = 12, textColor = { provided("theme").textMuted },
+                text = { "· " + app.nameOf(classroot.story?.editor ?? "") } ],
+            Text [ visible = { classroot.story?.rightStart ?? false }, fontSize = 12, textColor = { provided("theme").textMuted }, text = "· opens on a right-hand page" ]
+            ],
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { storyPagesTextOf(app.fp, classroot.storyId, app.fol) } ],
+        Control [ height = { app.tap }, padding = [0, 4, 0, 0], accessibilityLabel = "Open the story",
+            press() { app.editStory(classroot.storyId) },
+            TextLabel [ y = center, fontSize = 12, textColor = { provided("theme").accent },
+                text = { app.canEdit ? "Edit the story…" : "Story details…" } ]
+            ]
+        ],
+
+    // a booking, on an advertising region with no story
+
+    bookingPick: Combobox [ visible = { app.canEdit && classroot.kind == "advertising" && classroot.storyId == "" }, width = 100%,
+        placeholder = "Choose a booking", accessibilityLabel = { "Booking, region " + (classroot.ri + 1) },
+        items = { app.bookingChoices(classroot.pid, classroot.ri) },
+        value = { classroot.bookingId == "" ? null : app.bookingChoices(classroot.pid, classroot.ri).find((c) => c.id == classroot.bookingId) ?? null },
+        commit(v: object?) {
+            const c = v as { id: string, label: string }?
+            if (c == null) classroot.set("Take the booking off a region", ({}), ["bookingId"])
+            else classroot.set("Place a booking", ({ bookingId: c.id, kind: "advertising" }), ["storyId"])
+            }
+        ],
+    fit: View [ visible = { classroot.bookingId != "" }, width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Dot [ tone = { app.fitTone(classroot.pid, classroot.ri, classroot.bookingId) } ],
+        Text [ flexes = true, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { app.fitText(classroot.pid, classroot.ri, classroot.bookingId) } ]
+        ],
+
+    // a short label, when there is no story
+
+    labelField: TextInput [ visible = { app.canEdit && classroot.storyId == "" && classroot.bookingId == "" }, width = 100%,
+        placeholder = "A short label", accessibilityLabel = { "Label, region " + (classroot.ri + 1) }, commitOn = "end",
+        value = { :label ?? "" },
+        commit(v: string) { classroot.set(v.trim() == "" ? "Remove a label" : "Label a region", ({ label: v.trim() }), []) }
+        ],
+    Text [ visible = { !app.canEdit && (:label ?? "") != "" }, fontSize = 13, text = { :label ?? "" } ]
+    ]
+
+
+// ── The page ────────────────────────────────────────────────────────────────────────────────
+
+class PageEditor [ width = 100%,
+    pid: string = { :id ?? "" },
+    locked: boolean = { :locked ?? false },
+    sectionId: string = { :sectionId ?? "" },
+    isCover: boolean = { coversOn(app.fp) && (:cover ?? null) != null },
+    editable: boolean = { app.canEdit && !classroot.locked },
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+
+    // ── which page this is
+
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        title: Text [ flexes = true, fontSize = 22, fontWeight = bold, accessibilityRole = heading, focusable = quiet,
+            text = { app.isCoverPage(classroot.pid) ? app.nameOfPage(classroot.pid).charAt(0).toUpperCase() + app.nameOfPage(classroot.pid).slice(1) : "Page " + app.folioOf(classroot.pid) } ],
+        IconButton [ shape = "left", accessibilityLabel = "Previous page", disabled = { app.currentIndex <= 0 },
+            press() { app.stepFocus(classroot.pid, -1, false) }
+            ],
+        IconButton [ shape = "right", accessibilityLabel = "Next page", disabled = { app.currentIndex >= app.fp.pages.length - 1 },
+            press() { app.stepFocus(classroot.pid, 1, false) }
+            ],
+        IconButton [ shape = "close", accessibilityLabel = "Close the page panel",
+            press() { app.clearSel(); app.go("") }
+            ]
+        ],
+    where: Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { app.sectionName(classroot.sectionId) + " · " + app.sideText(classroot.pid) + (classroot.locked ? " · Locked" : "") } ],
+
+    // ── the commands for this page
+
+    acts: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Action [ label = "Read", shape = "read", accessibilityLabel = "Read the issue from this page",
+            press() { app.read(classroot.pid) }
+            ],
+        Action [ visible = { app.canEdit }, label = "Move…", shape = "move", accessibilityLabel = "Move this page or its unit",
+            press() { app.startMove() }
+            ],
+        Action [ visible = { app.canEdit }, label = "More", shape = "more", accessibilityLabel = "More for this page", menu = { app.pageMore } ]
+        ],
+    unitRow: View [ visible = { app.canEdit && !classroot.isCover }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        PanelHeading [ text = "MOVE AS" ],
+        Segmented [ width = 100%, accessibilityLabel = "Move as",
+            items = { [ ({ id: "page", label: "Page" }), ({ id: "spread", label: "Spread" }), ({ id: "story", label: "Story" }), ({ id: "section", label: "Section" }) ] },
+            value = { app.unit },
+            commit(v: string) { app.retargetUnit(v) }
+            ],
+        nudges: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            Action [ label = "Earlier", shape = "left", accessibilityLabel = "Nudge one place earlier",
+                press() { app.nudge(-1) }
+                ],
+            Action [ label = "Later", shape = "right", accessibilityLabel = "Nudge one place later",
+                press() { app.nudge(1) }
+                ],
+            Spacer [ ],
+            Text [ fontSize = 12, textColor = { provided("theme").textFaint }, text = { app.unitSummary } ]
+            ]
+        ],
+
+    // ── its section
+
+    Facet [ caption = "SECTION",
+        Button [ visible = { app.canEdit && !classroot.isCover && !classroot.locked }, label = { app.sectionName(classroot.sectionId) },
+            accessibilityLabel = "Section", menu = { app.sectionMenu } ],
+        Text [ visible = { !(app.canEdit && !classroot.isCover && !classroot.locked) }, fontSize = 14, text = { app.sectionName(classroot.sectionId) } ]
+        ],
+
+    // ── its layout, turned and flipped
+
+    Facet [ caption = { "LAYOUT · " + (LAYOUTS.find((l) => l.id == (:layout ?? "full"))?.name ?? "") + ((:turn ?? 0) > 0 ? ", turned " + (:turn ?? 0) * 90 + "°" : "") + ((:flip ?? false) ? ", flipped" : "") },
+        chips: ChoiceControl [ visible = { classroot.editable }, width = 100%, datapath = { app.layoutList.value }, accessibilityLabel = "Layout",
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            value = { app.currentPage?.layout ?? "full" },
+            commit(v: string) { const p = app.currentPage; if (p != null && v != p.layout) app.apply("Change the layout", P.setLayout(app.fp, p.id, v, p.turn, p.flip)) },
+            LayoutChip [ datapath = :layouts[], lid = { :id ?? "full" }, turn = { app.currentPage?.turn ?? 0 }, flip = { app.currentPage?.flip ?? false } ]
+            ],
+        turns: View [ visible = { classroot.editable },
+            layout: SimpleLayout [ axis = x, spacing = 6 ],
+            Action [ label = "Turn", shape = "rotate", accessibilityLabel = "Turn the layout a quarter",
+                press() { const p = app.currentPage; if (p != null) app.apply("Turn the layout", P.setLayout(app.fp, p.id, p.layout, p.turn + 1, p.flip)) }
+                ],
+            Action [ label = "Flip", shape = "flip", accessibilityLabel = "Flip the layout",
+                press() { const p = app.currentPage; if (p != null) app.apply("Flip the layout", P.setLayout(app.fp, p.id, p.layout, p.turn, !p.flip)) }
+                ]
+            ],
+        Hint [ visible = { classroot.editable }, text = "A layout with fewer regions can be chosen once the regions it would drop are empty." ]
+        ],
+
+    // ── what is on it
+
+    Facet [ caption = "REGIONS",
+        regions: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            RegionEditor [ datapath = :regions[], pid = { classroot.pid }, disabled = { !classroot.editable } ]
+            ]
+        ],
+
+    // ── tags and notes
+
+    Facet [ caption = "TAGS",
+        tagChips: View [ width = 100%, datapath = { app.plan.value },
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            ToggleChip [ datapath = :tags[], label = { :name ?? "" }, tone = { :color ?? "#999999" },
+                on = { (app.currentPage?.tags ?? []).includes(:id ?? "") },
+                disabled = { !app.canEdit || (app.currentPage?.locked ?? false) },
+                press() { app.apply(this.on ? "Untag a page" : "Tag a page", P.setTag(app.fp, [app.pageId], :id ?? "", !this.on)) }
+                ]
+            ],
+        Hint [ visible = { app.fp.tags.length == 0 }, text = "This issue has no tags yet. Add them in the Sections panel." ]
+        ],
+    Facet [ caption = "NOTES",
+        TextInput [ visible = { classroot.editable }, width = 100%, multiline = true, height = { Math.max(60, Math.min(this.contentHeight, 160)) },
+            placeholder = "Notes for the team about this page", accessibilityLabel = "Page notes", commitOn = "end",
+            value = { :notes ?? "" },
+            commit(v: string) { app.apply("Change the page's notes", P.updatePage(app.fp, classroot.pid, ({ notes: v }))) }
+            ],
+        Text [ visible = { !classroot.editable }, width = 100%, fontSize = 13,
+            textColor = { (:notes ?? "") == "" ? provided("theme").textFaint : provided("theme").text },
+            text = { (:notes ?? "") == "" ? "No notes." : :notes ?? "" } ]
+        ],
+    Facet [ caption = "LOCK",
+        Checkbox [ visible = { app.canEdit }, label = "Locked",
+            checked = { classroot.locked },
+            commit(v: boolean) { app.apply(v ? "Lock a page" : "Unlock a page", P.updatePage(app.fp, classroot.pid, ({ locked: v }))) }
+            ],
+        Text [ visible = { !app.canEdit }, fontSize = 13, text = { classroot.locked ? "Locked" : "Not locked" } ],
+        Hint [ text = "Nothing about a locked page changes, and it can't move, until it is unlocked." ]
+        ],
+
+    // ── artwork
+
+    Facet [ caption = "ARTWORK",
+        artBox: View [ visible = { (:art ?? null) != null }, width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 10 ],
+            Control [ width = 96, height = { 96 * app.fp.trimH / Math.max(0.1, app.fp.trimW) }, clip = true, cornerRadius = 3,
+                stroke = { Stroke(1, provided("theme").line) }, accessibilityLabel = "See the artwork close up",
+                press() { app.viewArt(classroot.pid) },
+                Image [ width = 100%, height = 100%, fit = cover, source = { app.artSource(:art, 200, classroot.thumb) } ]
+                ],
+            View [ flexes = true,
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, text = { app.artFrom(:art) } ],
+                Action [ label = "Close up", shape = "zoom-in",
+                    press() { app.viewArt(classroot.pid) }
+                    ],
+                Action [ visible = { app.canEdit }, label = "Detach", shape = "close",
+                    press() { app.apply("Detach artwork", P.detachArt(app.fp, [classroot.pid])) }
+                    ]
+                ]
+            ],
+        Text [ visible = { (:art ?? null) == null }, fontSize = 13, textColor = { provided("theme").textFaint }, text = "No artwork on this page." ],
+        Action [ visible = { app.canEdit && (:art ?? null) == null }, label = "Attach a PDF…", shape = "art",
+            press() { app.attachArt() }
+            ]
+        ],
+    thumb: string = "",
+    thumbKey: string = { app.artKeyFor(:art, 200) },
+    trackChanges = ["thumbKey"],
+    onChange() { app.loadThumb(this) },
+    onInit() { app.loadThumb(this) },
+
+    // ── comments
+
+    Facet [ caption = "COMMENTS",
+        PageComments [ width = 100%, pid = { classroot.pid } ]
+        ]
+    ]
+
+
+// What has been said about a page, oldest first, and a place to say more.
+
+class PageComments [
+    pid: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    talk: View [ width = 100%, datapath = { app.pageTalk.value },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        View [ datapath = :rows[], width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            Text [ fontSize = 12, fontWeight = semibold, text = { (:who ?? "") + " · " + (:when ?? "") } ],
+            Text [ width = 100%, fontSize = 13, text = { :text ?? "" } ]
+            ]
+        ],
+    Text [ visible = { (app.pageTalk.value?.rows ?? []).length == 0 }, fontSize = 13, textColor = { provided("theme").textFaint }, text = "No comments yet." ],
+    say: View [ visible = { app.canComment }, width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = end ],
+        field: TextInput [ flexes = true, multiline = true, enterSubmits = true, height = { Math.max(app.touchFirst ? 44 : 36, Math.min(this.contentHeight, 120)) },
+            placeholder = "Comment on this page", accessibilityLabel = "Comment on this page",
+            onEnter() { classroot.send() }
+            ],
+        Button [ label = "Send", primary = true, disabled = { parent.field.text.trim() == "" },
+            onClick() { classroot.send() }
+            ]
+        ],
+    Hint [ visible = { !app.canComment }, text = { app.visitor ? "Visitors through a view-only link can read comments; sign in to write one." : "Sign in to comment." } ],
+    send() {
+        const f = this.say.field
+        const t = f.text.trim()
+        if (t == "") return
+        S.addComment(classroot.pid, t, app.nameOfPage(classroot.pid)).then(() => { f.value = "" }, (e: Error) => app.alert.error("Comment not sent", S.plainError(e)))
+        }
+    ]
+
+
+// ── Several pages in hand ───────────────────────────────────────────────────────────────────
+
+class SelectionEditor [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 22, fontWeight = bold, accessibilityRole = heading, focusable = quiet,
+            text = { app.sel.length + " pages in hand" } ],
+        IconButton [ shape = "close", accessibilityLabel = "Put the pages down",
+            press() { app.clearSel() }
+            ]
+        ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { app.runText(app.sel) + (app.pageId != "" ? " · on page " + app.folioOf(app.pageId) : "") } ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { app.adCount(app.sel) + " of them carry advertising." } ],
+    acts: View [ visible = { app.canEdit }, width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Action [ label = "Move…", shape = "move", accessibilityLabel = "Move these pages as one run",
+            press() { app.startMove() }
+            ],
+        Action [ label = "Exchange…", shape = "flip", accessibilityLabel = "Exchange these pages with another run",
+            press() { app.startSwap() }
+            ],
+        Action [ label = "Status", accessibilityLabel = "Set the status of every story on them", menu = { app.statusMenu } ],
+        Action [ label = "Section", accessibilityLabel = "Put them all in one section", menu = { app.sectionMenu } ],
+        Action [ label = "Tags", shape = "tag", accessibilityLabel = "Tag or untag them all", menu = { app.tagMenu } ],
+        Action [ label = "Artwork…", shape = "art", accessibilityLabel = "Give them artwork in order, one PDF page each",
+            press() { app.attachArt() }
+            ],
+        Action [ label = "Copy first onto the rest", accessibilityLabel = "Copy the first page's contents onto the rest",
+            press() { app.copyFirstOntoRest() }
+            ],
+        Action [ label = "Detach artwork",
+            press() { app.apply("Detach artwork from " + app.sel.length + " pages", P.detachArt(app.fp, app.sel)) }
+            ],
+        Action [ label = "Set aside",
+            press() { app.setAside(app.sel) }
+            ],
+        Action [ label = "Delete", danger = true, shape = "close",
+            press() { app.deletePages(app.sel) }
+            ]
+        ],
+    Hint [ visible = { !app.canEdit }, text = "This issue is read-only for you." ]
+    ]
+
+
+// ── Where the panel stands ──────────────────────────────────────────────────────────────────
+
+class Inspector [ scrolls = y, padding = [16, 16, 80, 16], fill = { provided("theme").surface },
+    stroke = { [null, null, null, Stroke(1, provided("theme").line)] },
+    accessibilityRole = complementary, accessibilityLabel = "Page panel",
+    one: PageEditor [ exists = { app.currentIndex >= 0 }, visible = { app.sel.length <= 1 }, datapath = { app.plan.value.pages[app.currentIndex] } ],
+    many: SelectionEditor [ visible = { app.sel.length > 1 } ]
+    ]

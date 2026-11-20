@@ -96,7 +96,7 @@ export function parseFilter(css) {
     }
     return out;
 }
-import { FILTER_WASM_B64 } from "./filter-wasm.js";
+import { FILTER_WASM_LATIN1 } from "./filter-wasm.js";
 let fx = null;
 let fxStarted = false;
 function filterWasm() {
@@ -105,12 +105,13 @@ function filterWasm() {
     if (fx !== null || fxStarted)
         return fx;
     fxStarted = true;
-    if (typeof WebAssembly === "undefined" || typeof atob !== "function")
+    if (typeof WebAssembly === "undefined")
         return null;
     try {
-        const bin = atob(FILTER_WASM_B64), bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++)
-            bytes[i] = bin.charCodeAt(i);
+        // one character per byte (filter-wasm.ts)
+        const bytes = new Uint8Array(FILTER_WASM_LATIN1.length);
+        for (let i = 0; i < bytes.length; i++)
+            bytes[i] = FILTER_WASM_LATIN1.charCodeAt(i);
         const x = new WebAssembly.Instance(new WebAssembly.Module(bytes), {}).exports;
         fx = { blur: x.filter_blur, matrix: x.filter_matrix, mem: x.memory, heap: (x.__heap_base.value + 15) & ~15 };
     }

@@ -1,0 +1,1304 @@
+/*
+# Pagemap
+
+A flatplan for magazines: every page of one printed issue in order, in its spreads, with its
+section and what goes on it — one plan a whole team works on at once, always current.
+
+How to read it:
+
+- **The flatplan is one dataset**, `app.plan`, kept current by the service (`service.ts`):
+  whoever changes the issue, the new flatplan lands there and everything on screen follows.
+- **A change is a function from one flatplan to the next.** The rules of a flatplan — folios,
+  spreads, what may move where — are plain TypeScript in `plan.ts`, testable on their own
+  (`tests/plan.test.ts`). A handler names the change (`movePages(app.fp, …)`) and hands the
+  result to `app.apply(label, …)`, which holds it to the rules every change keeps, tells the
+  person when it is refused and why, and otherwise stores it. Nothing else writes.
+- **Where the person is** lives on the App: the issue and page in the URL (`location`), what
+  they have opened along the way (`waypoint`, so Back retraces it), and the working state —
+  the pages in hand, the search, the zoom, a move in progress.
+- **The screen derives from those.** `cells` is the plan as pages to draw; the side panels'
+  rows are derived datasets too. The parts are in `parts/`: the look (`look.declare`), the
+  page grid (`grid.declare`), the page panel (`inspector.declare`), the side panels
+  (`panels.declare`), and what opens over the plan (`overlays.declare`).
+*/
+
+include [ "parts/schemas.declare" ]
+
+include [ "parts/look.declare" ]
+
+include [ "parts/grid.declare" ]
+
+include [ "parts/inspector.declare" ]
+
+include [ "parts/panels.declare" ]
+
+include [ "parts/overlays.declare" ]
+
+script [ host = browser ] {
+    import * as S from "./service.ts"
+    import * as P from "./plan.ts"
+    import { planHtml } from "./print.ts"
+    }
+
+// The pieces of the service and the rules the program names, by name.
+
+script {
+    import { regionRects, folios, slots, shares, isRefusal, checkRules, emptyFlatplan, pageIndex, unitPages, inBookOrder,
+        folioRuns, matches, coversOn, storyById, storiesOn, pagesOfStory, unplacedStories, unplacedBookings, pageName,
+        sectionRanges, coverSections, movedPages, fitsFor, isPlaced, statusPages, tagCounts, assetUse, parseSize, printCheck,
+        bookingFit, regionShape, newIssueFrom, isBlank, readBackup, restoreFrom, backupName, parseBookingList, followingPages,
+        firstInteriorSection as firstInteriorSectionOf, regionEmpty, storyPagesText as storyPagesTextOf, BOOKING_TEMPLATE, LAYOUTS, PALETTE,
+        PALETTE_NAMES, interior, type Flatplan as Flatplan0 } from "./plan.ts"
+
+    function interiorStart(fp: Flatplan0): number { return interior(fp)[0] }
+    function validEmail(v: string): boolean { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) }
+
+    function when(at: number, now: number): string {
+        const d = new Date(at)
+        const mins = Math.round((now - at) / 60000)
+        if (mins < 1) return "just now"
+        if (mins < 60) return mins + " min ago"
+        const sameDay = new Date(now).toDateString() == d.toDateString()
+        const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+        if (sameDay) return "today " + time
+        return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: d.getFullYear() == new Date(now).getFullYear() ? undefined : "numeric" }) + ", " + time
+    }
+    function pct(n: number, of: number): string { return of > 0 ? Math.round((n / of) * 100) + "%" : "0%" }
+    function pagesText(n: number): string {
+        const r = Math.round(n * 100) / 100
+        return (Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/0$/, "")) + (r == 1 ? " page" : " pages")
+    }
+    function bytesText(n: number): string {
+        if (n < 1024) return n + " B"
+        if (n < 1048576) return (n / 1024).toFixed(0) + " KB"
+        return (n / 1048576).toFixed(1) + " MB"
+    }
+    }
+
+
+App [ appName = "Pagemap", minWidth = 320,
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    fontFamily = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+
+    // ── appearance: follow the device until the person picks; remembered on this device
+
+    themeMode: string = "auto",
+    isDark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
+    theme = { ({ ...(app.isDark ? ({ ...SanFranciscoDark, ...PagemapDark }) : ({ ...SanFrancisco, ...PagemapLight })),
+        ...(app.touchFirst ? TouchSizes : ({})) }) },
+    setTheme(m: string) { app.themeMode = m; S.remember("appearance", m) },
+
+    // ── sizes. A desk shows the side panel and the page panel beside the plan; a phone
+    //    opens them as sheets.
+
+    wide: boolean = { app.width >= 1100 },
+    desk: boolean = { app.width >= 760 },
+    tap: number = { app.touchFirst ? 44 : 32 },
+
+    // ── who is here
+
+    person: Person? = null,
+    authKnown: boolean = false,
+    account: Resolved? = null,
+    resolving: boolean = false,
+    turnedOff: boolean = false,
+    signInProblem: string = "",
+    signUpMagazine: string = "",
+    siteAdmin: boolean = false,
+    signedIn: boolean = { app.person != null && app.account != null },
+    uid: string = { app.person?.uid ?? "" },
+    role: string = { app.visitor || app.account?.ws != app.openWs ? "visitor" : app.account?.role ?? "visitor" },
+    canEdit: boolean = { app.role == "admin" || app.role == "editor" },
+    canComment: boolean = { app.canEdit || app.role == "viewer" },
+    isAdmin: boolean = { app.role == "admin" },
+    wsName: string = "",
+    wsHome: string = "",
+    members: Dataset [ schema = [ rows[]: Member ] ] { { "rows": [] } },
+    issues: Dataset [ schema = [ rows[]: IssueEntry ] ] { { "rows": [] } },
+    memberOf(uid: string) -> Member? { return (app.members.value?.rows ?? []).find((m) => m.uid == uid) ?? null },
+    nameOf(uid: string) -> string { return uid == "" ? "No one" : app.memberOf(uid)?.name ?? "A team member" },
+    editors: Member[] = { (app.members.value?.rows ?? []).filter((m) => m.role != "viewer") },
+
+    // ── where the person is: the issue and page in the URL; Back and Forward retrace it
+
+    location = "",
+    waypoint = "",
+    parts: string[] = { app.location.split("/") },
+    fpId: string = { app.parts[0] ?? "" },
+    reading: boolean = { app.parts[1] == "read" },
+    pageId: string = { app.reading ? app.parts[2] ?? "" : app.parts[1] ?? "" },
+    opened: string = { app.waypoint },
+    go(pageId: string) { app.location = pageId == "" ? app.fpId : app.fpId + "/" + pageId },
+    openIssue(id: string) { app.location = id; app.waypoint = "" },
+    read(pageId: string) { app.location = app.fpId + "/read/" + pageId },
+    show(what: string) { app.waypoint = what },
+    dismiss(what: string) { if (app.waypoint == what) app.waypoint = "" },
+
+    // ── the open flatplan
+
+    plan: Dataset [ schema = Flatplan ] { { "id": "", "name": "", "edition": "", "publication": "", "trimW": 9, "trimH": 12, "facing": true,
+        "numbering": "plain", "firstFolio": 1, "notes": "", "archived": false, "sections": [], "statuses": [], "tags": [], "stories": [],
+        "pages": [], "holding": [], "assets": [], "bookings": [], "stitchIns": [], "signatures": { "cover": [], "body": [] } } },
+    fp: Flatplan = { app.plan.value ?? emptyFlatplan("") },
+    openWs: string = "",
+    linkWs: string = "",
+    visitor: boolean = false,
+    openState: string = "none",
+    viewable: boolean = false,
+    comments: Dataset [ schema = [ rows[]: Comment ] ] { { "rows": [] } },
+    activity: Dataset [ schema = [ rows[]: Activity ] ] { { "rows": [] } },
+    here: Dataset [ schema = [ rows[]: Here ] ] { { "rows": [] } },
+    undoLabel: string = "",
+    redoLabel: string = "",
+    pending: number = 0,
+    online: boolean = true,
+    problem: string = "",
+    freshIds: string[] = [],
+
+    // ── what follows from the flatplan
+
+    fol: string[] = { folios(app.fp) },
+    sl: Slot[] = { slots(app.fp) },
+    split: Shares = { shares(app.fp) },
+    unplaced: number = { unplacedStories(app.fp).length },
+    waiting: number = { app.unplaced + app.fp.holding.length },
+    openBookings: number = { unplacedBookings(app.fp).length },
+    currentPage: Page? = { app.fp.pages.find((p) => p.id == app.pageId) ?? null },
+    currentIndex: number = { pageIndex(app.fp, app.pageId) },
+
+    // ── the working state: none of it is shared, none of it is in the URL
+
+    sel: string[] = [],
+    selAnchor: string = "",
+    selecting: boolean = false,
+    query: string = "",
+    filter: string = "all",
+    artMode: boolean = false,
+    zoom: number = 1,
+    hiddenSections: string[] = [],
+    panel: string = "sections",
+    unit: string = "story",
+    movingIds: string[] = [],
+    moveUnit: string = "story",
+    moveTarget: string = "",
+    moveWhere: string = "after",
+    swapIds: string[] = [],
+    pageW: number = { Math.round((app.desk ? 74 : Math.max(52, (app.width - 48) / 4.6)) * app.zoom) },
+    pageH: number = { Math.round(app.pageW * (app.fp.trimH > 0 && app.fp.trimW > 0 ? app.fp.trimH / app.fp.trimW : 4 / 3)) },
+    cellH: number = { 14 + app.pageH + 20 },
+    matched: boolean[] = { matches(app.fp, app.query, app.filter as "all" | "editorial" | "advertising" | "open", app.fol) },
+    found: string[] = { app.fp.pages.filter((p, i) => app.matched[i]).map((p) => p.id) },
+    searching: boolean = { app.query.trim() != "" || app.filter != "all" },
+    inHand: string[] = { app.sel.length > 0 ? inBookOrder(app.fp, app.sel) : app.pageId != "" ? [app.pageId] : [] },
+
+    // ── a phone's page sheet: open while a page (or several) is in hand and nothing else is going on
+
+    busy: boolean = { app.movingIds.length > 0 || app.copyFrom != "" || app.swapIds.length > 0 || app.reading },
+    pageChosen: boolean = { app.pageId != "" || app.sel.length > 1 },
+    sheetTurn: boolean = { app.selecting ? app.opened == "selection" : app.opened == "" },
+    pageSheetOpen: boolean = { !app.desk && app.openState == "open" && !app.busy && app.pageChosen && app.sheetTurn },
+
+    // ── the pages to draw
+
+    cells: Dataset [ schema = Cells, contents = { app.arrange() } ],
+    arrange() -> Cells {
+        const fp = app.fp
+        const secs = new Map(fp.sections.map((s) => [s.id, s]))
+        const stitched = new Set(fp.stitchIns.map((x) => x.after))
+        const talk = new Map<string, number>()
+        ;(app.comments.value?.rows ?? []).forEach((c) => talk.set(c.pageId, (talk.get(c.pageId) ?? 0) + 1))
+        const peers = new Map<string, Member[]>()
+        ;(app.here.value?.rows ?? []).forEach((h) => {
+            if (h.mine) return
+            const m = app.memberOf(h.by)
+            h.pages.forEach((p) => peers.set(p, [...(peers.get(p) ?? []), m ?? ({ uid: h.by, name: "", email: "", initials: "··", color: "#80a7ff", role: "" })]))
+            })
+        const sl = app.sl
+        return ({ cells: fp.pages.map((p, i) => {
+            const s = secs.get(p.sectionId)
+            const who = peers.get(p.id) ?? []
+            return ({ id: p.id, page: p, index: i, folio: app.fol[i], side: sl[i]?.side ?? "single", spread: sl[i]?.spread ?? i,
+                alone: sl[i]?.alone ?? true, sectionName: s?.name ?? "", sectionColor: s?.color ?? "#999999",
+                starts: i == 0 || fp.pages[i - 1].sectionId != p.sectionId,
+                ends: i == fp.pages.length - 1 || fp.pages[i + 1].sectionId != p.sectionId,
+                hidden: app.hiddenSections.includes(p.sectionId) && !app.movingIds.includes(p.id),
+                match: app.matched[i] ?? true, stitch: stitched.has(p.id), comments: talk.get(p.id) ?? 0,
+                story: storiesOn(p)[0] ?? "",
+                peer: who.map((m) => m.initials).join(" "), peerColor: who[0]?.color ?? "",
+                fresh: app.freshIds.includes(p.id) })
+            }) })
+        },
+
+    // ── how things are said
+
+    regionWords(r: Region) -> string {
+        if (r.storyId) {
+            const s = storyById(app.fp, r.storyId)
+            if (!s) return "Missing story"
+            if (app.pageW < 150) return s.title
+            const st = app.fp.statuses.find((x) => x.id == s.status)?.name ?? ""
+            return s.title + (s.kind == "editorial" ? "\n" + app.nameOf(s.editor) + " · " + st : "\nAd · " + st)
+            }
+        if (r.bookingId) return app.fp.bookings.find((b) => b.id == r.bookingId)?.text ?? "Booking"
+        if (r.label != "") return r.label
+        return r.kind == "unassigned" ? (app.pageW >= 70 ? "Open" : "") : r.kind == "advertising" ? "Ad" : "Editorial"
+        },
+    hasAd(p: Page?) -> boolean { return (p?.regions ?? []).some((r) => r.kind == "advertising") },
+    tagHex(id: string) -> string { return app.fp.tags.find((t) => t.id == id)?.color ?? "#999999" },
+    sectionName(id: string) -> string { return app.fp.sections.find((s) => s.id == id)?.name ?? "No section" },
+    folioOf(id: string) -> string { const i = pageIndex(app.fp, id); return i >= 0 ? app.fol[i] : "" },
+    nameOfPage(id: string) -> string { const i = pageIndex(app.fp, id); return i >= 0 ? pageName(app.fp, i, app.fol) : "a page" },
+    runText(ids: string[]) -> string {
+        const idx = ids.map((id) => pageIndex(app.fp, id)).filter((i) => i >= 0).sort((a, b) => a - b)
+        if (idx.length == 0) return "no pages"
+        return (idx.length == 1 ? "page " : "pages ") + folioRuns(app.fol, idx)
+        },
+    describePage(c: Cell) -> string {
+        const p = c.page
+        const words = p.regions.map((r) => (r.kind == "unassigned" ? "open" : r.kind) + (app.regionWords(r) != "" ? ": " + app.regionWords(r) : "")).join("; ")
+        const name = app.nameOfPage(p.id)
+        return (coversOn(app.fp) && p.cover ? name.charAt(0).toUpperCase() + name.slice(1) + " (" + c.folio + ")" : "Page " + c.folio) + ", " + c.sectionName +
+            (c.side == "single" ? "" : ", " + c.side + "-hand") + " — " + words +
+            (p.locked ? ", locked" : "") + (p.tags.length > 0 ? ", tagged " + p.tags.map((t) => app.fp.tags.find((x) => x.id == t)?.name ?? "").join(", ") : "") +
+            (p.notes != "" ? ", has notes" : "") + (c.comments > 0 ? ", " + c.comments + " comments" : "") + (p.art ? ", has artwork" : "") +
+            (c.stitch ? ", a stitch-in follows" : "")
+        },
+
+    // Whether the person's work is saved, and if not, why: one state, said short in the bar and in full.
+
+    saveState: string = { app.saveStateOf(app.online, app.pending, app.problem) },
+    saveStateOf(online: boolean, pending: number, problem: string) -> string {
+        if (!online) return "offline"
+        if (pending > 0) return "saving"
+        return problem != "" ? "refused" : "saved"
+        },
+    waitingChanges: string = { app.pending == 0 ? "" : app.pending + (app.pending == 1 ? " change" : " changes") },
+    savedShort: string = { ({ offline: "Offline" + (app.pending > 0 ? " · " + app.pending + " waiting" : ""), saving: "Saving…", refused: "Not saved", saved: "Saved" })[app.saveState] ?? "" },
+    savedText: string = { ({ offline: app.pending > 0 ? "Offline — " + app.waitingChanges + " not saved yet" : "Offline", saving: "Saving…",
+        refused: "Not saved — your last change was refused", saved: "All changes saved" })[app.saveState] ?? "" },
+
+    // ── making a change: the one path every write takes
+
+    apply(label: string, o: object) -> boolean {
+        if (!app.canEdit) return false
+        if (isRefusal(o)) { app.refused(o as Refusal); return false }
+        const next = o as Flatplan
+        const bad = checkRules(app.fp, next, label)
+        if (bad != null) { app.refused(bad); return false }
+        S.commit(label, next).then((r: string) => app.committed(label, r))
+        return true
+        },
+    refused(r: Refusal) {
+        app.alert.error(r.what, r.why + (r.instead != "" ? "\n\n" + r.instead : ""))
+        Accessibility.announce(r.what + ". " + r.why)
+        },
+    committed(label: string, r: string) {
+        if (r == "saved") { app.problem = ""; return }
+        if (r == "unchanged") return
+        app.problem = r
+        if (r == "conflict") app.alert.notice("“" + label + "” wasn't saved",
+            "Someone else changed the same part of the issue at the same moment, and their change was saved first. You're now seeing the issue as it stands; make your change again if it's still needed.")
+        else app.alert.error("“" + label + "” wasn't saved", "The service refused it. Check that you can still edit this issue, then try again.")
+        },
+    undo() { if (app.undoLabel != "") S.undoRedo("undo").then((x: { result: string, label: string }) => app.undone("Undo", x.result, x.label)) },
+    redo() { if (app.redoLabel != "") S.undoRedo("redo").then((x: { result: string, label: string }) => app.undone("Redo", x.result, x.label)) },
+    undone(verb: string, result: string, label: string) {
+        if (result == "saved") { app.toast.say(verb == "Undo" ? "Undid “" + label + "”" : "Redid “" + label + "”"); return }
+        if (result == "dropped") app.alert.notice("Can't " + verb.toLowerCase() + " “" + label + "”",
+            "Someone else has changed what it changed since, so it can't be put back without undoing their work. That step has been dropped.")
+        else app.committed(verb + " " + label, result)
+        },
+
+    // ── the pages in hand
+
+    pressPage(pid: string) {
+        if (app.movingIds.length > 0) {
+            if (app.movingSection != "" && app.fp.pages.find((p) => p.id == pid)?.sectionId == app.movingSection) return
+            if (!app.movingIds.includes(pid)) app.moveTarget = pid
+            return
+            }
+        if (app.swapIds.length > 0) { app.swapWith(pid); return }
+        if (app.copyFrom != "") { if (pid != app.copyFrom) app.copyTargets = app.copyTargets.includes(pid) ? app.copyTargets.filter((x) => x != pid) : [...app.copyTargets, pid]; return }
+        const shift = Keyboard.isDown("ShiftLeft") || Keyboard.isDown("ShiftRight")
+        const add = Keyboard.isDown("MetaLeft") || Keyboard.isDown("MetaRight") || Keyboard.isDown("ControlLeft") || Keyboard.isDown("ControlRight")
+        if (shift && app.selAnchor != "") { app.selectRun(app.selAnchor, pid); app.go(pid); return }
+        if (app.selecting) { app.sel = app.sel.includes(pid) ? app.sel.filter((x) => x != pid) : [...app.sel, pid]; app.selAnchor = pid; return }
+        if (add) { app.toggleSel(pid); return }
+        app.selectOnly(pid)
+        },
+    selectOnly(pid: string) { app.sel = [pid]; app.selAnchor = pid; app.go(pid) },
+    toggleSel(pid: string) {
+        app.sel = app.sel.includes(pid) ? app.sel.filter((x) => x != pid) : [...app.sel, pid]
+        app.selAnchor = pid
+        if (app.sel.includes(pid)) app.go(pid)
+        },
+    selectRun(a: string, b: string) {
+        const i = pageIndex(app.fp, a), j = pageIndex(app.fp, b)
+        if (i < 0 || j < 0) return
+        app.sel = app.fp.pages.slice(Math.min(i, j), Math.max(i, j) + 1).map((p) => p.id)
+        },
+    selectFound() { app.sel = app.found; if (app.found.length > 0) app.go(app.found[0]) },
+    clearSel() { app.sel = []; app.selAnchor = ""; app.dismiss("selection") },
+    stepFocus(pid: string, d: number, extend: boolean) {
+        const i = pageIndex(app.fp, pid) + d
+        if (i < 0 || i >= app.fp.pages.length) return
+        const next = app.fp.pages[i].id
+        if (extend) { if (app.selAnchor == "") app.selAnchor = pid; app.selectRun(app.selAnchor, next) } else { app.sel = [next]; app.selAnchor = next }
+        app.go(next)
+        afterSettle(() => app.focusCell(next))
+        },
+    focusCell(pid: string) {
+        const c = (app.grid.childViews as View[]).find((v) => (v as PageCell).pid == pid)
+        if (c != null) { Focus.focus(c); c.scrollIntoView() }
+        },
+    trackChanges = ["inHand", "fpId", "openKey", "adminOpen", "opened"],
+    onChange(e: ChangeEvent) {
+        e.changed.forEach((c) => {
+            if (c.name == "openKey") app.openTarget()
+            if (c.name == "adminOpen" && app.adminOpen && !app.watchingAccounts) { app.watchingAccounts = true; S.watchAccounts((a: Account[]) => app.accounts.set(["rows"], a)) }
+            if (c.name == "opened" && app.opened == "help" && !app.helpDoc.loaded) app.helpDoc.fetch()
+            if (c.name == "fpId") { app.sel = []; app.cancelMove(); app.hiddenSections = []; if (app.authKnown && app.person == null) app.lookUpLink() }
+            })
+        S.setWorkingOn(app.inHand)
+        },
+
+    // ── moving pages: choose what moves (the unit), then where; see it before it happens
+
+    unitLabel(u: string) -> string { return u == "page" ? "Page" : u == "spread" ? "Spread" : u == "story" ? "Story" : "Section" },
+    pagesFor(u: string) -> string[] {
+        if (app.sel.length > 1) return inBookOrder(app.fp, app.sel)
+        if (app.pageId == "") return []
+        return unitPages(app.fp, app.pageId, u as "page" | "spread" | "story" | "section")
+        },
+    startMove() {
+        const ids = app.pagesFor(app.unit)
+        if (ids.length == 0) return
+        app.movingIds = ids
+        app.moveUnit = app.sel.length > 1 ? "page" : app.unit
+        app.moveTarget = ""
+        app.moveWhere = "after"
+        app.toast.say("Now choose where " + (ids.length == 1 ? "it goes" : "they go") + ": press a page.")
+        },
+    retargetUnit(u: string) {
+        app.unit = u
+        if (app.movingIds.length > 0 && app.sel.length <= 1) { app.movingIds = app.pagesFor(u); app.moveUnit = u; if (app.movingIds.includes(app.moveTarget)) app.moveTarget = "" }
+        },
+    cancelMove() { app.movingIds = []; app.moveTarget = ""; app.swapIds = []; app.copyFrom = ""; app.copyTargets = [] },
+    movePreview: string = { app.previewMove() },
+    movingSection: string = { app.moveUnit == "section" && app.movingIds.length > 0 ? app.fp.pages.find((p) => p.id == app.movingIds[0])?.sectionId ?? "" : "" },
+    targetSection: string = { app.fp.pages.find((p) => p.id == app.moveTarget)?.sectionId ?? "" },
+    previewMove() -> string {
+        if (app.movingIds.length == 0) return ""
+        if (app.movingSection != "") {
+            if (app.moveTarget == "") return "Moving the section " + app.sectionName(app.movingSection) + ", with its pages. Press a page of the section it should go before or after."
+            const r = P.moveSection(app.fp, app.movingSection, app.targetSection, app.moveWhere as "before" | "after")
+            if (isRefusal(r)) return (r as Refusal).why + " " + (r as Refusal).instead
+            return app.sectionName(app.movingSection) + " will go " + app.moveWhere + " " + app.sectionName(app.targetSection) + ", with its " + app.movingIds.length + " pages."
+            }
+        const what = app.runText(app.movingIds)
+        if (app.moveTarget == "") return "Moving " + what + ". Press the page they should go before or after."
+        const plan = P.planMove(app.fp, app.movingIds, app.moveTarget, app.moveWhere as "before" | "after")
+        if (isRefusal(plan)) return (plan as Refusal).why + " " + (plan as Refusal).instead
+        const mp = plan as { landing: number[], joins: string }
+        const n = app.movingIds.length
+        return (n == 1 ? "Page " + app.folioOf(app.movingIds[0]) : "These " + n + " pages") + " will go " + app.moveWhere + " " +
+            app.nameOfPage(app.moveTarget) + ", as " + (n == 1 ? "page " : "pages ") + app.landingText(mp.landing) +
+            (mp.joins != "" ? ", joining " + mp.joins : "") + "."
+        },
+    landingText(idx: number[]) -> string {
+        const start = idx[0]
+        const before = app.fp.pages.filter((p) => !app.movingIds.includes(p.id))
+        const fp2 = ({ ...app.fp, pages: [...before.slice(0, start), ...app.movingIds.map((id) => app.fp.pages[pageIndex(app.fp, id)]), ...before.slice(start)] })
+        return folioRuns(folios(fp2), idx)
+        },
+    doMove() {
+        if (app.moveTarget == "") return
+        if (app.movingSection != "") {
+            if (app.apply("Move " + app.sectionName(app.movingSection), P.moveSection(app.fp, app.movingSection, app.targetSection, app.moveWhere as "before" | "after"))) app.cancelMove()
+            return
+            }
+        const n = app.movingIds.length
+        if (app.apply("Move " + (n == 1 ? "1 page" : n + " pages"),
+            P.movePages(app.fp, app.movingIds, app.moveTarget, app.moveWhere as "before" | "after", app.moveUnit as "page" | "spread" | "story" | "section"))) {
+            const ids = app.movingIds
+            app.cancelMove()
+            app.sel = ids
+            }
+        },
+    nudge(d: number) {
+        if (app.pageId == "") return
+        app.apply(d < 0 ? "Move earlier" : "Move later", P.nudge(app.fp, app.pageId, app.unit as "page" | "spread" | "story" | "section", d < 0 ? -1 : 1))
+        },
+    startSwap() { app.swapIds = app.inHand; app.toast.say("Now press the first page of the run to exchange with.") },
+    swapWith(pid: string) {
+        const n = app.swapIds.length
+        const i = pageIndex(app.fp, pid)
+        const b = app.fp.pages.slice(i, i + n).map((p) => p.id)
+        const a = app.swapIds
+        app.swapIds = []
+        if (b.length < n) { app.refused(({ refused: true, what: "Can't exchange these pages", why: "There aren't " + n + " pages from there.", instead: "Choose an earlier page." })); return }
+        if (app.apply("Exchange " + (n == 1 ? "2 pages" : "2 runs of " + n + " pages"), P.exchange(app.fp, a, b))) app.sel = a
+        },
+
+    // ── opening an issue
+
+    openKey: string = { (app.signedIn ? app.account?.ws ?? "" : app.linkWs) + "|" + app.fpId },
+    openTarget() {
+        const ws = app.signedIn ? app.account?.ws ?? "" : app.linkWs
+        if (ws == "" || app.fpId == "") return
+        app.openIn(ws, app.fpId, !app.signedIn)
+        },
+    openIn(ws: string, id: string, asVisitor: boolean) {
+        app.openState = "opening"
+        app.openWs = ws
+        app.visitor = asVisitor
+        app.plan.set([], emptyFlatplan(id))
+        app.comments.set(["rows"], [])
+        app.activity.set(["rows"], [])
+        app.here.set(["rows"], [])
+        S.openFlatplan(ws, id, asVisitor ? "" : app.uid, ({
+            doc: (fp: Flatplan, others: string[]) => app.arrived(fp, others),
+            missing: (why: string) => app.missing(id, why),
+            comments: (c: Comment[]) => app.comments.set(["rows"], c),
+            activity: (a: Activity[]) => app.activity.set(["rows"], a),
+            here: (h: Here[]) => app.here.set(["rows"], h),
+            theirs: (by: string, label: string) => app.theirs(by, label),
+            viewable: (on: boolean) => { app.viewable = on },
+            history: (u: string, r: string) => { app.undoLabel = u; app.redoLabel = r },
+            status: (n: number, on: boolean) => { app.pending = n; app.online = on }
+            }))
+        },
+    arrived(next: Flatplan, others: string[]) {
+        const before = app.plan.value?.pages.map((p) => p.id) ?? []
+        const was = app.openState
+        app.plan.set([], next)
+        app.openState = "open"
+        if (was != "open") return
+        const moved = movedPages(before, next.pages.map((p) => p.id))
+        const touched = others.filter((k) => k.startsWith("lists/pages/items/")).map((k) => decodeURIComponent(k.slice(18)))
+        const fresh = [...moved, ...touched.filter((id) => !moved.includes(id))]
+        if (fresh.length == 0) return
+        app.freshIds = fresh
+        afterDelay(5000, () => { app.freshIds = [] })
+        if (moved.length > 0) app.toast.say("Moved: " + app.runTextIn(next, moved) + " (outlined)")
+        },
+    runTextIn(fp: Flatplan, ids: string[]) -> string {
+        const idx = ids.map((id) => pageIndex(fp, id)).filter((i) => i >= 0).sort((a, b) => a - b)
+        return (idx.length == 1 ? "page " : "pages ") + folioRuns(folios(fp), idx)
+        },
+    theirs(by: string, label: string) {
+        app.toast.say(app.nameOf(by) + (by == app.uid ? " (another window)" : "") + ": " + label)
+        },
+    missing(id: string, why: string) {
+        if (app.signedIn && !app.visitor) {
+            // Not in this workspace: a view-only link may still open it.
+            S.findLink(id).then((ws: string) => {
+                if (ws != "" && ws != app.account?.ws) app.openIn(ws, id, true)
+                else app.openState = "gone"
+                })
+            return
+            }
+        app.openState = why == "denied" ? "denied" : "gone"
+        },
+
+    // ── signing in and out
+
+    build: string = "dev",
+    published: string = "",
+    newBuild: boolean = { app.build != "dev" && app.published != "" && app.published != app.build },
+    onInit() {
+        S.watchRelease((b: string) => { app.published = b })
+        app.themeMode = S.remembered("appearance", "auto")
+        app.zoom = Number(S.remembered("zoom", "1")) || 1
+        S.watchAuth((p: Person?) => app.authed(p))
+        },
+    authed(p: Person?) {
+        app.person = p
+        app.authKnown = true
+        if (p == null) {
+            app.account = null
+            app.siteAdmin = false
+            app.lookUpLink()
+            return
+            }
+        app.resolving = true
+        S.resolveAccount(p, app.signUpMagazine).then((r: Resolved) => app.resolved(r), (e: Error) => app.notResolved(e.message))
+        },
+    lookUpLink() {
+        app.linkWs = ""
+        app.linkGone = false
+        const id = app.fpId
+        if (id == "") return
+        S.findLink(id).then((ws: string) => {
+            if (app.fpId != id || app.person != null) return
+            app.linkWs = ws
+            app.linkGone = ws == ""
+            if (ws == "") app.openState = "none"
+            })
+        },
+    resolved(r: Resolved) {
+        app.resolving = false
+        app.account = r
+        app.linkWs = ""
+        app.turnedOff = false
+        app.wsName = r.wsName
+        app.wsHome = r.home
+        S.isSiteAdmin(app.uid).then((yes: boolean) => { app.siteAdmin = yes })
+        S.watchWorkspace(r.ws, ({
+            info: (i: { name: string, home: string, owner: string }) => { app.wsName = i.name; app.wsHome = i.home },
+            members: (m: Member[]) => app.members.set(["rows"], m),
+            index: (x: IssueEntry[]) => app.issues.set(["rows"], x),
+            denied: () => undefined
+            }))
+        S.watchBlocked(app.uid, (b: boolean) => { if (b) app.putOut() })
+        if (app.fpId == "") app.location = r.home
+        else app.openTarget()
+        if (r.founded) app.toast.say("Your workspace, " + r.wsName + ", is ready, with its first issue.")
+        if (r.joined) app.toast.say("You've joined " + r.wsName + ".")
+        },
+    notResolved(why: string) {
+        app.resolving = false
+        if (why == "turned-off") { app.turnedOff = true; S.signOut(); return }
+        app.signInProblem = why == "not-a-member" ? "You're no longer a member of your workspace. Ask its admin to invite you again."
+            : "Pagemap couldn't open your workspace: " + S.plainError(why) + " Try signing in again."
+        S.signOut()
+        },
+    putOut() { app.turnedOff = true; app.signOut() },
+    signOut() {
+        app.plan.set([], emptyFlatplan(""))
+        app.openState = "none"
+        app.openWs = ""
+        app.clearSel()
+        app.cancelMove()
+        app.members.set(["rows"], [])
+        app.issues.set(["rows"], [])
+        app.comments.set(["rows"], [])
+        app.activity.set(["rows"], [])
+        app.here.set(["rows"], [])
+        app.waypoint = ""
+        app.location = ""
+        app.linkWs = ""
+        app.visitor = false
+        app.watchingAccounts = false
+        app.accounts.set(["rows"], [])
+        app.toast.close()
+        S.signOut()
+        },
+
+    // ── artwork pictures
+
+    artKey(art: Art?, w: number) -> string {
+        if (art == null || !app.artMode) return ""
+        const a = app.fp.assets.find((x) => x.id == art.assetId)
+        if (a == null || (a.images ?? "") != "" || a.url == "") return ""
+        return a.url + "#" + art.page + "@" + (w * 2 >= 400 ? 800 : 360)
+        },
+    artSource(art: Art?, w: number, drawn: string) -> string {
+        if (art == null) return ""
+        const a = app.fp.assets.find((x) => x.id == art.assetId)
+        if (a == null) return ""
+        if ((a.images ?? "") != "") return S.artImage(a.images ?? "", art.page, w * 2)
+        return drawn
+        },
+    loadArt(c: PageCell) {
+        const key = c.artKey
+        if (key == "") return
+        const at = key.lastIndexOf("#")
+        const url = key.slice(0, at)
+        const rest = key.slice(at + 1).split("@")
+        S.pdfPicture(url, Number(rest[0]), Number(rest[1])).then((u: string) => { if (c.artKey == key) c.artUrl = u }, () => undefined)
+        },
+
+    // ── the keyboard
+
+    keyBindings = { [
+        ({ key: "Ctrl+Z", command: "undo", label: "Undo", when: "canUndo" }),
+        ({ key: "Ctrl+Shift+Z", command: "redo", label: "Redo", when: "canRedo" }),
+        ({ key: "Ctrl+F", command: "find", label: "Find a page or story" }),
+        ({ key: "Escape", command: "escape" })
+        ] },
+    canUndo() -> boolean { return app.canEdit && app.undoLabel != "" },
+    canRedo() -> boolean { return app.canEdit && app.redoLabel != "" },
+    find() { afterSettle(() => Focus.focus(app.searchField)) },
+    escape() -> boolean {
+        if (app.movingIds.length > 0 || app.swapIds.length > 0 || app.copyFrom != "") { app.cancelMove(); return true }
+        if (app.sel.length > 1) { app.sel = [app.pageId]; return true }
+        return false
+        },
+
+    // ── the clock, for "5 min ago"
+
+    clock: Time [ tick = minute ],
+
+    // ── the issue and who has it open
+
+    issueTitle: string = { app.openState == "open" ? app.fp.name : app.openState == "opening" ? "Opening…" : "Pagemap" },
+    openTitle: string = { ({ opening: "Opening the issue…", gone: "This issue can't be opened", denied: "This issue isn't yours to open" })[app.openState] ?? "No issue is open" },
+    goneLine: string = { app.signedIn ? "It isn't in your workspace, and no view-only link opens it — it may have been deleted, or the link may be wrong."
+        : "Its view-only link no longer opens it." },
+    openLine: string = { ({ opening: "Fetching every page of it.", gone: app.goneLine,
+        denied: "It isn't in your workspace. Ask someone on its team for a view-only link." })[app.openState] ?? "Choose one of your team's issues." },
+    linkGone: boolean = false,
+    issueRows: Dataset [ schema = [ current[]: IssueEntry, archived[]: IssueEntry ],
+        contents = { ({ current: (app.issues.value?.rows ?? []).filter((x) => !x.archived), archived: (app.issues.value?.rows ?? []).filter((x) => x.archived) }) } ],
+    herePeople: Dataset [ schema = [ rows[]: Member ], contents = { ({ rows: app.peopleHere() }) } ],
+    peopleHere() -> Member[] {
+        const out: Member[] = []
+        ;(app.here.value?.rows ?? []).forEach((h) => {
+            const m = app.memberOf(h.by) ?? ({ uid: h.by, name: "Someone", email: "", initials: "··", color: "#80a7ff", role: "" })
+            out.push(({ ...m, uid: h.tab, name: m.name + (h.mine ? " (this window)" : h.by == app.uid ? " (your other window)" : "") +
+                (h.pages.length > 0 ? " — on " + app.runText(h.pages) : "") }))
+            })
+        return out
+        },
+    filterName: string = { ({ editorial: "Editorial", advertising: "Ads", open: "Open" })[app.filter] ?? "All pages" },
+    filterMenu: Menu [ items = { [ ({ id: "all", label: "All pages", group: "f", checked: app.filter == "all" }), ({ id: "editorial", label: "Editorial", group: "f", checked: app.filter == "editorial" }),
+        ({ id: "advertising", label: "Ads", group: "f", checked: app.filter == "advertising" }), ({ id: "open", label: "Open", group: "f", checked: app.filter == "open" }) ] },
+        picked(id: string) { app.filter = id }
+        ],
+    peopleMenu: Menu [ items = { [ ({ id: "head", label: app.hereCount <= 1 ? "Only you have this issue open" : "Here now", enabled: false }),
+        ...(app.herePeople.value?.rows ?? []).map((m) => ({ id: m.uid, label: m.name })) ] },
+        picked(id: string) { const h = (app.here.value?.rows ?? []).find((x) => x.tab == id); if (h != null && h.pages.length > 0) app.selectOnly(h.pages[0]) }
+        ],
+    hereCount: number = { (app.here.value?.rows ?? []).length },
+    hereText: string = { app.hereCount <= 1 ? "Only you have this issue open." : "Here now: " + (app.herePeople.value?.rows ?? []).map((m) => m.name).join("; ") },
+    linkUrl: string = { S.linkTo(app.fpId) },
+    shareLink() {
+        S.shareLink().then(() => { S.copyText(app.linkUrl); app.toast.say("The view-only link is on, and copied.") },
+            (e: Error) => app.alert.error("The link wasn't turned on", S.plainError(e)))
+        },
+    roleName(r: string) -> string { return r == "admin" ? "Admin" : r == "editor" ? "Editor" : r == "viewer" ? "Viewer" : r },
+
+    // ── the panels
+
+    panelItems: array = { [ ({ id: "sections", label: "Sections" }), ({ id: "waiting", label: "Stories" + (app.waiting > 0 ? " " + app.waiting : "") }),
+        ({ id: "ads", label: "Ads" + (app.openBookings > 0 ? " " + app.openBookings : "") }), ({ id: "artwork", label: "Art" }),
+        ({ id: "talk", label: "Talk" }), ({ id: "print", label: "Print" }) ] },
+    openPanel(p: string) { app.panel = p; if (!app.wide) app.show("panels") },
+    waitingText: string = { app.waiting == 0 ? "Nothing waiting for a place" : "Waiting for a place: " + app.unplaced + (app.unplaced == 1 ? " story" : " stories") + ", " + app.fp.holding.length + " set aside" },
+    bookingText: string = { app.bookingsSaid(false) },
+    bookingSentence: string = { app.bookingsSaid(true) },
+    bookingsBrief: string = { app.openBookings > 0 ? app.openBookings + " ads unplaced" : app.fp.bookings.length == 0 ? "No bookings" : "All ads placed" },
+    bookingsSaid(long: boolean) -> string {
+        if (app.fp.bookings.length == 0) return long ? "No bookings yet." : "No bookings"
+        if (app.openBookings == 0) return long ? "Every booking has a place." : "Every booking placed"
+        const n = app.openBookings
+        return long ? n + (n == 1 ? " booking has" : " bookings have") + " no place yet." : n + (n == 1 ? " booking" : " bookings") + " without a place"
+        },
+    storyList: string = "unplaced",
+    talkView: string = "comments",
+    sectionRows: Dataset [ schema = [ rows[]: SectionRow ], contents = { ({ rows: app.makeSectionRows() }) } ],
+    makeSectionRows() -> SectionRow[] {
+        const ranges = sectionRanges(app.fp, app.fol)
+        const cs = coverSections(app.fp)
+        return app.fp.sections.map((s, i) => ({ id: s.id, name: s.name, color: s.color, count: ranges[i].count, range: ranges[i].range,
+            first: ranges[i].first >= 0 ? app.fp.pages[ranges[i].first].id : "", hidden: app.hiddenSections.includes(s.id), cover: cs.includes(s.id) }))
+        },
+    statusRows: Dataset [ schema = [ rows[]: StatusRow ], contents = { ({ rows: app.makeStatusRows() }) } ],
+    makeStatusRows() -> StatusRow[] {
+        const sp = statusPages(app.fp)
+        const n = Math.max(1, app.fp.pages.length)
+        return app.fp.statuses.map((s) => ({ id: s.id, name: s.name, color: s.color, pages: sp[s.id] ?? 0, share: (sp[s.id] ?? 0) / n }))
+        },
+    tagRows: Dataset [ schema = [ rows[]: TagRow ], contents = { ({ rows: app.makeTagRows() }) } ],
+    makeTagRows() -> TagRow[] { const c = tagCounts(app.fp); return app.fp.tags.map((t) => ({ id: t.id, name: t.name, color: t.color, count: c[t.id] ?? 0 })) },
+    storyRows: Dataset [ schema = [ rows[]: StoryRow ], contents = { ({ rows: app.makeStoryRows() }) } ],
+    makeStoryRows() -> StoryRow[] {
+        const list = app.storyList == "all" ? app.fp.stories : unplacedStories(app.fp)
+        return list.map((s) => {
+            const idx = pagesOfStory(app.fp, s.id)
+            return ({ id: s.id, title: s.title, pages: s.pages, rightStart: s.rightStart, section: app.sectionName(s.sectionId),
+                editor: app.nameOf(s.editor), status: app.statusName(s.status), statusColor: app.statusColorText(s.status), kind: s.kind,
+                placed: idx.length == 0 ? "" : (idx.length == 1 ? "On page " : "On pages ") + folioRuns(app.fol, idx) })
+            })
+        },
+    heldRows: Dataset [ schema = [ rows[]: HeldRow ], contents = { ({ rows: app.fp.holding.map((p) => ({ id: p.id, section: app.sectionName(p.sectionId),
+        carries: isBlank(p) ? "A blank page" : p.regions.filter((r) => r.kind != "unassigned" || r.label != "").map((r) => (r.kind == "advertising" ? "Ad: " : r.kind == "editorial" ? "" : "") + app.regionWords(r)).join(" · ") })) }) } ],
+    bookingRows: Dataset [ schema = [ rows[]: BookingRow ], contents = { ({ rows: app.fp.bookings.map((b) => {
+        const idx = app.fp.pages.map((p, i) => (p.regions.some((r) => r.bookingId == b.id) ? i : -1)).filter((i) => i >= 0)
+        return ({ id: b.id, ref: b.ref, text: b.text, size: b.size, shape: b.shape, want: b.want.join("; "),
+            placed: idx.length == 0 ? "" : (idx.length == 1 ? "page " : "pages ") + folioRuns(app.fol, idx), first: idx.length > 0 ? app.fp.pages[idx[0]].id : "" })
+        }) }) } ],
+    assetRows: Dataset [ schema = [ rows[]: AssetRow ], contents = { ({ rows: app.fp.assets.map((a) => ({ id: a.id, name: a.name, pages: a.pages,
+        used: assetUse(app.fp, a.id), size: a.size > 0 ? bytesText(a.size) : "", url: a.url })) }) } ],
+    stitchRows: Dataset [ schema = [ rows[]: StitchRow ], contents = { ({ rows: app.fp.stitchIns.map((x) => ({ id: x.id, after: x.after,
+        folio: app.folioOf(x.after) != "" ? "page " + app.folioOf(x.after) : "a set-aside page", front: x.front, back: x.back })) }) } ],
+    commentRows: Dataset [ schema = [ rows[]: CommentRow ], contents = { ({ rows: (app.comments.value?.rows ?? []).slice().reverse().map((c) => ({ id: c.id,
+        pageId: c.pageId, page: app.folioOf(c.pageId) != "" ? app.nameOfPage(c.pageId) : "a page no longer in the issue",
+        who: app.nameOf(c.by), when: when(c.at, app.clock.now), text: c.text })) }) } ],
+    historyRows: Dataset [ schema = [ rows[]: HistoryRow ], contents = { ({ rows: (app.activity.value?.rows ?? []).map((a) => ({ id: a.id,
+        who: app.nameOf(a.by), when: when(a.at, app.clock.now), text: a.text })) }) } ],
+    pageTalk: Dataset [ schema = [ rows[]: CommentRow ], contents = { ({ rows: (app.comments.value?.rows ?? []).filter((c) => c.pageId == app.pageId).map((c) => ({ id: c.id,
+        pageId: c.pageId, page: "", who: app.nameOf(c.by), when: when(c.at, app.clock.now), text: c.text })) }) } ],
+    layoutList: Dataset [ schema = [ layouts[]: Named ], contents = { ({ layouts: LAYOUTS.map((l) => ({ id: l.id, name: l.name, color: "" })) }) } ],
+
+    // ── statuses, sections and colors
+
+    statusName(id: string) -> string { return app.fp.statuses.find((s) => s.id == id)?.name ?? "No status" },
+    statusColorText(id: string) -> string { return app.fp.statuses.find((s) => s.id == id)?.color ?? "#999999" },
+    statusColor(id: string) -> string { return app.statusColorText(id) },
+    sideText(pid: string) -> string {
+        const i = pageIndex(app.fp, pid)
+        if (i < 0) return ""
+        const s = app.sl[i].side
+        return s == "left" ? "Left-hand page" : s == "right" ? "Right-hand page" : "Single page (facing pages off)"
+        },
+    isCoverPage(pid: string) -> boolean { const p = app.fp.pages.find((x) => x.id == pid); return p != null && coversOn(app.fp) && p.cover != null },
+    shareText(pid: string, ri: number) -> string {
+        const p = app.fp.pages.find((x) => x.id == pid)
+        if (p == null) return ""
+        const r = regionRects(p.layout, p.turn, p.flip)[ri]
+        if (r == null) return ""
+        const a = Math.round(r.w * r.h * 1000) / 1000
+        return (a == 1 ? "whole page" : a.toFixed(a * 100 % 1 == 0 ? 2 : 3).replace(/0+$/, "") + " page") + ", " + regionShape(r, app.fp.trimW, app.fp.trimH)
+        },
+    unitSummary: string = { app.pageId == "" ? "" : app.unitLabel(app.unit) + ": " + app.runText(app.pagesFor(app.unit)) },
+    adCount(ids: string[]) -> number { return ids.filter((id) => app.hasAd(app.fp.pages.find((p) => p.id == id) ?? null)).length },
+    storyChoices(kind: string) -> array {
+        return app.fp.stories.filter((s) => kind == "unassigned" || s.kind == kind).map((s) => ({ id: s.id, label: s.title }))
+        },
+    bookingChoices(pid: string, ri: number) -> array {
+        const i = pageIndex(app.fp, pid)
+        return app.fp.bookings.map((b) => {
+            const fit = i >= 0 ? bookingFit(app.fp, b, i, ri, app.fol) : "none"
+            return ({ id: b.id, label: b.text + " — " + (fit == "match" ? "match" : fit == "partial" ? "partial fit" : fit == "mismatch" ? "mismatch" : "no constraints") })
+            })
+        },
+    fitOf(pid: string, ri: number, bid: string) -> string {
+        const b = app.fp.bookings.find((x) => x.id == bid)
+        const i = pageIndex(app.fp, pid)
+        return b == null || i < 0 ? "none" : bookingFit(app.fp, b, i, ri, app.fol)
+        },
+    fitTone(pid: string, ri: number, bid: string) -> string {
+        const f = app.fitOf(pid, ri, bid)
+        return f == "match" ? "#2B8A3E" : f == "partial" ? "#C77700" : f == "mismatch" ? "#C92A2A" : "#999999"
+        },
+    fitText(pid: string, ri: number, bid: string) -> string {
+        const f = app.fitOf(pid, ri, bid)
+        return f == "match" ? "A match: its size, shape and wanted pages all fit this region."
+            : f == "partial" ? "A partial fit: some of its size, shape and wanted pages fit this region, some don't."
+            : f == "mismatch" ? "A mismatch: none of its size, shape and wanted pages fit this region."
+            : "No constraints: the booking gives no size, shape or wanted pages."
+        },
+    chooseColor(list: string, id: string, at: View) { app.colorList = list; app.colorItem = id; app.colorMenu.showFor(at) },
+    colorList: string = "",
+    colorItem: string = "",
+    colorNow: string = { ((app.colorList == "sections" ? app.fp.sections : app.colorList == "statuses" ? app.fp.statuses : app.fp.tags).find((x) => x.id == app.colorItem))?.color ?? "" },
+    colorMenu: Menu [ items = { PALETTE.map((c, i) => ({ id: c, label: PALETTE_NAMES[i], group: "color", checked: c == app.colorNow })) },
+        picked(id: string) { app.apply("Recolor", P.updateNamed(app.fp, app.colorList as "sections" | "statuses" | "tags", app.colorItem, ({ color: id }))) }
+        ],
+    sectionTarget: string = "",
+    sectionMore: Menu [ items = { app.sectionMoreItems() },
+        picked(id: string) { app.sectionCommand(id) }
+        ],
+    sectionMoreItems() -> array {
+        const i = app.fp.sections.findIndex((s) => s.id == app.sectionTarget)
+        const cs = coverSections(app.fp)
+        const out: object[] = [ ({ id: "go", label: "Go to its first page" }) ]
+        if (i > 0) out.push(({ id: "up", label: "Move it before " + app.fp.sections[i - 1].name, enabled: !cs.includes(app.sectionTarget) }))
+        if (i >= 0 && i < app.fp.sections.length - 1) out.push(({ id: "down", label: "Move it after " + app.fp.sections[i + 1].name, enabled: !cs.includes(app.sectionTarget) }))
+        out.push(({ divider: true }), ({ id: "remove", label: "Remove the section…" }))
+        return out
+        },
+    sectionCommand(id: string) {
+        const sid = app.sectionTarget
+        const i = app.fp.sections.findIndex((s) => s.id == sid)
+        if (id == "go") app.goToSection(sid)
+        if (id == "up" && i > 0) app.apply("Move a section", P.moveSection(app.fp, sid, app.fp.sections[i - 1].id, "before"))
+        if (id == "down" && i >= 0 && i < app.fp.sections.length - 1) app.apply("Move a section", P.moveSection(app.fp, sid, app.fp.sections[i + 1].id, "after"))
+        if (id == "remove") {
+            const trial = P.removeSection(app.fp, sid)
+            if (isRefusal(trial)) { app.refused(trial as Refusal); return }
+            const heir = app.fp.sections[i > 0 ? i - 1 : 1]?.name ?? ""
+            app.alert.open("Remove " + app.sectionName(sid) + "?", "Its pages, set-aside pages and stories go to " + heir + ". You can undo this.",
+                [ ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "remove", label: "Remove", default: true }) ], "",
+                (r: string) => { if (r == "remove") app.apply("Remove a section", P.removeSection(app.fp, sid)) })
+            }
+        },
+    goToSection(sid: string) {
+        const p = app.fp.pages.find((x) => x.sectionId == sid)
+        if (p == null) { app.toast.say(app.sectionName(sid) + " has no pages."); return }
+        app.hiddenSections = app.hiddenSections.filter((x) => x != sid)
+        app.selectOnly(p.id)
+        app.dismiss("panels")
+        afterSettle(() => app.focusCell(p.id))
+        },
+    toggleHidden(sid: string) {
+        app.hiddenSections = app.hiddenSections.includes(sid) ? app.hiddenSections.filter((x) => x != sid) : [...app.hiddenSections, sid]
+        },
+    removeStatus(id: string) { app.apply("Remove a status", P.removeStatus(app.fp, id)) },
+    removeTag(id: string) { app.apply("Remove a tag", P.removeTag(app.fp, id)) },
+
+    // ── menus for the pages in hand
+
+    sectionMenu: Menu [ items = { app.fp.sections.filter((s) => !coverSections(app.fp).includes(s.id)).map((s) => ({ id: s.id, label: s.name, group: "section",
+        checked: app.inHand.every((pid) => app.fp.pages.find((p) => p.id == pid)?.sectionId == s.id) })) },
+        picked(id: string) { app.apply("Put " + (app.inHand.length == 1 ? "a page" : app.inHand.length + " pages") + " in " + app.sectionName(id), P.setSection(app.fp, app.inHand, id)) }
+        ],
+    statusMenu: Menu [ items = { app.fp.statuses.map((s) => ({ id: s.id, label: s.name })) },
+        picked(id: string) { app.apply("Set the status to " + app.statusName(id), P.setStatusOn(app.fp, app.inHand, id)) }
+        ],
+    tagMenu: Menu [ items = { app.fp.tags.map((t) => ({ id: t.id, label: t.name, checked: app.inHand.length > 0 && app.inHand.every((pid) => (app.fp.pages.find((p) => p.id == pid)?.tags ?? []).includes(t.id)) })) },
+        picked(id: string) {
+            const on = !app.inHand.every((pid) => (app.fp.pages.find((p) => p.id == pid)?.tags ?? []).includes(id))
+            app.apply((on ? "Tag " : "Untag ") + app.inHand.length + (app.inHand.length == 1 ? " page" : " pages"), P.setTag(app.fp, app.inHand, id, on))
+            }
+        ],
+    pageMore: Menu [ items = { app.pageMoreItems() },
+        picked(id: string) { app.pageCommand(id) }
+        ],
+    pageMenuItems() -> array {
+        if (app.movingIds.length > 0 || app.copyFrom != "" || app.swapIds.length > 0) return []
+        return [ ({ id: "read", label: "Read from here" }), ...(app.canEdit ? [ ({ divider: true }), ({ id: "move", label: "Move…" }), ...app.pageMoreItems() ] : []) ]
+        },
+    pageMoreItems() -> array {
+        const p = app.currentPage
+        if (p == null) return []
+        const cover = coversOn(app.fp) && p.cover != null
+        return [
+            ({ id: "copy-to", label: "Copy its contents onto other pages…" }),
+            ({ id: "tool:copy", label: "Copy its contents onto the pages that follow…" }),
+            ({ id: "tool:add", label: "Add blank pages after it…", enabled: !(cover && (p.cover == "front" || p.cover == "inside-back" || p.cover == "back")) }),
+            ({ id: "tool:restart", label: (p.restart ?? null) != null ? "Change the numbering restart…" : "Restart the numbering here…", enabled: !cover }),
+            ({ id: "stitch", label: "Add a stitch-in after it" }),
+            ({ id: "swap", label: "Exchange with another run…", enabled: !cover }),
+            ({ divider: true }),
+            ({ id: "aside", label: "Set aside", enabled: !cover }),
+            ({ id: "delete", label: "Delete", enabled: !cover })
+            ]
+        },
+    pageCommand(id: string) {
+        const pid = app.pageId
+        if (pid == "") return
+        if (id == "read") app.read(pid)
+        else if (id == "move") app.startMove()
+        else if (id == "copy-to") { app.copyFrom = pid; app.copyTargets = []; app.toast.say("Press the pages to copy onto, then Copy.") }
+        else if (id.startsWith("tool:")) app.waypoint = id
+        else if (id == "stitch") app.apply("Add a stitch-in", P.addStitchIn(app.fp, pid))
+        else if (id == "swap") app.startSwap()
+        else if (id == "aside") app.setAside(app.inHand)
+        else if (id == "delete") app.deletePages(app.inHand)
+        },
+    toolTitle: string = { app.opened == "tool:add" ? "Add blank pages" : app.opened == "tool:restart" ? "Restart the numbering" : "Copy onto the pages that follow" },
+    runTool(kind: string, n: number) {
+        const pid = app.pageId
+        let ok = false
+        if (kind == "add") ok = app.apply("Add " + n + (n == 1 ? " page" : " pages"), P.addPagesAfter(app.fp, pid, n))
+        if (kind == "restart") ok = app.apply("Restart the numbering at " + n, P.setRestart(app.fp, pid, n))
+        if (kind == "copy") ok = app.apply("Copy a page onto " + n + (n == 1 ? " page" : " pages"), P.copyContents(app.fp, pid, followingPages(app.fp, pid, n)))
+        if (ok) app.waypoint = ""
+        },
+    copyFrom: string = "",
+    copyTargets: string[] = [],
+    doCopy() {
+        const n = app.copyTargets.length
+        if (app.apply("Copy a page onto " + n + (n == 1 ? " page" : " pages"), P.copyContents(app.fp, app.copyFrom, app.copyTargets))) { app.copyFrom = ""; app.copyTargets = [] }
+        },
+    copyFirstOntoRest() {
+        const ids = inBookOrder(app.fp, app.sel)
+        app.apply("Copy a page onto " + (ids.length - 1) + " pages", P.copyContents(app.fp, ids[0], ids.slice(1)))
+        },
+    setAside(ids: string[]) {
+        const n = ids.length
+        if (app.apply("Set aside " + n + (n == 1 ? " page" : " pages"), P.setAside(app.fp, ids))) {
+            app.clearSel(); app.go("")
+            app.toast.say((n == 1 ? "The page is" : n + " pages are") + " set aside, with everything on them. Find them under Stories.", ({ id: "undo", label: "Undo" }))
+            }
+        },
+    deletePages(ids: string[]) {
+        const n = ids.length
+        if (app.apply("Delete " + n + (n == 1 ? " page" : " pages"), P.deletePages(app.fp, ids))) {
+            app.clearSel(); app.go("")
+            app.toast.say((n == 1 ? "Page deleted" : n + " pages deleted") + " — you can undo this.", ({ id: "undo", label: "Undo" }))
+            }
+        },
+    deleteHeld(id: string) {
+        app.alert.open("Delete this page for good?", "It and everything on it leave the issue. You can undo this.",
+            [ ({ id: "cancel", label: "Cancel", cancel: true, default: true }), ({ id: "delete", label: "Delete", destructive: true }) ], "",
+            (r: string) => { if (r == "delete") app.apply("Delete a set-aside page", P.deleteHeld(app.fp, id)) })
+        },
+    modeText: string = { app.copyFrom != "" ? "Copying page " + app.folioOf(app.copyFrom) + ": press the pages to copy its layout, contents and artwork onto (" + app.copyTargets.length + " chosen)."
+        : app.swapIds.length > 0 ? "Exchanging " + app.runText(app.swapIds) + ": press the first page of the run of " + app.swapIds.length + " to exchange them with."
+        : app.movePreview },
+
+    // ── stories
+
+    storyId: string = "",
+    newStory() { app.storyId = ""; app.show("story") },
+    editStory(sid: string) { app.storyId = sid; app.show("story") },
+    placeStory(sid: string) { app.storyId = sid; app.show("place") },
+    goToStory(sid: string) { const idx = pagesOfStory(app.fp, sid); if (idx.length > 0) { app.selectOnly(app.fp.pages[idx[0]].id); app.dismiss("panels"); afterSettle(() => app.focusCell(app.fp.pages[idx[0]].id)) } },
+    deleteStory(sid: string) {
+        const s = storyById(app.fp, sid)
+        app.alert.open("Delete “" + (s?.title ?? "") + "”?", "The story leaves the issue. You can undo this.",
+            [ ({ id: "cancel", label: "Cancel", cancel: true, default: true }), ({ id: "delete", label: "Delete", destructive: true }) ], "",
+            (r: string) => { if (r == "delete" && app.apply("Delete a story", P.deleteStory(app.fp, sid))) app.dismiss("story") })
+        },
+    storyForm: StoryForm? = { app.overlays.story.form },
+    saveStory(f: StoryForm) {
+        const pages = Number(f.pages)
+        if (f.isNew) {
+            const s = P.newStory(app.fp, ({ title: f.title, sectionId: f.sectionId, pages: pages, editor: f.editor, kind: f.kind as "editorial" | "advertising",
+                notes: f.notes, rightStart: f.rightStart }))
+            s.status = f.status
+            const ok = f.where == "end" ? app.apply("Add “" + s.title + "” with " + pages + " pages", P.addStoryAtSectionEnd(app.fp, s))
+                : app.apply("Add a story", P.addStory(app.fp, s))
+            if (ok) { app.dismiss("story"); app.toast.say(f.where == "end" ? "Added, on new pages at the end of " + app.sectionName(s.sectionId) + "." : "Added. It waits under Stories until it is placed.") }
+            return
+            }
+        const patch = ({ title: f.title.trim(), editor: f.kind == "advertising" ? "" : f.editor, status: f.status, notes: f.notes, rightStart: f.rightStart })
+        const extra = f.placed ? ({}) : ({ sectionId: f.sectionId, pages: pages, kind: f.kind as "editorial" | "advertising" })
+        if (app.apply("Change “" + f.title.trim() + "”", P.updateStory(app.fp, f.sid, ({ ...patch, ...extra })))) app.dismiss("story")
+        },
+    formSectionMenu: Menu [ items = { app.fp.sections.filter((s) => !coverSections(app.fp).includes(s.id)).map((s) => ({ id: s.id, label: s.name, group: "s", checked: app.storyForm?.sectionId == s.id })) },
+        picked(id: string) { if (app.storyForm != null) app.storyForm.sectionId = id }
+        ],
+    editorMenu: Menu [ items = { [ ({ id: "", label: "No one", group: "e", checked: app.storyForm?.editor == "" }), ...app.editors.map((m) => ({ id: m.uid, label: m.name, group: "e", checked: app.storyForm?.editor == m.uid })) ] },
+        picked(id: string) { if (app.storyForm != null) app.storyForm.editor = id }
+        ],
+    formStatusMenu: Menu [ items = { app.fp.statuses.map((s) => ({ id: s.id, label: s.name, group: "st", checked: app.storyForm?.status == s.id })) },
+        picked(id: string) { if (app.storyForm != null) app.storyForm.status = id }
+        ],
+    fitRows: Dataset [ schema = [ rows[]: FitRow ], contents = { ({ rows: app.makeFits() }) } ],
+    makeFits() -> FitRow[] {
+        const s = storyById(app.fp, app.storyId)
+        if (s == null || app.opened != "place") return []
+        return fitsFor(app.fp, s.id).map((i) => ({ id: app.fp.pages[i].id,
+            text: (s.pages == 1 ? "Page " : "Pages ") + folioRuns(app.fol, Array.from({ length: s.pages }, (_, k) => i + k)) + " · " + app.sectionName(app.fp.pages[i].sectionId) }))
+        },
+    placeAt(sid: string, pid: string) {
+        if (app.apply("Place “" + (storyById(app.fp, sid)?.title ?? "") + "”", P.placeStory(app.fp, sid, pid))) { app.dismiss("place"); app.selectOnly(pid); afterSettle(() => app.focusCell(pid)) }
+        },
+
+    // ── bookings
+
+    removeBooking(id: string) {
+        app.alert.open("Remove this booking?", "Any region carrying it becomes open again. You can undo this.",
+            [ ({ id: "cancel", label: "Cancel", cancel: true, default: true }), ({ id: "remove", label: "Remove", destructive: true }) ], "",
+            (r: string) => { if (r == "remove") app.apply("Remove a booking", P.removeBooking(app.fp, id)) })
+        },
+    importBookings() {
+        FilePicker.pick(({ accept: [".csv", ".tsv", ".txt", "text/csv", "text/tab-separated-values", "text/plain"] })).then((files: File[]) => {
+            if (files.length == 0) return
+            S.readText(files[0].url).then((t: string) => app.importText(files[0].name, t), (e: Error) => app.alert.error("Can't read that file", S.plainError(e)))
+            })
+        },
+    importText(name: string, t: string) {
+        const rows = parseBookingList(t)
+        const r = P.importBookings(app.fp, rows)
+        if (app.apply("Import bookings", r.fp)) app.toast.say("Imported " + (r.added + r.updated) + " from " + name + ": " + r.added + " new, " + r.updated + " updated.")
+        },
+
+    // ── artwork
+
+    artKeyFor(art: Art?, w: number) -> string {
+        if (art == null) return ""
+        const a = app.fp.assets.find((x) => x.id == art.assetId)
+        if (a == null || (a.images ?? "") != "" || a.url == "") return ""
+        return a.url + "#" + art.page + "@" + w
+        },
+    loadThumb(e: PageEditor) {
+        const key = e.thumbKey
+        if (key == "") return
+        const at = key.lastIndexOf("#"), rest = key.slice(at + 1).split("@")
+        S.pdfPicture(key.slice(0, at), Number(rest[0]), Number(rest[1])).then((u: string) => { if (e.thumbKey == key) e.thumb = u }, () => undefined)
+        },
+    loadReaderArt(v: View) {
+        const key = (v as ReaderPage).key
+        if (key == "") return
+        const at = key.lastIndexOf("#"), rest = key.slice(at + 1).split("@")
+        S.pdfPicture(key.slice(0, at), Number(rest[0]), Number(rest[1])).then((u: string) => { if ((v as ReaderPage).key == key) (v as ReaderPage).url = u }, () => undefined)
+        },
+    artFrom(art: Art?) -> string {
+        if (art == null) return ""
+        const a = app.fp.assets.find((x) => x.id == art.assetId)
+        return "From " + (a?.name ?? "a PDF no longer attached") + ", page " + art.page
+        },
+    pdfOf(art: Art?) -> string { return art == null ? "" : app.fp.assets.find((x) => x.id == art.assetId)?.url ?? "" },
+    viewArt(pid: string) { app.go(pid); app.show("art") },
+    pdfAsset: string = "",
+    pdfPage: number = 1,
+    pdfTitle: string = { (app.fp.assets.find((a) => a.id == app.pdfAsset)?.name ?? "PDF") + " — page " + app.pdfPage },
+    pdfSrc: string = { (app.fp.assets.find((a) => a.id == app.pdfAsset)?.url ?? "") + "#page=" + app.pdfPage },
+    viewPdf(aid: string, page: number) { app.pdfAsset = aid; app.pdfPage = page; app.show("pdf") },
+    attachAsset: string = "",
+    pdfName: string = "",
+    pdfSize: number = 0,
+    pdfBytes: object? = null,
+    pdfProblem: string = "",
+    assign: string[] = [],
+    assignFrom: string = "",
+    uploading: boolean = false,
+    uploadDone: number = 0,
+    attachArt() {
+        app.attachAsset = ""; app.pdfName = ""; app.pdfProblem = ""; app.assign = []; app.pdfBytes = null; app.uploading = false
+        app.show("attach")
+        },
+    reassign(aid: string) {
+        const a = app.fp.assets.find((x) => x.id == aid)
+        if (a == null) return
+        app.attachAsset = aid; app.pdfName = a.name; app.pdfSize = a.size; app.pdfProblem = ""; app.pdfBytes = null; app.uploading = false
+        app.assign = Array.from({ length: a.pages }, (_, k) => app.fp.pages.find((p) => p.art?.assetId == aid && p.art?.page == k + 1)?.id ?? "")
+        app.assignFrom = app.folioOf(app.assign.find((x) => x != "") ?? "")
+        app.show("attach")
+        },
+    choosePdf() {
+        FilePicker.pick(({ accept: ["application/pdf", ".pdf"] })).then((files: File[]) => {
+            if (files.length == 0) return
+            const f = files[0]
+            app.pdfProblem = ""
+            S.readPdf(f.url, f.name).then((pdf: object) => app.pdfChosen(pdf), (e: Error) => { app.pdfProblem = e.message })
+            })
+        },
+    pdfChosen(o: object) {
+        const pdf = o as { name: string, size: number, pages: number }
+        app.pdfBytes = o
+        app.pdfName = pdf.name
+        app.pdfSize = pdf.size
+        // A sensible start: the pages in hand, else the pages of the story the person is on, else from the page they are on.
+        const start = app.sel.length > 1 ? inBookOrder(app.fp, app.sel) : app.currentPage != null && storiesOn(app.currentPage).length > 0
+            ? pagesOfStory(app.fp, storiesOn(app.currentPage)[0]).map((i) => app.fp.pages[i].id) : []
+        const from = app.pageId != "" ? app.pageId : app.fp.pages[interiorStart(app.fp)]?.id ?? ""
+        app.assign = start.length > 0 ? Array.from({ length: pdf.pages }, (_, k) => start[k] ?? "") : P.consecutive(app.fp, from, pdf.pages)
+        app.assignFrom = app.folioOf(app.assign.find((x) => x != "") ?? from)
+        },
+    assignConsecutive() {
+        const i = app.fol.findIndex((f) => f.toLowerCase() == app.assignFrom.trim().toLowerCase() || (f.replace(/^0+/, "") == app.assignFrom.trim().replace(/^0+/, "") && app.assignFrom.trim() != ""))
+        if (i < 0) { app.pdfProblem = "There's no page " + app.assignFrom + " in the issue."; return }
+        app.pdfProblem = ""
+        app.assign = P.consecutive(app.fp, app.fp.pages[i].id, app.assign.length)
+        },
+    assignOne(k: number, folio: string) {
+        const t = folio.trim()
+        const i = t == "" ? -1 : app.fol.findIndex((f) => f.toLowerCase() == t.toLowerCase() || f.replace(/^0+/, "") == t.replace(/^0+/, ""))
+        if (t != "" && i < 0) { app.pdfProblem = "There's no page " + t + " in the issue."; return }
+        app.pdfProblem = ""
+        app.assign = app.assign.map((a, j) => (j == k ? (i < 0 ? "" : app.fp.pages[i].id) : a))
+        },
+    assignRows: Dataset [ schema = [ rows[]: AssignRow ], contents = { ({ rows: app.assign.map((pid, k) => {
+        const p = app.fp.pages.find((x) => x.id == pid)
+        const other = p != null && p.art != null && !(p.art.assetId == app.attachAsset && p.art.page == k + 1)
+        return ({ id: "k" + k, k: k, folio: pid == "" ? "" : app.folioOf(pid), note: pid == "" ? "unassigned" : other ? "replaces its artwork" : "" })
+        }) }) } ],
+    replacing: string = { app.replacingText() },
+    replacingText() -> string {
+        const hit = app.assign.map((pid, k) => ({ pid: pid, k: k })).filter((x) => {
+            const p = app.fp.pages.find((q) => q.id == x.pid)
+            return p != null && p.art != null && !(p.art.assetId == app.attachAsset && p.art.page == x.k + 1)
+            })
+        if (hit.length == 0) return ""
+        return (hit.length == 1 ? "Page " : "Pages ") + hit.map((x) => app.folioOf(x.pid)).join(", ") + (hit.length == 1 ? " already has" : " already have") + " other artwork, which this replaces."
+        },
+    saveArtwork() {
+        if (app.attachAsset != "") {
+            const a = app.fp.assets.find((x) => x.id == app.attachAsset)
+            if (a == null) return
+            const cleared = P.detachArt(app.fp, app.fp.pages.filter((p) => p.art?.assetId == a.id).map((p) => p.id))
+            if (isRefusal(cleared)) return
+            if (app.apply("Reassign " + a.name, P.attachArtwork(cleared as Flatplan, a, app.assign))) { app.dismiss("attach"); app.artMode = true }
+            return
+            }
+        if (app.pdfBytes == null) return
+        const pdf = app.pdfBytes as { name: string, size: number, pages: number, bytes: ArrayBuffer }
+        const id = P.newId("a-")
+        app.uploading = true
+        app.uploadDone = 0
+        app.pdfProblem = ""
+        S.uploadPdf(app.uid, id, pdf.bytes, (f: number) => { app.uploadDone = f }).then((url: string) => {
+            app.uploading = false
+            const asset = ({ id: id, name: pdf.name, pages: pdf.pages, size: pdf.size, url: url })
+            if (app.apply("Attach " + pdf.name, P.attachArtwork(app.fp, asset, app.assign))) {
+                app.dismiss("attach")
+                app.artMode = true
+                app.toast.say("Artwork attached. It follows its pages wherever they move.")
+                }
+            }, (e: Error) => { app.uploading = false; app.pdfProblem = "The upload failed, so nothing changed: " + e.message })
+        },
+    removeAsset(aid: string) {
+        const a = app.fp.assets.find((x) => x.id == aid)
+        app.alert.open("Remove " + (a?.name ?? "this PDF") + "?", "Its artwork comes off every page that uses it (" + assetUse(app.fp, aid) + "). You can undo this.",
+            [ ({ id: "cancel", label: "Cancel", cancel: true, default: true }), ({ id: "remove", label: "Remove", destructive: true }) ], "",
+            (r: string) => { if (r == "remove") app.apply("Remove " + (a?.name ?? "a PDF"), P.removeAsset(app.fp, aid)) })
+        },
+
+    // ── the issue itself
+
+    renameIssue(v: string) { app.apply("Rename the issue", P.setField(app.fp, "name", v.trim())) },
+    addSig(part: string, n: number) {
+        const cur = part == "cover" ? app.fp.signatures.cover : app.fp.signatures.body
+        app.apply("Change the print sections", P.setSignatures(app.fp, part as "cover" | "body", [...cur, n]))
+        },
+    removeSig(part: string) {
+        const cur = part == "cover" ? app.fp.signatures.cover : app.fp.signatures.body
+        app.apply("Change the print sections", P.setSignatures(app.fp, part as "cover" | "body", cur.slice(0, -1)))
+        },
+    makeIssue(f: NewIssueForm) {
+        const fp = newIssueFrom(app.fp, f.start as "plan" | "copy" | "empty", f.name, f.edition, Number(f.pages))
+        if (isRefusal(fp)) { f.refuse([({ name: "", message: (fp as Refusal).why })]); return }
+        f.pending = true
+        const made = fp as Flatplan
+        S.createFlatplan(app.account?.ws ?? "", made).then(() => {
+            f.pending = false
+            app.openIssue(made.id)
+            app.toast.say(made.name + " is ready.")
+            }, (e: Error) => { f.pending = false; f.refuse([({ name: "", message: S.plainError(e) })]) })
+        },
+    printPlan() { if (!S.printPlan(planHtml(app.fp, app.fol))) app.alert.notice("The print window was blocked", "Allow pop-ups for Pagemap, then try again.") },
+    backUp() {
+        app.toast.say("Making the backup…")
+        S.makeBackup(app.fp, app.comments.value?.rows ?? []).then((t: string) => FilePicker.save(t, ({ name: backupName(app.fp), type: "application/json" })),
+            (e: Error) => app.alert.error("The backup wasn't made", S.plainError(e)))
+        },
+    restore() {
+        FilePicker.pick(({ accept: [".json", "application/json"] })).then((files: File[]) => {
+            if (files.length == 0) return
+            S.readText(files[0].url).then((t: string) => app.restoreText(t), (e: Error) => app.alert.error("Can't read that file", S.plainError(e)))
+            })
+        },
+    restoreText(t: string) {
+        const b = readBackup(t)
+        if (isRefusal(b)) { app.refused(b as Refusal); return }
+        app.toast.say("Restoring…")
+        S.restoreFiles(app.uid, b, (f: number) => { app.uploadDone = f }).then((fp: Flatplan) => {
+            const backup = b as { comments: Comment[] }
+            if (app.apply("Restore from a backup", restoreFrom(app.fp, ({ ...(b as object), flatplan: fp }) as never))) {
+                S.restoreComments(backup.comments ?? [])
+                app.toast.say("Restored. You can undo this.")
+                }
+            }, (e: Error) => app.alert.error("The backup wasn't restored", S.plainError(e)))
+        },
+
+    // ── reading
+
+    readerPages: Dataset [ schema = [ rows[]: Cell ], contents = { ({ rows: app.readingCells() }) } ],
+    readingCells() -> Cell[] {
+        if (!app.reading) return []
+        const rows = app.cells.value?.cells ?? []
+        const i = rows.findIndex((c) => c.id == app.pageId)
+        if (i < 0) return []
+        const reader = app.overlays.reader.view
+        if (reader != null && reader.byPage) return [rows[i]]
+        return rows.filter((c) => c.spread == rows[i].spread)
+        },
+    readAt(pid: string) { app.location = app.fpId + "/read/" + pid },
+    stopReading() { app.location = app.fpId + "/" + app.pageId },
+
+    // ── the account
+
+    accountMenu: Menu [ items = { app.accountItems() },
+        picked(id: string) { app.accountCommand(id) }
+        ],
+    accountItems() -> array {
+        if (!app.signedIn) return [ ({ id: "signin", label: "Sign in" }) ]
+        return [
+            ({ id: "who", label: (app.person?.name ?? "") + " · " + (app.person?.email ?? ""), enabled: false }),
+            ({ id: "ws", label: app.roleName(app.account?.role ?? "") + " in " + app.wsName, enabled: false }),
+            ({ divider: true }),
+            ({ id: "issues", label: "The team's issues" }),
+            ({ id: "team", label: "Share and team" }),
+            ...(app.siteAdmin ? [ ({ id: "admin", label: "Every account (running Pagemap)" }) ] : []),
+            ({ id: "help", label: "How to…" }),
+            ({ divider: true }),
+            ({ id: "light", label: "Light", group: "look", checked: app.themeMode == "light" }),
+            ({ id: "dark", label: "Dark", group: "look", checked: app.themeMode == "dark" }),
+            ({ id: "auto", label: "Follow the device", group: "look", checked: app.themeMode == "auto" }),
+            ({ divider: true }),
+            ({ id: "signout", label: "Sign out" })
+            ]
+        },
+    accountCommand(id: string) {
+        if (id == "light" || id == "dark" || id == "auto") app.setTheme(id)
+        else if (id == "signout") app.signOut()
+        else if (id == "signin") app.linkWs = ""
+        else app.show(id)
+        },
+    accounts: Dataset [ schema = [ rows[]: Account ] ] { { "rows": [] } },
+    watchingAccounts: boolean = false,
+    adminOpen: boolean = { app.opened == "admin" && app.siteAdmin },
+    clearAccount(uid: string, email: string) {
+        app.alert.open("Clear " + email + "?", "If this account founded its workspace, the workspace and everything in it go, view-only links included; otherwise it leaves its workspace. Its uploads go too. This can't be undone.",
+            [ ({ id: "cancel", label: "Cancel", cancel: true, default: true }), ({ id: "clear", label: "Clear", destructive: true }) ], "error",
+            (r: string) => {
+                if (r == "clear") S.clearAccount(uid).then(() => app.alert.notice(email + " is cleared", "They can still sign in until their account is also turned off."),
+                    (e: Error) => app.alert.error("The account wasn't cleared", S.plainError(e)))
+                })
+        },
+    setZoom(z: number) { app.zoom = Math.max(0.6, Math.min(5, z)); S.remember("zoom", String(app.zoom)) },
+    zoomMenu: Menu [ items = { [ ({ id: "0.7", label: "The whole issue", group: "z", checked: app.zoom < 0.8 }), ({ id: "1", label: "Pages", group: "z", checked: app.zoom >= 0.8 && app.zoom < 1.6 }),
+        ({ id: "2", label: "Larger pages", group: "z", checked: app.zoom >= 1.6 && app.zoom < 3 }), ({ id: "4", label: "One page across", group: "z", checked: app.zoom >= 3 }) ] },
+        picked(id: string) { app.setZoom(Number(id)) }
+        ],
+    helpDoc: DataSource [ url = "help.md", format = "text" ],
+    helpText: string = { app.helpDoc.loaded ? String(app.helpDoc.value) : "Loading…" },
+
+    // ── views used from far away
+
+    grid: View = { app.shell.body.main.gridHolder.grid },
+    searchField: View = { app.shell.top.search },
+
+    // ── the screen
+
+    layout: SimpleLayout [ axis = y ],
+
+    gate: SignInScreen [ visible = { app.authKnown && !app.signedIn && !app.resolving && app.linkWs == "" }, width = 100%, flexes = true ],
+    wait: View [ visible = { !app.authKnown || app.resolving }, width = 100%, flexes = true,
+        Text [ x = center, y = center, fontSize = 15, textColor = { provided("theme").textMuted },
+            text = { app.resolving ? "Opening your workspace…" : "Starting Pagemap…" } ]
+        ],
+
+    shell: View [ visible = { app.signedIn || app.linkWs != "" }, width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = y ],
+        top: TopBar [ width = 100% ],
+        stats: StatsBar [ width = 100% ],
+        update: View [ visible = { app.newBuild }, width = 100%, padding = [8, 14, 8, 14], fill = { provided("theme").notice },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Text [ flexes = true, fontSize = 13, textColor = { provided("theme").noticeInk }, text = "A new version of Pagemap is out. Your work is saved; switch whenever you like." ],
+            Button [ label = "Switch now",
+                onClick() { S.reload() }
+                ]
+            ],
+        moveBar: MoveBar [ width = 100%, visible = { app.movingIds.length > 0 || app.swapIds.length > 0 || app.copyFrom != "" } ],
+        body: View [ width = 100%, flexes = true,
+            layout: SimpleLayout [ axis = x, align = stretch ],
+            side: SidePanel [ width = 360, visible = { app.wide && app.openState == "open" } ],
+            main: View [ flexes = true, scrolls = y, accessibilityRole = main, accessibilityLabel = "The plan",
+                notOpen: OpenState [ visible = { app.openState != "open" }, width = 100% ],
+                gridHolder: View [ visible = { app.openState == "open" }, width = 100%, padding = { app.desk ? [12, 20, 120, 20] : [8, 8, 140, 8] },
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+                    hiddenNote: View [ visible = { app.hiddenSections.length > 0 }, width = 100%, padding = [8, 12, 8, 12], cornerRadius = 8,
+                        fill = { provided("theme").notice },
+                        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+                        Glyph [ shape = "eye-off", iconSize = 16, ink = { provided("theme").noticeInk } ],
+                        Text [ flexes = true, fontSize = 13, textColor = { provided("theme").noticeInk },
+                            text = { "Set out of the way, for you only: " + app.hiddenSections.map((id) => app.sectionName(id)).join(", ") + "." } ],
+                        Button [ label = "Show all",
+                            onClick() { app.hiddenSections = [] }
+                            ]
+                        ],
+                    grid: View [ width = 100%, datapath = { app.cells.value },
+                        accessibilityRole = group, accessibilityLabel = "Pages, in book order. Arrow keys move between pages; Shift extends; Space adds or removes one.",
+                        focusScope = stop,
+                        layout: PlanLayout [ cellW = { app.pageW }, cellH = { app.cellH }, pair = { app.fp.facing }, gap = { app.desk ? 26 : 14 } ],
+                        trackChanges = ["width"],
+                        onChange() { this.layout.retarget(false) },
+                        PageCell [ datapath = :cells[] ]
+                        ]
+                    ]
+                ],
+            inspector: Inspector [ width = 340, visible = { app.desk && app.openState == "open" && (app.pageId != "" || app.sel.length > 1) } ]
+            ],
+        phoneBar: PhoneBar [ width = 100%, visible = { !app.desk } ]
+        ],
+
+    // ── what opens over the plan
+
+    alert: Dialog [ ],
+    toast: Toast [ duration = 6000,
+        picked(id: string) { if (id == "undo") app.undo() }
+        ],
+    pageMenu: ContextMenu [ items = { app.pageMenuItems() },
+        picked(id: string) { app.pageCommand(id) }
+        ],
+    overlays: Overlays [ ]
+    ]

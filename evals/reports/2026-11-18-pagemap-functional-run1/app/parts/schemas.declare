@@ -1,0 +1,70 @@
+/*
+# Pagemap: the shape of the data
+
+The flatplan as the service stores it (api/API.md), and the records the screens are built
+from. `plan.ts` declares the same shapes as TypeScript interfaces; a value of one is a value
+of the other, so a record read here can be handed to a rule there and back with no cast.
+*/
+
+schema Named [ id: string, name: string, color: string ]
+schema Region [ id: string, kind: "editorial" | "advertising" | "unassigned", storyId?: string, bookingId?: string, label: string ]
+schema Art [ assetId: string, page: number ]
+schema Page [ id: string, sectionId: string, layout: string, turn: number, flip: boolean,
+    cover?: "front" | "inside-front" | "inside-back" | "back",
+    regions[]: Region, art?: Art, tags[]: string, notes: string, locked: boolean, restart?: number ]
+schema Story [ id: string, title: string, sectionId: string, kind: "editorial" | "advertising", pages: number,
+    editor: string, status: string, notes: string, rightStart: boolean ]
+schema Asset [ id: string, name: string, pages: number, size: number, url: string, images?: string ]
+schema Booking [ id: string, ref: string, text: string, size: string, shape: string, want[]: string ]
+schema StitchIn [ id: string, after: string, front: string, back: string ]
+schema Signatures [ cover[]: number, body[]: number ]
+schema Flatplan [ id: string, name: string, edition: string, publication: string,
+    trimW: number, trimH: number, facing: boolean, numbering: "covers" | "plain", firstFolio: number,
+    notes: string, archived: boolean,
+    sections[]: Named, statuses[]: Named, tags[]: Named, stories[]: Story, pages[]: Page, holding[]: Page,
+    assets[]: Asset, bookings[]: Booking, stitchIns[]: StitchIn, signatures: Signatures ]
+
+// One page as the plan shows it: the page record itself (wrapped, not copied), and what
+// follows from where it falls.
+
+schema Cell [ id: string, page: Page, index: number, folio: string, side: string, spread: number, alone: boolean,
+    sectionName: string, sectionColor: string, starts: boolean, ends: boolean, hidden: boolean, match: boolean,
+    stitch: boolean, comments: number, story: string, peer: string, peerColor: string, fresh: boolean ]
+schema Cells [ cells[]: Cell ]
+
+// The team, the issues, and what is said about them.
+
+schema Member [ uid: string, name: string, email: string, initials: string, color: string, role: string ]
+schema IssueEntry [ id: string, name: string, edition: string, pages: number, updated: number, archived: boolean ]
+schema Comment [ id: string, pageId: string, by: string, at: number, text: string ]
+schema Activity [ id: string, by: string, at: number, text: string ]
+schema Here [ tab: string, by: string, pages[]: string, at: number, mine: boolean ]
+schema Account [ uid: string, name: string, email: string, ws: string, wsName: string, bytes: number, created: number,
+    cleared: number, blocked: boolean ]
+
+// Rows of the side panels, each a record with what its row shows.
+
+schema SectionRow [ id: string, name: string, color: string, count: number, range: string, first: string, hidden: boolean,
+    cover: boolean ]
+schema StatusRow [ id: string, name: string, color: string, pages: number, share: number ]
+schema TagRow [ id: string, name: string, color: string, count: number ]
+schema StoryRow [ id: string, title: string, pages: number, rightStart: boolean, section: string, editor: string,
+    status: string, statusColor: string, kind: string, placed: string ]
+schema HeldRow [ id: string, carries: string, section: string ]
+schema BookingRow [ id: string, ref: string, text: string, size: string, shape: string, want: string, placed: string,
+    first: string ]
+schema AssetRow [ id: string, name: string, pages: number, used: number, size: string, url: string ]
+schema StitchRow [ id: string, after: string, folio: string, front: string, back: string ]
+schema CommentRow [ id: string, pageId: string, page: string, who: string, when: string, text: string ]
+schema HistoryRow [ id: string, who: string, when: string, text: string ]
+schema AssignRow [ id: string, k: number, folio: string, note: string ]
+schema FitRow [ id: string, text: string ]
+
+// What the service and the rules hand back.
+
+schema Person [ uid: string, email: string, name: string ]
+schema Resolved [ ws: string, role: string, home: string, wsName: string, founded: boolean, joined: boolean ]
+schema Shares [ editorial: number, advertising: number, open: number, pages: number ]
+schema Refusal [ refused: boolean, what: string, why: string, instead: string ]
+schema Slot [ spread: number, side: string, alone: boolean ]
+schema PrintCheck [ total: number, pages: number, held: number, diff: number, advice: string ]

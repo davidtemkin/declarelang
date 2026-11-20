@@ -175,6 +175,10 @@ export declare function hasNativeKernel(): boolean;
 /** The Mac host's native kernel: the C library in the process, reached
  *  through JavaScriptCore functions and zero-copy views (kernel.md Phase D). */
 export declare function instantiateKernelNative(image: Uint8Array, host: KernelHost, caps?: KernelCaps): Kernel;
-/** Decode the embedded module (kernel-wasm.ts carries it base64: no fetch,
- *  no file, no host plumbing — one artifact on every host). */
+/** The embedded module's bytes (kernel-wasm.ts carries it as a string of one
+ *  character per byte: no fetch, no file, no host plumbing — one artifact on
+ *  every host). */
+export declare function latin1Bytes(s: string): Uint8Array;
+/** Decode a module served as base64 text: what a sibling kernel file may be
+ *  given as on a host that mangles binary (reactive.ts kernelBytes). */
 export declare function decodeWasm(b64: string): Uint8Array;

@@ -79,7 +79,7 @@ import { setStyleBundles, bundleRecord } from "./style-bundles.js";
 import { THEME_PRESETS } from "./themes.js";
 import { compileBody, compileExpr, withScriptScope, evalScript, bodyLabel } from "./expr.js";
 import { coerce, coerceToken, isPercent, isAlign, nullablePrimitive } from "./value.js";
-import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite, declaredRules, isSet, ownerOf } from "./attributes.js";
+import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, writeOwned, provideWrite, declaredRules, isSet, ownerOf } from "./attributes.js";
 import { contractGaps, contractMessage } from "./a11y-roles.js";
 import { bindConstraint, bindDeclDefault, provideBind, bindPercent, bindAlign, percentRule, alignRule, bindData, bindDatapath, bindCursor, isTransformSlot } from "./bind.js";
 import { Replicator } from "./replicate.js";
@@ -90,7 +90,7 @@ import { provideViewCreator, provideInlineViewHost, provideBuiltProbe, ROLE_LOCK
 import { toCursor } from "./data.js";
 import { validateDoc } from "./data-schema.js";
 import { resolveShapes, shapeNames } from "./shape-resolve.js";
-import { trackedView, unwrapValue } from "./data.js";
+import { trackedView, unwrapValue, inDataset } from "./data.js";
 import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, SOURCES, STATES } from "./registry.js";
 import { declareName } from "./declare-name.js";
 /** A SOURCE node — duck-typed on the lifecycle hook rather than imported by
@@ -747,9 +747,10 @@ isShapeType = () => false) {
             // DECLARED DEFAULTS STAND AS RULES (kernel.md): a `{ }` default is a
             // yielding rule on each instance — one evaluation per input change, not
             // one per read — installed at construction on a slot nothing set. Not for
-            // a `readonly` slot (its contract is the live value, un-overridable) or a
-            // schema-typed one (its record crosses through the push/tracked hooks).
-            const rule = defBinding !== undefined && !d.readOnly && !shapeSlot;
+            // a `readonly` slot (its contract is the live value, un-overridable). A
+            // schema-typed slot stands as a rule too: its push hook normalizes what
+            // lands to the raw record as the rule's own write, so the rule keeps it.
+            const rule = defBinding !== undefined && !d.readOnly;
             // A numeric or boolean slot whose default is a `{ }` has no literal to
             // start from; standing as a rule, it lives in the kernel TABLE (a cell
             // EXPR bodies read and the kernel lands), starting at 0/false — a value
@@ -771,10 +772,15 @@ isShapeType = () => false) {
                 ...(shapeSlot ? {
                     push: (self, v) => {
                         const raw = unwrapValue(v);
+                        // the raw record is the same value, not a new one: written as the
+                        // slot owner's own, so a declared default's rule keeps its slot
                         if (raw !== v)
-                            setBound(self, d.name, raw);
+                            writeOwned(self, d.name, raw);
                     },
-                    tracked: (_self, v) => trackedView(v),
+                    // a record a dataset holds reads as its tracked view, so an edit to it
+                    // in the dataset wakes the reader; a computed one (a rule's fresh
+                    // `Rect`) reads raw, as a lazily evaluated default's body returns it
+                    tracked: (_self, v) => inDataset(v) ? trackedView(v) : v,
                 } : {}),
             };
             // The tooling record (attributes.ts DECLARED): a defBinding drops the

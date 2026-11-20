@@ -1,0 +1,1713 @@
+/*
+# Pagemap
+
+An editorial flatplan for magazines: every physical page of an issue in order, in
+spreads, under its sections, with what goes on each — arranged by dragging, seen whole,
+and worked on together, live. The brief is `task/brief.md`; its function ids (F-…) are
+cited where each is done.
+
+How it is put together:
+
+- **The records** are the service's: Firebase, reached through `service.ts`, which turns
+  the flatplan's records into one assembled flatplan and back. The open flatplan lives in
+  `plan`, a `Plan` dataset (model.declare) that derives every fact the screen shows and
+  proposes every edit. The workspace's people, its flatplans, the comments, activity and
+  presence are datasets the service's listeners fill.
+- **Where the person is** is a handful of attributes on this App: the address (`location`:
+  which flatplan, which page, the reader), the open dialog (`waypoint`), the chosen pages,
+  the zoom, the mode, the search, the move mode.
+- **Every edit** is a proposal from `plan`, sent by `apply`: written locally at once, then
+  as one multi-path update; Undo replays a step's records backwards.
+
+Where things are, in order: who is signed in; the address; the flatplan; the numbers the
+screen derives; choosing; editing (by function group); undo; working together; artwork;
+menus and keys; the screen.
+*/
+
+include [ "model.declare" ]
+
+include [ "parts.declare" ]
+
+include [ "map.declare" ]
+
+include [ "panels.declare" ]
+
+include [ "dialogs.declare" ]
+
+include [ "chrome.declare" ]
+
+script [ "pure.ts" ]
+
+script [ "service.ts", host = browser ]
+
+script [ "pdf.ts", host = browser ]
+
+schema Member [ uid: string, name: string, email: string, initials: string, color: string, role: string ]
+schema IndexRow [ id: string, name: string, edition: string, pages: number, updated: number, archived: boolean ]
+schema Comment [ id: string, pageId: string, by: string, at: number, text: string ]
+schema Activity [ id: string, by: string, at: number, text: string ]
+schema Here [ tab: string, by: string, pages[]: string, at: number, label: string ]
+schema Step [ label: string, before: any, after: any ]
+schema Account [ uid: string, name: string, email: string, created: number, wsLine: string, mb: string, blocked: boolean ]
+schema HoldItem [ id: string, kind: string, title: string, pp: string, opensRight: boolean, color: string, line: string ]
+schema NamedInfo [ id: string, name: string, color: string, info: string, range?: string, count?: number ]
+schema Route [ view: boolean, fp: string, page: string, read: boolean ]
+schema ReadUnit [ k: number, ids[]: string, label: string, n: number ]
+
+App [ appName = { app.plan.doc != null ? app.plan.doc.name + " · Pagemap" : "Pagemap" }, minWidth = 320,
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    fontFamily = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+
+    // ── appearance (F-APP-03): as the device, light or dark, kept on this device
+
+    appearance: string = { deviceGet("appearance") == "" ? "device" : deviceGet("appearance") },
+    setAppearance(v: string) { appearance = v; deviceSet("appearance", v) },
+    isDark: boolean = { app.appearance == "device" ? app.systemDark : app.appearance == "dark" },
+    theme = { app.isDark ? ({ ...SanFranciscoDark, ...PagemapDark, buttonHeight: app.tap, segmentedHeight: app.tap })
+        : ({ ...SanFrancisco, ...PagemapLight, buttonHeight: app.tap, segmentedHeight: app.tap }) },
+    fontSize = 13,
+
+    // ── sizes
+
+    phone: boolean = { app.width < 760 },
+    wide: boolean = { app.width >= 1100 },
+    narrowBar: boolean = { app.width < 1000 },
+    tap: number = { app.touchFirst || app.phone ? 44 : 30 },
+    sideOpen: boolean = true,
+    sideSheetOpen: boolean = false,
+    toggleSide() { if (app.wide) sideOpen = !sideOpen; else sideSheetOpen = true },
+
+    // ── who is signed in (F-ACC)
+
+    authKnown: boolean = false,
+    uid: string = "",
+    myEmail: string = "",
+    myName: string = "",
+    session: string = "checking",        // checking | out | resolving | in | link
+    ws: string = "",
+    wsName: string = "",
+    role: string = "",
+    siteAdmin: boolean = false,
+    home: string = "",
+    signMode: string = "in",
+    signMsg: string = "",
+    signNote: string = "",
+    signBusy: boolean = false,
+    fName: string = "",
+    fEmail: string = "",
+    fPassword: string = "",
+    fMagazine: string = "",
+    pendingMagazine: string = "",
+    blockedWatch: number = 0,
+    starter: Starter [ ],
+
+    onInit() {
+        watchAuth((p: Person | null) => app.authChanged(p))
+        listen("release/build", (v: unknown) => { app.published = v == null ? "" : String(v) }, (e: string) => { })
+        },
+    authChanged(p: Person | null) {
+        authKnown = true
+        if (p == null) {
+            uid = ""; myEmail = ""; myName = ""; ws = ""; role = ""; siteAdmin = false
+            app.stopWorkspace()
+            session = app.route.view ? "link" : "out"
+            signBusy = false
+            return
+        }
+        uid = p.uid; myEmail = p.email; myName = p.name != "" ? p.name : app.signMode == "up" ? fName.trim() : ""
+        session = "resolving"
+        app.resolveAccount()
+        },
+
+    // Signing in, or up (F-ACC-02, -04), with every message the brief names.
+
+    submitSign() {
+        if (signBusy) return
+        signMsg = ""; signNote = ""
+        if (signMode == "up") {
+            if (fName.trim() == "") { signMsg = "Enter your name."; return }
+            if (!validEmail(fEmail)) { signMsg = "Enter an email address, like ana@example.com."; return }
+            if (fPassword.length < 6) { signMsg = "Choose a password of at least 6 characters."; return }
+            signBusy = true
+            pendingMagazine = fMagazine.trim() != "" ? fMagazine.trim() : firstName(fName.trim()) + "'s Magazine"
+            authSignUp(fName.trim(), fEmail.trim(), fPassword, (err: string, id: string) => {
+                if (err != "") { app.signBusy = false; app.signMsg = err }
+                })
+            return
+        }
+        if (fEmail.trim() == "") { signMsg = "Enter your email."; return }
+        if (fPassword == "") { signMsg = "Enter your password."; return }
+        signBusy = true
+        authSignIn(fEmail, fPassword, (err: string) => { if (err != "") { app.signBusy = false; app.signMsg = err } })
+        },
+    resetPassword() {
+        signMsg = ""; signNote = ""
+        if (!validEmail(fEmail)) { signMsg = "Enter your email above, then ask again."; return }
+        authReset(fEmail, (err: string) => {
+            if (err != "") app.signMsg = err
+            else app.signNote = "A link to set your password is on its way to " + app.fEmail.trim() + ". Check your spam folder if it doesn't arrive."
+            })
+        },
+    refuse(msg: string) {
+        signBusy = false
+        session = "out"
+        authSignOut(() => { app.signMsg = msg })
+        afterSettle(() => { app.signMsg = msg })
+        },
+
+    // Resolving the account (§3.5): blocked, a workspace, an invitation, or a new workspace.
+
+    resolveAccount() {
+        read("blocked/" + uid, (b: unknown, e: string) => {
+            if (b == true) { app.refuse("This account has been turned off. Ask the person who runs Pagemap."); return }
+            read("users/" + app.uid + "/ws", (w: unknown, e2: string) => {
+                if (w != null && String(w) != "") { app.joinWorkspace(String(w)); return }
+                read("invites/" + emailKey(app.myEmail), (inv: unknown, e3: string) => {
+                    if (inv != null) app.acceptInvite(inv as object)
+                    else app.foundWorkspace()
+                    })
+                })
+            })
+        },
+    joinWorkspace(w: string) {
+        read("workspaces/" + w + "/members/" + uid, (m: unknown, e: string) => {
+            if (m == null) { app.refuse("You're no longer a member of that workspace."); return }
+            read("workspaces/" + w + "/info", (info: unknown, e2: string) => {
+                const i = (info ?? {}) as { name?: string, home?: string }
+                app.enter(w, i.name ?? "", (m as { role?: string }).role ?? "viewer", i.home ?? "")
+                })
+            })
+        },
+    acceptInvite(inv0: object) {
+        const inv = inv0 as { ws: string, role: string }
+        const name = myName != "" ? myName : fName.trim() != "" ? fName.trim() : myEmail.split("@")[0]
+        const u: Record<string, unknown> = {}
+        u["workspaces/" + inv.ws + "/members/" + uid] = ({ name: name, email: myEmail, initials: initialsFrom(name), color: app.tintFor(uid), role: inv.role })
+        u["users/" + uid] = ({ ws: inv.ws })
+        write(u, (err: string) => {
+            if (err != "") { app.refuse("The invitation couldn't be accepted: " + err); return }
+            read("workspaces/" + inv.ws + "/info", (info: unknown, e2: string) => {
+                const i = (info ?? {}) as { name?: string, home?: string }
+                const u2: Record<string, unknown> = {}
+                u2["accounts/" + app.uid + "/ws"] = inv.ws
+                u2["accounts/" + app.uid + "/wsName"] = i.name ?? ""
+                write(u2, (e3: string) => {
+                    const d: Record<string, unknown> = {}
+                    d["invites/" + emailKey(app.myEmail)] = null
+                    write(d, (e4: string) => { app.enter(inv.ws, i.name ?? "", inv.role, i.home ?? "") })
+                    })
+                })
+            })
+        },
+
+    // Founding a workspace (F-ACC-04): info, membership, the user's pointer, the account, then the starter.
+
+    foundWorkspace() {
+        const name = myName != "" ? myName : fName.trim() != "" ? fName.trim() : myEmail.split("@")[0]
+        const mag = pendingMagazine != "" ? pendingMagazine : firstName(name) + "'s Magazine"
+        const w = newId("ws-")
+        const first = app.starter.make(mag, uid)
+        const u: Record<string, unknown> = {}
+        u["workspaces/" + w + "/info"] = ({ name: mag, owner: uid, home: first.id, created: "__server_time__" })
+        u["workspaces/" + w + "/members/" + uid] = ({ name: name, email: myEmail, initials: initialsFrom(name), color: app.tintFor(uid), role: "admin" })
+        u["users/" + uid] = ({ ws: w })
+        u["accounts/" + uid + "/ws"] = w
+        u["accounts/" + uid + "/wsName"] = mag
+        write(u, (err: string) => {
+            if (err != "") { app.refuse("Your workspace couldn't be made: " + err); return }
+            createDoc(w, first, app.uid, (e2: string) => {
+                if (e2 != "") { app.refuse("Your workspace couldn't be made: " + e2); return }
+                app.enter(w, mag, "admin", first.id)
+                })
+            })
+        },
+    enter(w: string, name: string, r: string, h: string) {
+        ws = w; wsName = name; role = r; home = h
+        signBusy = false; signMsg = ""; signMode = "in"
+        fPassword = ""
+        session = "in"
+        read("admins/" + uid, (v: unknown, e: string) => { app.siteAdmin = v == true })
+        app.startWorkspace()
+        },
+
+    tints: string[] = { ["#c2f04c", "#80a7ff", "#ff9a2e", "#54ddbb", "#ff3fa4", "#ffd75e", "#c59aff"] },
+    tintFor(id: string) -> string {
+        let h = 0
+        for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 7
+        return app.tints[h]
+        },
+
+    // Signing out (F-ACC-06): presence first, then out, nothing of the workspace left.
+
+    signOut() {
+        presenceGone(() => {
+            authSignOut(() => { })
+            })
+        app.stopWorkspace()
+        ws = ""; session = "out"
+        location = ""
+        },
+
+    // ── the workspace's live records
+
+    members: Dataset [ schema = [ rows[]: Member ] ] { { "rows": [] } },
+    index: Dataset [ schema = [ rows[]: IndexRow ] ] { { "rows": [] } },
+    wsListeners: number[] = [],
+    startWorkspace() {
+        for (const l of wsListeners) unlisten(l)
+        const a = listen("workspaces/" + ws + "/members", (v: unknown) => {
+            const o = (v ?? {}) as Record<string, Member>
+            app.members.set([], ({ rows: Object.keys(o).map((k) => ({ ...o[k], uid: k })) }))
+            }, (e: string) => { })
+        const b = listen("workspaces/" + ws + "/index", (v: unknown) => {
+            const o = (v ?? {}) as Record<string, IndexRow>
+            app.index.set([], ({ rows: Object.keys(o).map((k) => ({ id: o[k].id ?? decodeURIComponent(k), name: o[k].name ?? "", edition: o[k].edition ?? "",
+                pages: o[k].pages ?? 0, updated: Number(o[k].updated ?? 0), archived: o[k].archived == true })) }))
+            }, (e: string) => { })
+        const c = listen("blocked/" + uid, (v: unknown) => {
+            if (v == true) app.refuse("This account has been turned off. Ask the person who runs Pagemap.")
+            }, (e: string) => { })
+        wsListeners = [a, b, c]
+        },
+    stopWorkspace() {
+        for (const l of wsListeners) unlisten(l)
+        wsListeners = []
+        app.closePlan()
+        app.members.set([], ({ rows: [] }))
+        app.index.set([], ({ rows: [] }))
+        },
+    member(id: string) -> Member? { return (app.members.value?.rows ?? []).find((m) => m.uid == id) ?? null },
+    nameOf(id: string) -> string { return app.member(id)?.name ?? (id == "" ? "Someone" : "A former member") },
+    initialsOf(id: string) -> string { return app.member(id)?.initials ?? initialsFrom(app.nameOf(id)) },
+    colorOf(id: string) -> string { return app.member(id)?.color ?? "#98a4a6" },
+    personLabel(id: string) -> string { return id == "" ? "Unassigned" : app.nameOf(id) },
+    editors: Member[] = { (app.members.value?.rows ?? []).filter((m) => m.role != "viewer") },
+
+    // The list of flatplans (F-WS-04): newest change first, active apart from archived.
+
+    indexSet: Dataset [ contents = { app.indexLists() } ],
+    indexLists() -> object {
+        const rows = [...(app.index.value?.rows ?? [])].sort((a, b) => b.updated - a.updated)
+        return ({ active: rows.filter((r) => !r.archived), archived: rows.filter((r) => r.archived) })
+        },
+
+    // ── the address (F-WS-02): #<flatplan>[/<page>][/read], or #view/<flatplan>[/<page>][/read]
+
+    location = "",
+    waypoint = "",
+    route: Route = { app.parseRoute(app.location) },
+    parseRoute(loc: string) -> Route {
+        const parts = loc.split("/").filter((s) => s != "").map((s) => decodeURIComponent(s))
+        const view = parts[0] == "view"
+        const rest = view ? parts.slice(1) : parts
+        return ({ view: view, fp: rest[0] ?? "", page: rest[1] ?? "", read: rest[2] == "read" })
+        },
+    fpId: string = { app.route.fp != "" ? app.route.fp : app.session == "in" ? app.home : "" },
+    cur: string = { app.route.page },
+    reading: boolean = { app.route.read && app.cur != "" },
+    readOnly: boolean = { app.route.view || app.session != "in" || app.role == "viewer" },
+    canComment: boolean = { app.session == "in" && !app.route.view && app.role != "" },
+    base: string = { (app.route.view ? "view/" : "") + encodeURIComponent(app.fpId) },
+    go(page: string, read: boolean) {
+        location = app.base + (page != "" ? "/" + encodeURIComponent(page) : "") + (read && page != "" ? "/read" : "")
+        },
+
+    // The open dialog is a step: Back closes it, Forward reopens it (F-APP-02).
+
+    dlg: string = { app.waypoint },
+    openDialog(name: string) {
+        if (name == "upload" || name == "flatplans") { app.upError = "" }
+        waypoint = name
+        },
+    closeDialog(name: string) {
+        if (app.waypoint != name) return
+        if (name == "upload") app.cancelMapping()
+        goBack()
+        },
+
+    // ── the flatplan
+
+    plan: Plan [ ] { { } },
+    docHandle: number = 0,
+    planState: string = "none",          // none | opening | open | failed
+    planError: string = "",
+    viewing: boolean = { app.route.view && app.authKnown },
+    openKey: string = { app.fpId == "" ? "" : app.session == "in" ? "in|" + app.ws + "|" + app.fpId : app.viewing ? "view|" + app.fpId : "" },
+    trackChanges = ["openKey", "cur", "sel", "dlg", "uploadFor"],
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) {
+            if (c.name == "openKey") app.openPlan()
+            else if (c.name == "cur") app.curChanged()
+            else if (c.name == "sel") app.sayHere()
+            else if (c.name == "dlg") app.dialogChanged()
+        }
+        },
+    planWs: string = "",
+    planListeners: number[] = [],
+    openPlan() {
+        app.closePlan()
+        if (openKey == "") return
+        planState = "opening"; planError = ""
+        if (openKey.startsWith("view|")) {
+            read("links/" + idKey(fpId), (l: unknown, e: string) => {
+                const w = (l as { ws?: string } | null)?.ws ?? ""
+                if (w == "") { app.planState = "failed"; app.planError = "This link doesn't open a flatplan any more."; return }
+                app.attach(w)
+                })
+        } else app.attach(ws)
+        },
+    attach(w: string) {
+        planWs = w
+        const fp = fpId
+        docHandle = openDoc(w, fp, uid, (doc: object, touched: string[], others: boolean) => app.docArrived(doc, touched, others),
+            (err: string) => app.docFailed(err))
+        const base = "workspaces/" + w + "/flatplans/" + idKey(fp)
+        planListeners = [
+            listen(base + "/comments", (v: unknown) => app.commentsArrived(v), (e: string) => { }),
+            listenNewest(base + "/activity", 200, (v: unknown) => app.activityArrived(v), (e: string) => { }),
+            listen(base + "/here", (v: unknown) => app.hereArrived(v), (e: string) => { })
+        ]
+        },
+    closePlan() {
+        if (docHandle == 0 && planState == "none") return
+        if (docHandle != 0) closeDoc(docHandle)
+        docHandle = 0
+        for (const l of planListeners) unlisten(l)
+        planListeners = []
+        presenceGone(() => { })
+        app.plan.set([], ({}))
+        undos = []; redos = []
+        planState = "none"
+        mapBuilt = 0
+        app.comments.set([], ({ rows: [] }))
+        app.activity.set([], ({ rows: [] }))
+        app.here.set([], ({ rows: [] }))
+        },
+    docArrived(doc: object, touched: string[], others: boolean) {
+        const first = planState != "open"
+        app.plan.set(["fp"], doc)
+        planState = "open"
+        if (first) { saving = ""; app.sayHere() }
+        if (touched.length > 0) app.flash(touched)
+        // A page in the address that has gone leaves the choice.
+        if (cur != "" && app.plan.indexOf(cur) < 0 && app.plan.held(cur) == null) afterSettle(() => app.clearChoice())
+        },
+    docFailed(err: string) {
+        planState = "failed"
+        planError = route.view ? "This link doesn't open a flatplan any more."
+            : err == "gone" ? "That flatplan has been deleted." : "That flatplan isn't in this workspace."
+        },
+    issueNumber: string = { ((app.plan.doc?.name ?? "").match(/\d+/g) ?? []).join("") },
+    trimText: string = { numberText(app.plan.doc?.trimW ?? 9) + " × " + numberText(app.plan.doc?.trimH ?? 12) + " in" },
+    trimShape: string = { (app.plan.doc?.trimW ?? 9) == (app.plan.doc?.trimH ?? 12) ? "square" : (app.plan.doc?.trimW ?? 9) > (app.plan.doc?.trimH ?? 12) ? "landscape" : "portrait" },
+    oddPages: boolean = { app.plan.facing && app.plan.pages.length % 2 == 1 },
+    titleLine: string = { (app.plan.doc?.name ?? "") + ", " + (app.plan.doc?.edition ?? "") },
+
+    // ── the map's numbers
+
+    zoom: string = { app.phone ? "spreads" : "comfortable" },
+    artMode: boolean = true,
+    query: string = "",
+    filter: string = "all",
+    moveMode: string = "story",
+    folds: string[] = [],
+    toggleFold(sid: string) { folds = folds.includes(sid) ? folds.filter((f) => f != sid) : [...folds, sid] },
+
+    mapW: number = { Math.max(200, (app.mapPane?.width ?? app.width) - 2 * app.mapPad - (app.touchFirst ? 0 : 16)) },
+    mapH: number = { Math.max(120, (app.mapPane?.height ?? app.height) - 12 - app.flowFoot - 2) },
+    flowFoot: number = { app.compact ? 8 : 60 },
+    mapPad: number = { app.phone ? 12 : 22 },
+    pageW: number = { app.zoomWidth() },
+    zoomWidth() -> number {
+        // A phone shows four spreads a row, two, or one.
+        if (app.phone) {
+            const across = app.zoom == "overview" ? 4 : app.zoom == "detail" ? 1 : 2
+            const gap = 10
+            return Math.max(24, Math.floor((app.mapW - (across - 1) * gap - across * 2) / (2 * across)))
+        }
+        if (app.zoom == "overview") return 46
+        if (app.zoom == "detail") return 170
+        if (app.zoom == "fit") return Math.max(12, Math.min(220, fitPageWidth(app.flowShape, app.mapW, app.mapH, app.plan.aspect, app.plan.facing, app.headH, app.minSlot)))
+        return 92
+        },
+    pageH: number = { Math.round(app.pageW * app.plan.aspect) },
+    compact: boolean = { app.zoom == "fit" },
+    labelH: number = { app.pageW >= 60 ? 18 : app.compact ? 13 : 16 },
+    spreadGap: number = { app.phone ? 10 : Math.max(app.compact ? 5 : 8, Math.round(app.pageW * 0.2)) },
+    rowGap: number = { Math.max(app.compact ? 4 : 8, Math.round(app.pageW * 0.14)) },
+    headH: number = { app.phone ? 48 : app.compact ? 24 : 40 },
+    minSlot: number = { app.phone || app.touchFirst ? 46 : 0 },
+    flowShape: array = { (app.mapItems.value?.items ?? []).map((i) => [i.kind == "head" ? 0 : i.kind == "add" ? 2 : 1, i.spread ?? -1, i.folded ? 1 : 0]) },
+
+    // F-MAP-13: the first screen is built a part at a time, and pictures wait for the whole.
+
+    mapBuilt: number = 0,
+    builder: Time [ tick = frame, running = { app.planState == "open" && app.mapBuilt < app.plan.pages.length + 40 },
+        onTick(dt: number) { app.mapBuilt = app.mapBuilt + Math.max(24, Math.round(dt * 3)) }
+        ],
+    imagesOn: boolean = { app.planState == "open" && app.mapBuilt >= app.plan.pages.length },
+
+    // What the map shows: headings, pages and add slots, in book order (F-MAP-01 to -08, -10, -11).
+
+    mapItems: Dataset [ schema = MapItems, contents = { app.buildMap() } ],
+    buildMap() -> MapItems {
+        const d = app.plan.doc
+        const out: MapItem[] = []
+        if (d == null) return ({ items: out })
+        const f = app.plan.facts
+        const pages = d.pages
+        const q = app.query.trim().toLowerCase()
+        const commented = app.commentPages
+        const othersOn = app.othersOnPages()
+        let lastSec = ""
+        let ordinal = 0
+        let runStart = 0
+        const runs: { sid: string, from: number, to: number, head: number }[] = []
+        for (let i = 0; i < pages.length; i++) {
+            const p = pages[i]
+            const startsSpread = i == 0 || f.spreads[i] != f.spreads[i - 1]
+            if (startsSpread && p.sectionId != lastSec) {
+                if (runs.length > 0) runs[runs.length - 1].to = i - 1
+                runs.push({ sid: p.sectionId, from: i, to: pages.length - 1, head: out.length })
+                ordinal = ordinal + 1
+                const sec = app.plan.sectionOf(p.sectionId)
+                out.push(({ id: "h" + ordinal + "-" + p.sectionId, kind: "head", sectionId: p.sectionId, folded: false,
+                    ordinal: (ordinal < 10 ? "0" : "") + ordinal, name: sec?.name ?? "No section", color: sec?.color ?? "#888888",
+                    range: "", count: 0 }))
+                lastSec = p.sectionId
+                runStart = i
+            }
+            const folded = app.folds.includes(lastSec)
+            const regs = app.regionDraws(p)
+            const matchKind = app.filter == "all" ? true : p.regions.some((r) => r.kind == app.filter)
+            const matchText = q == "" || f.labels[i].toLowerCase() == q || Number(f.labels[i]) == Number(q) && /^\d+$/.test(q)
+                || app.plan.titlesOn(p).some((t) => t.toLowerCase().includes(q))
+            const face = (p.cover ?? "") == "front" && app.plan.covers || !app.plan.covers && i == 0 && f.sides[0] == "right" && d.facing
+            out.push(({ id: p.id, kind: "page", sectionId: lastSec, folded: folded, label: f.labels[i], pageName: f.names[i], index: i,
+                spread: f.spreads[i], side: f.sides[i], art: app.artUrl(p.art ?? null, 360), regs: regs, match: matchKind && matchText,
+                tags: p.tags, notes: p.notes != "", comments: commented.includes(p.id), locked: p.locked, hasArt: p.art != null,
+                hasAd: p.regions.some((r) => r.kind == "advertising"), stitch: d.stitchIns.some((x) => x.after == p.id),
+                others: othersOn[p.id] ?? [], face: face, faceTitle: face ? app.plan.regionTitle(p.regions[0]) : "" }))
+            // The place to add a story after the section's last page.
+            const next = pages[i + 1]
+            const endsRun = next == null || next.sectionId != p.sectionId && (f.spreads[i + 1] != f.spreads[i])
+            if (endsRun && !app.readOnly && !(app.plan.covers && f.cover[i])) {
+                const lastOfSection = !pages.slice(i + 1).some((x) => x.sectionId == p.sectionId)
+                if (lastOfSection) out.push(({ id: "add-" + p.sectionId, kind: "add", sectionId: p.sectionId, folded: folded }))
+            }
+        }
+        // Each heading's range and page count (F-MAP-04): the run of the section's own
+        // pages that its first page belongs to.
+        for (const r of runs) {
+            let a = r.from, b = r.from
+            while (a > 0 && pages[a - 1].sectionId == r.sid) a = a - 1
+            while (b + 1 < pages.length && pages[b + 1].sectionId == r.sid) b = b + 1
+            const h = out[r.head]
+            h.range = f.labels[a] == f.labels[b] ? f.labels[a] : f.labels[a] + "–" + f.labels[b]
+            h.count = b - a + 1
+        }
+        return ({ items: out })
+        },
+    regionDraws(p: Page) -> RegDraw[] {
+        const rects = regionRects(p.layout, p.turn, p.flip)
+        return p.regions.map((r, ri) => {
+            const rc = rects[ri] ?? ({ x: 0, y: 0, w: 1, h: 1 })
+            const st = r.storyId != null && r.storyId != "" ? app.plan.story(r.storyId) : null
+            const title = app.regionTitleFor(r)
+            const who = r.kind == "advertising" ? "PARTNER" : st != null && st.editor != "" ? firstName(app.nameOf(st.editor)) : ""
+            return ({ id: p.id, ri: ri, x: rc.x, y: rc.y, w: rc.w, h: rc.h, kind: r.kind,
+                word: r.kind == "editorial" ? "EDIT" : r.kind == "advertising" ? "AD" : "OPEN",
+                title: title, who: who, status: st != null ? app.plan.status(st.status)?.color ?? "" : "",
+                sec: app.plan.sectionColor(p.sectionId) })
+            })
+        },
+    regionTitleFor(r: Region) -> string {
+        const t = app.plan.regionTitle(r)
+        if (t != "") return t
+        return r.kind == "unassigned" ? "Room for a story" : "Untitled"
+        },
+    firstPageOf(sid: string) -> string { return app.plan.pages.find((p) => p.sectionId == sid)?.id ?? "" },
+    artUrl(a: Art?, w: number) -> string {
+        if (a == null) return ""
+        const asset = app.plan.asset(a.assetId)
+        if (asset == null) return ""
+        if ((asset.images ?? "") != "") return (asset.images ?? "").replace("{page}", String(a.page)).replace("{width}", String(w))
+        return app.rendered[asset.id + ":" + a.page + ":" + w] ?? ""
+        },
+
+    // The sections in the side panel (F-SEC-01), statuses and tags for their dialog.
+
+    sectionRows: Dataset [ contents = { ({ rows: app.sectionInfo() }) } ],
+    sectionInfo() -> NamedInfo[] {
+        return (app.plan.doc?.sections ?? []).map((s) => {
+            const ids = app.plan.pages.filter((p) => p.sectionId == s.id).map((p) => p.id)
+            const r = ids.length == 0 ? "—" : app.plan.rangeOf(ids)
+            return ({ id: s.id, name: s.name, color: s.color, range: r, count: ids.length, info: ids.length + " pp" })
+            })
+        },
+    statusRows: Dataset [ contents = { ({ rows: (app.plan.doc?.statuses ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color,
+        info: numberText(app.plan.statusShare(s.id)) + " pp · " + (app.plan.pages.length == 0 ? "0" : (100 * app.plan.statusShare(s.id) / app.plan.pages.length).toFixed(1)) + "%" })) }) } ],
+    tagRows: Dataset [ contents = { ({ rows: (app.plan.doc?.tags ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color, info: app.plan.tagCount(s.id) + " pp" })) }) } ],
+
+    // The holding area (F-STORY-04, F-PAGE-22).
+
+    holdSet: Dataset [ contents = { ({ items: app.holdItems() }) } ],
+    holdItems() -> HoldItem[] {
+        const st = app.plan.unplaced.map((s) => ({ id: s.id, kind: "story", title: s.title, pp: s.pages + " PP", opensRight: s.rightStart,
+            color: app.plan.sectionColor(s.sectionId),
+            line: (s.kind == "advertising" ? "Advertising" : s.editor == "" ? "Unassigned" : firstName(app.nameOf(s.editor))) + " · " + (app.plan.status(s.status)?.name ?? "") }))
+        const held = (app.plan.doc?.holding ?? []).map((p) => ({ id: p.id, kind: "held", title: app.heldTitle(p), pp: "HELD", opensRight: false,
+            color: app.plan.sectionColor(p.sectionId), line: "A held page · " + app.plan.sectionName(p.sectionId) }))
+        return [...st, ...held]
+        },
+    holdCount: number = { app.plan.unplaced.length + (app.plan.doc?.holding ?? []).length },
+    heldTitle(p: Page?) -> string { if (p == null) return ""; const t = app.plan.titlesOn(p); return t.length == 0 ? "An open page" : t.join(" · ") },
+
+    adsLine: string = { app.plan.unbooked.length == 0 ? "Every booked ad is placed"
+        : app.plan.unbooked.length + (app.plan.unbooked.length == 1 ? " ad or content to place" : " ads and content to place") },
+    sigTotal: number = { [...(app.plan.doc?.signatures.cover ?? []), ...(app.plan.doc?.signatures.body ?? [])].reduce((a, b) => a + b, 0) },
+    pagesAndHeld: number = { app.plan.pages.length + (app.plan.doc?.holding ?? []).length },
+    sigLine: string = { app.sigTotal == app.pagesAndHeld ? "fit" : app.sigTotal + " vs " + app.pagesAndHeld },
+    sigSet: Dataset [ contents = { ({ items: [
+        ...(app.plan.doc?.signatures.cover ?? []).map((n, k) => ({ id: "c" + k, part: "cover", k: k, n: n })),
+        ...(app.plan.doc?.signatures.body ?? []).map((n, k) => ({ id: "b" + k, part: "body", k: k, n: n })) ] }) } ],
+
+    // The composition (F-MAP-12).
+
+    shareOf(k: number) -> number { const n = app.plan.pages.length; return n == 0 ? 0 : app.plan.composition[k] / n },
+    legend(k: number, word: string) -> string {
+        const v = app.plan.composition[k] ?? 0
+        return word + " " + numberText(v) + (app.phone ? "" : " · " + (100 * app.shareOf(k)).toFixed(1) + "%")
+        },
+    compositionLine: string = { app.legend(0, "Editorial") + ", " + app.legend(1, "Advertising") + ", " + app.legend(2, "Open") },
+    filterLabels: object = { ({ all: "All content", editorial: "Editorial", advertising: "Advertising", unassigned: "Open pages" }) },
+    filterLabel: string = { (app.filterLabels as Record<string, string>)[app.filter] ?? "All content" },
+
+    // ── choosing (F-SEL)
+
+    sel: string[] = [],
+    regionIx: number = 0,
+    anchorPage: string = "",
+    pick: string = "",
+    pickId: string = { app.pick.slice(app.pick.indexOf(":") + 1) },
+    inspecting: string = { app.whatIsChosen() },
+    whatIsChosen() -> string {
+        if (app.pick.startsWith("story:") && app.plan.story(app.pickId) != null) return "story"
+        if (app.pick.startsWith("held:") && app.plan.held(app.pickId) != null) return "held"
+        if (app.sel.length > 1) return "many"
+        return app.cur != "" && app.plan.page(app.cur) != null ? "page" : "none"
+        },
+    justHeld: string = "",
+    choose(pid: string, ri: number) {
+        pick = ""
+        sel = [pid]
+        anchorPage = pid
+        regionIx = Math.max(0, ri)
+        app.go(pid, false)
+        },
+    clearChoice() {
+        sel = []; pick = ""; anchorPage = ""; regionIx = 0
+        if (cur != "") app.go("", false)
+        },
+    curChanged() {
+        if (cur == "") { if (sel.length <= 1) sel = []; return }
+        if (!sel.includes(cur)) sel = [cur]
+        },
+
+    // F-SEL-01, -02: a press chooses; ⇧ a run; ⌘ one more or less.
+
+    pressPage(pid: string, ri: number, e: PointerEvent) {
+        if (justHeld == pid) { justHeld = ""; app.pageMenuAt(app.cellFor(pid), e, pid); return }
+        if (e.shift && anchorPage != "" && !app.phone) {
+            const a = app.plan.indexOf(anchorPage), b = app.plan.indexOf(pid)
+            const lo = Math.min(a, b), hi = Math.max(a, b)
+            sel = app.plan.pages.slice(lo, hi + 1).map((p) => p.id)
+            pick = ""
+            app.go(pid, false)
+            return
+        }
+        if ((e.meta || e.ctrl) && !app.phone) {
+            pick = ""
+            if (sel.includes(pid)) {
+                sel = sel.filter((s) => s != pid)
+                if (cur == pid) app.go(sel[sel.length - 1] ?? "", false)
+            } else { sel = app.plan.inOrder([...sel, pid]); anchorPage = pid; app.go(pid, false) }
+            return
+        }
+        app.choose(pid, ri < 0 ? 0 : ri)
+        },
+    holdPage(pid: string) { if (app.touchFirst || app.lastPointerType == "touch") justHeld = pid },
+    touchHeld(pid: string) -> boolean { return justHeld == pid },
+    cellFor(pid: string) -> View {
+        const flow = app.mapFlowView
+        for (const c of flow.childViews as View[]) if ((c as PageCell).pid == pid) return c
+        return flow
+        },
+    pickHold(kind: string, id: string) { sel = []; pick = kind + ":" + id; if (cur != "") app.go("", false) },
+    goToSection(sid: string) {
+        folds = folds.filter((f) => f != sid)
+        const first = app.firstPageOf(sid)
+        if (first != "") { app.choose(first, 0); afterSettle(() => app.cellFor(first).scrollIntoView("start", true, 60)) }
+        sideSheetOpen = false
+        },
+    goToBooking(bid: string) {
+        const ps = app.plan.bookingPages(bid)
+        if (ps.length == 0) return
+        goBack()
+        afterDelay(30, () => { app.choose(ps[0], 0); app.cellFor(ps[0]).scrollIntoView("nearest", true, 60) })
+        },
+    goToComment(pid: string) {
+        if (app.plan.page(pid) == null) return
+        goBack()
+        afterDelay(30, () => { app.choose(pid, 0); app.cellFor(pid).scrollIntoView("nearest", true, 60) })
+        },
+    chooseAll() { sel = app.plan.pages.filter((p) => app.matches(p.id)).map((p) => p.id); pick = "" },
+    matches(pid: string) -> boolean { return (app.mapItems.value?.items ?? []).find((i) => i.id == pid)?.match ?? true },
+    step(dir: number) {
+        const i = app.plan.indexOf(cur)
+        const j = i < 0 ? (dir > 0 ? 0 : app.plan.pages.length - 1) : Math.max(0, Math.min(app.plan.pages.length - 1, i + dir))
+        const p = app.plan.pages[j]
+        if (p != null) { app.choose(p.id, 0); afterSettle(() => app.cellFor(p.id).scrollIntoView("nearest", true, 40)) }
+        },
+
+    // The chosen pages, or the chosen page's move group (F-MOVE-07).
+
+    moveGroupNow: string[] = { app.sel.length > 1 ? app.plan.inOrder(app.sel) : app.cur == "" ? [] : app.plan.moveGroup(app.cur, app.moveMode) },
+    moveLabel: string = { "Move " + app.modeWord(app.moveMode) + " · " + app.moveGroupNow.length + " pp" },
+    modeWord(m: string) -> string { return m == "page" ? "single page" : m == "spread" ? "facing spread" : m == "section" ? "section block" : "whole story" },
+    modeWordLong(m: string) -> string { return "Move " + app.modeWord(m) },
+    targets: string[] = { app.sel.length > 0 ? app.plan.inOrder(app.sel) : app.cur != "" ? [app.cur] : [] },
+
+    // ── editing (§3.3): send a proposal, or say why not
+
+    saving: string = "",
+    toastMsg: string = "",
+    say(msg: string) { if (msg != "") app.toast.say(msg) },
+    apply(label: string, p: Proposal, msg: string) -> boolean {
+        if (readOnly) { app.say("This flatplan is open read-only."); return false }
+        if (p.error != "" || p.doc == null) { app.say(p.error != "" ? p.error : "Nothing changed."); return false }
+        const next = p.doc
+        app.plan.set(["fp"], next)
+        saving = "Saving…"
+        editDoc(docHandle, label, next, true, (ok: boolean, conflict: boolean, reason: string, step: Step | null) => app.edited(label, ok, conflict, reason, step, false))
+        const s = p.select ?? []
+        if (s.length > 0) { sel = s; if (s.length == 1) app.go(s[0], false) }
+        app.say(msg)
+        return true
+        },
+    edited(label: string, ok: boolean, conflict: boolean, reason: string, step: Step | null, replay: boolean) {
+        if (ok) {
+            saving = "All changes saved"
+            if (step != null && !replay) { undos = [...undos.slice(-79), step]; redos = [] }
+            return
+        }
+        if (conflict) { saving = "Reloaded the latest"; app.say("Someone else changed the flatplan at the same time. Showing the latest.") }
+        else { saving = "Not saved — " + reason; app.say("Not saved — " + reason) }
+        },
+    one(label: string, p: Proposal) -> boolean { return app.apply(label, p, "") },
+    curRegion: Region? = { app.plan.page(app.cur)?.regions[app.regionIx] ?? null },
+    count(n: number) -> string { return n + (n == 1 ? " page" : " pages") },
+
+    // Moving (F-MOVE).
+
+    dropped(kind: string, tk: string) {
+        const d = app.drag
+        if (kind == "pages" && tk == "page") {
+            const n = d.ids.length
+            if (d.swap) app.apply("Swap " + app.count(n), app.plan.swapPages(d.ids, d.target), "Swapped. Folios updated.")
+            else app.apply("Move " + app.count(n), app.plan.movePages(d.ids, d.target, d.after, app.moveMode == "spread" && app.sel.length <= 1), "Moved. Folios updated.")
+        } else if (kind == "pages" && tk == "head") {
+            app.apply("Move " + app.count(d.ids.length), app.plan.movePages(d.ids, d.target, false, false), "Moved. Folios updated.")
+        } else if (kind == "pages" && tk == "row") {
+            const name = app.plan.sectionName(d.targetSection)
+            app.apply("Move to " + name, app.plan.setSection(d.ids, d.targetSection), "")
+        } else if (kind == "section" && (tk == "head" || tk == "row")) {
+            const name = app.plan.sectionName(d.sectionId)
+            app.apply("Move " + name, app.plan.moveSection(d.sectionId, d.targetSection, d.after), "")
+        } else if (kind == "held" && tk == "page") {
+            app.apply("Put back a held page", app.plan.putBack(d.heldId, d.target, d.after), "")
+            pick = ""
+        } else if (kind == "story" && tk == "page") {
+            const title = app.plan.story(d.storyId)?.title ?? ""
+            if (app.apply("Place " + title, app.plan.placeStory(d.storyId, d.target), "")) pick = ""
+        }
+        },
+    moveByDialog(group: string[], target: string, how: string) {
+        if (target == "") { app.say("Choose a target page."); return }
+        const n = group.length
+        const ok = how == "swap" ? app.apply("Swap " + app.count(n), app.plan.swapPages(group, target), "Swapped. Folios updated.")
+            : app.apply("Move " + app.count(n), app.plan.movePages(group, target, how == "after", app.moveMode == "spread" && app.sel.length <= 1), "Moved. Folios updated automatically.")
+        if (ok) goBack()
+        },
+    nudge(dir: number) {
+        const g = app.moveGroupNow
+        app.apply(dir < 0 ? "Move earlier" : "Move later", app.plan.nudge(g, dir), "")
+        },
+    pageChoices: string[] = { app.plan.pages.map((p, i) => app.plan.facts.names[i] + " — " + (app.plan.titlesOn(p)[0] ?? "an open page")) },
+    pageFromChoice(s: string) -> string {
+        const i = app.pageChoices.indexOf(s)
+        return i < 0 ? "" : app.plan.pages[i].id
+        },
+
+    // A page (F-PAGE).
+
+    toggleLock(pid: string) {
+        const on = !(app.plan.page(pid)?.locked ?? false)
+        app.one(on ? "Lock page" : "Unlock page", app.plan.setLock(pid, on))
+        },
+    setRegionKind(k: string) {
+        app.one(k == "editorial" ? "Make region editorial" : k == "advertising" ? "Make region advertising" : "Make region open", app.plan.setKind(cur, regionIx, k))
+        },
+    setRegionLabel(v: string) { app.one("Label region", app.plan.setLabel(cur, regionIx, v)) },
+    clearRegion() { app.one("Clear region", app.plan.clearRegion(cur, regionIx)) },
+    setPageLayout(l: string) { if (app.one("Change layout", app.plan.setLayout(cur, l))) regionIx = 0 },
+    rotateLayout() { app.one("Rotate layout", app.plan.rotate(cur)) },
+    flipLayout() { app.one("Flip layout", app.plan.flip(cur)) },
+    setPageNotes(v: string) { app.one("Edit page notes", app.plan.setNotes(cur, v)) },
+    allHaveTag(tid: string) -> boolean {
+        const ids = app.targets
+        return ids.length > 0 && ids.every((id) => app.plan.page(id)?.tags.includes(tid) ?? false)
+        },
+    tagChosen(tid: string, on: boolean) {
+        const ids = app.targets
+        const name = app.plan.tag(tid)?.name ?? ""
+        const label = ids.length > 1 ? (on ? "Tag " : "Untag ") + app.count(ids.length) : (on ? "Tag: " : "Untag: ") + name
+        app.one(label, app.plan.toggleTag(ids, tid, on))
+        },
+    copied: Page? = null,
+    copyPage() {
+        const p = app.plan.page(cur)
+        if (p == null) { app.say("Choose a page to copy."); return }
+        copied = p
+        app.say("Copied " + app.plan.pageName(cur) + ".")
+        },
+    pastePages() {
+        if (copied == null) return
+        const ids = app.targets
+        if (ids.length == 0) { app.say("Choose the pages to paste onto."); return }
+        app.one("Paste onto " + app.count(ids.length), app.plan.paste(copied, ids))
+        },
+    copyAcross(n: number) {
+        if (app.one("Copy content across " + app.count(n), app.plan.copyAcross(cur, n))) goBack()
+        },
+    copyFirstOntoRest() {
+        const ids = app.plan.inOrder(sel)
+        const src = app.plan.page(ids[0] ?? "")
+        if (src == null) return
+        app.one("Paste onto " + app.count(ids.length - 1), app.plan.paste(src, ids.slice(1)))
+        },
+    insertPages(n: number) {
+        if (app.one("Insert " + app.count(n), app.plan.insertAfter(cur, n))) goBack()
+        },
+    renumber(n: number) {
+        if (n >= 0 && (isNaN(n) || n < 0)) { app.say("Enter a whole number."); return }
+        if (app.one(n < 0 ? "Continue numbering" : "Number from " + Math.round(n), app.plan.setRestart(cur, n))) goBack()
+        },
+    holdChosen() {
+        const ids = app.targets
+        if (app.apply("Hold " + app.count(ids.length), app.plan.hold(ids), "")) app.clearChoice()
+        },
+    deleteChosen() {
+        const ids = app.targets
+        const n = ids.length
+        if (app.apply(n == 1 ? "Delete page" : "Delete " + n + " pages", app.plan.deletePages(ids), "Deleted " + app.count(n) + ". ⌘Z puts them back.")) app.clearChoice()
+        },
+    putBackHeld() {
+        const hid = pickId
+        if (app.apply("Put back a held page", app.plan.putBack(hid, "", false), "")) { pick = ""; app.choose(hid, 0) }
+        },
+    deleteHeld() { if (app.one("Delete a held page", app.plan.deleteHeld(pickId))) pick = "" },
+    setSectionFor(sid: string) {
+        const ids = app.targets
+        app.one("Move to " + app.plan.sectionName(sid), app.plan.setSection(ids, sid))
+        },
+    addStitch() {
+        if (cur == "") { app.say("Choose a page first"); return }
+        app.one("Add a stitch-in", app.plan.addStitch(cur))
+        },
+    editStitch(xid: string, front: string, back: string) { app.one("Edit stitch-in", app.plan.editStitch(xid, front, back)) },
+    removeStitch(xid: string) { app.one("Remove a stitch-in", app.plan.removeStitch(xid)) },
+
+    // Stories (F-STORY).
+
+    newStoryMode: string = "hold",
+    newStorySection: string = "",
+    storyFor: string = "",
+    defaultStorySection: string = { app.plan.page(app.cur)?.sectionId ?? (app.plan.doc?.sections[1] ?? app.plan.doc?.sections[0])?.id ?? "" },
+    openNewStory(mode: string, sid: string) { newStoryMode = mode; newStorySection = sid; app.openDialog("story") },
+    addStory(mode: string, title: string, sid: string, pages: number, editor: string, ad: boolean) {
+        const st: Story = ({ id: newId("s-"), title: title, sectionId: sid, kind: ad ? "advertising" : "editorial", pages: pages,
+            editor: ad ? "" : editor, status: app.plan.doc?.statuses[0]?.id ?? "", notes: "", rightStart: false })
+        if (mode == "page") {
+            if (app.one("New story " + title, app.plan.newStoryOn(st, cur, regionIx))) goBack()
+        } else if (mode == "end") {
+            const name = app.plan.sectionName(sid)
+            if (app.apply("Add " + app.count(pages) + " at the end of " + name, app.plan.newStoryAtEnd(st, sid), "")) goBack()
+        } else {
+            if (app.one("New story " + title, app.plan.newStory(st))) { goBack(); afterDelay(40, () => app.pickHold("story", st.id)) }
+        }
+        },
+    storyRangeLine(sid: string) -> string {
+        const ids = app.plan.storyPages(sid)
+        const st = app.plan.story(sid)
+        const n = ids.length
+        return app.plan.rangeOf(ids) + " · " + n + (n == 1 ? " physical page" : " physical pages") + (st != null && st.pages != n ? " (" + st.pages + " planned)" : "")
+        },
+    editorLabel(st: Story?) -> string { return st == null ? "" : st.kind == "advertising" ? "No editor (advertising)" : app.personLabel(st.editor) },
+    storyTitle(sid: string, v: string) {
+        if (v.trim() == "") { app.say("A story needs a title."); return }
+        app.one("Rename story", app.plan.editStory(sid, (s: Story) => { s.title = v.trim(); return "" }))
+        },
+    storyRightStart(sid: string, v: boolean) {
+        app.one(v ? "Require a right-hand start" : "Allow any start", app.plan.editStory(sid, (s: Story) => { s.rightStart = v; return "" }))
+        },
+    storyNotes(sid: string, v: string) { app.one("Edit story notes", app.plan.editStory(sid, (s: Story) => { s.notes = v; return "" })) },
+    storyPagesSet(sid: string, v: number) {
+        const n = Math.max(1, Math.min(400, Math.round(v)))
+        app.one("Plan " + app.count(n), app.plan.editStory(sid, (s: Story) => { s.pages = n; return "" }))
+        },
+    storyKind(sid: string, v: string) {
+        app.one(v == "advertising" ? "Make story advertising" : "Make story editorial",
+            app.plan.editStory(sid, (s: Story) => { s.kind = v; if (v == "advertising") s.editor = ""; return "" }))
+        },
+    placeFrom: string = { app.plan.fits(Math.max(1, app.plan.story(app.pickId)?.pages ?? 1))[0] ?? "" },
+    placeChosenStory() {
+        const sid = pickId
+        const title = app.plan.story(sid)?.title ?? ""
+        if (app.apply("Place " + title, app.plan.placeStory(sid, placeFrom), "")) pick = ""
+        },
+    deleteChosenStory() {
+        const title = app.plan.story(pickId)?.title ?? ""
+        if (app.one("Delete " + title, app.plan.deleteStory(pickId))) pick = ""
+        },
+
+    // Sections, statuses and tags (F-SEC-02).
+
+    addSection() {
+        const after = app.plan.page(cur)?.sectionId ?? ""
+        app.one("Add a section", app.plan.addSection(after))
+        },
+    addNamed(list: string) { app.one(list == "statuses" ? "Add a status" : "Add a tag", app.plan.addNamed(list, list == "statuses" ? "New status" : "New tag")) },
+    recolor(list: string, id: string) {
+        app.one("Recolor", app.plan.editList(list, id, (x: Named) => { x.color = app.plan.nextColor(x.color) }))
+        },
+    renameNamed(list: string, id: string, v: string) {
+        if (v.trim() == "") { app.say("Give it a name."); return }
+        app.one(list == "sections" ? "Rename section" : list == "statuses" ? "Rename status" : "Rename tag",
+            app.plan.editList(list, id, (x: Named) => { x.name = v.trim() }))
+        },
+    removeNamed(list: string, id: string) {
+        if (list == "sections") app.one("Remove a section", app.plan.removeSection(id))
+        else if (list == "statuses") app.one("Remove a status", app.plan.removeStatus(id))
+        else app.one("Remove a tag", app.plan.removeTag(id))
+        },
+
+    // Bookings (F-ADS).
+
+    bookingFacts(b: Booking) -> string {
+        const wants = (b.want ?? []).join(", ")
+        return [b.ref != "" ? b.ref : "No identifier", (b.size != "" ? b.size : "any size"), (b.shape != "" ? b.shape : "any shape")].join(" · ")
+            + (wants != "" ? " · wants " + wants : "")
+        },
+    bookingLine: string = { app.bookingLineFor(app.curRegion) },
+    bookingLineFor(r: Region?) -> string {
+        const b = app.plan.booking(r?.bookingId ?? "")
+        return b == null ? "Choose a booked ad…" : b.text + " · " + (b.size != "" ? b.size : "any size") + " " + b.shape
+        },
+    regionFit: Fit = { app.fitFor(app.curRegion?.bookingId ?? "") },
+    fitFor(bid: string) -> Fit {
+        const b = app.plan.booking(bid)
+        const p = app.plan.page(app.cur)
+        return b == null || p == null ? ({ verdict: "any", checks: 0, passed: 0 }) : app.plan.fitOf(b, p, app.regionIx)
+        },
+    addBooking(text: string, size: string, shape: string, want: string) {
+        const w = want.split(/[;,]/).map((s) => s.trim()).filter((s) => s != "")
+        app.one("Add " + text, app.plan.addBooking(({ id: newId("b-"), ref: "", text: text, size: size, shape: shape, want: w })))
+        },
+    removeBooking(bid: string) { app.one("Remove a booking", app.plan.removeBooking(bid)) },
+    importBookings() {
+        FilePicker.pick(({ accept: [".csv", ".tsv", ".txt", "text/csv", "text/tab-separated-values", "text/plain"] })).then((files: File[]) => {
+            const f = files[0]
+            if (f == null) return
+            readText(f.url, (text: string, err: string) => {
+                if (err != "") { app.say("That file couldn't be read: " + err); return }
+                const rows = parseTable(text)
+                const n = Math.max(0, rows.length - 1)
+                if (app.apply("Import " + n + " bookings", app.plan.importBookings(rows), "")) app.say(n + " rows imported.")
+                })
+            })
+        },
+    bookingTemplate() {
+        downloadText("ads-to-place.csv", "identifier,text,pages,size,shape\nAD-001,Acme Motors full page,3;IBC,1,full\nAD-002,Northwind half page,12,1/2,horizontal\nAD-003,Contoso quarter column,,1/4,vertical\n")
+        },
+
+    // Print and settings (F-PRINT, F-WS-06, -07).
+
+    setText(field: string, v0: string) {
+        const v = v0.trim()
+        if (field == "name" && v == "") { app.say("The issue needs a name."); return }
+        const label = field == "name" ? "Rename issue" : field == "edition" ? "Rename edition" : field == "publication" ? "Rename publication" : "Edit the notes"
+        app.one(label, app.plan.setField((d: Flatplan) => {
+            if (field == "name") d.name = v; else if (field == "edition") d.edition = v
+            else if (field == "publication") d.publication = v; else d.notes = v0
+            return ""
+            }))
+        },
+    setTrim(field: string, v: string) {
+        const n = Number(v)
+        if (!(n > 0)) { app.say("Trim width and height must be more than zero."); return }
+        app.one((field == "trimW" ? "Trim width " : "Trim height ") + numberText(n), app.plan.setField((d: Flatplan) => { if (field == "trimW") d.trimW = n; else d.trimH = n; return "" }))
+        },
+    setTrimPreset(w: number, h: number, shape: string) {
+        app.one(shape == "square" ? "Make pages square" : shape == "landscape" ? "Make pages landscape" : "Make pages portrait",
+            app.plan.setField((d: Flatplan) => { d.trimW = w; d.trimH = h; return "" }))
+        },
+    setFacing(v: boolean) { app.one(v ? "Show spreads" : "Show single pages", app.plan.setField((d: Flatplan) => { d.facing = v; return "" })) },
+    setFirstFolio(v: string) {
+        const n = Number(v)
+        if (!Number.isInteger(n)) { app.say("Enter a whole number."); return }
+        app.one("Number from " + n, app.plan.setField((d: Flatplan) => { d.firstFolio = n; return "" }))
+        },
+    setCovers(on: boolean) { app.one(on ? "Separate the covers" : "Number the covers", app.plan.setCovers(on)) },
+    addPages(n: number) { app.one("Add " + n + " pages", app.plan.addPages(n)) },
+    removeTwo() { app.one("Remove 2 pages", app.plan.removeLastTwo()) },
+    setArchived(on: boolean) {
+        app.apply(on ? "Archive this flatplan" : "Bring back from the archive", app.plan.setField((d: Flatplan) => { d.archived = on; return "" }),
+            on ? "Archived. It stays in the list of flatplans." : "Back from the archive.")
+        },
+    addSig(part: string, n: number) {
+        app.one("Add a " + n + "-page section", app.plan.setField((d: Flatplan) => {
+            if (part == "cover") d.signatures.cover = [...d.signatures.cover, n]; else d.signatures.body = [...d.signatures.body, n]
+            return "" }))
+        },
+    removeSig(part: string, k: number) {
+        app.one("Remove a print section", app.plan.setField((d: Flatplan) => {
+            if (part == "cover") d.signatures.cover = d.signatures.cover.filter((x, i) => i != k); else d.signatures.body = d.signatures.body.filter((x, i) => i != k)
+            return "" }))
+        },
+
+    // New flatplans (F-WS-05).
+
+    createFlatplan(name: string, edition: string, start: string, n: number) {
+        const doc = start == "copy" ? app.plan.copyAll(name, edition) : start == "empty" ? app.plan.emptyOf(name, edition, n) : app.plan.sameLayout(name, edition)
+        createDoc(ws, doc, uid, (err: string) => {
+            if (err != "") { app.say("The flatplan couldn't be made: " + err); return }
+            app.openFlatplan(doc.id)
+            app.say(name + " is ready.")
+            })
+        },
+    openFlatplan(fid: string) {
+        app.dlgThen(() => { app.sel = []; app.pick = ""; app.location = encodeURIComponent(fid) })
+        },
+
+    // Close the open dialog (one Back), then act.
+
+    dlgThen(f: () => void) {
+        if (waypoint != "") { goBack(); afterDelay(60, f) } else f()
+        },
+
+    // Backups (F-PRINT-10, -11).
+
+    exportBackup() {
+        const d = app.plan.doc
+        if (d == null) return
+        const urls: Record<string, string> = {}
+        for (const a of d.assets) urls[a.id] = a.url
+        const comments = (app.comments.value?.rows ?? [])
+        pdfsAsDataUrls(urls, (files: Record<string, string>) => {
+            const name = slug(d.publication + " " + d.name) + ".json"
+            downloadText(name, JSON.stringify(({ format: "pagemap-backup", version: 1, flatplan: d, comments: comments, files: files }), null, 1))
+            app.say("Backup saved, with its PDFs.")
+            })
+        },
+    importBackup() {
+        FilePicker.pick(({ accept: [".json", "application/json"] })).then((files: File[]) => {
+            const f = files[0]
+            if (f == null) return
+            readText(f.url, (text: string, err: string) => {
+                if (err != "") { app.say("That file isn't a Pagemap backup: " + err); return }
+                let b: { format?: string, flatplan?: Flatplan } = {}
+                try { b = JSON.parse(text) } catch (e) { app.say("That file isn't a Pagemap backup: it isn't JSON."); return }
+                if (b.format != "pagemap-backup" || b.flatplan == null || !Array.isArray(b.flatplan.pages)) { app.say("That file isn't a Pagemap backup: it has no flatplan in it."); return }
+                app.apply("Import a backup", app.plan.replaceWith(b.flatplan), "Backup restored. ⌘Z undoes it.")
+                })
+            })
+        },
+    printFlatplan() {
+        app.clearChoice()
+        zoom = "fit"
+        app.dlgThen(() => app.afterDelay(400, () => printPage()))
+        },
+
+    // ── undo (F-COLLAB-05)
+
+    undos: Step[] = [],
+    redos: Step[] = [],
+    undoLabel: string = { app.undos.length == 0 ? "Nothing to undo" : "Undo " + app.undos[app.undos.length - 1].label },
+    redoLabel: string = { app.redos.length == 0 ? "Nothing to redo" : "Redo " + app.redos[app.redos.length - 1].label },
+    undo() {
+        if (readOnly || undos.length == 0) return
+        const s = undos[undos.length - 1]
+        undos = undos.slice(0, -1)
+        saving = "Saving…"
+        replayDoc(docHandle, "Undo " + s.label, s.after as Record<string, string>, s.before as Record<string, string>,
+            (ok: boolean, conflict: boolean, reason: string, st: Step | null) => {
+                if (ok) { app.redos = [...app.redos, s]; app.saving = "All changes saved"; return }
+                if (reason == "changed" || conflict) { app.saving = "All changes saved"; app.say("Someone changed those pages since — “" + s.label + "” can't be undone.") }
+                else app.edited(s.label, false, false, reason, null, true)
+                })
+        },
+    redo() {
+        if (readOnly || redos.length == 0) return
+        const s = redos[redos.length - 1]
+        redos = redos.slice(0, -1)
+        saving = "Saving…"
+        replayDoc(docHandle, s.label, s.before as Record<string, string>, s.after as Record<string, string>,
+            (ok: boolean, conflict: boolean, reason: string, st: Step | null) => {
+                if (ok) { app.undos = [...app.undos, s]; app.saving = "All changes saved"; return }
+                if (reason == "changed" || conflict) { app.saving = "All changes saved"; app.say("Someone changed those pages since — “" + s.label + "” can't be redone.") }
+                else app.edited(s.label, false, false, reason, null, true)
+                })
+        },
+
+    // ── working together (F-COLLAB)
+
+    clock: Time [ tick = 30000,
+        onTick(dt: number) { app.sayHere() }
+        ],
+    now: number = { app.clock.now },
+    flashIds: string[] = [],
+    flash(ids: string[]) {
+        flashIds = ids
+        afterDelay(1600, () => { app.flashIds = [] })
+        },
+    comments: Dataset [ schema = [ rows[]: Comment ] ] { { "rows": [] } },
+    commentsArrived(v: unknown) {
+        const o = (v ?? {}) as Record<string, Comment>
+        const rows = Object.keys(o).map((k) => ({ id: o[k].id ?? k, pageId: o[k].pageId ?? "", by: o[k].by ?? "", at: Number(o[k].at ?? 0), text: o[k].text ?? "" }))
+        rows.sort((a, b) => a.at - b.at)
+        app.comments.set([], ({ rows: rows }))
+        },
+    commentPages: string[] = { [...new Set((app.comments.value?.rows ?? []).map((c) => c.pageId))] },
+    pageComments: Dataset [ contents = { ({ rows: (app.comments.value?.rows ?? []).filter((c) => c.pageId == app.cur) }) } ],
+    allComments: Dataset [ contents = { ({ rows: [...(app.comments.value?.rows ?? [])].reverse() }) } ],
+    postComment(text: string) {
+        const t = text.trim()
+        if (t == "" || cur == "" || !canComment) return
+        const base = "workspaces/" + planWs + "/flatplans/" + idKey(fpId)
+        const id = newPushKey(base + "/comments")
+        const ak = newPushKey(base + "/activity")
+        const u: Record<string, unknown> = {}
+        u[base + "/comments/" + id] = ({ id: id, pageId: cur, by: uid, at: "__server_time__", text: t })
+        u[base + "/activity/" + ak] = ({ id: ak, by: uid, at: "__server_time__", text: "Commented on " + app.plan.pageName(cur).toLowerCase() })
+        write(u, (err: string) => { if (err != "") app.say("Your comment wasn't posted: " + err) })
+        },
+    activity: Dataset [ schema = [ rows[]: Activity ] ] { { "rows": [] } },
+    activityArrived(v: unknown) {
+        const rows = ((v ?? []) as Activity[]).map((a) => ({ id: a.id ?? "", by: a.by ?? "", at: Number(a.at ?? 0), text: a.text ?? "" })).reverse()
+        app.activity.set([], ({ rows: rows }))
+        },
+    here: Dataset [ schema = [ rows[]: Here ] ] { { "rows": [] } },
+    hereArrived(v: unknown) {
+        const o = (v ?? {}) as Record<string, { by?: string, pages?: string, at?: number }>
+        const rows: Here[] = Object.keys(o).map((k) => {
+            let pages: string[] = []
+            try { pages = JSON.parse(o[k].pages ?? "[]") } catch (e) { }
+            return ({ tab: k, by: o[k].by ?? "", pages: pages, at: Number(o[k].at ?? 0), label: "" })
+            })
+        app.here.set([], ({ rows: rows }))
+        },
+    othersSet: Dataset [ contents = { ({ rows: app.others() }) } ],
+    others() -> Here[] {
+        const t = serverNow()
+        const nowTick = app.now
+        return (app.here.value?.rows ?? []).filter((h) => h.tab != tabId() && t - h.at < 150000 + 0 * nowTick)
+            .map((h) => ({ ...h, label: h.by == app.uid ? app.nameOf(h.by) + " — your other window" : app.nameOf(h.by) + " is here" }))
+        },
+    othersOnPages() -> Record<string, string[]> {
+        const out: Record<string, string[]> = {}
+        for (const h of app.others()) for (const p of h.pages) {
+            const l = out[p] ?? []
+            if (!l.includes(h.by) && l.length < 2) l.push(h.by)
+            out[p] = l
+        }
+        return out
+        },
+    sayHere() {
+        if (planState != "open" || session != "in" || route.view || planWs == "") return
+        presenceHere("workspaces/" + planWs + "/flatplans/" + idKey(fpId) + "/here/" + tabId(), uid, sel)
+        },
+
+    // Sharing (F-SHARE).
+
+    viewLink: string = { appAddress() + "#view/" + encodeURIComponent(app.fpId) },
+    copyLink() {
+        Clipboard.copy(app.viewLink)
+        const u: Record<string, unknown> = {}
+        u["workspaces/" + planWs + "/flatplans/" + idKey(fpId) + "/viewable"] = true
+        u["links/" + idKey(fpId)] = ({ ws: planWs })
+        write(u, (err: string) => { if (err != "") app.say("The link couldn't be turned on: " + err); else app.say("Link copied.") })
+        },
+    invite(email: string, r: string) {
+        if (role != "admin") { app.say("Only an admin can invite people."); return }
+        const u: Record<string, unknown> = {}
+        u["invites/" + emailKey(email)] = ({ ws: ws, role: r, by: uid, at: "__server_time__" })
+        write(u, (err: string) => {
+            if (err != "") app.say("The invitation couldn't be sent: " + err)
+            else app.say(email + " is invited. Tell them to create an account with that address at " + appAddress())
+            })
+        },
+
+    // Running Pagemap (F-ADMIN).
+
+    adminListeners: number[] = [],
+    clearArmed: string = "",
+    dialogChanged() {
+        if (dlg == "admin" && adminListeners.length == 0 && siteAdmin) app.watchAccounts()
+        if (dlg != "admin" && adminListeners.length > 0) { for (const l of adminListeners) unlisten(l); adminListeners = [] }
+        if (dlg == "pdf") afterSettle(() => app.showPdf())
+        },
+    rawAccounts: object = { {} },
+    rawBlocked: object = { {} },
+    watchAccounts() {
+        adminListeners = [
+            listen("accounts", (v: unknown) => { app.rawAccounts = (v ?? {}) as object }, (e: string) => { }),
+            listen("blocked", (v: unknown) => { app.rawBlocked = (v ?? {}) as object }, (e: string) => { })
+        ]
+        },
+    accountRows: Account[] = { app.makeAccounts(app.rawAccounts, app.rawBlocked) },
+    trackAccounts: Dataset [ contents = { ({ rows: app.accountRows }) } ],     // every account, newest first
+    makeAccounts(a0: object, b0: object) -> Account[] {
+        const a = a0 as Record<string, { name?: string, email?: string, created?: number, ws?: string, wsName?: string, bytes?: number, cleared?: number }>
+        const b = b0 as Record<string, boolean>
+        const rows = Object.keys(a).map((k) => {
+            const x = a[k]
+            const wsLine = x.cleared != null && (x.ws ?? "") == "" ? "Cleared" : (x.ws ?? "") == "" ? "No workspace" : (x.wsName ?? "") != "" ? x.wsName ?? "" : "Workspace " + x.ws
+            return ({ uid: k, name: x.name ?? "", email: x.email ?? "", created: Number(x.created ?? 0), wsLine: wsLine,
+                mb: (Number(x.bytes ?? 0) / 1048576).toFixed(1), blocked: b[k] == true })
+            })
+        rows.sort((p, q) => q.created - p.created)
+        return rows
+        },
+    setBlocked(id: string, on: boolean) {
+        const u: Record<string, unknown> = {}
+        u["blocked/" + id] = on ? true : null
+        write(u, (err: string) => app.say(err != "" ? "Not changed: " + err : on ? "Blocked. They're signed out the next time Pagemap checks." : "Unblocked."))
+        },
+    clearAccount(id: string) {
+        if (clearArmed != id) { clearArmed = id; afterDelay(4000, () => { if (app.clearArmed == id) app.clearArmed = "" }); return }
+        clearArmed = ""
+        read("accounts/" + id, (acc: unknown, e: string) => {
+            const w = String((acc as { ws?: string } | null)?.ws ?? "")
+            const finish = () => deleteUploads(id, (e3: string) => {
+                const u: Record<string, unknown> = {}
+                u["users/" + id] = null
+                u["accounts/" + id + "/ws"] = ""
+                u["accounts/" + id + "/wsName"] = ""
+                u["accounts/" + id + "/bytes"] = 0
+                u["accounts/" + id + "/cleared"] = "__server_time__"
+                write(u, (e4: string) => app.say(e4 != "" ? "Not cleared: " + e4 : "Cleared. Their workspace, flatplans and files are gone."))
+                })
+            if (w == "") { finish(); return }
+            read("workspaces/" + w + "/info/owner", (owner: unknown, e2: string) => {
+                if (owner == id) {
+                    read("workspaces/" + w + "/index", (ix: unknown, e5: string) => {
+                        const u: Record<string, unknown> = {}
+                        for (const k of Object.keys((ix ?? {}) as object)) u["links/" + k] = null
+                        u["workspaces/" + w] = null
+                        write(u, (e6: string) => { if (e6 != "") app.say("Not cleared: " + e6); else finish() })
+                        })
+                } else {
+                    const u: Record<string, unknown> = {}
+                    u["workspaces/" + w + "/members/" + id] = null
+                    write(u, (e6: string) => { if (e6 != "") app.say("Not cleared: " + e6); else finish() })
+                }
+                })
+            })
+        },
+
+    // Releases (F-APP-07).
+
+    build: string = "2026.11.17-1",
+    published: string = "",
+    stale: boolean = { app.published != "" && app.published != app.build },
+
+    // ── artwork (F-ART)
+
+    rendered: object = { {} },
+    renderedMap: Record<string, string> = { app.rendered as Record<string, string> },
+    upFile: string = "",
+    upName: string = "",
+    upPages: number = 0,
+    upSize: number = 0,
+    upAsset: string = "",
+    upExisting: boolean = false,
+    upError: string = "",
+    uploading: boolean = false,
+    upProgress: number = 0,
+    dropOver: boolean = false,
+    uploadFor: string = "",
+    mapping: string[] = [],
+    mapLineFor: number = 0,
+    choosePdf() {
+        FilePicker.pick(({ accept: ["application/pdf", ".pdf"] })).then((files: File[]) => app.takePdf(files))
+        },
+    takePdf(files: File[]) {
+        const f = files[0]
+        if (f == null) return
+        upError = ""
+        if (!(f.type == "application/pdf" || f.name.toLowerCase().endsWith(".pdf"))) { upError = "That isn't a PDF."; return }
+        countPdfPages(f.url, (n: number, err: string) => {
+            if (err != "" || n == 0) { app.upError = "Couldn't read that PDF: " + (err != "" ? err : "it has no pages"); return }
+            app.upFile = f.url; app.upName = f.name; app.upPages = n; app.upSize = f.size; app.upAsset = newId("a-"); app.upExisting = false
+            app.mapping = app.startMapping(n)
+            })
+        },
+
+    // It starts on the chosen pages, else the chosen region's story's pages, else from the chosen page on.
+
+    startMapping(n: number) -> string[] {
+        const out: string[] = []
+        let from: string[] = []
+        if (sel.length > 1) from = app.plan.inOrder(sel)
+        else if ((app.curRegion?.storyId ?? "") != "") from = app.plan.storyPages(app.curRegion?.storyId ?? "")
+        else if (cur != "") from = app.plan.pages.slice(app.plan.indexOf(cur)).map((p) => p.id)
+        for (let k = 0; k < n; k++) out.push(from[k] ?? "")
+        return out
+        },
+    remap(aid: string) {
+        const a = app.plan.asset(aid)
+        if (a == null) return
+        upFile = a.url != "" ? a.url : "asset:" + aid
+        upName = a.name; upPages = a.pages; upSize = a.size; upAsset = aid; upExisting = true; upError = ""
+        mapping = app.plan.mapping(aid, a.pages)
+        },
+    mapFromChosen() {
+        const from = cur != "" ? app.plan.pages.slice(app.plan.indexOf(cur)).map((p) => p.id) : []
+        const out: string[] = []
+        for (let k = 0; k < upPages; k++) out.push(from[k] ?? "")
+        mapping = out
+        },
+    mapClear() { mapping = mapping.map((m) => "") },
+    setMapLine(k: number, pid: string) {
+        // A page already taken by another line of this mapping is taken from it.
+        mapping = mapping.map((m, j) => j == k ? pid : (pid != "" && m == pid ? "" : m))
+        },
+    unmappedCount: number = { app.mapping.filter((m) => m == "").length },
+    replacing: number = { app.mapping.filter((m) => m != "" && (app.plan.page(m)?.art ?? null) != null && app.plan.page(m)?.art?.assetId != app.upAsset).length },
+    mapLines: Dataset [ contents = { ({ lines: app.mapping.map((m, k) => ({ id: "l" + k, k: k, label: m == "" ? "Keep unmapped" : app.plan.pageName(m) })) }) } ],
+    cancelMapping() { upFile = ""; mapping = []; uploading = false; upProgress = 0 },
+    saveMapping() {
+        if (mapping.every((m) => m == "")) { upError = "Map at least one PDF page onto a page first."; return }
+        upError = ""
+        const map = [...mapping]
+        const name = upName
+        if (upExisting) {
+            const a = app.plan.asset(upAsset)
+            if (a == null) return
+            if (app.apply("Attach " + name, app.plan.attach(a, map), "Attached. The artwork follows its pages wherever they move.")) app.mappingDone()
+            return
+        }
+        uploading = true; upProgress = 0
+        const aid = upAsset
+        const pages = upPages
+        uploadPdf(uid, aid, upFile, (f: number) => { app.upProgress = f }, (err: string, url: string, size: number) => {
+            app.uploading = false
+            if (err != "") { app.upError = "The PDF didn't upload: " + err; return }
+            const u: Record<string, unknown> = {}
+            read("accounts/" + app.uid + "/bytes", (b: unknown, e: string) => {
+                u["accounts/" + app.uid + "/bytes"] = Number(b ?? 0) + size
+                write(u, (e2: string) => { })
+                })
+            const asset: Asset = ({ id: aid, name: name, pages: pages, size: size, url: url })
+            if (app.apply("Attach " + name, app.plan.attach(asset, map), "Attached. The artwork follows its pages wherever they move.")) app.mappingDone()
+            })
+        },
+    mappingDone() {
+        artMode = true
+        upFile = ""; mapping = []
+        if (waypoint == "upload") goBack()
+        },
+    removeAsset(aid: string) { app.one("Remove a PDF", app.plan.removeAsset(aid)) },
+    detachChosen() {
+        const ids = app.targets
+        app.one(ids.length > 1 ? "Detach artwork from " + app.count(ids.length) : "Detach artwork", app.plan.detach(ids))
+        },
+
+    // Pages drawn from an uploaded PDF, once each, when the map is complete (F-ART-07).
+
+    needRender: string[] = { app.imagesOn ? app.renderWanted() : [] },
+    renderWanted() -> string[] {
+        const out: string[] = []
+        const have = app.rendered as Record<string, string>
+        const want = (p: Page | null, w: number) => {
+            if (p == null || p.art == null) return
+            const a = app.plan.asset(p.art.assetId)
+            if (a == null || (a.images ?? "") != "" || a.url == "") return
+            const key = a.id + ":" + p.art.page + ":" + w
+            if (have[key] == null) out.push(key)
+        }
+        // The reader's pages first, sharp; then the map's.
+        if (app.reading) for (const id of app.readUnits[app.readAt]?.ids ?? []) want(app.plan.page(id), 1200)
+        if (app.artMode) for (const p of app.plan.pages) want(p, 360)
+        return out
+        },
+    rendering: Time [ tick = 250, running = { app.needRender.length > 0 },
+        onTick(dt: number) { app.renderSome() }
+        ],
+    renderSome() {
+        for (const key of needRender.slice(0, 4)) {
+            const [aid, pg, w] = key.split(":")
+            const a = app.plan.asset(aid)
+            if (a == null) continue
+            app.rendered = ({ ...(app.rendered as Record<string, string>), [key]: "" })
+            pdfPicture(a.url, Number(pg), Number(w), (src: string) => {
+                app.rendered = ({ ...(app.rendered as Record<string, string>), [key]: src })
+                })
+        }
+        },
+
+    // The PDF viewer (F-ART-09).
+
+    pdfAsset: string = "",
+    pdfStart: number = 1,
+    pdfAt: number = 1,
+    pdfTotal: number = 0,
+    pdfZoom: string = { app.phone ? "width" : "fit" },
+    pdfName: string = { app.plan.asset(app.pdfAsset)?.name ?? "" },
+    pdfKey: string = { app.dlg == "pdf" ? app.pdfAsset + "|" + app.pdfZoom : "" },
+    openPdf(aid: string, page: number) { pdfAsset = aid; pdfStart = page; app.openDialog("pdf") },
+    showPdf() {
+        const a = app.plan.asset(pdfAsset)
+        if (a == null || a.url == "") return
+        mountPdf(a.url, pdfZoom, pdfStart, (n: number, total: number) => { app.pdfAt = n; app.pdfTotal = total })
+        },
+
+    // ── the reader (F-ART-08)
+
+    readSpreads: boolean = true,
+    openReader(pid: string) { if (pid != "") app.go(pid, true) },
+    closeReader() { goBack() },
+    readUnits: ReadUnit[] = { app.makeUnits() },
+    makeUnits() -> ReadUnit[] {
+        const f = app.plan.facts
+        const out: ReadUnit[] = []
+        app.plan.pages.forEach((p, i) => {
+            const last = out[out.length - 1]
+            if (app.readSpreads && last != null && f.spreads[i] == f.spreads[i - 1] && app.plan.facing) {
+                last.ids.push(p.id); last.n = last.ids.length; last.label = f.labels[i - 1] + "–" + f.labels[i]
+            } else out.push(({ k: out.length, ids: [p.id], label: f.labels[i], n: 1 }))
+            })
+        return out
+        },
+    readAt: number = { Math.max(0, app.readUnits.findIndex((u) => u.ids.includes(app.cur))) },
+    readStep(d: number) {
+        const k = Math.max(0, Math.min(readUnits.length - 1, readAt + d))
+        const u = readUnits[k]
+        if (u != null) location = app.base + "/" + encodeURIComponent(u.ids[0]) + "/read"
+        },
+    readJump(k: number) { const u = readUnits[k]; if (u != null) location = app.base + "/" + encodeURIComponent(u.ids[0]) + "/read" },
+    readNames: string = { (app.readUnits[app.readAt]?.ids ?? []).map((id) => app.plan.pageName(id).toUpperCase()).join(" · ") },
+    readSet: Dataset [ contents = { ({ pages: (app.readUnits[app.readAt]?.ids ?? []).map((id) => {
+        const p = app.plan.page(id)
+        return ({ id: id, art: app.artUrl(p?.art ?? null, 1200), regs: p == null ? [] : app.regionDraws(p) })
+        }) }) } ],
+    readStrip: Dataset [ contents = { ({ units: app.readUnits.map((u) => ({ id: "u" + u.k, k: u.k, label: u.label, n: u.n })) }) } ],
+    readPageW: number = { Math.max(80, Math.min((app.width - 120) / (app.readUnits[app.readAt]?.n ?? 1), (app.height - 52 - 84 - 40) / app.plan.aspect)) },
+
+    // ── menus
+
+    sectionMenu: Menu [
+        items = { (app.plan.doc?.sections ?? []).map((s) => ({ id: s.id, label: s.name, group: "section",
+            checked: app.targets.length > 0 && app.targets.every((t) => app.plan.page(t)?.sectionId == s.id) })) },
+        picked(id: string) { app.setSectionFor(id) }
+        ],
+    storyMenu: Menu [
+        items = { [ ({ id: "-", label: "No story — a placement" }), ({ id: "+", label: "New story on this page…" }), ({ divider: true }),
+            ...(app.plan.doc?.stories ?? []).map((s) => ({ id: s.id, label: s.title, checked: app.curRegion?.storyId == s.id })) ] },
+        picked(id: string) {
+            if (id == "-") app.one("Make a placement", app.plan.placement(app.cur, app.regionIx))
+            else if (id == "+") app.openNewStory("page", "")
+            else app.one("Put " + (app.plan.story(id)?.title ?? "") + " here", app.plan.putStory(app.cur, app.regionIx, id))
+            }
+        ],
+    bookingMenu: Menu [
+        items = { (app.plan.doc?.bookings ?? []).length == 0 ? [ ({ id: "", label: "Nothing booked yet", enabled: false }) ]
+            : (app.plan.doc?.bookings ?? []).map((b) => ({ id: b.id, label: b.text + " · " + (b.size != "" ? b.size : "any size") + " " + b.shape,
+                checked: app.curRegion?.bookingId == b.id })) },
+        picked(id: string) { if (id != "") app.one("Place " + (app.plan.booking(id)?.text ?? ""), app.plan.placeBooking(app.cur, app.regionIx, id)) }
+        ],
+    editorMenu: Menu [
+        items = { [ ({ id: "", label: "Unassigned", group: "editor", checked: (app.plan.story(app.storyFor)?.editor ?? "") == "" }),
+            ...app.editors.map((m) => ({ id: m.uid, label: m.name, group: "editor", checked: app.plan.story(app.storyFor)?.editor == m.uid })) ] },
+        picked(id: string) {
+            app.one(id == "" ? "Unassign" : "Assign " + app.nameOf(id), app.plan.editStory(app.storyFor, (s: Story) => { s.editor = id; return "" }))
+            }
+        ],
+    statusMenu: Menu [
+        items = { (app.plan.doc?.statuses ?? []).map((s) => ({ id: s.id, label: s.name, group: "status", checked: app.plan.story(app.storyFor)?.status == s.id })) },
+        picked(id: string) {
+            app.one("Mark " + (app.plan.status(id)?.name ?? ""), app.plan.editStory(app.storyFor, (s: Story) => { s.status = id; return "" }))
+            }
+        ],
+    storySectionMenu: Menu [
+        items = { (app.plan.doc?.sections ?? []).map((s) => ({ id: s.id, label: s.name, group: "section", checked: app.plan.story(app.storyFor)?.sectionId == s.id })) },
+        picked(id: string) {
+            app.one("Move story to " + app.plan.sectionName(id), app.plan.editStory(app.storyFor, (s: Story) => { s.sectionId = id; return "" }))
+            }
+        ],
+    markMenu: Menu [
+        items = { (app.plan.doc?.statuses ?? []).map((s) => ({ id: s.id, label: "Mark " + s.name })) },
+        picked(id: string) { app.one("Mark " + (app.plan.status(id)?.name ?? ""), app.plan.markStatus(app.targets, id)) }
+        ],
+    placesMenu: Menu [
+        items = { app.plan.fits(Math.max(1, app.plan.story(app.pickId)?.pages ?? 1)).map((id) => ({ id: id, label: "From " + app.plan.pageName(id).replace("Page", "page"),
+            group: "from", checked: app.placeFrom == id })) },
+        picked(id: string) { app.placeFrom = id }
+        ],
+    formSectionMenu: Menu [
+        items = { (app.plan.doc?.sections ?? []).map((s) => ({ id: s.id, label: s.name, group: "section", checked: app.storyPane.form?.section == s.id })) },
+        picked(id: string) { const f = app.storyPane.form; if (f != null) f.section = id }
+        ],
+    formEditorMenu: Menu [
+        items = { [ ({ id: "", label: "Unassigned", group: "editor", checked: app.storyPane.form?.editor == "" }),
+            ...app.editors.map((m) => ({ id: m.uid, label: m.name, group: "editor", checked: app.storyPane.form?.editor == m.uid })) ] },
+        picked(id: string) { const f = app.storyPane.form; if (f != null) f.editor = id }
+        ],
+    mapPageMenu: Menu [
+        items = { [ ({ id: "", label: "Keep unmapped" }), ({ divider: true }),
+            ...app.plan.pages.map((p, i) => ({ id: p.id, label: app.plan.facts.names[i], checked: app.mapping[app.mapLineFor] == p.id })) ] },
+        picked(id: string) { app.setMapLine(app.mapLineFor, id) }
+        ],
+    filterMenu: Menu [
+        items = { [ ({ id: "all", label: "All content" }), ({ id: "editorial", label: "Editorial" }), ({ id: "advertising", label: "Advertising" }),
+            ({ id: "unassigned", label: "Open pages" }) ].map((r) => ({ ...r, group: "filter", checked: app.filter == r.id })) },
+        picked(id: string) { app.filter = id }
+        ],
+    moveModeMenu: Menu [
+        items = { ["story", "page", "spread", "section"].map((m) => ({ id: m, label: app.modeWordLong(m), group: "mode", checked: app.moveMode == m })) },
+        picked(id: string) { app.moveMode = id }
+        ],
+    moreMenu: Menu [
+        items = { [
+            ...(app.narrowBar ? [ ({ id: "mode", label: app.modeWordLong(app.moveMode) + "…" }) ] : []),
+            ...(app.phone ? [ ({ id: "undo", label: app.undoLabel, enabled: app.undos.length > 0 && !app.readOnly }),
+                ({ id: "redo", label: app.redoLabel, enabled: app.redos.length > 0 && !app.readOnly }), ({ id: "share", label: "Share…", enabled: app.session == "in" }) ] : []),
+            ...(app.narrowBar ? [ ({ divider: true }) ] : []),
+            ({ id: "read", label: "Read spread by spread" }),
+            ({ id: "settings", label: "Flatplan settings…" }),
+            ({ id: "lists", label: "Sections, statuses and tags…", enabled: !app.readOnly }),
+            ({ id: "notes", label: "Notes and activity…" }),
+            ({ id: "upload", label: "Upload artwork…", enabled: !app.readOnly }),
+            ({ divider: true }),
+            ...(app.phone ? [] : [ ({ id: "print", label: "Print or save as PDF" }) ]),
+            ({ id: "export", label: "Export a backup" }),
+            ({ id: "guide", label: "Quick guide" }) ] },
+        picked(id: string) {
+            if (id == "read") app.openReader(app.cur != "" ? app.cur : app.plan.pages[0]?.id ?? "")
+            else if (id == "print") app.printFlatplan()
+            else if (id == "export") app.exportBackup()
+            else if (id == "undo") app.undo()
+            else if (id == "redo") app.redo()
+            else if (id == "mode") app.moveModeMenu.showFor(app.header)
+            else app.openDialog(id)
+            }
+        ],
+    accountMenu: Menu [
+        items = { [ ({ id: "-name", label: app.myName != "" ? app.myName : app.nameOf(app.uid), enabled: false }),
+            ({ id: "-email", label: app.myEmail, enabled: false }),
+            ({ id: "-ws", label: "Workspace: " + app.wsName, enabled: false }),
+            ({ divider: true }),
+            ...(app.siteAdmin ? [ ({ id: "admin", label: "Manage accounts…" }) ] : []),
+            ({ id: "out", label: "Sign out" }) ] },
+        picked(id: string) { if (id == "out") app.signOut(); else if (id == "admin") app.openDialog("admin") }
+        ],
+    pageMenu: ContextMenu [
+        pid: string = "",
+        p: Page? = { app.plan.page(this.pid) },
+        n: number = { app.targets.length },
+        items = { [
+            ({ id: "copy", label: "Copy page", key: "⌘C" }),
+            ({ id: "paste", label: "Paste", key: "⌘V", enabled: app.copied != null && !app.readOnly }),
+            ({ id: "across", label: "Copy content across next pages…", enabled: !app.readOnly }),
+            ({ divider: true }),
+            ({ id: "insert", label: "Insert pages after…", enabled: !app.readOnly }),
+            ({ id: "restart", label: "Start numbering here…", enabled: !app.readOnly && !app.plan.isCover(this.pid) }),
+            ({ id: "lock", label: (this.p?.locked ?? false) ? "Unlock" : "Lock", enabled: !app.readOnly }),
+            ({ id: "stitch", label: "Add a stitch-in after", enabled: !app.readOnly }),
+            ({ id: "move", label: "Move…", enabled: !app.readOnly }),
+            ({ divider: true }),
+            ({ id: "hold", label: "Move to holding area", enabled: !app.readOnly }),
+            ({ id: "delete", label: this.n > 1 ? "Delete " + this.n + " pages" : "Delete page", key: "⌫", enabled: !app.readOnly }) ] },
+        picked(id: string) {
+            if (id == "copy") app.copyPage()
+            else if (id == "paste") app.pastePages()
+            else if (id == "across") app.openDialog("copyacross")
+            else if (id == "insert") app.openDialog("insert")
+            else if (id == "restart") app.openDialog("restart")
+            else if (id == "lock") app.toggleLock(this.pid)
+            else if (id == "stitch") app.addStitch()
+            else if (id == "move") app.openDialog("move")
+            else if (id == "hold") app.holdChosen()
+            else if (id == "delete") app.deleteChosen()
+            }
+        ],
+    pageMenuAt(v: View, e: PointerEvent, pid: string) {
+        if (!sel.includes(pid)) app.choose(pid, 0)
+        app.pageMenu.pid = pid
+        app.pageMenu.showAt(v, e)
+        },
+
+    // ── keys (F-APP-04)
+
+    keyBindings = { [
+        ({ key: "Ctrl+Z", command: "undo", label: "Undo" }),
+        ({ key: "Ctrl+Shift+Z", command: "redo", label: "Redo" }),
+        ({ key: "Ctrl+A", command: "chooseAll", label: "Choose every matching page" }),
+        ({ key: "Backspace", command: "deleteKey", label: "Delete the chosen pages" }),
+        ({ key: "Delete", command: "deleteKey" }),
+        ({ key: "/", command: "findKey", label: "Find" }),
+        ({ key: "p", command: "planningKey", label: "Planning" }),
+        ({ key: "a", command: "artworkKey", label: "Artwork" }),
+        ({ key: "=", command: "zoomIn", label: "Zoom in" }),
+        ({ key: "+", command: "zoomIn" }),
+        ({ key: "-", command: "zoomOut", label: "Zoom out" }),
+        ({ key: "ArrowLeft", command: "prevKey", label: "Previous page" }),
+        ({ key: "ArrowRight", command: "nextKey", label: "Next page" }),
+        ({ key: "Space", command: "readKey", label: "Read from the chosen page" }),
+        ({ key: "Escape", command: "escapeKey", label: "Clear the choice" }) ] },
+
+    // ⌘C and ⌘V (F-PAGE-10) arrive as the clipboard's own events when nothing focused takes them.
+
+    onClipboardCopy(e: ClipboardEvent) { if (cur != "") { app.copyPage(); e.put(app.plan.pageName(cur)) } },
+    onClipboardPaste(e: ClipboardEvent) { if (copied != null && app.targets.length > 0) app.pastePages() },
+    deleteKey() -> boolean { if (app.targets.length == 0 || readOnly) return false; app.deleteChosen(); return true },
+    findKey() { afterSettle(() => Focus.focus(app.findField)) },
+    planningKey() { artMode = false },
+    artworkKey() { artMode = true },
+    zoomIn() { zoom = zoom == "overview" ? (app.phone ? "spreads" : "comfortable") : "detail" },
+    zoomOut() { zoom = zoom == "detail" ? (app.phone ? "spreads" : "comfortable") : "overview" },
+    prevKey() { app.step(-1) },
+    nextKey() { app.step(1) },
+    readKey() -> boolean { if (cur == "") return false; app.openReader(cur); return true },
+    escapeKey() -> boolean { if (app.drag.active) return false; if (sel.length == 0 && pick == "" && cur == "") return false; app.clearChoice(); return true },
+
+    // ── the screen
+
+    drag: Drag [ ],
+    ghostSet: Dataset [ contents = { ({ items: app.ghostThumbs() }) } ],
+    ghostThumbs() -> Thumb[] {
+        if (!app.drag.active) return []
+        if (app.drag.kind == "held") { const p = app.plan.held(app.drag.heldId); return p == null ? [] : [({ id: p.id, label: "HELD", color: app.plan.sectionColor(p.sectionId), art: app.artUrl(p.art ?? null, 360), side: "right" })] }
+        if (app.drag.kind == "story") { const s = app.plan.story(app.drag.storyId); return s == null ? [] : [({ id: s.id, label: s.pages + " PP", color: app.plan.sectionColor(s.sectionId), art: "", side: "right" })] }
+        if (app.drag.kind == "section") return [({ id: app.drag.sectionId, label: app.plan.sectionName(app.drag.sectionId), color: app.plan.sectionColor(app.drag.sectionId), art: "", side: "right" })]
+        return app.drag.ids.slice(0, 4).map((id) => { const p = app.plan.page(id); return ({ id: id, label: app.plan.label(id), color: app.plan.sectionColor(p?.sectionId ?? ""), art: app.artUrl(p?.art ?? null, 360), side: app.plan.side(id) }) })
+        },
+    regionSet: Dataset [ contents = { ({ items: (app.plan.page(app.cur)?.regions ?? []).map((r, i) => ({ id: r.id, ri: i,
+        label: "Region " + (i + 1) + " · " + Math.round(100 * regionShare(app.plan.page(app.cur)?.layout ?? "full", i)) + "%" })) }) } ],
+    layoutSet: Dataset [ contents = { ({ items: templateIds().map((t) => {
+        const p = app.plan.page(app.cur)
+        return ({ id: t, name: templateName(t), short: templateName(t).split(" ")[0], on: p?.layout == t, rects: regionRects(t, p?.turn ?? 0, p?.flip ?? false) })
+        }) }) } ],
+
+    findField: View = { app.toolbar.find },
+    mapPane: View? = { app.main.body.map.pane },
+    mapFlowView: View = { app.main.body.map.pane.flow },
+    storyPane: StoryPane = { app.stories },
+
+    // Until the service has said who is signed in, nothing shows (F-ACC-01).
+
+    signIn: SignIn [ visible = { app.authKnown && app.session == "out" && !app.route.view } ],
+    waiting: View [ visible = { !app.authKnown || app.session == "resolving" }, width = 100%, height = 100%,
+        Text [ x = center, y = center, fontSize = 14, textColor = { provided("theme").textMuted }, text = "Opening Pagemap…" ]
+        ],
+
+    main: View [ visible = { app.authKnown && (app.session == "in" || app.route.view) }, width = 100%, height = 100%,
+        layout: SimpleLayout [ axis = y ],
+        header: Header [ ],
+        toolbar: MapToolbar [ ],
+        body: View [ width = 100%, flexes = true,
+            layout: SimpleLayout [ axis = x ],
+            side: View [ visible = { app.wide && app.sideOpen }, width = { app.width < 1300 ? 244 : 272 }, height = 100%, scrolls = y, accessibilityRole = navigation, accessibilityLabel = "Side panel",
+                fill = { provided("theme").surface }, stroke = { [null, Stroke(1, provided("theme").line), null, null] },
+                SidePanel [ ]
+                ],
+            map: View [ flexes = true, height = 100%, accessibilityRole = main, accessibilityLabel = "Map",
+                layout: SimpleLayout [ axis = y ],
+                numbers: Numbers [ visible = { app.planState == "open" } ],
+                pane: View [ width = 100%, flexes = true, scrolls = y, fill = { provided("theme").canvas },
+                    status: Text [ visible = { app.planState != "open" }, x = center, y = 80, width = { Math.min(360, parent.width - 40) }, textAlign = center,
+                        fontSize = 14, textColor = { provided("theme").textMuted },
+                        text = { app.planState == "failed" ? app.planError : "Opening the flatplan…" } ],
+                    flow: View [ visible = { app.planState == "open" }, width = 100%, padding = { [12, app.mapPad, app.flowFoot, app.mapPad] },
+                        dropRole: string = "flow",
+                        datapath = { app.mapItems.value },
+                        layout: MapFlow [ pageW = { app.pageW }, pageH = { app.pageH }, labelH = { app.labelH }, gap = { app.spreadGap },
+                            rowGap = { app.rowGap }, headH = { app.headH }, minSlot = { app.minSlot }, facing = { app.plan.facing } ],
+                        MapCell [ datapath = :items[],
+                            classFor = { :kind == "head" ? SectionHead : :kind == "add" ? AddSlot : PageCell } ],
+                        mark: InsertMark [ ]
+                        ]
+                    ]
+                ],
+            inspector: View [ visible = { !app.phone }, width = { app.width >= 1300 ? 330 : 300 }, height = 100%, scrolls = y,
+                accessibilityRole = complementary, accessibilityLabel = "Inspector",
+                fill = { provided("theme").surface }, stroke = { [null, null, null, Stroke(1, provided("theme").line)] },
+                Inspector [ ]
+                ]
+            ],
+        phoneBar: PhoneBar [ visible = { app.phone } ]
+        ],
+    header: View = { app.main.header },
+    toolbar: MapToolbar = { app.main.toolbar },
+    body: View = { app.main.body },
+
+    // Over the map: the side panel as a drawer, the inspector as a sheet on a phone.
+
+    sideSheet: Sheet [ edge = "start", sheetWidth = 300, accessibilityLabel = "Side panel",
+        shown = { app.sideSheetOpen && !app.wide && (app.session == "in" || app.route.view) },
+        commit(open: boolean) { app.sideSheetOpen = open },
+        SidePanel [ ]
+        ],
+    inspectSheet: Sheet [ accessibilityLabel = "Inspector",
+        shown = { app.phone && app.inspecting != "none" && app.dlg == "" && !app.reading && !app.drag.active && !app.pageMenu.shown },
+        commit(open: boolean) { if (!open) app.clearChoice() },
+        Inspector [ ]
+        ],
+
+    // The dialogs.
+
+    flatplans: FlatplansPane [ ],
+    settings: SettingsPane [ ],
+    lists: ListsPane [ ],
+    move: MovePane [ ],
+    insert: InsertPane [ ],
+    across: CopyAcrossPane [ ],
+    restart: RestartPane [ ],
+    stories: StoryPane [ ],
+    ads: AdsPane [ ],
+    upload: UploadPane [ ],
+    print: PrintPane [ ],
+    stitch: StitchPane [ ],
+    notes: NotesPane [ ],
+    share: SharePane [ ],
+    admin: AdminPane [ ],
+    guide: GuidePane [ ],
+    reader: Reader [ ],
+    pdf: PdfViewer [ ],
+
+    // A newer build: a notice that can't be put off (F-APP-07).
+
+    release: Dialog [ shown = { app.stale },
+        commit(open: boolean) { },
+        title = "A new version of Pagemap",
+        message = "Reload to keep working. Everything you've done is saved.",
+        buttons = { [ ({ id: "reload", label: "Reload", default: true }) ] },
+        escape() { },
+        picked(id: string) { reloadPage() }
+        ],
+
+    ghost: DragGhost [ visible = { app.drag.active } ],
+    toast: Toast [ duration = 5000 ]
+    ]

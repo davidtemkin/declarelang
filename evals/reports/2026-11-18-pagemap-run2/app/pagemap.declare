@@ -1,0 +1,1021 @@
+/*
+# Pagemap
+
+An editorial flatplan for magazines: every physical page of one printed issue
+in order, in spreads, under its sections, with what goes on each page, worked
+on by a team together, live.
+
+How it is put together:
+
+- **The service** is Firebase (the emulator suite). `service.ts` is the glue:
+  signing in, following the records of the open flatplan, writing an edit as
+  one update, presence, comments, uploads, PDF pictures. Nothing in it decides
+  what a flatplan means.
+- **The model** (`model.declare`) is the flatplan's own logic: its schemas,
+  the facts derived from it (folios, spreads, sides, the composition), and
+  every edit, which the `Plan` dataset checks against the rules before it is
+  sent. The service writes each arrival into `app.plan`; views read it.
+- **Where the person is** lives on the App: the address (`location`: the
+  flatplan and the chosen page, or a view-only link), the other chosen pages,
+  the region, the zoom, Planning or Artwork, the move mode, the search, what
+  is folded. A dialog is a step (`waypoint`), so Back closes it.
+- **The screen** derives from those two: the map (`map.declare`), the side
+  panel and the inspector (`panels.declare`), the dialogs (`dialogs.declare`),
+  and the drag (`drag.declare`).
+*/
+
+include [ "model.declare" ]
+
+include [ "map.declare" ]
+
+include [ "drag.declare" ]
+
+include [ "panels.declare" ]
+
+include [ "dialogs.declare" ]
+
+script [ "service.ts", host = browser ]
+
+defaultFlags [ lint = false ]
+
+// ── The look ────────────────────────────────────────────────────────────────
+//
+// Laid over the library's preset, so its controls share the palette; the
+// tokens below are Pagemap's own.
+
+theme PagemapLight [
+    canvas = #ECEEF1, panel = #FAFAFB, page = #FFFFFF, pageEdge = #C9CED6, pageShadow = #00000014,
+    openRegion = #FFFFFF, adRegion = #F3EEE4, adHatch = #D9C7A7, adText = #9A6A1E, regionLine = #D5D9DF,
+    coverFill = #1B2733, coverText = #FFFFFF, markFill = #FFFFFFE6,
+    flash = #F3A71255, placeOk = #2E9A6340, placeBad = #D0342C40,
+    warn = #E08A00, danger = #C23528, ok = #2E9A63, hover = #00000009, lineStrong = #C3CAD3,
+    editorialInk = #2E6FE0, advertisingInk = #C98A1B, openInk = #B8C0CA
+    ]
+
+
+theme PagemapDark [
+    canvas = #0B1118, panel = #121B25, page = #1E2833, pageEdge = #34424F, pageShadow = #00000066,
+    openRegion = #1E2833, adRegion = #2B261C, adHatch = #5A4A2E, adText = #E0B35C, regionLine = #34424F,
+    coverFill = #E7EEF2, coverText = #0F1620, markFill = #121B25E6,
+    flash = #F3A71266, placeOk = #2E9A6355, placeBad = #D0342C55,
+    warn = #F0A030, danger = #FF7A6E, ok = #4CC38A, hover = #FFFFFF0D, lineStrong = #3A4856,
+    editorialInk = #5B8DEF, advertisingInk = #E0B35C, openInk = #556673
+    ]
+
+
+// What the service hands over about other people and the conversation.
+
+schema Member [ uid: string, name: string, email: string, initials: string, color: string, role: string ]
+schema Entry [ id: string, name: string, edition: string, pages: number, updated?: number, archived?: boolean ]
+schema Here [ tab: string, by: string, pages: string, at?: number ]
+schema Note [ id: string, pageId?: string, by: string, at?: number, text: string ]
+
+
+App [ appName = "Pagemap", minWidth = 340, scrolls = none,
+    fill = { provided("theme").canvas },
+    textColor = { provided("theme").text },
+    fontFamily = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+
+    // ── appearance: as the device, light or dark, kept on this device
+
+    appearance: string = { stored("appearance") == "" ? "auto" : stored("appearance") },
+    isDark: boolean = { app.appearance == "auto" ? app.systemDark : app.appearance == "dark" },
+    theme = { app.isDark ? ({ ...SanFranciscoDark, ...PagemapDark }) : ({ ...SanFrancisco, ...PagemapLight }) },
+    setAppearance(v: string) { appearance = v; store("appearance", v) },
+
+    desk: boolean = { app.width >= 900 },
+    phone: boolean = { app.width < 700 },
+
+    // ── the account
+    //
+    // `authKnown` turns true once the service has said whether anyone is
+    // signed in; until then nothing of any workspace shows (F-ACC-01).
+
+    authKnown: boolean = false,
+    uid: string = "",
+    userEmail: string = "",
+    userName: string = "",
+    resolving: boolean = false,
+    signMessage: string = "",
+    signBusy: boolean = false,
+    pendingMagazine: string = "",
+    pendingFirst: string = "",
+    siteAdmin: boolean = false,
+
+    ws: string = "",
+    role: string = "",
+    wsName: string = "",
+    home: string = "",
+    members: Dataset [ schema = [ rows[]: Member ] ] { { "rows": [] } },
+    flatplans: Dataset [ schema = [ rows[]: Entry ] ] { { "rows": [] } },
+
+    signedIn: boolean = { app.uid != "" && app.ws != "" },
+    me: Member? = { app.memberOf(app.uid) },
+    memberOf(uid: string) -> Member? { return (app.members.value?.rows ?? []).find((m) => m.uid == uid) ?? null },
+    personName(uid: string) -> string { return app.memberOf(uid)?.name ?? (uid == app.uid ? app.userName : "Someone") },
+    editorFirst(uid: string) -> string { return uid == "" ? "" : firstName(app.personName(uid)) },
+    editors: Member[] = { (app.members.value?.rows ?? []).filter((m) => m.role != "viewer") },
+
+    onInit() {
+        watchAuth((p: any) => { app.authChanged(p) })
+        },
+
+    authChanged(p: any) {
+        if (p == null) {
+            app.leaveWorkspace()
+            app.uid = ""
+            app.userEmail = ""
+            app.userName = ""
+            app.authKnown = true
+            return
+            }
+        app.uid = p.uid
+        app.userEmail = p.email
+        if (p.name != "") app.userName = p.name
+        app.resolving = true
+        app.authKnown = true
+        // A new account resolves once its account record is written (signUp, below).
+        if (!app.signingUp) app.resolveNow(p)
+        },
+
+    signingUp: boolean = false,
+
+    /** §3.5: refused, a workspace, an invitation honored, or one founded. */
+
+    resolveNow(p: any) {
+        app.resolving = true
+        resolveAccount(p, app.pendingMagazine, app.pendingFirst, (ws: string, uid: string, pub: string) => starterPlan(uid, pub)).then((r: any) => {
+            app.resolving = false
+            app.signBusy = false
+            if (r.refused != "") { app.signMessage = r.refused; signOutNow(); return }
+            app.enterWorkspace(r.ws, r.role)
+            }, (e: any) => {
+            app.resolving = false
+            app.signBusy = false
+            app.signMessage = app.pendingMagazine != "" || app.pendingFirst != "" ? "Your workspace couldn't be made: " + authMessage(e) : authMessage(e)
+            signOutNow()
+            })
+        },
+
+    signUp(name: string, email: string, password: string, magazine: string) {
+        app.signBusy = true
+        app.signingUp = true
+        app.pendingMagazine = magazine.trim()
+        app.pendingFirst = firstName(name)
+        signUpWith(name, email, password).then((uid: string) => {
+            app.signingUp = false
+            app.userName = name.trim()
+            app.resolveNow(({ uid: uid, email: email.trim(), name: name.trim() }))
+            }, (e: any) => {
+            app.signingUp = false
+            app.signBusy = false
+            app.resolving = false
+            app.pendingMagazine = ""
+            app.pendingFirst = ""
+            app.signMessage = authMessage(e)
+            if (app.uid != "") signOutNow()
+            })
+        },
+
+    enterWorkspace(ws: string, role: string) {
+        app.ws = ws
+        app.role = role
+        app.pendingMagazine = ""
+        app.pendingFirst = ""
+        watch("info", "workspaces/" + ws + "/info", (v: any) => { app.wsName = v?.name ?? ""; app.home = v?.home ?? "" })
+        watch("members", "workspaces/" + ws + "/members", (v: any) => {
+            const rows = Object.keys(v ?? {}).map((k) => ({ uid: k, ...v[k] }))
+            app.members.set(["rows"], rows)
+            const mine = rows.find((m) => m.uid == app.uid)
+            if (mine != null) app.role = mine.role
+            })
+        watch("index", "workspaces/" + ws + "/index", (v: any) => {
+            const rows = Object.keys(v ?? {}).map((k) => ({ ...v[k], id: v[k]?.id ?? decodeURIComponent(k) }))
+            rows.sort((a, b) => (b.updated ?? 0) - (a.updated ?? 0))
+            app.flatplans.set(["rows"], rows)
+            })
+        watch("admin", "admins/" + app.uid, (v: any) => { app.siteAdmin = v === true })
+        watch("blocked", "blocked/" + app.uid, (v: any) => {
+            if (v === true) { app.signMessage = "This account has been turned off. Ask the person who runs Pagemap."; app.signOut() }
+            })
+        },
+
+    leaveWorkspace() {
+        for (const n of ["info", "members", "index", "admin", "blocked", "comments", "activity", "here"]) unwatch(n)
+        closeFlatplan()
+        stopPresence()
+        app.ws = ""
+        app.role = ""
+        app.wsName = ""
+        app.home = ""
+        app.siteAdmin = false
+        app.members.set(["rows"], [])
+        app.flatplans.set(["rows"], [])
+        app.plan.set(["open"], null)
+        app.clearChoice()
+        },
+
+    signOut() {
+        stopPresence()
+        signOutNow()
+        },
+
+    // ── where the person is: the address
+    //
+    //   #<flatplan>[/<page>[/read]]       signed in
+    //   #view/<flatplan>[/<page>[/read]]  a view-only link
+
+    location = "",
+    waypoint = "",
+    parts: string[] = { app.location.split("/").filter((s) => s != "") },
+    isLink: boolean = { app.parts[0] == "view" },
+    at: number = { app.isLink ? 1 : 0 },
+    addressed: string = { app.parts[app.at] ?? "" },
+    fpId: string = { app.addressed != "" ? app.addressed : app.isLink ? "" : app.home },
+    pageId: string = { app.parts[app.at + 1] ?? "" },
+    reading: boolean = { app.parts[app.at + 2] == "read" },
+    prefix: string = { app.isLink ? "view/" : "" },
+
+    linkWs: string = "",
+    linkState: string = "",
+    fpWs: string = { app.isLink ? app.linkWs : app.ws },
+    readOnly: boolean = { app.isLink || app.role == "viewer" || app.role == "" },
+    canComment: boolean = { !app.isLink && app.role != "" },
+
+    // A new flatplan (or another workspace) opens fresh: follow its records.
+
+    openKey: string = { app.authKnown ? app.fpWs + "|" + app.fpId : "" },
+    trackChanges = ["openKey", "isLink", "addressed", "pageId", "chosenKey", "docTitle"],
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) {
+            if (c.name == "openKey") app.openPlan()
+            else if (c.name == "isLink" || c.name == "addressed") app.followLink()
+            else if (c.name == "pageId") app.pageArrived()
+            else if (c.name == "chosenKey") presencePages(app.chosen)
+            else if (c.name == "docTitle") windowTitle(app.docTitle)
+            }
+        },
+    onReady() { app.followLink(); windowTitle(app.docTitle) },
+
+    followLink() {
+        if (!app.isLink) { app.linkWs = ""; app.linkState = ""; return }
+        const id = app.addressed
+        app.linkState = "opening"
+        linkWorkspace(id).then((ws: string) => {
+            if (ws == "") { app.linkState = "gone"; app.linkWs = "" }
+            else { app.linkWs = ws; app.linkState = "" }
+            })
+        },
+
+    planError: string = "",
+    planState: string = "idle",        // idle · opening · ready · failed
+    mapReady: boolean = false,
+
+    openPlan() {
+        closeFlatplan()
+        stopPresence()
+        unwatch("comments")
+        unwatch("activity")
+        unwatch("here")
+        app.plan.set(["open"], null)
+        app.plan.forget()
+        app.mapReady = false
+        app.clearChoice()
+        app.planError = ""
+        const ws = app.fpWs
+        const id = app.fpId
+        if (ws == "" || id == "") { app.planState = "idle"; return }
+        app.planState = "opening"
+        const root = "workspaces/" + ws + "/flatplans/" + idKey(id)
+        openFlatplan(ws, id, (o: any) => {
+            app.plan.set(["open"], o.fp)
+            if (app.planState != "ready") {
+                app.planState = "ready"
+                app.plan.status = "All changes saved"
+                afterSettle(() => { app.mapReady = true })
+                }
+            if (o.byOther && o.touched.length > 0) app.flashPages(o.touched)
+            }, (msg: string) => {
+            app.planState = "failed"
+            app.planError = app.isLink ? "This link doesn't open a flatplan any more." : msg
+            })
+        watchNewest("comments", root + "/comments", "at", 1000, (rows: any[]) => { app.comments.set(["rows"], rows) })
+        watchNewest("activity", root + "/activity", "at", 200, (rows: any[]) => { app.activity.set(["rows"], rows.reverse()) })
+        watch("here", root + "/here", (v: any) => {
+            app.here.set(["rows"], Object.keys(v ?? {}).map((k) => ({ tab: k, by: v[k].by ?? "", pages: v[k].pages ?? "[]", at: v[k].at ?? 0 })))
+            })
+        if (!app.isLink && app.uid != "") startPresence(ws, id, app.uid)
+        },
+
+    plan: Plan [ ws = { app.fpWs }, uid = { app.uid }, readOnly = { app.readOnly } ] { { "open": null } },
+    fp: Flatplan? = { app.plan.fp },
+    aspect: number = { (app.fp?.trimH ?? 12) / Math.max(0.1, app.fp?.trimW ?? 9) },
+    docTitle: string = { app.fp != null ? app.fp.name + " · Pagemap" : "Pagemap" },
+
+    // ── the conversation: comments, activity, presence
+
+    comments: Dataset [ schema = [ rows[]: Note ] ] { { "rows": [] } },
+    activity: Dataset [ schema = [ rows[]: Note ] ] { { "rows": [] } },
+    here: Dataset [ schema = [ rows[]: Here ] ] { { "rows": [] } },
+    clock: Time [ tick = 30000 ],
+    nowMs: number = { app.clock.now + 0 * app.clock.minute },
+    commentedPages: string[] = { (app.comments.value?.rows ?? []).map((c) => c.pageId ?? "") },
+    commentsOn(id: string) -> Note[] { return (app.comments.value?.rows ?? []).filter((c) => c.pageId == id) },
+    myTab: string = { tabId() },
+    others: Here[] = { (app.here.value?.rows ?? []).filter((h) => h.tab != app.myTab && serverNow() - (h.at ?? 0) < 150000 + 0 * app.nowMs) },
+    othersOn(id: string) -> array {
+        return app.others.filter((h) => h.by != app.uid && h.pages.includes("\"" + id + "\"")).slice(0, 2)
+            .map((h) => app.memberOf(h.by)).filter((m) => m != null)
+        },
+    ago(at: number) -> string { return timeAgo(at, serverNow() + 0 * app.nowMs) },
+
+    flashIds: string[] = [],
+    flashPages(ids: string[]) {
+        app.flashIds = ids
+        afterDelay(1400, () => { app.flashIds = [] })
+        },
+
+    // ── where the person is: everything else (not worth a URL)
+
+    extra: string[] = [],              // chosen pages besides the address's
+    anchorId: string = "",             // where a Shift-press range starts
+    regionIdx: number = 0,
+    holdSel: string = "",              // an unplaced story or a held page
+    viewMode: string = "art",          // art · plan
+    zoom: string = "comfortable",
+    moveMode: string = "story",        // story · page · spread · section
+    query: string = "",
+    kindFilter: string = "all",
+    folded: string[] = [],
+    sideShown: boolean = true,
+    copied: Page? = null,
+    phoneSide: boolean = false,
+
+    chosen: string[] = { app.pageId == "" ? [] : [app.pageId, ...app.extra.filter((x) => x != app.pageId)] },
+    chosenKey: string = { app.chosen.join(",") },
+    chosenPages: Page[] = { app.plan.pages.filter((p) => app.chosen.includes(p.id)) },
+    page: Page? = { app.pageId == "" ? null : app.plan.page(app.pageId) },
+    regionCount: number = { app.page?.regions.length ?? 0 },
+    region: Region? = { app.page?.regions[Math.min(app.regionIdx, Math.max(0, app.regionCount - 1))] ?? null },
+    heldStory: Story? = { app.holdSel == "" ? null : app.plan.story(app.holdSel) },
+    heldPage: Page? = { app.holdSel == "" ? null : (app.fp?.holding ?? []).find((p) => p.id == app.holdSel) ?? null },
+
+    pageArrived() {
+        if (app.pageId == "") { app.extra = []; return }
+        if (!app.extra.includes(app.pageId)) app.extra = []
+        app.holdSel = ""
+        },
+
+    goPage(id: string) {
+        app.holdSel = ""
+        app.location = app.prefix + app.fp?.id + (id == "" ? "" : "/" + id)
+        },
+
+    /** A press on a page (F-SEL-01, -02). */
+
+    choosePage(id: string, shift: boolean, meta: boolean, region: number) {
+        app.holdSel = ""
+        if (shift && app.pageId != "") {
+            const a = app.plan.indexOf(app.anchorId != "" ? app.anchorId : app.pageId), b = app.plan.indexOf(id)
+            const lo = Math.min(a, b), hi = Math.max(a, b)
+            app.extra = app.plan.pages.slice(lo, hi + 1).map((p) => p.id)
+            app.goPage(id)
+        } else if (meta && app.pageId != "") {
+            if (app.chosen.includes(id)) {
+                const rest = app.chosen.filter((x) => x != id)
+                app.extra = rest
+                if (id == app.pageId) app.goPage(rest[0] ?? "")
+            } else {
+                app.extra = [...app.chosen, id]
+                app.goPage(id)
+                }
+        } else {
+            app.extra = []
+            app.anchorId = id
+            app.goPage(id)
+            }
+        app.regionIdx = Math.max(0, region)
+        if (app.phone) app.inspectorOpen = true
+        },
+    clearChoice() {
+        app.extra = []
+        app.holdSel = ""
+        app.regionIdx = 0
+        if (app.pageId != "" && app.fp != null) app.location = app.prefix + app.fp.id
+        },
+    chooseHeld(id: string) {
+        app.extra = []
+        if (app.pageId != "" && app.fp != null) app.location = app.prefix + app.fp.id
+        app.holdSel = id
+        if (app.phone) app.inspectorOpen = true
+        },
+    step(d: number) {
+        const pages = app.plan.pages
+        if (pages.length == 0) return
+        const i = app.pageId == "" ? (d > 0 ? -1 : pages.length) : app.plan.indexOf(app.pageId)
+        const j = Math.max(0, Math.min(pages.length - 1, i + d))
+        app.choosePage(pages[j].id, false, false, 0)
+        },
+    chooseAll() {
+        const ids = app.plan.pages.filter((p) => app.matches(p)).map((p) => p.id)
+        if (ids.length == 0) return
+        app.extra = ids
+        app.goPage(ids[0])
+        },
+
+    // ── search and filter (F-MAP-11)
+
+    titlesOn(p: Page) -> string[] {
+        return p.regions.map((r) => app.regionTitle(r.storyId ? app.plan.story(r.storyId) : null, r.bookingId ?? "", r.label ?? "", r.kind))
+        },
+    matches(p: Page?) -> boolean {
+        if (p == null) return true
+        const f = app.kindFilter
+        if (f != "all") {
+            const k = f == "open" ? "unassigned" : f
+            if (!p.regions.some((r) => r.kind == k)) return false
+            }
+        const q = app.query.trim().toLowerCase()
+        if (q == "") return true
+        if (app.plan.folioOf(p.id).toLowerCase() == q || String(Number(app.plan.folioOf(p.id))) == q) return true
+        return app.titlesOn(p).some((t) => t.toLowerCase().includes(q))
+        },
+    regionTitle(s: Story?, bookingId: string, label: string, kind: string) -> string {
+        if (s != null) return s.title
+        if (bookingId != "") { const b = app.plan.booking(bookingId); if (b != null) return b.text }
+        if (label != "") return label
+        return kind == "unassigned" ? "Room for a story" : ""
+        },
+    pageTitle(p: Page?) -> string {
+        if (p == null) return ""
+        const t = app.titlesOn(p).filter((x) => x != "" && x != "Room for a story")
+        return t.length == 0 ? "An open page" : [...new Set(t)].join(" · ")
+        },
+
+    // ── the map's entries: headings, pages, the places to add a story
+
+    mapData: Dataset [ schema = MapData, contents = { app.buildMap(app.plan.facts, app.folded) } ],
+
+    buildMap(facts: Facts, folded: string[]) -> MapData {
+        const fp = app.plan.fp
+        const items: MapItem[] = []
+        if (fp == null) return ({ items: items })
+        const pages = fp.pages
+        const lastOf: Record<string, number> = {}
+        pages.forEach((p, i) => { lastOf[p.sectionId] = i })
+        const firstFace = !fp.facing || fp.numbering == "covers" ? -1 : 0
+        let cur = ""
+        let headId = ""
+        let ordinal = 0
+        let hidden = false
+        const spreads: string[][] = facts.spreads as string[][]
+        for (const sp of spreads) {
+            const first = pages.find((p) => p.id == sp[0])
+            if (first == null) continue
+            if (first.sectionId != cur) {
+                cur = first.sectionId
+                ordinal = ordinal + 1
+                headId = "h-" + ordinal + "-" + cur
+                hidden = folded.includes(cur)
+                const sec = app.plan.section(cur)
+                // the run under this heading: until the next spread that begins in another section
+                const run: string[] = []
+                let started = false
+                for (const s2 of spreads) {
+                    if (s2 == sp) started = true
+                    if (!started) continue
+                    const f2 = pages.find((p) => p.id == s2[0])
+                    if (s2 != sp && f2 != null && f2.sectionId != cur) break
+                    run.push(...s2)
+                    }
+                const runFolios = run.map((id) => app.plan.folioOf(id))
+                items.push(({ id: headId, kind: "head", sectionId: cur, ordinal: pad2(ordinal), name: sec?.name ?? "Section",
+                    color: sec?.color ?? "#888888", range: runFolios.length <= 1 ? (runFolios[0] ?? "") : runFolios[0] + "–" + runFolios[runFolios.length - 1],
+                    count: run.length }))
+                }
+            sp.forEach((id, k) => {
+                const p = pages.find((q) => q.id == id)
+                const f = facts.pages.find((x) => x.id == id)
+                if (p == null || f == null) return
+                items.push(({ id: id, kind: "page", sectionId: p.sectionId, page: p, folio: f.folio,
+                    side: fp.facing ? (sp.length == 1 ? f.side : k == 0 ? "left" : "right") : "single",
+                    spreadStart: k == 0, alone: sp.length == 1, hidden: hidden,
+                    coverFace: (fp.numbering == "covers" && p.cover == "front") || (f.index == firstFace && sp.length == 1) }))
+                })
+            for (const id of sp) {
+                const p = pages.find((q) => q.id == id)
+                if (p == null) continue
+                const i = app.plan.indexOf(id)
+                if (lastOf[p.sectionId] == i && !app.plan.isCoverSection(p.sectionId) && !app.readOnly) {
+                    const sec = app.plan.section(p.sectionId)
+                    items.push(({ id: "add-" + p.sectionId, kind: "slot", sectionId: p.sectionId, name: sec?.name ?? "", hidden: folded.includes(p.sectionId) }))
+                    }
+                }
+            }
+        return ({ items: items })
+        },
+
+    toggleFold(sec: string) { app.folded = app.folded.includes(sec) ? app.folded.filter((s) => s != sec) : [...app.folded, sec] },
+    firstFolioOf(sec: string) -> string {
+        const p = app.plan.pages.find((q) => q.sectionId == sec)
+        return p == null ? "" : app.plan.folioOf(p.id)
+        },
+    firstPageAfterHeading(headId: string) -> string {
+        const items = app.mapData.value?.items ?? []
+        const i = items.findIndex((m) => m.id == headId)
+        for (let k = i + 1; k < items.length; k++) if (items[k].kind == "page") return items[k].id
+        return ""
+        },
+
+    // ── zoom (F-MAP-09): the page's size
+
+    zooms: array = { app.phone
+        ? [({ id: "overview", label: "Overview" }), ({ id: "spreads", label: "Spreads" }), ({ id: "detail", label: "Detail" })]
+        : [({ id: "overview", label: "Overview" }), ({ id: "comfortable", label: "Comfortable" }), ({ id: "detail", label: "Detail" }), ({ id: "fit", label: "Fit" })] },
+    zoomNow: string = { app.phone ? (["overview", "spreads", "detail"].includes(app.zoom) ? app.zoom : "spreads")
+        : (["overview", "comfortable", "detail", "fit"].includes(app.zoom) ? app.zoom : "comfortable") },
+    mapW: number = { Math.max(200, app.mapPane.width - 40) },
+    mapH: number = { Math.max(200, app.mapPane.height - 40) },
+    fitPw: number = { fitWidth((app.mapData.value?.items ?? []).map((m) => ({ kind: m.kind, spreadStart: m.spreadStart ?? false, side: m.side ?? "single", hidden: m.hidden ?? false })),
+        app.mapW, app.mapH, app.aspect, app.plan.facing) },
+    pw: number = { app.zoomNow == "overview" ? (app.phone ? 34 : 44)
+        : app.zoomNow == "detail" ? (app.phone ? Math.floor((app.mapW - 12) / (app.plan.facing ? 1.15 : 1)) / (app.plan.facing ? 1 : 1) : 160)
+        : app.zoomNow == "spreads" ? Math.floor((app.mapW - 4) / (app.plan.facing ? 2 : 1))
+        : app.zoomNow == "fit" ? app.fitPw : 86 },
+    ph: number = { Math.round(app.pw * app.aspect) },
+    zoomStep(d: number) {
+        const order = app.phone ? ["overview", "spreads", "detail"] : ["overview", "comfortable", "detail"]
+        const i = Math.max(0, order.indexOf(app.zoomNow))
+        app.zoom = order[Math.max(0, Math.min(order.length - 1, i + d))]
+        },
+
+    moveModes: array = { [ ({ id: "story", label: "Move whole story" }), ({ id: "page", label: "Move single page" }),
+        ({ id: "spread", label: "Move facing spread" }), ({ id: "section", label: "Move section block" }) ] },
+    moveModeWord: string = { app.moveMode == "story" ? "whole story" : app.moveMode == "page" ? "single page" : app.moveMode == "spread" ? "facing spread" : "section block" },
+    pagesWord(n: number) -> string { return n == 1 ? "1 page" : n + " pages" },
+
+    // ── artwork pictures (F-ART-07)
+
+    pics: Dataset { { "rows": {} } },
+    picKey(url: string, page: number, w: number) -> string { return slug(url).slice(-40) + "-" + page + "-" + w },
+    pictureOf(a: Art?, w: number) -> string {
+        if (a == null || !app.mapReady) return ""
+        const asset = app.plan.asset(a.assetId)
+        if (asset == null) return ""
+        if ((asset.images ?? "") != "") return (asset.images ?? "").split("{page}").join(String(a.page)).split("{width}").join(String(w))
+        if (asset.url == "") return ""
+        return (app.pics.value as any)?.rows?.[app.picKey(asset.url, a.page, w)] ?? ""
+        },
+
+    /** What a picture needs rendered from its PDF, if anything: "url|page|width". */
+
+    pictureWant(a: Art?, w: number) -> string {
+        if (a == null || !app.mapReady) return ""
+        const asset = app.plan.asset(a.assetId)
+        if (asset == null || (asset.images ?? "") != "" || asset.url == "") return ""
+        return asset.url + "|" + a.page + "|" + w
+        },
+    requestWanted(want: string) {
+        if (want == "") return
+        const parts = want.split("|")
+        const w = Number(parts.pop()), page = Number(parts.pop())
+        app.requestPicture(parts.join("|"), page, w)
+        },
+    asked: string[] = [],
+    requestPicture(url: string, page: number, w: number) {
+        const k = app.picKey(url, page, w)
+        if (app.asked.includes(k)) return
+        app.asked = [...app.asked, k]
+        renderPdfPage(url, page, w).then((data: string) => { app.pics.set(["rows", k], data) }, () => { })
+        },
+
+    // ── edits the App starts (the side panel, the inspector and the dialogs call these)
+
+    inspectorOpen: boolean = false,
+    say(m: string) { app.toast.say(m) },
+    readFrom(id: string) {
+        if (id == "" || app.fp == null) return
+        app.readerAt = id
+        app.location = app.prefix + app.fp.id + "/" + id + "/read"
+        },
+    readerAt: string = "",
+    closeReader() { goBack() },
+
+    openStep(name: string) { app.waypoint = name },
+    closeStep() { if (app.waypoint != "") goBack() },
+    stepIs(name: string) -> boolean { return app.waypoint == name || app.waypoint.startsWith(name + ":") },
+    stepArg: string = { app.waypoint.includes(":") ? app.waypoint.slice(app.waypoint.indexOf(":") + 1) : "" },
+
+    newStoryAt(sec: string) { app.openStep("story:end:" + sec) },
+
+    copyPage() {
+        const p = app.page
+        if (p == null) return
+        app.copied = JSON.parse(JSON.stringify(p))
+        app.say("Copied " + app.plan.nameOf(p.id) + ".")
+        },
+    pastePage() {
+        const src = app.copied
+        if (src == null || app.chosen.length == 0) return
+        const ids = app.chosen
+        app.plan.apply(ids.length == 1 ? "Paste onto 1 page" : "Paste onto " + ids.length + " pages", (fp: Flatplan) => app.plan.opPaste(fp, ids, src))
+        },
+    holdChosen() {
+        const ids = app.chosen
+        if (ids.length == 0) return
+        if (app.plan.apply("Hold " + app.pagesWord(ids.length), (fp: Flatplan) => app.plan.opHold(fp, ids))) app.clearChoice()
+        },
+    deleteChosen() {
+        const ids = app.chosen
+        if (ids.length == 0 || app.readOnly) return
+        if (app.plan.apply(ids.length == 1 ? "Delete page" : "Delete " + ids.length + " pages", (fp: Flatplan) => app.plan.opDelete(fp, ids))) {
+            app.clearChoice()
+            app.say("Deleted " + app.pagesWord(ids.length) + ". ⌘Z puts them back.")
+            }
+        },
+    lockChosen() {
+        const p = app.page
+        if (p == null) return
+        const on = !p.locked
+        app.plan.apply(on ? "Lock page" : "Unlock page", (fp: Flatplan) => app.plan.opPages(fp, [p.id], (q: Page) => { q.locked = on }), true)
+        },
+    moveGroupIds: string[] = { app.chosen.length > 1 ? app.chosenPages.map((p) => p.id) : app.pageId == "" ? [] : app.plan.moveGroup(app.pageId, app.moveMode) },
+    nudge(d: number) {
+        const ids = app.moveGroupIds
+        if (ids.length == 0) return
+        const pages = app.plan.pages
+        const first = app.plan.indexOf(ids[0]), last = app.plan.indexOf(ids[ids.length - 1])
+        const lo = app.plan.covers ? 2 : 0, hi = app.plan.covers ? pages.length - 3 : pages.length - 1
+        if (d < 0 && first <= lo) { app.say("Already at the first interior position."); return }
+        if (d > 0 && last >= hi) { app.say("Already at the last interior position."); return }
+        const target = d < 0 ? pages[first - 1].id : pages[last + 1].id
+        if (app.plan.apply(d < 0 ? "Move earlier" : "Move later", (fp: Flatplan) => app.plan.opMove(fp, ids, target, d > 0, false))) app.say("Moved. Folios updated.")
+        },
+
+    goSection(sec: string) {
+        if (app.folded.includes(sec)) app.folded = app.folded.filter((s) => s != sec)
+        const first = app.plan.pages.find((p) => p.sectionId == sec)
+        if (first != null) app.choosePage(first.id, false, false, 0)
+        afterSettle(() => {
+            for (const k of app.mapSurface.children) if (k instanceof MapHeading && (k as MapHeading).sectionId == sec) { (k as MapHeading).scrollIntoView(); break }
+            })
+        },
+    printTotal: number = { [...(app.fp?.signatures.cover ?? []), ...(app.fp?.signatures.body ?? [])].reduce((a, b) => a + b, 0) },
+    kindFilterLabel: string = { app.kindFilter == "editorial" ? "Editorial" : app.kindFilter == "advertising" ? "Advertising" : app.kindFilter == "open" ? "Open pages" : "All content" },
+    fitTint(f: string) -> Color {
+        return f == "match" ? provided("theme").ok : f == "partial" ? provided("theme").warn : f == "mismatch" ? provided("theme").danger : provided("theme").textMuted
+        },
+    postComment(pageId: string, text: string) {
+        const id = makeId("c-")
+        const root = "workspaces/" + app.fpWs + "/flatplans/" + idKey(app.fp?.id ?? "")
+        const ak = pushKey(root + "/activity")
+        writeMany(({ [root + "/comments/" + idKey(id)]: ({ id: id, pageId: pageId, by: app.uid, at: "__now__", text: text }) }))
+            .then(() => writeMany(({ [root + "/activity/" + ak]: ({ id: ak, by: app.uid, at: "__now__", text: "Commented on " + app.plan.nameOf(pageId).toLowerCase() }) })), () => { app.say("The comment wasn't saved.") })
+            .catch(() => { })
+        },
+    leaveStep() { app.waypoint = "" },
+
+    /** A new flatplan from this one (F-WS-05): it opens at once. */
+
+    makeFlatplan(name: string, edition: string, start: string, count: number) {
+        const cur = app.fp
+        if (cur == null) return
+        const next = start == "copy" ? app.plan.duplicate(cur, name, edition) : start == "empty" ? app.plan.empty(cur, name, edition, count) : app.plan.sameLayout(cur, name, edition)
+        createFlatplan(app.ws, app.uid, next).then(() => {
+            app.location = next.id
+            app.say(name + " is ready.")
+            }, (e: any) => { app.say("The flatplan couldn't be made: " + authMessage(e)) })
+        },
+
+    filterMenu: Menu [
+        items = { [ ({ id: "all", label: "All content", group: "f", checked: app.kindFilter == "all" }),
+            ({ id: "editorial", label: "Editorial", group: "f", checked: app.kindFilter == "editorial" }),
+            ({ id: "advertising", label: "Advertising", group: "f", checked: app.kindFilter == "advertising" }),
+            ({ id: "open", label: "Open pages", group: "f", checked: app.kindFilter == "open" }) ] },
+        picked(id: string) { app.kindFilter = id }
+        ],
+    moveMenu: Menu [
+        items = { app.moveModes.map((m: any) => ({ id: m.id, label: m.label, group: "m", checked: app.moveMode == m.id })) },
+        picked(id: string) { app.moveMode = id }
+        ],
+    sectionMenu: Menu [
+        items = { (app.fp?.sections ?? []).map((s) => ({ id: s.id, label: s.name, group: "s",
+            checked: app.chosenPages.length > 0 && app.chosenPages.every((p) => p.sectionId == s.id) })) },
+        picked(id: string) {
+            const ids = app.chosen
+            app.plan.apply("Move to " + (app.plan.section(id)?.name ?? ""), (fp: Flatplan) => app.plan.opSetSection(fp, ids, id))
+            }
+        ],
+    moreMenu: Menu [
+        items = { [
+            ({ id: "read", label: "Read spread by spread" }),
+            ({ id: "art", label: "Upload artwork", enabled: !app.readOnly }),
+            ({ id: "print", label: "Print or save as PDF" }),
+            ({ id: "export", label: "Export a backup" }),
+            ({ id: "import", label: "Import a backup…", enabled: !app.readOnly }),
+            ({ divider: true }),
+            ({ id: "notes", label: "Notes and activity" }),
+            ({ id: "guide", label: "Quick guide" })
+            ] },
+        picked(id: string) {
+            if (id == "read") app.readFrom(app.pageId != "" ? app.pageId : app.plan.pages[0]?.id ?? "")
+            else if (id == "art") app.openStep("art")
+            else if (id == "print") app.printPlan()
+            else if (id == "export") app.exportBackup()
+            else if (id == "import") app.importBackup()
+            else app.openStep(id)
+            }
+        ],
+    accountMenu: Menu [
+        items = { [
+            ({ id: "who", label: app.userName + " · " + app.userEmail, enabled: false }),
+            ({ id: "ws", label: "Workspace: " + app.wsName, enabled: false }),
+            ...(app.siteAdmin ? [({ divider: true }), ({ id: "accounts", label: "Manage accounts…" })] : []),
+            ({ divider: true }),
+            ({ id: "out", label: "Sign out" })
+            ] },
+        picked(id: string) {
+            if (id == "accounts") app.openStep("accounts")
+            else if (id == "out") app.signOut()
+            }
+        ],
+
+    // Print or save as PDF (F-PRINT-09): nothing chosen, the whole flatplan fitted.
+
+    printPlan() {
+        app.clearChoice()
+        app.zoom = "fit"
+        printWindow()
+        },
+
+    // A backup (F-PRINT-10, -11).
+
+    exportBackup() {
+        const fp = app.fp
+        if (fp == null) return
+        const notes = app.comments.value?.rows ?? []
+        backupFiles(fp.assets).then((files: any) => {
+            const text = JSON.stringify(({ format: "pagemap-backup", version: 1, flatplan: fp, comments: notes, files: files }))
+            const name = slug((fp.publication ?? "") + " " + fp.name) + ".json"
+            FilePicker.save(text, ({ name: name, type: "application/json" })).then(() => { app.say("Backup saved, with its PDFs.") })
+            })
+        },
+
+    // Bookings from a CSV or TSV file (F-ADS-04).
+
+    importBookings() {
+        FilePicker.pick(({ accept: [".csv", ".tsv", ".txt", "text/csv", "text/tab-separated-values"] })).then((files: File[]) => {
+            if (files.length == 0) return
+            readText(files[0].url).then((t: string) => {
+                const rows = parseTable(t)
+                if (rows.length < 2) { app.say("No rows under the header."); return }
+                const body = rows.slice(1).filter((r) => (r[1] ?? "").trim() != "")
+                const existing = app.fp?.bookings ?? []
+                for (const r of body) {
+                    const ref = (r[0] ?? "").trim(), text = (r[1] ?? "").trim()
+                    if (ref == "" && existing.some((b) => b.text.trim().toLowerCase() == text.toLowerCase())) {
+                        app.say("“" + text + "” is already in the list. Give each row an identifier to update instead.")
+                        return
+                        }
+                    }
+                const n = body.length
+                if (app.plan.apply("Import " + n + " bookings", (fp: Flatplan) => {
+                    for (const r of body) {
+                        const rec: Booking = ({ id: makeId("b-"), ref: (r[0] ?? "").trim(), text: (r[1] ?? "").trim(),
+                            want: (r[2] ?? "").split(";").map((w) => w.trim()).filter((w) => w != ""),
+                            size: (r[3] ?? "").trim(), shape: (r[4] ?? "").trim().toLowerCase() })
+                        const same = rec.ref == "" ? null : fp.bookings.find((b) => b.ref == rec.ref) ?? null
+                        if (same != null) { same.text = rec.text; same.want = rec.want; same.size = rec.size; same.shape = rec.shape }
+                        else fp.bookings.push(rec)
+                        }
+                    return ""
+                    }, true)) app.say(n + (n == 1 ? " row imported." : " rows imported."))
+                })
+            })
+        },
+
+    importBackup() {
+        FilePicker.pick(({ accept: [".json", "application/json"] })).then((files: File[]) => {
+            if (files.length == 0) return
+            readText(files[0].url).then((t: string) => {
+                let b: any = null
+                try { b = JSON.parse(t) } catch (e) { app.say("That file isn't a Pagemap backup: it isn't JSON."); return }
+                if (b == null || b.format != "pagemap-backup" || b.flatplan == null || !Array.isArray(b.flatplan.pages)) {
+                    app.say("That file isn't a Pagemap backup: it has no flatplan in it.")
+                    return
+                    }
+                const id = app.fp?.id ?? ""
+                if (app.plan.apply("Import a backup", (fp: Flatplan) => {
+                    const src = b.flatplan
+                    for (const k of ["name", "edition", "publication", "trimW", "trimH", "facing", "numbering", "firstFolio", "notes", "archived",
+                        "sections", "statuses", "tags", "stories", "pages", "holding", "assets", "bookings", "stitchIns", "signatures"]) {
+                        if (src[k] !== undefined) (fp as any)[k] = src[k]
+                        }
+                    fp.id = id
+                    return ""
+                    }, true)) app.say("Backup restored. ⌘Z undoes it.")
+                })
+            })
+        },
+
+    // ── keys (F-APP-04): Holding ⌘ shows them all.
+
+    keyBindings = { [
+        ({ key: "Ctrl+Z", command: "undoKey", label: "Undo" }),
+        ({ key: "Ctrl+Shift+Z", command: "redoKey", label: "Redo" }),
+        ({ key: "Ctrl+A", command: "allKey", label: "Choose every matching page" }),
+        ({ key: "Backspace", command: "deleteKey", label: "Delete the chosen pages" }),
+        ({ key: "Delete", command: "deleteKey" }),
+        ({ key: "/", command: "findKey", label: "Find" }),
+        ({ key: "p", command: "planKey", label: "Planning" }),
+        ({ key: "a", command: "artKey", label: "Artwork" }),
+        ({ key: "=", command: "zoomKey", args: [1], label: "Zoom in" }),
+        ({ key: "-", command: "zoomKey", args: [-1], label: "Zoom out" }),
+        ({ key: "ArrowLeft", command: "stepKey", args: [-1], label: "Previous page" }),
+        ({ key: "ArrowRight", command: "stepKey", args: [1], label: "Next page" }),
+        ({ key: "Space", command: "readKey", label: "Read from the chosen page" }),
+        ({ key: "Escape", command: "escKey", label: "Clear the choice" })
+        ] },
+    undoKey() { app.plan.undo() },
+    redoKey() { app.plan.redo() },
+    onClipboardCopy(e: ClipboardEvent) { if (app.page != null) { app.copyPage(); e.put(app.pageTitle(app.page)) } },
+    onClipboardPaste(e: ClipboardEvent) { if (!app.readOnly && app.copied != null) app.pastePage() },
+    allKey() { app.chooseAll() },
+    deleteKey() { app.deleteChosen() },
+    findKey() { Focus.focus(app.searchField) },
+    planKey() { app.viewMode = "plan" },
+    artKey() { app.viewMode = "art" },
+    zoomKey(d: number) { app.zoomStep(d) },
+    stepKey(d: number) { app.step(d) },
+    readKey() { if (app.pageId != "") app.readFrom(app.pageId) },
+    escKey() -> boolean { if (app.drag.active) return false; app.clearChoice(); return true },
+
+    drag: Drag [ ],
+
+    // Views used from far away get one name each here.
+
+    mapPane: View = { app.frame.body.center.mapPane },
+    mapSurface: View = { app.frame.body.center.mapPane.surface },
+    searchField: View = { app.frame.body.center.stats.tools.search },
+
+    // ── the screen
+
+    // Until the service has spoken: nothing of any workspace (F-ACC-01).
+
+    splash: View [ visible = { !app.authKnown || app.resolving }, width = 100%, height = { app.height },
+        TextLabel [ x = center, y = center, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { app.resolving ? "Opening your workspace…" : "Pagemap" } ]
+        ],
+
+    signIn: SignIn [ visible = { app.authKnown && !app.resolving && !app.signedIn && !app.isLink }, width = 100%, height = { app.height } ],
+
+    frame: View [ visible = { app.authKnown && !app.resolving && (app.signedIn || app.isLink) }, width = 100%, height = { app.height },
+        layout: SimpleLayout [ axis = y, align = stretch ],
+        top: TopBar [ ],
+        body: View [ flexes = true,
+            layout: SimpleLayout [ axis = x, align = stretch ],
+            side: View [ visible = { app.desk && app.sideShown }, width = 276, scrolls = y,
+                fill = { provided("theme").panel }, stroke = { [null, Stroke(1, provided("theme").line), null, null] },
+                accessibilityRole = navigation, accessibilityLabel = "Flatplan",
+                SidePanel [ ]
+                ],
+            center: View [ flexes = true,
+                layout: SimpleLayout [ axis = y, align = stretch ],
+                stats: StatsBar [ ],
+                mapPane: View [ flexes = true, scrolls = { app.phone && app.zoomNow == "detail" ? "both" : "y" }, padding = [12, 20, 40, 20],
+                    accessibilityRole = main, accessibilityLabel = "The map",
+                    onClick() { app.clearChoice() },
+                    note: View [ visible = { app.planState != "ready" }, width = 100%, padding = 40,
+                        TextLabel [ x = center, fontSize = 14, textColor = { provided("theme").textMuted },
+                            text = { app.linkState == "gone" ? "This link doesn't open a flatplan any more."
+                                : app.planState == "failed" ? app.planError
+                                : app.fpId == "" && !app.isLink ? "Choose a flatplan from All flatplans." : "Opening the flatplan…" } ]
+                        ],
+                    surface: View [ visible = { app.planState == "ready" }, width = { app.phone && app.zoomNow == "detail" ? Math.max(parent.width - 40, 2 * app.pw + 30) : parent.width - 40 },
+                        datapath = { app.mapData.value },
+                        layout: MapLayout [ pw = { app.pw }, ph = { app.ph }, facing = { app.plan.facing } ],
+                        trackChanges = ["width"],
+                        onChange() { this.layout.retarget(false) },
+                        MapEntry [ datapath = :items[], classFor = { :kind == "head" ? MapHeading : :kind == "slot" ? MapSlot : PageCell } ]
+                        ]
+                    ]
+                ],
+            inspector: View [ visible = { app.desk }, width = 340, scrolls = y,
+                fill = { provided("theme").panel }, stroke = { [null, null, null, Stroke(1, provided("theme").line)] },
+                accessibilityRole = complementary, accessibilityLabel = "Inspector",
+                Inspector [ ]
+                ]
+            ]
+        ],
+
+    // What a drag carries, under the pointer.
+
+    ghost: View [ visible = { app.drag.active && app.drag.kind == "pages" }, ignoreLayout = true, pointerEvents = "none",
+        x = { app.drag.x - app.drag.grabX }, y = { app.drag.y - app.drag.grabY },
+        padding = 6, cornerRadius = 8, fill = { provided("theme").surface },
+        shadow = { Shadow(0, 8, 24, 0x00000040) },
+        layout: SimpleLayout [ axis = y, spacing = 5 ],
+        row: View [ src: Dataset [ contents = { ({ rows: app.drag.carriedPages }) } ],
+            datapath = { this.src.value },
+            layout: SimpleLayout [ axis = x, spacing = 1 ],
+            CarriedPage [ datapath = :rows[] ]
+            ],
+        Text [ visible = { app.drag.more > 0 }, fontSize = 11, fontWeight = semibold, text = { "+ " + app.drag.more + " more pages" } ],
+        Text [ fontSize = 10, fontWeight = semibold, letterSpacing = 0.4, textColor = { provided("theme").textMuted }, text = { app.drag.info } ]
+        ],
+    storyGhost: View [ visible = { app.drag.active && app.drag.kind != "pages" }, ignoreLayout = true, pointerEvents = "none",
+        x = { app.drag.x - app.drag.grabX }, y = { app.drag.y - app.drag.grabY }, opacity = 0.92,
+        padding = [8, 12, 8, 12], cornerRadius = 8, fill = { provided("theme").surface }, shadow = { Shadow(0, 8, 24, 0x00000040) },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 13, fontWeight = semibold, text = { app.drag.kind == "story" ? app.plan.story(app.drag.storyId)?.title ?? ""
+            : app.drag.kind == "held" ? app.pageTitle(app.plan.page(app.drag.heldId)) : app.plan.section(app.drag.sectionId)?.name ?? "" } ],
+        Text [ fontSize = 10, fontWeight = semibold, letterSpacing = 0.4, textColor = { provided("theme").textMuted }, text = { app.drag.info } ]
+        ],
+
+    // ── a phone: the side panel and the inspector open over the map
+
+    sideSheet: Sheet [ edge = "start", accessibilityLabel = "Flatplan", shown = { app.phoneSide && !app.desk },
+        commit(open: boolean) { app.phoneSide = open },
+        SidePanel [ ]
+        ],
+    inspectorSheet: Sheet [ accessibilityLabel = "Inspector", shown = { app.inspectorOpen && !app.desk && (app.pageId != "" || app.holdSel != "") },
+        commit(open: boolean) { app.inspectorOpen = open; if (!open) app.clearChoice() },
+        Inspector [ ]
+        ],
+
+    // ── menus
+
+    pageMenu: ContextMenu [
+        one: boolean = { app.chosen.length <= 1 },
+        p: Page? = { app.page },
+        isFace: boolean = { app.plan.covers && (this.p?.cover ?? null) != null },
+        items = { app.readOnly ? [ ({ id: "read", label: "Read from this page" }), ({ id: "copy", label: "Copy page", key: "⌘C" }) ] : [
+            ({ id: "copy", label: "Copy page", key: "⌘C", enabled: this.one }),
+            ({ id: "paste", label: app.chosen.length > 1 ? "Paste onto " + app.chosen.length + " pages" : "Paste", key: "⌘V", enabled: app.copied != null }),
+            ({ id: "across", label: "Copy content across next pages…", enabled: this.one }),
+            ({ divider: true }),
+            ({ id: "insert", label: "Insert pages after…", enabled: this.one && !(this.p?.cover == "back" || this.p?.cover == "inside-back") }),
+            ({ id: "number", label: "Start numbering here…", enabled: this.one && !this.isFace }),
+            ({ id: "lock", label: (this.p?.locked ?? false) ? "Unlock" : "Lock", enabled: this.one }),
+            ({ id: "stitch", label: "Add a stitch-in after…", enabled: this.one }),
+            ({ divider: true }),
+            ({ id: "move", label: "Move…" }),
+            ({ id: "hold", label: "Move to holding area" }),
+            ({ id: "delete", label: app.chosen.length > 1 ? "Delete " + app.chosen.length + " pages" : "Delete page", key: "⌫" }),
+            ({ divider: true }),
+            ({ id: "read", label: "Read from this page" })
+            ] },
+        picked(id: string) {
+            if (id == "copy") app.copyPage()
+            else if (id == "paste") app.pastePage()
+            else if (id == "across") app.openStep("across")
+            else if (id == "insert") app.openStep("insert")
+            else if (id == "number") app.openStep("number")
+            else if (id == "lock") app.lockChosen()
+            else if (id == "stitch") app.openStep("stitch:add")
+            else if (id == "move") app.openStep("move")
+            else if (id == "hold") app.holdChosen()
+            else if (id == "delete") app.deleteChosen()
+            else if (id == "read") app.readFrom(app.pageId)
+            }
+        ],
+
+    // ── the dialogs: each is a step in the address (F-APP-02)
+
+    flatplansDlg: FlatplansDialog [ ],
+    newPlanDlg: NewFlatplanDialog [ ],
+    settingsDlg: SettingsDialog [ ],
+    vocabDlg: VocabularyDialog [ ],
+    bookingsDlg: BookingsDialog [ ],
+    printDlg: PrintDialog [ ],
+    stitchDlg: StitchDialog [ ],
+    notesDlg: NotesDialog [ ],
+    shareDlg: ShareDialog [ ],
+    moveDlg: MoveDialog [ ],
+    insertDlg: InsertDialog [ ],
+    acrossDlg: AcrossDialog [ ],
+    numberDlg: NumberDialog [ ],
+    storyDlg: NewStoryDialog [ ],
+    artDlg: ArtworkDialog [ ],
+    accountsDlg: AccountsDialog [ ],
+    guideDlg: GuideDialog [ ],
+    reader: Reader [ ],
+    viewer: PdfViewer [ ],
+
+    // A newer published build: reload to keep working (F-APP-07).
+
+    published: string = "",
+    releaseWatch: Node [ onInit() { watch("release", "release/build", (v: any) => { app.published = v == null ? "" : String(v) }) }
+        ],
+    stale: boolean = { buildId() != "dev" && app.published != "" && app.published != buildId() },
+    reload: Dialog [ shown = { app.stale },
+        commit(open: boolean) { },
+        title = "A new version of Pagemap",
+        message = "Reload to keep working. Everything you've done is saved.",
+        buttons = { [ ({ id: "reload", label: "Reload", default: true }) ] },
+        escape() { },
+        picked(id: string) { reloadPage() }
+        ],
+
+    toast: Toast [ duration = 4500 ]
+    ]

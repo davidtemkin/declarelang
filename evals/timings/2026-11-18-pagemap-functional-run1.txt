@@ -1,0 +1,27 @@
+# fr1timing
+total 101.1 min · 183 turns · output 339414 tokens (thinking 82640)
+phases: reading 8.7 · writing 3.4 · checking 89.0 min
+tool time 53.6 min · model time 47.5 min
+tokens: input 368 · cache write 612167 · cache read 77578804 · output 339414 · thinking 82640
+rate: 7152 output tokens per model-minute
+tools:
+  verify    90×  40.83 min  (median 11.2 s)
+  bash      42×  12.27 min  (median 0.1 s)
+  look       4×   0.25 min  (median 4.2 s)
+  help      12×   0.21 min  (median 0.7 s)
+  read      16×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     41×  14.90 min  (median 4.0 s)
+  after verify   90×  11.17 min  (median 5.6 s)
+  after help     12×   7.56 min  (median 19.9 s)
+  after write     9×   6.25 min  (median 21.2 s)
+  after image    26×   5.33 min  (median 8.9 s)
+  after read     16×   1.57 min  (median 1.8 s)
+  after edit      1×   0.71 min  (median 42.5 s)
+  after look      4×   0.23 min  (median 3.9 s)
+verify results mentioning accessibility: 5
+source reads: library 0 file(s), runtime/compiler 3 — each to be audited: never a stand-in for the docs
+            runtime  compiler/src
+            runtime  compiler/src/compile-node.ts
+            runtime  compiler/src/
+diagnostic codes, by tool results reporting them: DECLARE1002 7, DECLARE4035 4, DECLARE4025 4, DECLARE6001 2, DECLARE2000 2, DECLARE4032 2, DECLARE4022 2, DECLARE1000 1, DECLARE4005 1

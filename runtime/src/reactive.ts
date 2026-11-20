@@ -28,11 +28,11 @@ import { phasesOn, phased, registerPhaseHooks, wrapMethods } from "./phase-timer
 import { DeclareError, inLibraryWhere, writtenAt, diag } from "./errors.js";
 import { chainRunners, endChangeChain, fireChanges } from "./change-event.js";
 import {
-  instantiateKernel, instantiateKernelSync, instantiateKernelNative, hasNativeKernel, decodeWasm, emptyImage,
+  instantiateKernel, instantiateKernelSync, instantiateKernelNative, hasNativeKernel, decodeWasm, latin1Bytes, emptyImage,
   KERNEL_ERR, KERNEL_KIND, KERNEL_FLAG, KERNEL_STATE, KERNEL_TRACK, CELL_KIND,
   type Kernel, type KernelCaps, type KernelHost,
 } from "./kernel-loader.js";
-import { KERNEL_WASM_B64 } from "./kernel-wasm.js";
+import { KERNEL_WASM_LATIN1 } from "./kernel-wasm.js";
 import { instantiateKernelJS as kernelJS } from "./kernel-js.js";
 import type { instantiateKernelJS } from "./kernel-js.js";
 import { traceKernel, traceTarget, type Trace } from "./kernel-trace.js";
@@ -364,9 +364,9 @@ function schedule(): void {
  *  this module (a build that defines __DECLARE_INLINE_KERNEL__ false and names
  *  the file — build-flags.d.ts).
  *
- *  INLINE IS THE RULING (2026-09-18). The bytes ride in the bundle as base64:
- *  +3 KB gzipped over a sidecar, decoded in 1–2 ms (measured on an iPad), and
- *  no request between the bundle and first paint. The sidecar form saved those
+ *  INLINE IS THE RULING (2026-09-18). The bytes ride in the bundle, one character
+ *  per byte (kernel-wasm.ts), read back with no table, and there is no request
+ *  between the bundle and first paint. The sidecar form saved those
  *  bytes and cost a round trip on the boot path — +50–150 ms per app on a real
  *  iPad over Wi-Fi, with Safari re-requesting the file despite the page's
  *  preload. It stays as a build option, not a default.
@@ -375,7 +375,7 @@ function schedule(): void {
  *  before the engine sees them, so a host that rewrites text assets fails with
  *  a legible error rather than inside WebAssembly.compile. */
 function kernelBytes(): Promise<Uint8Array> {
-  if (typeof __DECLARE_INLINE_KERNEL__ === "undefined" || __DECLARE_INLINE_KERNEL__) return Promise.resolve(decodeWasm(KERNEL_WASM_B64));
+  if (typeof __DECLARE_INLINE_KERNEL__ === "undefined" || __DECLARE_INLINE_KERNEL__) return Promise.resolve(latin1Bytes(KERNEL_WASM_LATIN1));
   const file = typeof __DECLARE_KERNEL_FILE__ === "undefined" ? "declare-kernel.wasm.txt" : __DECLARE_KERNEL_FILE__;
   // The base: this module's own URL, so the file is found wherever the bundle
   // was deployed — a subdirectory, a CDN, an island's origin. Re-bundled by
@@ -433,8 +433,8 @@ function kernelBytes(): Promise<Uint8Array> {
  *  such a bundle and out of a web one. */
 function inlineKernelBytes(): Uint8Array {
   // the condition folds to a literal in a bundled build, so the branch NOT taken
-  // is dropped — and with it either the base64 constant or this error
-  if (typeof __DECLARE_INLINE_KERNEL__ === "undefined" || __DECLARE_INLINE_KERNEL__) return decodeWasm(KERNEL_WASM_B64);
+  // is dropped — and with it either the embedded bytes or this error
+  if (typeof __DECLARE_INLINE_KERNEL__ === "undefined" || __DECLARE_INLINE_KERNEL__) return latin1Bytes(KERNEL_WASM_LATIN1);
   throw new DeclareError("the kernel is not loaded yet — await kernelReady() before instantiating a program (this build fetches the kernel alongside the bundle)");
 }
 
@@ -567,8 +567,8 @@ function kernelReadyCompiled(caps?: KernelCaps): Promise<void> {
 // THE KERNEL STARTS LOADING WHEN THE BUNDLE EVALUATES, not when boot first asks.
 // boot awaits kernelReady() at the top of the render stage; if the fetch and the
 // WebAssembly compile begin only then, both sit on the path to first paint.
-// Measured on a real iPad (2026-09-18): 1–2 ms of base64 decode and 6–10 ms of
-// WebAssembly compile + instantiate, inside a ~100 ms boot. Kicked here they
+// Measured on a real iPad (2026-09-18): 6–10 ms of WebAssembly compile and
+// instantiate, inside a ~100 ms boot. Kicked here they
 // overlap whatever the page does before boot (a compile stage, a cache read)
 // and the render stage sees a resolved promise. Browsers only: node and the Mac
 // host take the sync/native paths, and a page that wants the JS kernel (a dev

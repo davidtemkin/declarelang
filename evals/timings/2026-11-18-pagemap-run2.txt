@@ -1,0 +1,36 @@
+# eval-pagemap-2
+total 28.4 min · 75 turns · output 193565 tokens (thinking 47502)
+phases: reading 5.3 · writing 3.4 · checking 19.7 min
+tool time 1.2 min · model time 27.2 min
+tokens: input 150 · cache write 418436 · cache read 20183039 · output 193565 · thinking 47502
+rate: 7129 output tokens per model-minute
+tools:
+  verify    13×   0.57 min  (median 2.4 s)
+  bash      36×   0.46 min  (median 0.0 s)
+  help       5×   0.14 min  (median 0.9 s)
+  read      13×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     35×  18.83 min  (median 4.2 s)
+  after help      5×   2.76 min  (median 9.0 s)
+  after verify   13×   2.68 min  (median 6.8 s)
+  after write     7×   1.91 min  (median 14.3 s)
+  after read     13×   0.60 min  (median 2.2 s)
+app: 6 .declare files, 4421 non-blank lines · 24 snapshots changed them: 5371 lines added, 481 removed
+verify results mentioning accessibility: 4
+source reads: library 3 file(s), runtime/compiler 2 — each to be audited: never a stand-in for the docs
+            runtime  compiler/src
+            runtime  compiler/src/compile-node.ts
+            library  library/dialog.declare
+            library  library/themes/sanfrancisco.declare
+            library  library/
+diagnostic codes, by tool results reporting them: DECLARE4035 3, DECLARE4022 3, DECLARE2000 2, DECLARE4017 1, DECLARE4045 1, DECLARE4039 1, DECLARE2006 1, DECLARE4020 1, DECLARE3006 1, DECLARE6001 1, DECLARE4000 1
+inside the agent's verify and look calls:
+   0.25 min    12×  compile (R1–R3)
+   0.09 min     7×  R4 boot, in all
+   0.07 min     7×  page: load, compile in the page and boot
+   0.01 min     6×  program: built from the compile
+   0.01 min     7×  page: a new page
+   0.00 min     7×  end: the browser context released
+   0.00 min     7×  chrome: a browser (shared between calls)
+   0.00 min     7×  serve: start the program's server
+   0.00 min    13×  compile (R1–R3): the last compile, if its files are unchanged

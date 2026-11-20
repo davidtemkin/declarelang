@@ -851,7 +851,7 @@ async function sizesReport({ name, built, shipped, made, declaredIn, programJson
     return { module, raw: v.bytesInOutput, status, ...(cap === undefined ? {} : { capability: cap.id }),
       ...(status === "aboard" ? { reason: needed.get(cap.id) } : {}) };
   });
-  // the kernel is a base64 literal, which compresses unlike code: measured on its own
+  // the kernel is a literal of its bytes, which compresses unlike code: measured on its own
   const kernelModule = modules.find((m) => m.module === "kernel-wasm");
   const kernel = kernelModule === undefined ? part(0, 0) : part(kernelModule.raw, gz(readFileSync(join(RUNTIME, "kernel-wasm.js"), "utf8")));
   const page = part(html.length, sizes.htmlGzip);

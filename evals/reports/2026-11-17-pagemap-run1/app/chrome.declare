@@ -1,0 +1,309 @@
+/*
+# Pagemap: the chrome
+
+The sign-in screen (F-ACC), the header and toolbar over the map (F-WS-03, F-COLLAB-01,
+-04, -05, F-MAP-07, -09, -11, F-MOVE-04), the flatplan in numbers (F-MAP-12), the
+phone's bars, and the full-window reader (F-ART-08) and PDF viewer (F-ART-09).
+*/
+
+// ── Signing in (F-ACC-01 to -04, -09) ───────────────────────────────────────
+
+class SignIn [ width = 100%, height = 100%, fill = { provided("theme").background },
+    View [ x = center, y = { Math.max(24, (parent.height - this.height) / 3) }, width = { Math.min(400, parent.width - 32) },
+        cornerRadius = 14, padding = 24, fill = { provided("theme").surface },
+        stroke = { Stroke(1, provided("theme").line) }, shadow = { Shadow(0, 8, 30, 0x00000014) },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        View [ layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            View [ width = 28, height = 28, cornerRadius = 6, fill = { provided("theme").text },
+                Glyph [ x = center, y = center, shape = "grid", iconSize = 16, ink = { provided("theme").surface } ]
+                ],
+            Text [ fontSize = 22, fontWeight = bold, accessibilityRole = heading, text = "Pagemap" ]
+            ],
+        Segmented [ width = 100%, value = { app.signMode },
+            items = { [ ({ id: "in", label: "Sign in" }), ({ id: "up", label: "Create an account" }) ] },
+            commit(v: string) { app.signMode = v; app.signMsg = ""; app.signNote = "" }
+            ],
+
+        // Creating an account: name and magazine first.
+
+        View [ visible = { app.signMode == "up" }, width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            TextInput [ width = 100%, purpose = name, placeholder = "Your name", accessibilityLabel = "Your name",
+                value = { app.fName },
+                commit(v: string) { app.fName = v; app.signMsg = "" },
+                onEnter() { app.submitSign() }
+                ],
+            TextInput [ width = 100%, placeholder = "The magazine it's for (optional)", accessibilityLabel = "Magazine",
+                value = { app.fMagazine },
+                commit(v: string) { app.fMagazine = v; app.signMsg = "" },
+                onEnter() { app.submitSign() }
+                ]
+            ],
+        TextInput [ width = 100%, purpose = email, placeholder = "Email", accessibilityLabel = "Email",
+            value = { app.fEmail },
+            commit(v: string) { app.fEmail = v; app.signMsg = ""; app.signNote = "" },
+            onEnter() { app.submitSign() }
+            ],
+        TextInput [ width = 100%, purpose = password, placeholder = "Password", accessibilityLabel = "Password",
+            value = { app.fPassword },
+            commit(v: string) { app.fPassword = v; app.signMsg = ""; app.signNote = "" },
+            onEnter() { app.submitSign() }
+            ],
+        Text [ visible = { app.signMode == "up" }, width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = "Creating an account makes a workspace of your own, with a first flatplan — unless your address was invited to a team's workspace, in which case you join it." ],
+        Text [ visible = { app.signMsg != "" }, width = 100%, fontSize = 13, fontWeight = medium, accessibilityLive = assertive,
+            textColor = { provided("theme").danger }, text = { app.signMsg } ],
+        Text [ visible = { app.signNote != "" }, width = 100%, fontSize = 13, accessibilityLive = polite,
+            textColor = { provided("theme").good }, text = { app.signNote } ],
+        Button [ width = 100%, primary = true, disabled = { app.signBusy },
+            label = { app.signBusy ? (app.signMode == "in" ? "Signing in…" : "Creating your account…") : app.signMode == "in" ? "Sign in" : "Create account" },
+            onClick() { app.submitSign() }
+            ],
+        Act [ visible = { app.signMode == "in" }, label = "Set or reset password",
+            onClick() { app.resetPassword() }
+            ]
+        ]
+    ]
+
+
+// ── The header (desk and phone) ─────────────────────────────────────────────
+
+class Header [ width = 100%, height = { app.phone ? 52 + app.safeTop : 52 }, padding = { [app.phone ? app.safeTop : 0, 10, 0, 8] },
+    fill = { provided("theme").surface }, stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    accessibilityRole = banner,
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    IconButton [ shape = "panel", on = { app.wide && app.sideOpen }, tone = { provided("theme").text },
+        accessibilityLabel = { app.wide ? (app.sideOpen ? "Hide the side panel" : "Show the side panel") : "Side panel" },
+        press() { app.toggleSide() }
+        ],
+
+    // The issue and edition, the way to the list of flatplans.
+
+    title: Control [ height = { app.tap }, cornerRadius = 7, padding = [0, 8, 0, 8],
+        accessibilityLabel = { app.titleLine + ", all flatplans" },
+        fill = { hovered ? provided("theme").hover : null },
+        press() { if (app.session == "in") app.openDialog("flatplans") },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Text [ width = { Math.min(contentWidth, app.phone ? app.width - 190 : 260) }, fontSize = 15, fontWeight = bold, wrap = false, maxLines = 1, text = { app.plan.doc?.name ?? app.fpId } ],
+        Text [ width = { Math.min(contentWidth, app.phone ? Math.max(0, app.width - 290) : 200) }, fontSize = 13, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted }, text = { app.plan.doc?.edition ?? "" } ],
+        Glyph [ visible = { app.session == "in" }, shape = "chevron", iconSize = 12, ink = { provided("theme").textMuted } ]
+        ],
+    Text [ visible = { !app.phone }, width = { Math.min(contentWidth, 220) }, fontSize = 13, wrap = false, maxLines = 1, textColor = { provided("theme").textFaint },
+        text = { app.plan.doc?.publication ?? app.wsName } ],
+    View [ visible = { app.readOnly && app.session != "in" || app.role == "viewer" }, height = 20, padding = [0, 6, 0, 6], cornerRadius = 4,
+        fill = { provided("theme").warnSoft },
+        TextLabel [ y = center, fontSize = 10, fontWeight = bold, letterSpacing = 0.5, textColor = { provided("theme").warn }, text = "VIEW ONLY" ]
+        ],
+    Spacer [ ],
+
+    // F-COLLAB-04.
+
+    Text [ visible = { !app.phone }, fontSize = 12, wrap = false, accessibilityLive = polite,
+        textColor = { app.saving.startsWith("Not saved") ? provided("theme").danger : provided("theme").textMuted }, text = { app.saving } ],
+
+    // Who else is here (F-COLLAB-01).
+
+    who: View [ height = 28,
+        layout: SimpleLayout [ axis = x, spacing = -6, align = center ],
+        datapath = { app.othersSet.value },
+        Avatar [ datapath = :rows[], width = 28, height = 28, stroke = { Stroke(2, provided("theme").surface) },
+            initials = { app.initialsOf(:by ?? "") }, tone = { app.colorOf(:by ?? "") },
+            accessibilityRole = image, accessibilityLabel = { :label ?? "" }, tooltipLabel = { :label ?? "" } ]
+        ],
+    Act [ visible = { !app.phone && app.session == "in" }, label = "Share",
+        onClick() { app.openDialog("share") }
+        ],
+    IconButton [ shape = "more", tone = { provided("theme").text }, accessibilityLabel = "More", menu = { app.moreMenu } ],
+    account: Control [ visible = { app.session == "in" }, width = { app.tap }, height = { app.tap }, cornerRadius = { this.width / 2 },
+        accessibilityLabel = { "Account: " + app.myName }, menu = { app.accountMenu },
+        Avatar [ x = center, y = center, width = 28, height = 28, initials = { app.initialsOf(app.uid) }, tone = { app.colorOf(app.uid) } ]
+        ]
+    ]
+
+
+// The toolbar over the map: find, filter, mode, zoom, move mode, undo and redo.
+
+class MapToolbar [ width = 100%, height = { app.phone ? 52 : 46 }, padding = [0, 10, 0, 10],
+    fill = { provided("theme").surface }, stroke = { [null, null, Stroke(1, provided("theme").line), null] },
+    accessibilityRole = toolbar, accessibilityLabel = "Map",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    find: SearchField [ flexes = true, minWidth = 120, maxWidth = { app.phone ? 2000 : 240 }, height = { app.phone ? 44 : 30 },
+        fontSize = { app.touchFirst ? 16 : 13 },
+        placeholder = "Find a story or page", accessibilityLabel = "Find a story or page",
+        value = { app.query },
+        commit(v: string) { app.query = v },
+        keyBindings = { [ ({ key: "Escape", command: "clearFind" }) ] },
+        clearFind() -> boolean { if (app.query == "") return false; app.query = ""; return true }
+        ],
+    Button [ label = { app.filterLabel }, menu = { app.filterMenu } ],
+    Segmented [ visible = { !app.phone }, width = { app.wide ? 170 : 150 }, value = { app.artMode ? "artwork" : "planning" },
+        items = { [ ({ id: "planning", label: "Planning" }), ({ id: "artwork", label: "Artwork" }) ] },
+        commit(v: string) { app.artMode = v == "artwork" }
+        ],
+    Segmented [ visible = { !app.phone }, width = { app.wide ? 300 : 260 }, value = { app.zoom },
+        items = { [ ({ id: "overview", label: "Overview" }), ({ id: "comfortable", label: "Comfortable" }), ({ id: "detail", label: "Detail" }), ({ id: "fit", label: "Fit" }) ] },
+        commit(v: string) { app.zoom = v }
+        ],
+    Button [ visible = { !app.narrowBar }, label = { app.modeWordLong(app.moveMode) }, menu = { app.moveModeMenu } ],
+    Spacer [ visible = { !app.phone } ],
+    View [ visible = { app.sel.length > 1 && !app.phone },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Text [ fontSize = 13, fontWeight = semibold, text = { app.sel.length + " selected" } ],
+        Act [ label = "Clear",
+            onClick() { app.clearChoice() }
+            ]
+        ],
+    IconButton [ visible = { !app.phone }, shape = "undo", tone = { provided("theme").text }, disabled = { app.undos.length == 0 || app.readOnly },
+        accessibilityLabel = { app.undoLabel },
+        press() { app.undo() }
+        ],
+    IconButton [ visible = { !app.phone }, shape = "redo", tone = { provided("theme").text }, disabled = { app.redos.length == 0 || app.readOnly },
+        accessibilityLabel = { app.redoLabel },
+        press() { app.redo() }
+        ]
+    ]
+
+
+// The flatplan in numbers (F-MAP-12), above the map.
+
+class Numbers [ width = 100%, padding = { app.phone ? [8, 12, 8, 12] : [10, 16, 10, 16] },
+    fill = { provided("theme").background },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Text [ fontSize = 13, fontWeight = bold, wrap = false,
+            text = { app.phone ? app.plan.pages.length + " pages" : app.plan.pages.length + " pages / " + (app.plan.doc?.stories ?? []).length + " stories" } ],
+        bar: View [ flexes = true, height = 10, cornerRadius = 5, clip = true, fill = { provided("theme").open },
+            accessibilityRole = image, accessibilityLabel = { app.compositionLine },
+            View [ x = 0, height = 100%, width = { parent.width * app.shareOf(0) }, fill = { provided("theme").accent } ],
+            View [ x = { parent.width * app.shareOf(0) }, height = 100%, width = { parent.width * app.shareOf(1) }, fill = { provided("theme").adStripe } ]
+            ]
+        ],
+    View [ width = 100%,
+        layout: WrappingLayout [ spacing = 14, rowSpacing = 4, align = center ],
+        Legend [ tone = { provided("theme").accent }, label = { app.legend(0, "Editorial") } ],
+        Legend [ tone = { provided("theme").adStripe }, label = { app.legend(1, "Advertising") } ],
+        Legend [ tone = { provided("theme").lineStrong }, label = { app.legend(2, "Open") } ],
+        Text [ visible = { app.oddPages }, fontSize = 12, fontWeight = semibold, textColor = { provided("theme").warn },
+            text = "An odd number of pages. Add or remove one before it goes to print." ]
+        ]
+    ]
+
+
+class Legend [ height = 18,
+    tone: Color = gray,
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    View [ width = 9, height = 9, cornerRadius = 2, fill = { classroot.tone } ],
+    Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// The phone's bar at the foot: mode, zoom, undo, the panel.
+
+class PhoneBar [ width = 100%, height = { 56 + app.safeBottom }, padding = { [6, 8, 6 + app.safeBottom, 8] },
+    fill = { provided("theme").surface }, stroke = { [Stroke(1, provided("theme").line), null, null, null] },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Segmented [ width = 132, value = { app.artMode ? "artwork" : "planning" },
+        items = { [ ({ id: "planning", label: "Plan" }), ({ id: "artwork", label: "Art" }) ] },
+        commit(v: string) { app.artMode = v == "artwork" }
+        ],
+    Segmented [ flexes = true, value = { app.zoom },
+        items = { [ ({ id: "overview", label: "All" }), ({ id: "spreads", label: "Spreads" }), ({ id: "detail", label: "Detail" }) ] },
+        commit(v: string) { app.zoom = v }
+        ],
+    IconButton [ shape = "undo", tone = { provided("theme").text }, disabled = { app.undos.length == 0 || app.readOnly },
+        accessibilityLabel = { app.undoLabel },
+        press() { app.undo() }
+        ]
+    ]
+
+
+// ── The reader (F-ART-08) ───────────────────────────────────────────────────
+
+class Reader extends Dialog [ presentation = "full", fill = 0x121214,
+    shown = { app.reading },
+    commit(open: boolean) { if (!open) app.closeReader() },
+    accessibilityLabel = "Reader",
+    keyBindings = { [ ({ key: "ArrowRight", command: "next" }), ({ key: "Space", command: "next" }), ({ key: "ArrowLeft", command: "prev" }) ] },
+    next() { app.readStep(1) },
+    prev() { app.readStep(-1) },
+    layout: SimpleLayout [ axis = y ],
+    top: View [ width = 100%, height = 52, padding = [0, 10, 0, 14],
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        IconButton [ shape = "close", tone = 0xEDECEA, accessibilityLabel = "Close the reader",
+            press() { app.closeReader() }
+            ],
+        Text [ width = { Math.min(contentWidth, app.width - 260) }, fontSize = 13, fontWeight = bold, letterSpacing = 0.6, wrap = false, textColor = 0xEDECEA, text = { app.readNames } ],
+        Spacer [ ],
+        Segmented [ width = 160, value = { app.readSpreads ? "spreads" : "pages" },
+            items = { [ ({ id: "spreads", label: "Spreads" }), ({ id: "pages", label: "Pages" }) ] },
+            commit(v: string) { app.readSpreads = v == "spreads" }
+            ]
+        ],
+    stage: View [ width = 100%, height = { app.height - 52 - 84 },
+        spread: View [ x = center, y = center, datapath = { app.readSet.value },
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            ReadPage [ datapath = :pages[] ]
+            ],
+        IconButton [ x = 8, y = center, shape = "left", tone = 0xEDECEA, disabled = { app.readAt <= 0 },
+            accessibilityLabel = "Previous",
+            press() { app.readStep(-1) }
+            ],
+        IconButton [ x = end, y = center, shape = "right", tone = 0xEDECEA, disabled = { app.readAt >= app.readUnits.length - 1 },
+            accessibilityLabel = "Next",
+            press() { app.readStep(1) }
+            ]
+        ],
+    strip: View [ width = 100%, height = 84, scrolls = x, hideScrollbars = true, padding = [8, 10, 8, 10],
+        datapath = { app.readStrip.value },
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        StripItem [ datapath = :units[] ]
+        ]
+    ]
+
+
+class ReadPage [ width = { app.readPageW }, height = { app.readPageW * app.plan.aspect },
+    fill = 0xF4F2EE, clip = true,
+    Image [ exists = { (:art ?? "") != "" }, width = 100%, height = 100%, fit = cover, source = { :art ?? "" } ],
+    plan: View [ exists = { (:art ?? "") == "" }, width = 100%, height = 100%,
+        RegionView [ datapath = :regs[] ]
+        ]
+    ]
+
+
+class StripItem extends Control [ width = { (:n ?? 1) * 30 + 4 }, height = 66,
+    on: boolean = { app.readAt == (:k ?? 0) },
+    accessibilityLabel = { :label ?? "" },
+    accessibilityPressed = { classroot.on },
+    press() { app.readJump(:k ?? 0) },
+    View [ width = 100%, height = 46, cornerRadius = 2,
+        fill = { classroot.on ? 0x6E95FF : hovered ? 0x3A3A40 : 0x26262A },
+        stroke = { classroot.on ? Stroke(2, 0x6E95FF) : null } ],
+    Text [ y = end, width = 100%, textAlign = center, fontSize = 9, wrap = false, textColor = 0xA6A39D, text = { :label ?? "" } ]
+    ]
+
+
+// ── The PDF viewer (F-ART-09) ───────────────────────────────────────────────
+
+class PdfViewer extends Dialog [ presentation = "full", fill = 0x3A3A3E,
+    shown = { app.dlg == "pdf" },
+    commit(open: boolean) { if (!open) app.closeDialog("pdf") },
+    accessibilityLabel = "PDF viewer",
+    layout: SimpleLayout [ axis = y ],
+    top: View [ width = 100%, height = 52, padding = [0, 10, 0, 14], fill = 0x26262A,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ shrinks = true, fontSize = 13, fontWeight = semibold, wrap = false, maxLines = 1, textColor = 0xEDECEA, text = { app.pdfName } ],
+        Text [ visible = { !app.phone }, fontSize = 12, fontWeight = bold, wrap = false, textColor = 0xA6A39D, text = { "PAGE " + app.pdfAt + " / " + app.pdfTotal } ],
+        Spacer [ ],
+        Segmented [ width = { app.phone ? 130 : 260 }, value = { app.pdfZoom },
+            items = { app.phone ? [ ({ id: "width", label: "Width" }), ({ id: "200", label: "200%" }) ]
+                : [ ({ id: "fit", label: "Fit" }), ({ id: "width", label: "Width" }), ({ id: "100", label: "100%" }), ({ id: "200", label: "200%" }) ] },
+            commit(v: string) { app.pdfZoom = v }
+            ],
+        IconButton [ shape = "close", tone = 0xEDECEA, accessibilityLabel = "Close the viewer",
+            press() { app.closeDialog("pdf") }
+            ]
+        ],
+    island: DOMIsland [ width = 100%, height = { app.height - 52 }, slot = { app.dlg == "pdf" ? "pagemap-pdf" : "" } ]
+    ]

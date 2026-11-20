@@ -1,0 +1,539 @@
+/*
+# Pagemap: the map
+
+The flatplan as a whole: every page in book order, in spreads, under its section's
+heading (F-MAP). It is one replicated list of cells — headings, pages, and the "add a
+story" slot after each section — over `app.mapItems`, a derived dataset that wraps each
+page record with what the book's order makes of it. One layout, `MapFlow`, places them:
+a heading takes a line; pages pair into spreads that run left to right and wrap. Because
+the cells are keyed by page id, a page that moves glides from its old place to its new one
+(F-MAP-14).
+
+Dragging (F-MOVE, F-STORY-05, F-MOVE-09/10, F-PAGE-22) is one class with no view, `Drag`:
+whoever starts a drag hands it what is carried; it asks the tree what is under the
+pointer (`viewAt`) and keeps one target; every view that can be a target derives its look
+from that target.
+*/
+
+// ── Records the map shows ───────────────────────────────────────────────────
+
+schema RegDraw [ id: string, ri: number, x: number, y: number, w: number, h: number, kind: string, word: string,
+    title: string, who: string, status: string, sec: string ]
+schema MapItem [ id: string, kind: string, sectionId: string, folded: boolean,
+    ordinal?: string, name?: string, color?: string, range?: string, count?: number,
+    label?: string, pageName?: string, index?: number, spread?: number, side?: string, art?: string,
+    regs[]?: RegDraw, match?: boolean, tags[]?: string, notes?: boolean, comments?: boolean, locked?: boolean,
+    hasArt?: boolean, hasAd?: boolean, stitch?: boolean, others[]?: string, face?: boolean, faceTitle?: string ]
+schema MapItems [ items[]: MapItem ]
+schema Thumb [ id: string, label: string, color: string, art: string, side: string ]
+
+
+// ── The layout ──────────────────────────────────────────────────────────────
+
+// Headings take a whole line. Pages pair into spreads (a slot two pages wide when pages
+// face, so a lone page keeps its side), spreads run left to right and wrap. A folded
+// section's pages are hidden in place.
+
+class MapFlow extends TweenLayout [ duration = 380,
+    pageW: number = 90,
+    pageH: number = 120,
+    labelH: number = 18,
+    gap: number = 18,
+    rowGap: number = 14,
+    headH: number = 40,
+    minSlot: number = 0,
+    facing: boolean = true,
+    place() {
+        const W = this.contentExtent("width")
+        const pw = this.pageW, ch = this.pageH + this.labelH
+        const slot = this.facing ? 2 * pw + 2 : pw
+        let x = 0, y = 0, lineH = 0, spread = -999, spreadX = 0
+        return this.laid().map((v) => {
+            const c = v as MapCell
+            if (c.folded && c.kindCode != 0) return ({ x: x, y: y, w: pw, h: ch, vis: false })
+            if (c.kindCode == 0) {
+                if (x > 0 || lineH > 0) { y = y + lineH + this.rowGap; x = 0 }
+                const box = ({ x: 0, y: y, w: W, h: this.headH, vis: true })
+                y = y + this.headH + 4
+                lineH = 0
+                spread = -999
+                return box
+            }
+            if (c.kindCode == 2) {
+                const aw = Math.max(pw, this.minSlot)
+                if (x > 0 && x + aw > W) { y = y + lineH + this.rowGap; x = 0 }
+                const box = ({ x: x, y: y, w: aw, h: Math.max(this.pageH, this.minSlot), vis: true })
+                x = x + aw + this.gap
+                lineH = Math.max(lineH, Math.max(ch, this.minSlot))
+                spread = -999
+                return box
+            }
+            if (c.spreadNo != spread) {
+                spread = c.spreadNo
+                if (x > 0 && x + slot > W) { y = y + lineH + this.rowGap; x = 0 }
+                spreadX = x
+                x = x + slot + this.gap
+                lineH = Math.max(lineH, ch)
+            }
+            const px = this.facing && c.rightSide ? spreadX + pw + 2 : spreadX
+            return ({ x: px, y: y, w: pw, h: ch, vis: true })
+            })
+        }
+    ]
+
+
+// What every cell tells the layout. `dropRole` names it as a drop target.
+
+class MapCell [
+    kindCode: number = 1,
+    spreadNo: number = { :spread ?? -1 },
+    rightSide: boolean = { (:side ?? "") == "right" },
+    folded: boolean = { :folded ?? false },
+    dropRole: string = ""
+    ]
+
+
+// ── A section heading (F-MAP-04) ────────────────────────────────────────────
+
+class SectionHead extends MapCell [ kindCode = 0, dropRole = "head",
+    sid: string = { :sectionId ?? "" },
+    under: boolean = { app.drag.active && app.drag.targetKind == "head" && app.drag.targetSection == classroot.sid && classroot.rowIndex >= 0 },
+    fold: Control [ width = 100%, height = 100%, cornerRadius = 6, padding = [0, 6, 0, 4],
+        accessibilityLabel = { (:name ?? "") + ", " + (:range ?? "") + ", " + (classroot.folded2 ? "folded" : "open") },
+        accessibilityExpanded = { !classroot.folded2 },
+        fill = { classroot.under ? provided("theme").selection : hovered ? provided("theme").hover : null },
+        press() { app.toggleFold(classroot.sid) },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Glyph [ shape = { classroot.folded2 ? "right" : "chevron" }, iconSize = 14, ink = { provided("theme").textFaint } ],
+        Text [ fontSize = 12, fontWeight = semibold, wrap = false, textColor = { provided("theme").textFaint }, text = { :ordinal ?? "" } ],
+        View [ width = 4, height = 18, cornerRadius = 2, fill = { Color.from(:color ?? "#888888") } ],
+        Text [ fontSize = { app.compact ? 13 : app.phone ? 15 : 16 }, fontWeight = bold, wrap = false, maxLines = 1, shrinks = true,
+            textColor = { Color.mix(Color.from(:color ?? "#888888"), provided("theme").text, 0.35) }, text = { :name ?? "" } ],
+        Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted },
+            text = { (:range ?? "") + " / " + (:count ?? 0) + ((:count ?? 0) == 1 ? " page" : " pages") } ],
+        Spacer [ ],
+        TextLabel [ visible = { classroot.under }, fontSize = 11, fontWeight = bold, letterSpacing = 0.5,
+            textColor = { provided("theme").accent },
+            text = { app.drag.kind == "section" ? "MOVE " + app.plan.sectionName(app.drag.sectionId).toUpperCase() + " HERE" : "INSERT BEFORE " + app.plan.label(app.firstPageOf(classroot.sid)) } ]
+        ],
+    folded2: boolean = { app.folds.includes(classroot.sid) }
+    ]
+
+
+// ── The place to add a story at a section's end (F-MAP-10) ──────────────────
+
+class AddSlot extends MapCell [ kindCode = 2, dropRole = "add",
+    sid: string = { :sectionId ?? "" },
+    Control [ width = 100%, height = 100%, cornerRadius = 4,
+        accessibilityLabel = { "Add a story at the end of " + app.plan.sectionName(classroot.sid) },
+        tooltipLabel = "Add a story here",
+        stroke = { Stroke(1.2, hovered ? provided("theme").accent : provided("theme").lineStrong) },
+        fill = { hovered ? provided("theme").hover : null },
+        press() { app.openNewStory("end", classroot.sid) },
+        layout: SimpleLayout [ axis = y, spacing = 4, align = center ],
+        padding = { [Math.max(4, parent.height / 2 - 18), 4, 0, 4] },
+        Glyph [ shape = "plus", iconSize = 16, ink = { provided("theme").textMuted } ],
+        Text [ visible = { app.pageW >= 70 }, width = 100%, textAlign = center, fontSize = 11, textColor = { provided("theme").textMuted },
+            text = "Add a story" ]
+        ]
+    ]
+
+
+// ── A page (F-MAP-05 to -08, F-SEL-04) ──────────────────────────────────────
+
+class PageCell extends MapCell [ dropRole = "page",
+    pid: string = { :id ?? "" },
+    chosen: boolean = { app.sel.includes(classroot.pid) },
+    current: boolean = { app.cur == classroot.pid },
+    carried: boolean = { app.drag.active && app.drag.ids.includes(classroot.pid) },
+    swapMark: boolean = { app.drag.swapIds.includes(classroot.pid) },
+    runMark: boolean = { app.drag.runIds.includes(classroot.pid) },
+    flashing: boolean = { app.flashIds.includes(classroot.pid) },
+    showArt: boolean = { app.artMode && (:art ?? "") != "" },
+    big: boolean = { app.pageW >= 70 },
+    opacity = { classroot.carried ? 0.28 : (:match ?? true) ? 1 : 0.22 },
+    accessibilityRole = button,
+    press() { app.choose(classroot.pid, 0) },
+    accessibilityLabel = { (:pageName ?? "") + ((:regs ?? []).length > 0 ? ", " + ((:regs ?? [])[0]?.title ?? "") : "") },
+
+    // The page itself.
+
+    paper: View [ width = 100%, height = { Math.max(1, parent.height - app.labelH) }, clip = true,
+        fill = { provided("theme").paper },
+        stroke = { Stroke(1, provided("theme").paperLine) },
+        shadow = { classroot.current ? Shadow(0, 2, 8, 0x00000040) : null },
+
+        // The plan: each region in its template's place.
+
+        plan: View [ width = 100%, height = 100%, visible = { !classroot.showArt },
+            RegionView [ datapath = :regs[] ]
+            ],
+
+        // The front cover as the magazine's face.
+
+        face: CoverFace [ exists = { (:face ?? false) && !classroot.showArt }, width = 100%, height = 100% ],
+
+        // The artwork.
+
+        art: Image [ exists = { classroot.showArt }, width = 100%, height = 100%, fit = cover,
+            source = { app.imagesOn ? :art ?? "" : "" } ],
+
+        // The section's color, on the page's outer edge.
+
+        View [ width = { app.pageW >= 60 ? 4 : 3 }, height = 100%, x = { classroot.rightSide || !app.plan.facing ? parent.width - this.width : 0 },
+            fill = { Color.from(app.plan.sectionColor(:sectionId ?? "")) } ],
+
+        // Marks: tags, notes, comments, lock.
+
+        marks: View [ x = 6, y = { parent.height - 14 }, visible = { app.pageW >= 44 },
+            layout: SimpleLayout [ axis = x, spacing = 3, align = center ],
+            Dot [ datapath = :tags[], width = 7, height = 7, tone = { app.plan.tag(:@ as string)?.color ?? "#888888" } ]
+            ],
+        icons: View [ x = { parent.width - this.width - 6 }, y = 4, visible = { app.pageW >= 44 },
+            layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+            Badge [ visible = { :locked ?? false }, shape = "lock", tooltipLabel = "Locked" ],
+            Badge [ visible = { :notes ?? false }, shape = "note", tooltipLabel = "Has page notes" ],
+            Badge [ visible = { :comments ?? false }, shape = "comment", tooltipLabel = "Has comments" ]
+            ],
+
+        // Who else has this page chosen (F-COLLAB-01).
+
+        who: View [ x = 4, y = 4, visible = { (:others ?? []).length > 0 },
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            Avatar [ datapath = :others[], width = 18, height = 18, accessibilityRole = image, initials = { app.initialsOf(:@ as string) },
+                tone = { app.colorOf(:@ as string) }, tooltipLabel = { app.nameOf(:@ as string) + " has this page" } ]
+            ],
+
+        // Chosen, current, and marks a drag makes.
+
+        View [ width = 100%, height = 100%, pointerEvents = "none",
+            visible = { classroot.chosen || classroot.swapMark || classroot.runMark || classroot.flashing },
+            stroke = { classroot.runMark ? Stroke(3, app.drag.runOk ? provided("theme").dropOk : provided("theme").dropMark)
+                : classroot.swapMark ? Stroke(3, provided("theme").dropMark)
+                : classroot.flashing && !classroot.chosen ? Stroke(3, provided("theme").flash)
+                : Stroke(classroot.current ? 3 : 2, provided("theme").chosen) },
+            fill = { classroot.runMark ? (app.drag.runOk ? 0x23855A22 : 0xE0442F22) : classroot.chosen ? provided("theme").chosenSoft : null } ],
+
+        // The chosen region, outlined, when the page has more than one.
+
+        View [ exists = { classroot.current && (:regs ?? []).length > 1 }, pointerEvents = "none",
+            x = { ((:regs ?? [])[app.regionIx]?.x ?? 0) * parent.width },
+            y = { ((:regs ?? [])[app.regionIx]?.y ?? 0) * parent.height },
+            width = { ((:regs ?? [])[app.regionIx]?.w ?? 0) * parent.width },
+            height = { ((:regs ?? [])[app.regionIx]?.h ?? 0) * parent.height },
+            stroke = { Stroke(2, provided("theme").accent) } ],
+        TextLabel [ visible = { classroot.runMark && classroot.isRunHead }, x = center, y = center, fontSize = 10, fontWeight = bold,
+            textColor = { app.drag.runOk ? provided("theme").dropOk : provided("theme").dropMark },
+            text = { app.drag.runOk ? "PLACE HERE" : "NEEDS " + app.drag.runN + " EMPTY PAGES" } ]
+        ],
+    isRunHead: boolean = { app.drag.runIds[0] == classroot.pid },
+
+    // A tab on the outer edge when a stitch-in follows.
+
+    tab: View [ exists = { :stitch ?? false }, y = { app.pageH * 0.3 }, width = 6, height = { app.pageH * 0.4 },
+        x = { classroot.rightSide || !app.plan.facing ? parent.width - 1 : -5 },
+        cornerRadius = 2, fill = { provided("theme").warn }, tooltipLabel = "A stitch-in follows this page",
+        accessibilityLabel = "A stitch-in follows this page",
+        onHold(e: PointerEvent) { app.say("A stitch-in follows this page") }
+        ],
+
+    // The folio line.
+
+    folio: View [ y = { app.pageH + 2 }, width = 100%, height = { app.labelH - 2 },
+        layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+        Text [ fontSize = { app.pageW >= 60 ? 11 : app.pageW >= 24 ? 9 : app.pageW >= 17 ? 8 : 7 }, fontWeight = { classroot.current ? "bold" : "medium" }, wrap = false,
+            textColor = { classroot.chosen ? provided("theme").chosen : provided("theme").textMuted }, text = { :label ?? "" } ],
+        View [ visible = { (:hasArt ?? false) && app.pageW >= 50 }, width = 5, height = 5, cornerRadius = 1, fill = { provided("theme").textFaint },
+            tooltipLabel = "Has artwork" ],
+        Text [ visible = { (:hasAd ?? false) && app.pageW >= 50 }, fontSize = 9, fontWeight = bold, wrap = false,
+            textColor = { provided("theme").adInk }, text = "AD" ]
+        ],
+
+    // Pressing, holding and dragging.
+
+    onClick(e: PointerEvent) { app.pressPage(classroot.pid, -1, e) },
+    onContextMenu(e: PointerEvent) { app.pageMenuAt(this, e, classroot.pid) },
+    onHold(e: PointerEvent) { app.holdPage(classroot.pid) },
+    onDragStart(e: PointerEvent) { app.drag.startPages(classroot.pid, e, this) },
+    onDrag(e: PointerEvent) { app.drag.track(e) },
+    onDragEnd(e: DragEndEvent) { app.drag.finish(e.canceled) }
+    ]
+
+
+// A small mark in a page's corner.
+
+class Badge [ width = 13, height = 13, cornerRadius = 3, fill = { Color.withAlpha(provided("theme").paper, 0.85) },
+    shape: string = "",
+    Glyph [ x = center, y = center, iconSize = 10, weight = 1.4, shape = { classroot.shape }, ink = 0x3A3833 ]
+    ]
+
+
+// One region of a page in Planning: its content type, its title, who has it, its
+// story's status color.
+
+class RegionView [
+    x = { :x * parent.width }, y = { :y * parent.height },
+    width = { :w * parent.width }, height = { :h * parent.height },
+    pxW: number = { :w * app.pageW },
+    pxH: number = { :h * app.pageH },
+    roomy: boolean = { classroot.pxW >= 56 && classroot.pxH >= 40 },
+    kindOf: string = { :kind },
+    fill = { classroot.kindOf == "editorial" ? Color.mix(provided("theme").paper, Color.from(:sec), 0.28)
+        : classroot.kindOf == "advertising" ? provided("theme").adFill : provided("theme").open },
+    stroke = { Stroke(0.5, provided("theme").paperLine) },
+
+    // Advertising is a pattern, not only a color.
+
+    draw(d: DrawContext) {
+        if (kindOf != "advertising") return
+        d.strokeStyle = provided("theme").adStripe
+        d.lineWidth = 1.2
+        d.beginPath()
+        for (let k = -height; k < width; k = k + 7) { d.moveTo(k, height); d.lineTo(k + height, 0) }
+        d.stroke()
+        },
+    onClick(e: PointerEvent) { app.pressPage(:id, :ri, e) },
+    status: View [ visible = { :status != "" }, x = 0, y = { parent.height - this.height }, width = 100%,
+        height = { app.pageW >= 60 ? 4 : 3 }, fill = { Color.from(:status == "" ? "#00000000" : :status) } ],
+    words: View [ visible = { classroot.roomy }, x = 5, y = 4, width = { parent.width - 10 }, height = { parent.height - 10 }, clip = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ fontSize = 8, fontWeight = bold, letterSpacing = 0.5, wrap = false,
+            textColor = { classroot.kindOf == "advertising" ? provided("theme").adInk : 0x6A665E }, text = { :word } ],
+        Text [ width = 100%, fontSize = { app.pageW >= 150 ? 12 : 10 }, fontWeight = semibold, maxLines = { classroot.pxH >= 110 ? 4 : 2 },
+            textColor = { :title == "" || :title == "Room for a story" ? 0x9A968E : 0x26241F }, text = { :title } ],
+        Text [ visible = { :who != "" && classroot.pxH >= 70 }, fontSize = 9, wrap = false, textColor = 0x6A665E, text = { :who } ]
+        ]
+    ]
+
+
+// The front cover, drawn as the magazine's face (F-MAP-06).
+
+class CoverFace [ fill = 0x1E1D1B, clip = true,
+    padding = { [Math.max(4, app.pageW * 0.07), Math.max(4, app.pageW * 0.07), Math.max(4, app.pageW * 0.07), Math.max(4, app.pageW * 0.07)] },
+    pointerEvents = "none",
+    Text [ width = 100%, fontSize = { Math.max(7, app.pageW * 0.16) }, fontWeight = black, wrap = true, maxLines = 2,
+        letterSpacing = -0.3, textColor = 0xF4F2EE, text = { app.plan.doc?.publication ?? "" } ],
+    Text [ y = { parent.contentBox("height") * 0.45 }, width = 100%, fontSize = { Math.max(6, app.pageW * 0.085) }, fontWeight = semibold,
+        maxLines = 3, wrap = true, visible = { app.pageW >= 50 }, textColor = 0xD8D4CC, text = { :faceTitle ?? "" } ],
+    Text [ y = end, x = end, fontSize = { Math.max(7, app.pageW * 0.2) }, fontWeight = black, wrap = false,
+        textColor = 0xFFD84D, text = { app.issueNumber } ]
+    ]
+
+
+// ── Dragging ────────────────────────────────────────────────────────────────
+
+// One drag at a time, of pages, a held page, an unplaced story, or a section. It keeps
+// what is carried and the one target the pointer is over; the views derive the rest.
+
+class Drag extends Node [
+    active: boolean = false,
+    kind: string = "",            // pages | held | story | section
+    ids: string[] = [],           // the pages carried
+    heldId: string = "",
+    storyId: string = "",
+    sectionId: string = "",
+    swap: boolean = false,
+    block: boolean = false,       // section block mode: the page's whole section
+    what: string = "",            // "3 pages · whole story"
+    px: number = 0,
+    py: number = 0,
+    grabX: number = 0,
+    grabY: number = 0,
+    targetKind: string = "",      // page | head | row | ""
+    target: string = "",          // a page id
+    after: boolean = false,
+    targetSection: string = "",   // a heading's or a side-panel row's section
+    targetView: View? = null,
+    runN: number = 0,
+
+    swapIds: string[] = { this.active && this.swap && this.targetKind == "page" ? app.plan.swapRun(this.ids.length, this.target) : [] },
+    runIds: string[] = { this.active && this.kind == "story" && this.targetKind == "page" ? app.plan.runFrom(this.target, this.runN) : [] },
+    runOk: boolean = { this.active && this.kind == "story" && app.plan.runFree(this.target, this.runN) },
+
+    // What the marker says (F-MOVE-02).
+
+    into: string = { this.intoSection() },
+    intoSection() -> string {
+        if (this.kind != "pages" && this.kind != "held") return ""
+        const t = app.plan.page(this.target)
+        if (t == null || this.targetKind != "page") return ""
+        const from = this.kind == "held" ? app.plan.held(this.heldId)?.sectionId ?? "" : app.plan.page(this.ids[0] ?? "")?.sectionId ?? ""
+        return t.sectionId != from ? app.plan.sectionName(t.sectionId).toUpperCase() : ""
+        },
+    markText: string = { (this.after ? "INSERT AFTER " : "INSERT BEFORE ") + app.plan.label(this.target) + (this.into != "" ? " · INTO " + this.into : "") },
+
+    // Pages, from a page on the map.
+
+    startPages(pid: string, e: PointerEvent, cell: View) {
+        if (app.readOnly || app.phone && !app.touchHeld(pid) && app.touchFirst) return
+        const multi = app.sel.includes(pid) && app.sel.length > 1
+        const mode = app.moveMode
+        this.block = !multi && mode == "section"
+        this.ids = multi ? app.plan.inOrder(app.sel) : app.plan.moveGroup(pid, mode)
+        this.kind = this.block ? "section" : "pages"
+        this.sectionId = app.plan.page(pid)?.sectionId ?? ""
+        this.swap = e.alt && !this.block
+        const n = this.ids.length
+        this.what = n + (n == 1 ? " page" : " pages") + " · " + (this.swap ? "swap" : multi ? "chosen pages" : this.block ? "section block" : app.modeWord(mode))
+        this.grab(e, cell)
+        },
+
+    // A held page or an unplaced story, from the holding area.
+
+    startHeld(hid: string, e: PointerEvent, from: View) {
+        if (app.readOnly) return
+        this.kind = "held"; this.heldId = hid; this.ids = []; this.swap = false
+        this.what = "1 held page"
+        this.grab(e, from)
+        },
+    startStory(sid: string, e: PointerEvent, from: View) {
+        if (app.readOnly) return
+        const s = app.plan.story(sid)
+        this.kind = "story"; this.storyId = sid; this.ids = []; this.swap = false
+        this.runN = Math.max(1, s?.pages ?? 1)
+        this.what = "“" + (s?.title ?? "") + "” · " + this.runN + (this.runN == 1 ? " page" : " pages")
+        this.grab(e, from)
+        },
+
+    // A section, from its row in the side panel.
+
+    startSection(sid: string, e: PointerEvent, from: View) {
+        if (app.readOnly) return
+        this.kind = "section"; this.sectionId = sid; this.ids = []; this.swap = false; this.block = false
+        this.what = app.plan.sectionName(sid)
+        this.grab(e, from)
+        },
+
+    // The ghost's first page is drawn at most 56 wide, so the point grabbed is scaled to it.
+
+    grab(e: PointerEvent, from: View) {
+        const b = from.rootBounds()
+        const k = Math.min(1, 56 / Math.max(1, b.width))
+        this.grabX = 8 + Math.max(0, e.rootX - b.x) * k
+        this.grabY = 8 + Math.max(0, e.rootY - b.y) * k
+        this.px = e.rootX
+        this.py = e.rootY
+        this.clearTarget()
+        this.active = true
+        },
+    clearTarget() { this.targetKind = ""; this.target = ""; this.targetSection = ""; this.targetView = null; this.after = false },
+
+    // Where the pointer is, and what that means.
+
+    track(e: PointerEvent) {
+        if (!this.active) return
+        this.px = e.rootX
+        this.py = e.rootY
+        let v = app.viewAt(e.rootX, e.rootY, app.ghost)
+        while (v != null && this.role(v) == "") v = v.parent as View | null
+        this.clearTarget()
+        if (v == null) return
+        const role = this.role(v)
+        if (role == "page") this.overPage(v, e.rootX)
+        else if (role == "flow") this.overFlow(v, e.rootX, e.rootY)
+        else if (role == "head") {
+            const sid = (v as SectionHead).sid
+            if (this.kind == "section") { this.targetKind = "head"; this.targetSection = sid }
+            else if (this.kind != "story") {
+                const first = app.firstPageOf(sid)
+                if (first != "" && !this.ids.includes(first)) { this.targetKind = "head"; this.targetSection = sid; this.target = first; this.after = false }
+            }
+        } else if (role == "row") {
+            const sid = (v as SectionRow).sid
+            if (this.kind == "section" || this.kind == "pages") {
+                const b = v.rootBounds()
+                this.targetKind = "row"
+                this.targetSection = sid
+                this.after = e.rootY > b.y + b.height / 2
+                this.targetView = v
+            }
+        }
+        },
+    role(v: View) -> string { return (v as View & { dropRole?: string }).dropRole ?? "" },
+    overPage(v: View, rx: number) {
+        const id = (v as PageCell).pid
+        if (this.kind == "section") {
+            const sid = app.plan.page(id)?.sectionId ?? ""
+            if (sid != "" && sid != this.sectionId) { this.targetKind = "head"; this.targetSection = sid; this.after = rx > v.rootBounds().x + v.width / 2 }
+            return
+        }
+        if (this.ids.includes(id)) return
+        const b = v.rootBounds()
+        this.targetKind = "page"
+        this.target = id
+        this.after = this.kind == "story" ? false : rx > b.x + b.width / 2
+        this.targetView = v
+        },
+
+    // Over the blank space beside a row: the nearest page in that row.
+
+    overFlow(flow: View, rx: number, ry: number) {
+        const b = flow.rootBounds()
+        const lx = rx - b.x, ly = ry - b.y
+        let best: View | null = null
+        let bestD = 1e9
+        for (const c of flow.childViews as View[]) {
+            if (this.role(c) != "page" || !c.visible) continue
+            if (ly < c.y || ly > c.y + c.height) continue
+            const d = lx < c.x ? c.x - lx : lx > c.x + c.width ? lx - c.x - c.width : 0
+            if (d < bestD) { bestD = d; best = c }
+        }
+        if (best != null) this.overPage(best, rx < b.x + best.x ? b.x + best.x : rx > b.x + best.x + best.width ? b.x + best.x + best.width : rx)
+        },
+
+    // The drop.
+
+    finish(canceled: boolean) {
+        if (!this.active) return
+        this.active = false
+        const tk = this.targetKind
+        if (canceled || tk == "") { this.clearTarget(); return }
+        app.dropped(this.kind, tk)
+        this.clearTarget()
+        }
+    ]
+
+
+// What a drag carries, under the pointer (F-MOVE-02).
+
+class DragGhost [ ignoreLayout = true, pointerEvents = "none", opacity = 0.92,
+    x = { app.drag.px - app.drag.grabX }, y = { app.drag.py - app.drag.grabY },
+    cornerRadius = 8, padding = 8, fill = { Color.withAlpha(provided("theme").surface, 0.94) },
+    shadow = { Shadow(0, 8, 24, 0x00000055) },
+    stroke = { Stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    thumbs: View [ datapath = { app.ghostSet.value },
+        layout: SimpleLayout [ axis = x, spacing = 0 ],
+        GhostPage [ datapath = :items[] ]
+        ],
+    Text [ visible = { app.drag.ids.length > 4 }, fontSize = 11, fontWeight = semibold, textColor = { provided("theme").textMuted },
+        text = { "+ " + (app.drag.ids.length - 4) + " more pages" } ],
+    Text [ fontSize = 11, fontWeight = semibold, wrap = false, textColor = { provided("theme").text }, text = { app.drag.what } ]
+    ]
+
+
+class GhostPage [ width = { Math.min(56, app.pageW) }, height = { Math.min(56, app.pageW) * app.plan.aspect + 14 },
+    View [ width = 100%, height = { parent.width * app.plan.aspect },
+        fill = { provided("theme").paper }, stroke = { Stroke(1, provided("theme").paperLine) }, clip = true,
+        View [ width = 100%, height = 100%, fill = { Color.mix(provided("theme").paper, Color.from(:color), 0.35) } ],
+        Image [ exists = { :art != "" && app.artMode }, width = 100%, height = 100%, fit = cover, source = :art ]
+        ],
+    Text [ y = end, fontSize = 9, wrap = false, textColor = { provided("theme").textMuted }, text = :label ]
+    ]
+
+
+// The insert mark, before or after the target page, in the flow's own coordinates.
+
+class InsertMark [ ignoreLayout = true, pointerEvents = "none",
+    on: boolean = { app.drag.active && (app.drag.kind == "pages" || app.drag.kind == "held") && !app.drag.swap && app.drag.targetKind == "page" && app.drag.targetView != null },
+    visible = { classroot.on },
+    tv: View? = { app.drag.targetView },
+    x = { (classroot.tv?.x ?? 0) + (app.drag.after ? (classroot.tv?.width ?? 0) + 1 : -4) },
+    y = { (classroot.tv?.y ?? 0) - 22 },
+    width = 3, height = { app.pageH + 26 },
+    View [ y = 22, width = 3, height = { app.pageH }, cornerRadius = 1.5, fill = { provided("theme").dropMark } ],
+    tagline: View [ y = 0, x = { app.drag.after ? -this.width + 3 : 0 }, height = 18, padding = [0, 6, 0, 6], cornerRadius = 3,
+        fill = { provided("theme").dropMark },
+        TextLabel [ y = center, fontSize = 9.5, fontWeight = bold, letterSpacing = 0.4, wrap = false, textColor = 0xFFFFFF, text = { app.drag.markText } ]
+        ]
+    ]

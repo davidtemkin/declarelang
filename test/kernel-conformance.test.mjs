@@ -20,9 +20,9 @@
 // WebAssembly, and the version you can step through in a debugger.
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
-import { instantiateKernelSync, decodeWasm, emptyImage } from "../runtime/dist/kernel-loader.js";
+import { instantiateKernelSync, latin1Bytes, emptyImage } from "../runtime/dist/kernel-loader.js";
 import { instantiateKernelJS } from "../runtime/dist/kernel-js.js";
-import { KERNEL_WASM_B64 } from "../runtime/dist/kernel-wasm.js";
+import { KERNEL_WASM_LATIN1 } from "../runtime/dist/kernel-wasm.js";
 import { VIEW_LAYOUT_FIELDS } from "../runtime/dist/kernel-loader.js";
 
 // opcodes, as declare_kernel.h numbers them
@@ -72,7 +72,7 @@ async function bothAgree(name, scenario, capsOverride = null) {
       const h = makeHost();
       const caps = capsOverride ?? { extra_elems: 256, extra_cells: 4096, extra_rules: 1024, dyn_edges: 8192, ring: 1024, track_ring: 1024, code_words: 4096, consts: 256 };
       const K = which === "wasm"
-        ? instantiateKernelSync(decodeWasm(KERNEL_WASM_B64), emptyImage(), h.host, caps)
+        ? instantiateKernelSync(latin1Bytes(KERNEL_WASM_LATIN1), emptyImage(), h.host, caps)
         : instantiateKernelJS(h.host, caps);
       const returns = [];
       const record = (label, v) => { returns.push(`${label}=${v}`); return v; };

@@ -73,6 +73,8 @@ export declare class DomSurface implements Surface {
     private posY;
     setX(v: number): void;
     setY(v: number): void;
+    /** One axis's move writes that axis alone; a transformed box places itself whole. */
+    private placeAxis;
     private placeSelf;
     setEndAnchor(axis: "x" | "y", on: boolean): void;
     setWidth(v: number): void;
@@ -82,6 +84,10 @@ export declare class DomSurface implements Surface {
     /** package-private: a mask stencil's bitmap reads its box (dom-effects.ts) */
     frameW: number;
     frameH: number;
+    /** whether a height was ever written: what anchorEnds grows by the band */
+    heightGiven: boolean;
+    /** the box decoration values decorate() last wrote (put): it is their one writer */
+    private boxWritten;
     /** ROOT only, stamped by attachRoot: this app is an EMBEDDED island in a
      *  host page — its gesture default is `manipulation`, never the geometry
      *  read (refreshTouchAction). */
@@ -438,6 +444,10 @@ export declare class DomSurface implements Surface {
     private renderClamped;
     /** The run's horizontal insets together (TextStyle padLeft + padRight). */
     private textPadX;
+    /** The text-run style values setTextStyle last wrote (put), for the properties
+     *  it alone writes; width (padded below) and userSelect (the selection flush)
+     *  have other writers and are written plainly. */
+    private textWritten;
     setTextStyle(st: TextStyle): void;
     /** The text run element, created on first use. A positioned <span> — not a
      *  bare text node — so it paints in element order with the other content

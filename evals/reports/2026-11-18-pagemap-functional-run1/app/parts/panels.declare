@@ -1,0 +1,562 @@
+/*
+# Pagemap: the side panels
+
+Everything about the issue that isn't one page: its sections, statuses and tags; the work
+waiting for a place; the ads and booked content; its PDFs; what has been said and done; and
+how it will print. On a desk they stand to the left of the plan, one at a time; on a phone
+each opens as a sheet from the bar at the foot.
+
+Each list is a derived dataset on the App (`sectionRows`, `storyRows`, …), records made for
+the rows to show; every change still goes through `app.apply`.
+*/
+
+// A row that can be pressed: it goes somewhere, or opens something.
+
+class RowButton extends Control [ width = 100%, cornerRadius = 6, padding = { app.touchFirst ? [14, 8, 14, 8] : [6, 8, 6, 8] },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ]
+    ]
+
+
+// A color swatch that opens the palette for the thing it colors.
+
+class Swatch extends Control [ width = { app.touchFirst ? 44 : 20 }, height = { this.width }, cornerRadius = { this.width / 2 },
+    tone: string = "#999999",
+    list: string = "",
+    itemId: string = "",
+    fill = { Color.from(classroot.tone) },
+    stroke = { Stroke(hovered ? 2 : 1, provided("theme").lineStrong) },
+    press() { app.chooseColor(classroot.list, classroot.itemId, this) }
+    ]
+
+
+// A name that can be changed where it stands.
+
+class NameField extends TextInput [ flexes = true, height = { app.touchFirst ? 44 : 28 }, commitOn = "end", fontSize = 13,
+    fill = null, stroke = { focused ? Stroke(1, provided("theme").accent) : null }
+    ]
+
+
+// ── Sections, statuses, tags ────────────────────────────────────────────────────────────────
+
+class SectionsPanel [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = center ],
+        PanelHeading [ flexes = true, text = "SECTIONS" ],
+        Action [ visible = { app.canEdit }, label = "Add", shape = "plus", accessibilityLabel = "Add a section",
+            press() { app.apply("Add a section", P.addNamed(app.fp, "sections", "New section", PALETTE[(app.fp.sections.length + 2) % 10])) }
+            ]
+        ],
+    odd: View [ visible = { app.fp.facing && app.fp.pages.length % 2 == 1 }, width = 100%, padding = 8, cornerRadius = 6, fill = { provided("theme").notice },
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").noticeInk },
+            text = { "The issue has " + app.fp.pages.length + " pages — an odd number, which can't go to print with facing pages. Add or remove a page." } ]
+        ],
+    rows: View [ width = 100%, datapath = { app.sectionRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        View [ datapath = :rows[], width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            sid: string = { :id ?? "" },
+            Swatch [ tone = { :color ?? "#999999" }, list = "sections", itemId = { parent.sid }, disabled = { !app.canEdit },
+                accessibilityLabel = { "Color of " + (:name ?? "") } ],
+            NameField [ visible = { app.canEdit }, value = { :name ?? "" }, accessibilityLabel = "Section name",
+                commit(v: string) { app.apply("Rename a section", P.updateNamed(app.fp, "sections", parent.sid, ({ name: v }))) }
+                ],
+            Text [ visible = { !app.canEdit }, flexes = true, fontSize = 13, text = { :name ?? "" } ],
+            Control [ height = { app.tap }, padding = [0, 6, 0, 6], cornerRadius = 6, accessibilityLabel = { "Go to " + (:name ?? "") + ", " + (:range ?? "") },
+                fill = { hovered ? provided("theme").hover : null },
+                press() { app.goToSection(parent.sid) },
+                TextLabel [ y = center, fontSize = 12, textColor = { provided("theme").accent }, text = { (:range ?? "") + " · " + (:count ?? 0) } ]
+                ],
+            IconButton [ shape = { (:hidden ?? false) ? "eye-off" : "eye" }, on = { :hidden ?? false },
+                accessibilityLabel = { ((:hidden ?? false) ? "Bring back " : "Set out of the way: ") + (:name ?? "") },
+                tooltipLabel = { (:hidden ?? false) ? "Bring its pages back (for you only)" : "Set its pages out of the way (for you only)" },
+                press() { app.toggleHidden(parent.sid) }
+                ],
+            IconButton [ visible = { app.canEdit }, shape = "more", accessibilityLabel = { "More for " + (:name ?? "") },
+                press() { app.sectionTarget = parent.sid; app.sectionMore.showFor(this) }
+                ]
+            ]
+        ],
+    Hint [ text = "The eye sets a section's pages out of the way while you work on the rest; it changes nothing for anyone else." ],
+
+    statusHead: View [ width = 100%, padding = [12, 0, 0, 0],
+        layout: SimpleLayout [ axis = x, align = center ],
+        PanelHeading [ flexes = true, text = "STATUSES" ],
+        Action [ visible = { app.canEdit }, label = "Add", shape = "plus", accessibilityLabel = "Add a status",
+            press() { app.apply("Add a status", P.addNamed(app.fp, "statuses", "New status", PALETTE[(app.fp.statuses.length + 3) % 10])) }
+            ]
+        ],
+    statuses: View [ width = 100%, datapath = { app.statusRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        View [ datapath = :rows[], width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            sid: string = { :id ?? "" },
+            Swatch [ tone = { :color ?? "#999999" }, list = "statuses", itemId = { parent.sid }, disabled = { !app.canEdit },
+                accessibilityLabel = { "Color of " + (:name ?? "") } ],
+            NameField [ visible = { app.canEdit }, value = { :name ?? "" }, accessibilityLabel = "Status name",
+                commit(v: string) { app.apply("Rename a status", P.updateNamed(app.fp, "statuses", parent.sid, ({ name: v }))) }
+                ],
+            Text [ visible = { !app.canEdit }, flexes = true, fontSize = 13, text = { :name ?? "" } ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { pagesText(:pages ?? 0) + " · " + Math.round((:share ?? 0) * 100) + "%" } ],
+            IconButton [ visible = { app.canEdit }, shape = "close", accessibilityLabel = { "Remove the status " + (:name ?? "") },
+                press() { app.removeStatus(parent.sid) }
+                ]
+            ]
+        ],
+
+    tagHead: View [ width = 100%, padding = [12, 0, 0, 0],
+        layout: SimpleLayout [ axis = x, align = center ],
+        PanelHeading [ flexes = true, text = "TAGS" ],
+        Action [ visible = { app.canEdit }, label = "Add", shape = "plus", accessibilityLabel = "Add a tag",
+            press() { app.apply("Add a tag", P.addNamed(app.fp, "tags", "New tag", PALETTE[(app.fp.tags.length + 5) % 10])) }
+            ]
+        ],
+    tags: View [ width = 100%, datapath = { app.tagRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        View [ datapath = :rows[], width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            tid: string = { :id ?? "" },
+            Swatch [ tone = { :color ?? "#999999" }, list = "tags", itemId = { parent.tid }, disabled = { !app.canEdit },
+                accessibilityLabel = { "Color of " + (:name ?? "") } ],
+            NameField [ visible = { app.canEdit }, value = { :name ?? "" }, accessibilityLabel = "Tag name",
+                commit(v: string) { app.apply("Rename a tag", P.updateNamed(app.fp, "tags", parent.tid, ({ name: v }))) }
+                ],
+            Text [ visible = { !app.canEdit }, flexes = true, fontSize = 13, text = { :name ?? "" } ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { (:count ?? 0) + ((:count ?? 0) == 1 ? " page" : " pages") } ],
+            IconButton [ visible = { app.canEdit }, shape = "close", accessibilityLabel = { "Remove the tag " + (:name ?? "") },
+                press() { app.removeTag(parent.tid) }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── The work waiting for a place ────────────────────────────────────────────────────────────
+
+class WaitingPanel [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = center ],
+        PanelHeading [ flexes = true, text = "STORIES" ],
+        Action [ visible = { app.canEdit }, label = "New story", shape = "plus",
+            press() { app.newStory() }
+            ]
+        ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { app.waiting == 0 ? "Nothing is waiting for a place." : app.unplaced + " unplaced " + (app.unplaced == 1 ? "story" : "stories") + " and " + app.fp.holding.length + " set-aside " + (app.fp.holding.length == 1 ? "page" : "pages") + " are waiting for a place." } ],
+    which: Segmented [ width = 100%, accessibilityLabel = "Which stories",
+        items = { [ ({ id: "unplaced", label: "Unplaced (" + app.unplaced + ")" }), ({ id: "all", label: "All (" + app.fp.stories.length + ")" }) ] },
+        value = { app.storyList },
+        commit(v: string) { app.storyList = v }
+        ],
+    stories: View [ width = 100%, datapath = { app.storyRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ datapath = :rows[], width = 100%, padding = 8, cornerRadius = 8, fill = { provided("theme").raised },
+            stroke = { Stroke(1, provided("theme").line) },
+            sid: string = { :id ?? "" },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ width = 100%, fontSize = 14, fontWeight = semibold, text = { :title ?? "" } ],
+            View [ width = 100%,
+                layout: WrappingLayout [ spacing = 6, rowSpacing = 2, align = center ],
+                Dot [ tone = { :statusColor ?? "#999999" } ],
+                Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+                    text = { (:status ?? "") + " · " + (:pages ?? 0) + ((:pages ?? 0) == 1 ? " page" : " pages") + " · " + (:section ?? "") +
+                        ((:kind ?? "") == "advertising" ? " · Advertising" : " · " + (:editor ?? "")) + ((:rightStart ?? false) ? " · opens right" : "") } ]
+                ],
+            Text [ visible = { (:placed ?? "") != "" }, fontSize = 12, textColor = { provided("theme").textMuted }, text = { :placed ?? "" } ],
+            acts: View [ width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 6 ],
+                Action [ visible = { app.canEdit && (:placed ?? "") == "" }, label = "Place…", accessibilityLabel = { "Place " + (:title ?? "") },
+                    press() { app.placeStory(parent.parent.sid) }
+                    ],
+                Action [ visible = { (:placed ?? "") != "" }, label = "Go", accessibilityLabel = { "Go to " + (:title ?? "") },
+                    press() { app.goToStory(parent.parent.sid) }
+                    ],
+                Action [ label = { app.canEdit ? "Edit…" : "Details…" }, accessibilityLabel = { "Edit " + (:title ?? "") },
+                    press() { app.editStory(parent.parent.sid) }
+                    ],
+                Action [ visible = { app.canEdit && (:placed ?? "") == "" }, label = "Delete", danger = true, accessibilityLabel = { "Delete " + (:title ?? "") },
+                    press() { app.deleteStory(parent.parent.sid) }
+                    ]
+                ]
+            ]
+        ],
+
+    heldHead: View [ width = 100%, padding = [12, 0, 0, 0],
+        layout: SimpleLayout [ axis = x, align = center ],
+        PanelHeading [ flexes = true, text = "SET-ASIDE PAGES" ]
+        ],
+    Text [ visible = { app.fp.holding.length == 0 }, width = 100%, fontSize = 13, textColor = { provided("theme").textFaint },
+        text = "No pages are set aside. Set pages aside from a page's More menu; they leave the issue with everything on them." ],
+    held: View [ width = 100%, datapath = { app.heldRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ datapath = :rows[], width = 100%, padding = 8, cornerRadius = 8, fill = { provided("theme").raised },
+            stroke = { Stroke(1, provided("theme").line) },
+            hid: string = { :id ?? "" },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ width = 100%, fontSize = 13, fontWeight = semibold, text = { :carries ?? "" } ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { "From " + (:section ?? "") } ],
+            acts: View [ visible = { app.canEdit }, width = 100%,
+                layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+                Action [ label = "Put back at the end",
+                    press() { app.apply("Put a page back", P.putBack(app.fp, parent.parent.hid, "", "after")) }
+                    ],
+                Action [ visible = { app.pageId != "" }, label = { "Put back after " + app.folioOf(app.pageId) },
+                    press() { app.apply("Put a page back", P.putBack(app.fp, parent.parent.hid, app.pageId, "after")) }
+                    ],
+                Action [ label = "Delete for good", danger = true,
+                    press() { app.deleteHeld(parent.parent.hid) }
+                    ]
+                ]
+            ]
+        ],
+    Hint [ visible = { app.canEdit && app.fp.holding.length > 0 }, text = "“Put back after” uses the page you're on: press a page in the plan first to choose where." ]
+    ]
+
+
+// ── Ads and booked content ──────────────────────────────────────────────────────────────────
+
+class AdsPanel [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    PanelHeading [ text = "BOOKINGS" ],
+    state: View [ width = 100%, padding = 8, cornerRadius = 6,
+        fill = { app.openBookings > 0 ? provided("theme").notice : provided("theme").raised },
+        Text [ width = 100%, fontSize = 13, textColor = { app.openBookings > 0 ? provided("theme").noticeInk : provided("theme").textMuted },
+            text = { app.bookingSentence } ]
+        ],
+    acts: View [ visible = { app.canEdit }, width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Action [ label = "Add a booking", shape = "plus",
+            press() { app.show("booking") }
+            ],
+        Action [ label = "Import…", accessibilityLabel = "Import bookings from a CSV or TSV file",
+            press() { app.importBookings() }
+            ],
+        Action [ label = "Template", accessibilityLabel = "Save an empty template to fill in",
+            press() { FilePicker.save(BOOKING_TEMPLATE, ({ name: "ads-to-place.csv", type: "text/csv" })) }
+            ]
+        ],
+    Hint [ visible = { app.canEdit }, text = "Import the booking system's export as CSV or TSV: reference, text, wanted pages (separated by ;), size, shape. A row with a known reference updates its booking. To place a booking, make a region of a page Advertising and choose it there." ],
+    list: View [ width = 100%, datapath = { app.bookingRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ datapath = :rows[], width = 100%, padding = 8, cornerRadius = 8, fill = { provided("theme").raised },
+            stroke = { Stroke(1, provided("theme").line) },
+            bid: string = { :id ?? "" },
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, fontSize = 13, fontWeight = semibold, text = { :text ?? "" } ],
+            Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+                text = { [(:ref ?? "") != "" ? "Ref " + :ref : "", (:size ?? "") != "" ? "Size " + :size : "", (:shape ?? "") != "" ? :shape : "", (:want ?? "") != "" ? "Wants " + :want : ""].filter((s) => s != "").join(" · ") || "No constraints" } ],
+            Text [ fontSize = 12, textColor = { (:placed ?? "") == "" ? provided("theme").warn : provided("theme").ok },
+                text = { (:placed ?? "") == "" ? "No place yet" : "Placed on " + :placed } ],
+            acts: View [ width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 6 ],
+                Action [ visible = { (:first ?? "") != "" }, label = "Go", accessibilityLabel = { "Go to " + (:text ?? "") },
+                    press() { app.selectOnly(:first ?? "") }
+                    ],
+                Action [ visible = { app.canEdit }, label = "Remove", danger = true, accessibilityLabel = { "Remove the booking " + (:text ?? "") },
+                    press() { app.removeBooking(parent.parent.bid) }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── Artwork ─────────────────────────────────────────────────────────────────────────────────
+
+class ArtworkPanel [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    PanelHeading [ text = "ARTWORK" ],
+    Checkbox [ label = "Show the artwork on the plan", checked = { app.artMode },
+        commit(v: boolean) { app.artMode = v }
+        ],
+    Hint [ text = "The plan of every page stays a press away: switch this off, or open a page." ],
+    Action [ visible = { app.canEdit }, label = "Attach a PDF…", shape = "art",
+        press() { app.attachArt() }
+        ],
+    Text [ visible = { app.fp.assets.length == 0 }, width = 100%, fontSize = 13, textColor = { provided("theme").textFaint }, text = "No PDFs are attached to this issue." ],
+    list: View [ width = 100%, datapath = { app.assetRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ datapath = :rows[], width = 100%, padding = 8, cornerRadius = 8, fill = { provided("theme").raised },
+            stroke = { Stroke(1, provided("theme").line) },
+            aid: string = { :id ?? "" },
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, fontSize = 13, fontWeight = semibold, text = { :name ?? "" } ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+                text = { (:pages ?? 0) + " pages · used on " + (:used ?? 0) + ((:used ?? 0) == 1 ? " page" : " pages") + ((:size ?? "") != "" ? " · " + :size : "") } ],
+            acts: View [ width = 100%,
+                layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+                Action [ visible = { (:url ?? "") != "" }, label = "Look at it", accessibilityLabel = { "Look at " + (:name ?? "") },
+                    press() { app.viewPdf(parent.parent.aid, 1) }
+                    ],
+                Action [ visible = { app.canEdit }, label = "Reassign…", accessibilityLabel = { "Reassign " + (:name ?? "") },
+                    press() { app.reassign(parent.parent.aid) }
+                    ],
+                Action [ visible = { app.canEdit }, label = "Remove", danger = true, accessibilityLabel = { "Remove " + (:name ?? "") },
+                    press() { app.removeAsset(parent.parent.aid) }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── What has been said and done ─────────────────────────────────────────────────────────────
+
+class TalkPanel [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    PanelHeading [ text = "THE ISSUE'S NOTES" ],
+    TextInput [ visible = { app.canEdit }, width = 100%, multiline = true, height = { Math.max(70, Math.min(this.contentHeight, 200)) },
+        placeholder = "Notes for the whole issue; they print with it", accessibilityLabel = "The issue's notes", commitOn = "end",
+        value = { app.fp.notes },
+        commit(v: string) { app.apply("Change the issue's notes", P.setField(app.fp, "notes", v)) }
+        ],
+    Text [ visible = { !app.canEdit }, width = 100%, fontSize = 13, text = { app.fp.notes == "" ? "No notes." : app.fp.notes } ],
+    which: Segmented [ width = 100%, accessibilityLabel = "Show",
+        items = { [ ({ id: "comments", label: "Comments (" + (app.comments.value?.rows ?? []).length + ")" }), ({ id: "history", label: "History" }) ] },
+        value = { app.talkView },
+        commit(v: string) { app.talkView = v }
+        ],
+    comments: View [ visible = { app.talkView == "comments" }, width = 100%, datapath = { app.commentRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        RowButton [ datapath = :rows[], accessibilityLabel = { "Go to " + (:page ?? "") + ": " + (:text ?? "") },
+            press() { app.selectOnly(:pageId ?? "") },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            Text [ width = 100%, fontSize = 12, fontWeight = semibold, text = { (:who ?? "") + " on " + (:page ?? "") + " · " + (:when ?? "") } ],
+            Text [ width = 100%, fontSize = 13, text = { :text ?? "" } ]
+            ]
+        ],
+    Text [ visible = { app.talkView == "comments" && (app.comments.value?.rows ?? []).length == 0 }, fontSize = 13, textColor = { provided("theme").textFaint },
+        text = "No comments yet. Comment on a page from its panel." ],
+    history: View [ visible = { app.talkView == "history" }, width = 100%, datapath = { app.historyRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ datapath = :rows[], width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 1 ],
+            Text [ width = 100%, fontSize = 13, text = { :text ?? "" } ],
+            Text [ fontSize = 11, textColor = { provided("theme").textMuted }, text = { (:who ?? "") + " · " + (:when ?? "") } ]
+            ]
+        ]
+    ]
+
+
+// ── Print, and the issue's settings ─────────────────────────────────────────────────────────
+
+class PrintPanel [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    PanelHeading [ text = "THE ISSUE" ],
+    names: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Field [ label = "Publication", stacked = true, width = 100%,
+            TextInput [ width = 100%, disabled = { !app.canEdit }, commitOn = "end", value = { app.fp.publication },
+                commit(v: string) { app.apply("Rename the publication", P.setField(app.fp, "publication", v.trim())) }
+                ]
+            ],
+        Field [ label = "Issue", stacked = true, width = 100%,
+            TextInput [ width = 100%, disabled = { !app.canEdit }, commitOn = "end", value = { app.fp.name },
+                commit(v: string) { app.renameIssue(v) }
+                ]
+            ],
+        Field [ label = "Edition", stacked = true, width = 100%,
+            TextInput [ width = 100%, disabled = { !app.canEdit }, commitOn = "end", value = { app.fp.edition },
+                commit(v: string) { app.apply("Change the edition", P.setField(app.fp, "edition", v.trim())) }
+                ]
+            ]
+        ],
+
+    PanelHeading [ text = "TRIM" ],
+    Segmented [ visible = { app.canEdit }, width = 100%, accessibilityLabel = "Trim",
+        items = { [ ({ id: "9x12", label: "Portrait" }), ({ id: "10x10", label: "Square" }), ({ id: "12x9", label: "Landscape" }) ] },
+        value = { app.fp.trimW + "x" + app.fp.trimH },
+        commit(v: string) { const t = v.split("x"); app.apply("Change the trim", P.setTrim(app.fp, Number(t[0]), Number(t[1]))) }
+        ],
+    trim: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        TextInput [ width = 80, disabled = { !app.canEdit }, accessibilityLabel = "Trim width, inches", commitOn = "end",
+            purpose = decimal, value = { String(app.fp.trimW) },
+            commit(v: string) { app.apply("Change the trim", P.setTrim(app.fp, Number(v), app.fp.trimH)) }
+            ],
+        Text [ text = "×" ],
+        TextInput [ width = 80, disabled = { !app.canEdit }, accessibilityLabel = "Trim height, inches", commitOn = "end",
+            purpose = decimal, value = { String(app.fp.trimH) },
+            commit(v: string) { app.apply("Change the trim", P.setTrim(app.fp, app.fp.trimW, Number(v))) }
+            ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "inches" ]
+        ],
+
+    PanelHeading [ text = "PAGES AND NUMBERING" ],
+    Checkbox [ label = "Facing pages", disabled = { !app.canEdit }, checked = { app.fp.facing },
+        commit(v: boolean) { app.apply(v ? "Turn facing pages on" : "Turn facing pages off", P.setField(app.fp, "facing", v)) }
+        ],
+    Checkbox [ label = "Separate covers", disabled = { !app.canEdit }, checked = { coversOn(app.fp) },
+        commit(v: boolean) { app.apply(v ? "Make separate covers" : "Make the covers ordinary pages", P.setCovers(app.fp, v)) }
+        ],
+    Hint [ text = "Portrait is 9 × 12 in, square 10 × 10, landscape 12 × 9; or give any size above. Separate covers are FC, IFC, IBC and BC, outside the numbering." ],
+    first: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ fontSize = 13, text = "Numbering starts at" ],
+        TextInput [ width = 70, disabled = { !app.canEdit }, accessibilityLabel = "Numbering starts at", commitOn = "end", purpose = digits,
+            value = { String(app.fp.firstFolio) },
+            admit(t: string) -> string | null { return /^[0-9]{0,4}$/.test(t) ? t : null },
+            commit(v: string) { if (v != "") app.apply("Change where numbering starts", P.setField(app.fp, "firstFolio", Number(v))) }
+            ]
+        ],
+    adds: View [ visible = { app.canEdit }, width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Action [ label = "Add 2 pages", shape = "plus",
+            press() { app.apply("Add 2 pages", P.addPagesAtEnd(app.fp, 2)) }
+            ],
+        Action [ label = "Add 4 pages", shape = "plus",
+            press() { app.apply("Add 4 pages", P.addPagesAtEnd(app.fp, 4)) }
+            ],
+        Action [ label = "Remove the last 2", accessibilityLabel = "Remove the last two interior pages, if blank",
+            press() { app.apply("Remove 2 pages", P.removeLastTwo(app.fp)) }
+            ]
+        ],
+    Hint [ text = "Pages are added blank at the end of the interior, in its last section. Only blank pages can be removed this way." ],
+
+    PanelHeading [ text = "PRINT SECTIONS" ],
+    sigs: PrintSections [ width = 100% ],
+
+    PanelHeading [ text = "STITCH-INS" ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { app.fp.stitchIns.length == 0 ? "None." : app.fp.stitchIns.length + (app.fp.stitchIns.length == 1 ? " stitch-in" : " stitch-ins") + ": after " + app.fp.stitchIns.map((x) => app.folioOf(x.after) || "a set-aside page").join(", ") + "." } ],
+    stitches: View [ width = 100%, datapath = { app.stitchRows.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ datapath = :rows[], width = 100%, padding = 8, cornerRadius = 8, fill = { provided("theme").raised },
+            stroke = { Stroke(1, provided("theme").line) },
+            xid: string = { :id ?? "" },
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            row: View [ width = 100%,
+                layout: SimpleLayout [ axis = x, align = center ],
+                Text [ flexes = true, fontSize = 13, fontWeight = semibold, text = { "After " + (:folio ?? "") } ],
+                IconButton [ visible = { app.canEdit }, shape = "close", accessibilityLabel = { "Remove the stitch-in after " + (:folio ?? "") },
+                    press() { app.apply("Remove a stitch-in", P.removeStitchIn(app.fp, parent.parent.xid)) }
+                    ]
+                ],
+            TextInput [ width = 100%, disabled = { !app.canEdit }, placeholder = "Front", accessibilityLabel = "Stitch-in front notes", commitOn = "end",
+                value = { :front ?? "" },
+                commit(v: string) { app.apply("Change a stitch-in", P.updateStitchIn(app.fp, parent.xid, ({ front: v }))) }
+                ],
+            TextInput [ width = 100%, disabled = { !app.canEdit }, placeholder = "Back", accessibilityLabel = "Stitch-in back notes", commitOn = "end",
+                value = { :back ?? "" },
+                commit(v: string) { app.apply("Change a stitch-in", P.updateStitchIn(app.fp, parent.xid, ({ back: v }))) }
+                ]
+            ]
+        ],
+    Hint [ visible = { app.canEdit }, text = "Add a stitch-in from the More menu of the page it follows." ],
+
+    PanelHeading [ text = "SHARE AND KEEP" ],
+    keep: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Action [ label = "Print the plan…", accessibilityLabel = "Print the plan, or save it as a PDF",
+            press() { app.printPlan() }
+            ],
+        Action [ label = "Back up", accessibilityLabel = "Save a complete backup of this issue",
+            press() { app.backUp() }
+            ],
+        Action [ visible = { app.canEdit }, label = "Restore…", accessibilityLabel = "Restore this issue from a backup",
+            press() { app.restore() }
+            ],
+        Action [ visible = { app.canEdit }, label = { app.fp.archived ? "Bring back" : "Archive" },
+            press() { app.apply(app.fp.archived ? "Bring the issue back" : "Archive the issue", P.setField(app.fp, "archived", !app.fp.archived)) }
+            ]
+        ]
+    ]
+
+
+// The print sections: the counts the printer binds from, set apart from the issue itself.
+
+class PrintSections [ layout: SimpleLayout [ axis = y, spacing = 8 ],
+    check: PrintCheck = { printCheck(app.fp) },
+    Text [ width = 100%, fontSize = 13, text = { "Covers: " + (app.fp.signatures.cover.join(" + ") || "none") } ],
+    coverActs: View [ visible = { app.canEdit }, width = 100%,
+        layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
+        Action [ label = "+4", accessibilityLabel = "Add a cover section of 4",
+            press() { app.addSig("cover", 4) }
+            ],
+        Action [ label = "+8", accessibilityLabel = "Add a cover section of 8",
+            press() { app.addSig("cover", 8) }
+            ],
+        Action [ visible = { app.fp.signatures.cover.length > 0 }, label = "Remove last", accessibilityLabel = "Remove the last cover section",
+            press() { app.removeSig("cover") }
+            ]
+        ],
+    Text [ width = 100%, fontSize = 13, text = { "Body: " + (app.fp.signatures.body.join(" + ") || "none") } ],
+    bodyActs: View [ visible = { app.canEdit }, width = 100%,
+        layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
+        Action [ label = "+4", accessibilityLabel = "Add a body section of 4",
+            press() { app.addSig("body", 4) }
+            ],
+        Action [ label = "+8", accessibilityLabel = "Add a body section of 8",
+            press() { app.addSig("body", 8) }
+            ],
+        Action [ label = "+16", accessibilityLabel = "Add a body section of 16",
+            press() { app.addSig("body", 16) }
+            ],
+        Action [ label = "+24", accessibilityLabel = "Add a body section of 24",
+            press() { app.addSig("body", 24) }
+            ],
+        Action [ label = "+32", accessibilityLabel = "Add a body section of 32",
+            press() { app.addSig("body", 32) }
+            ],
+        Action [ visible = { app.fp.signatures.body.length > 0 }, label = "Remove last", accessibilityLabel = "Remove the last body section",
+            press() { app.removeSig("body") }
+            ]
+        ],
+    sums: View [ width = 100%, padding = 8, cornerRadius = 6, fill = { classroot.check.diff == 0 ? provided("theme").raised : provided("theme").notice },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, fontSize = 13, text = { "Print sections total " + classroot.check.total + " · the issue has " + app.fp.pages.length + " pages, " + app.fp.holding.length + " set aside" } ],
+        Text [ width = 100%, fontSize = 13, fontWeight = semibold, text = { "Difference: " + classroot.check.diff } ],
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, text = { classroot.check.advice } ]
+        ],
+    Hint [ text = "Working these out never changes the issue." ]
+    ]
+
+
+// ── Which panel ─────────────────────────────────────────────────────────────────────────────
+
+class SidePanel [ fill = { provided("theme").surface }, stroke = { [null, Stroke(1, provided("theme").line), null, null] },
+    accessibilityRole = complementary, accessibilityLabel = "Issue panels",
+    layout: SimpleLayout [ axis = x, align = stretch ],
+    rail: ChoiceControl [ width = 64, padding = [8, 4, 8, 4], accessibilityLabel = "Panel", value <-> app.panel,
+        stroke = { [null, Stroke(1, provided("theme").line), null, null] },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        RailItem [ choice = "sections", label = "Sections", shape = "panels" ],
+        RailItem [ choice = "waiting", label = "Stories", shape = "note", count = { app.waiting } ],
+        RailItem [ choice = "ads", label = "Ads", shape = "ad", count = { app.openBookings } ],
+        RailItem [ choice = "artwork", label = "Art", shape = "art" ],
+        RailItem [ choice = "talk", label = "Talk", shape = "comment", count = { (app.comments.value?.rows ?? []).length } ],
+        RailItem [ choice = "print", label = "Print", shape = "stitch" ]
+        ],
+    PanelBody [ flexes = true ]
+    ]
+
+
+// One panel's place on the rail: its mark, its name, and how much waits in it.
+
+class RailItem extends ChoiceItem [ width = 56, height = 54, cornerRadius = 8,
+    label: string = "",
+    shape: string = "",
+    count: number = 0,
+    accessibilityLabel = { classroot.label + (classroot.count > 0 ? ", " + classroot.count : "") },
+    fill = { classroot.on ? provided("theme").controlSelected : hovered ? provided("theme").hover : null },
+    layout: SimpleLayout [ axis = y, spacing = 3, align = center ],
+    View [ height = 6 ],
+    Glyph [ shape = { classroot.shape }, iconSize = 18, ink = { classroot.on ? provided("theme").accent : provided("theme").textMuted } ],
+    Text [ fontSize = 10, fontWeight = medium, textColor = { classroot.on ? provided("theme").accent : provided("theme").textMuted }, text = { classroot.label } ],
+    badge: View [ visible = { classroot.count > 0 }, ignoreLayout = true, x = 34, y = 4, height = 16, cornerRadius = 8, padding = [0, 4, 0, 4],
+        fill = { provided("theme").warn },
+        TextLabel [ y = center, fontSize = 9, fontWeight = bold, textColor = #FFFFFF, text = { "" + classroot.count } ]
+        ]
+    ]
+
+
+class PanelBody [ scrolls = y, padding = [8, 14, 60, 14],
+    SectionsPanel [ visible = { app.panel == "sections" } ],
+    WaitingPanel [ visible = { app.panel == "waiting" } ],
+    AdsPanel [ visible = { app.panel == "ads" } ],
+    ArtworkPanel [ visible = { app.panel == "artwork" } ],
+    TalkPanel [ visible = { app.panel == "talk" } ],
+    PrintPanel [ visible = { app.panel == "print" } ]
+    ]

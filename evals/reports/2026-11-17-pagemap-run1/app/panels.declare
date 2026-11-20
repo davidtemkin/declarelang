@@ -1,0 +1,665 @@
+/*
+# Pagemap: the side panel and the inspector
+
+The side panel (F-APP-01) is the flatplan's card, its sections, the holding area, the
+ads to place, print sections, stitch-ins, notes and activity, appearance and the guide.
+The inspector shows what is chosen and everything that can be done to it (F-PAGE,
+F-STORY, F-APP-06). Both are placed beside the map where the window allows and opened
+over it where it doesn't; they don't know which.
+*/
+
+// ── The side panel ──────────────────────────────────────────────────────────
+
+class SidePanel [ width = 100%,
+    layout: SimpleLayout [ axis = y ],
+
+    // The flatplan's card.
+
+    Block [
+        Text [ width = 100%, fontSize = 18, fontWeight = bold, maxLines = 2, text = { app.plan.doc?.name ?? "" } ],
+        Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted }, maxLines = 2,
+            text = { (app.plan.doc?.edition ?? "") + " · " + (app.plan.doc?.publication ?? app.wsName) } ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { app.trimText + " · " + (app.plan.facing ? "facing pages" : "single pages") + (app.plan.covers ? " · separate covers" : "") } ],
+        Text [ visible = { app.oddPages }, width = 100%, fontSize = 12, fontWeight = semibold, textColor = { provided("theme").warn },
+            text = "An odd number of pages. Add or remove one before it goes to print." ],
+        View [ width = 100%,
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            Act [ label = "Flatplan settings",
+                onClick() { app.openDialog("settings") }
+                ],
+            Act [ label = "All flatplans",
+                onClick() { app.openDialog("flatplans") }
+                ]
+            ]
+        ],
+
+    // Sections (F-SEC-01, F-MOVE-09, F-MOVE-10).
+
+    Block [ title = "SECTIONS",
+        rows: View [ width = 100%, datapath = { app.sectionRows.value },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            SectionRow [ datapath = :rows[] ]
+            ],
+        Act [ visible = { !app.readOnly }, label = "Sections, statuses and tags",
+            onClick() { app.openDialog("lists") }
+            ]
+        ],
+
+    // The holding area (F-STORY-04, F-PAGE-22).
+
+    Block [ title = { "HOLDING AREA · " + app.holdCount },
+        Text [ visible = { app.holdCount == 0 }, width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = "Unplaced stories and pages taken off the flatplan wait here." ],
+        stories: View [ width = 100%, datapath = { app.holdSet.value },
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            HoldCard [ datapath = :items[] ]
+            ],
+        Act [ visible = { !app.readOnly }, label = "Add a story",
+            onClick() { app.openNewStory("hold", "") }
+            ]
+        ],
+
+    // Ads and content to place (F-ADS-01).
+
+    Block [ title = "ADS AND CONTENT",
+        Control [ width = 100%, height = { app.tap }, cornerRadius = 7, padding = [0, 8, 0, 8],
+            accessibilityLabel = { app.adsLine },
+            fill = { hovered ? provided("theme").hover : provided("theme").sunken },
+            press() { app.openDialog("ads") },
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Text [ flexes = true, fontSize = 13, wrap = false, text = { app.adsLine } ],
+            Glyph [ shape = "right", iconSize = 12, ink = { provided("theme").textFaint } ]
+            ]
+        ],
+
+    // Print, stitch-ins, notes, appearance, guide.
+
+    Block [ title = "PRINT AND NOTES",
+        PanelLink [ label = { "Print sections · " + app.sigLine },
+            press() { app.openDialog("print") }
+            ],
+        PanelLink [ label = { "Stitch-ins (" + (app.plan.doc?.stitchIns ?? []).length + ")" },
+            press() { app.openDialog("stitch") }
+            ],
+        PanelLink [ label = "Notes and activity",
+            press() { app.openDialog("notes") }
+            ],
+        PanelLink [ label = "Upload artwork", visible = { !app.readOnly },
+            press() { app.openDialog("upload") }
+            ],
+        PanelLink [ label = "Read spread by spread",
+            press() { app.openReader(app.cur != "" ? app.cur : app.plan.pages[0]?.id ?? "") }
+            ]
+        ],
+    Block [ title = "APPEARANCE",
+        Segmented [ width = 200, value = { app.appearance },
+            items = { [ ({ id: "device", label: "Device" }), ({ id: "light", label: "Light" }), ({ id: "dark", label: "Dark" }) ] },
+            commit(v: string) { app.setAppearance(v) }
+            ],
+        PanelLink [ label = "Quick guide",
+            press() { app.openDialog("guide") }
+            ]
+        ]
+    ]
+
+
+class PanelLink extends Control [ width = 100%, height = { app.tap }, cornerRadius = 6, padding = [0, 8, 0, 8],
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    fill = { pressed ? provided("theme").selection : hovered ? provided("theme").hover : null },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ flexes = true, fontSize = 13, wrap = false, text = { classroot.label } ],
+    Glyph [ shape = "right", iconSize = 12, ink = { provided("theme").textFaint } ]
+    ]
+
+
+// A section's row: its color, name, folio range and page count. Pressing it unfolds the
+// section and goes to its first page; dragging it moves the section; pages dragged onto
+// it join it.
+
+class SectionRow extends Control [ width = 100%, height = { app.tap + 2 }, cornerRadius = 6, padding = [0, 6, 0, 6],
+    sid: string = { :id ?? "" },
+    dropRole: string = "row",
+    under: boolean = { app.drag.active && app.drag.targetKind == "row" && app.drag.targetSection == classroot.sid },
+    takes: boolean = { classroot.under && app.drag.kind == "pages" },
+    accessibilityLabel = { (:name ?? "") + ", " + (:range ?? "") },
+    fill = { classroot.takes ? provided("theme").selection : hovered ? provided("theme").hover : null },
+    stroke = { classroot.takes ? Stroke(1.5, provided("theme").accent) : null },
+    press() { app.goToSection(classroot.sid) },
+    onDragStart(e: PointerEvent) { app.drag.startSection(classroot.sid, e, this) },
+    onDrag(e: PointerEvent) { app.drag.track(e) },
+    onDragEnd(e: DragEndEvent) { app.drag.finish(e.canceled) },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Dot [ tone = { :color ?? "#888888" } ],
+    Text [ flexes = true, fontSize = 13, fontWeight = medium, wrap = false, maxLines = 1, text = { :name ?? "" } ],
+    Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted },
+        text = { classroot.takes ? "Move to " + (:name ?? "") : (:range ?? "") + " / " + (:count ?? 0) + " pp" } ],
+
+    // Where a dragged section would go.
+
+    rule: View [ ignoreLayout = true, visible = { classroot.under && app.drag.kind == "section" }, x = 0,
+        y = { app.drag.after ? parent.height - 2 : 0 }, width = 100%, height = 2, fill = { provided("theme").accent } ]
+    ]
+
+
+// An unplaced story or a held page in the holding area.
+
+class HoldCard [ width = 100%, cornerRadius = 7, padding = [8, 10, 8, 10],
+    hid: string = { :id ?? "" },
+    isStory: boolean = { (:kind ?? "") == "story" },
+    chosen: boolean = { app.pick == (classroot.isStory ? "story:" : "held:") + classroot.hid },
+    fill = { classroot.chosen ? provided("theme").selection : provided("theme").sunken },
+    stroke = { classroot.chosen ? Stroke(1.5, provided("theme").chosen) : Stroke(1, provided("theme").line) },
+    accessibilityRole = button,
+    press() { app.pickHold(classroot.isStory ? "story" : "held", classroot.hid) },
+    accessibilityLabel = { (:title ?? "") + ", " + (:line ?? "") },
+    onClick() { app.pickHold(classroot.isStory ? "story" : "held", classroot.hid) },
+    onDragStart(e: PointerEvent) { if (classroot.isStory) app.drag.startStory(classroot.hid, e, this); else app.drag.startHeld(classroot.hid, e, this) },
+    onDrag(e: PointerEvent) { app.drag.track(e) },
+    onDragEnd(e: DragEndEvent) { app.drag.finish(e.canceled) },
+    onHold(e: PointerEvent) { },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        View [ width = 4, height = 16, cornerRadius = 2, fill = { Color.from(:color ?? "#888888") } ],
+        Text [ flexes = true, fontSize = 13, fontWeight = semibold, maxLines = 2, text = { :title ?? "" } ],
+        Text [ fontSize = 11, fontWeight = bold, wrap = false, textColor = { provided("theme").textMuted }, text = { :pp ?? "" } ]
+        ],
+    View [ width = 100%,
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 2, align = center ],
+        Text [ visible = { :opensRight ?? false }, fontSize = 10, fontWeight = bold, letterSpacing = 0.4, textColor = { provided("theme").accent }, text = "OPENS RIGHT" ],
+        Text [ fontSize = 11, textColor = { provided("theme").textMuted }, text = { :line ?? "" } ]
+        ]
+    ]
+
+
+// ── The inspector ───────────────────────────────────────────────────────────
+
+class Inspector [ width = 100%,
+    layout: SimpleLayout [ axis = y ],
+    begin: Begin [ visible = { app.inspecting == "none" } ],
+    page: PageInspector [ exists = { app.inspecting == "page" } ],
+    many: ManyInspector [ exists = { app.inspecting == "many" } ],
+    story: StoryInspector [ exists = { app.inspecting == "story" } ],
+    held: HeldInspector [ exists = { app.inspecting == "held" } ]
+    ]
+
+
+// With nothing chosen: how to begin (F-APP-06).
+
+class Begin [ width = 100%, padding = 16,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 16, fontWeight = bold, text = "Nothing chosen" ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { app.touchFirst ? "Tap a page to edit it." : "Click a page to edit it. ⇧-click or ⌘-click to choose several." } ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { app.touchFirst ? "Press and hold a page, a story or a section, then drag it to find its place." : "Drag a page, a story or a section to find its place. Hold ⌥ as you start to swap." } ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = "Upload a PDF to see the artwork on its pages." ],
+    View [ width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Act [ visible = { !app.readOnly }, label = "Upload artwork",
+            onClick() { app.openDialog("upload") }
+            ],
+        Act [ label = "Quick guide",
+            onClick() { app.openDialog("guide") }
+            ]
+        ]
+    ]
+
+
+// One page chosen (F-PAGE-01 to -20).
+
+class PageInspector [ width = 100%,
+    pid: string = { app.cur },
+    pg: Page? = { app.plan.page(app.cur) },
+    ri: number = { Math.min(app.regionIx, Math.max(0, (classroot.pg?.regions.length ?? 1) - 1)) },
+    reg: Region? = { classroot.pg?.regions[classroot.ri] ?? null },
+    storyId: string = { classroot.reg?.storyId ?? "" },
+    st: Story? = { app.plan.story(classroot.storyId) },
+    ro: boolean = { app.readOnly },
+    locked: boolean = { classroot.pg?.locked ?? false },
+    layout: SimpleLayout [ axis = y ],
+
+    // F-PAGE-01: name, side, lock, section.
+
+    Block [
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Text [ flexes = true, fontSize = 18, fontWeight = bold, text = { app.plan.pageName(classroot.pid) } ],
+            IconButton [ shape = { classroot.locked ? "lock" : "unlock" }, on = { classroot.locked }, disabled = { classroot.ro },
+                tone = { provided("theme").text }, accessibilityLabel = { classroot.locked ? "Unlock page" : "Lock page" },
+                press() { app.toggleLock(classroot.pid) }
+                ],
+            IconButton [ shape = "close", tone = { provided("theme").textMuted }, accessibilityLabel = "Clear the choice",
+                press() { app.clearChoice() }
+                ]
+            ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { (app.plan.side(classroot.pid) == "left" ? "Left-hand page" : "Right-hand page") + (classroot.locked ? " · Locked" : "") } ],
+        Button [ disabled = { classroot.ro }, label = { app.plan.sectionName(classroot.pg?.sectionId ?? "") }, menu = { app.sectionMenu } ]
+        ],
+
+    // F-PAGE-02 to -05, -07: the chosen region.
+
+    Block [ title = "REGION",
+        regions: View [ visible = { (classroot.pg?.regions.length ?? 0) > 1 }, width = 100%, datapath = { app.regionSet.value },
+            layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
+            RegionChip [ datapath = :items[] ]
+            ],
+        Text [ width = 100%, fontSize = 16, fontWeight = semibold, maxLines = 3,
+            text = { classroot.reg == null ? "" : app.regionTitleFor(classroot.reg) } ],
+        Text [ visible = { classroot.storyId != "" }, width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { app.storyRangeLine(classroot.storyId) } ],
+        Segmented [ width = 100%, disabled = { classroot.ro }, value = { classroot.reg?.kind ?? "unassigned" },
+            items = { [ ({ id: "editorial", label: "Editorial" }), ({ id: "advertising", label: "Advertising" }), ({ id: "unassigned", label: "Open" }) ] },
+            commit(v: string) { app.setRegionKind(v) }
+            ],
+        Button [ width = 100%, disabled = { classroot.ro }, label = { classroot.st == null ? "No story — a placement" : "Story: " + classroot.st.title }, menu = { app.storyMenu } ],
+
+        // Without a story: a label, and on an ad region the booked ad.
+
+        TextInput [ visible = { classroot.storyId == "" }, width = 100%, disabled = { classroot.ro }, placeholder = "Placement label",
+            accessibilityLabel = "Placement label", commitOn = "end",
+            value = { classroot.reg?.label ?? "" },
+            commit(v: string) { app.setRegionLabel(v) }
+            ],
+        View [ visible = { classroot.storyId == "" && (classroot.reg?.kind ?? "") == "advertising" }, width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Button [ width = 100%, disabled = { classroot.ro }, label = { app.bookingLine }, menu = { app.bookingMenu } ],
+            FitChip [ visible = { (classroot.reg?.bookingId ?? "") != "" }, verdict = { app.regionFit.verdict } ]
+            ],
+        Act [ disabled = { classroot.ro }, label = "Clear this region",
+            onClick() { app.clearRegion() }
+            ]
+        ],
+
+    // F-STORY-07: the story's facts, from a region carrying it.
+
+    StoryFacts [ exists = { classroot.st != null }, sid = { classroot.storyId }, placedStory = true ],
+
+    // F-PAGE-06: layout.
+
+    Block [ title = "PAGE LAYOUT",
+        grid: View [ width = 100%, datapath = { app.layoutSet.value },
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            LayoutChoice [ datapath = :items[] ]
+            ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 6 ],
+            Act [ disabled = { classroot.ro }, label = "Rotate",
+                onClick() { app.rotateLayout() }
+                ],
+            Act [ disabled = { classroot.ro }, label = "Flip",
+                onClick() { app.flipLayout() }
+                ]
+            ]
+        ],
+
+    // F-PAGE-08, -09: tags and notes.
+
+    Block [ title = "TAGS",
+        View [ width = 100%, datapath = { app.plan.value?.fp },
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            TagChip [ datapath = :tags[] ]
+            ]
+        ],
+    Block [ title = "PAGE NOTES",
+        TextInput [ width = 100%, multiline = true, height = { Math.max(56, Math.min(contentHeight, 140)) }, disabled = { classroot.ro },
+            placeholder = "Notes about this page", accessibilityLabel = "Page notes", commitOn = "end",
+            value = { classroot.pg?.notes ?? "" },
+            commit(v: string) { app.setPageNotes(v) }
+            ]
+        ],
+
+    // F-ART-06: artwork.
+
+    ArtBlock [ ],
+
+    // Commands (F-PAGE-10 to -20, F-MOVE-07, -08).
+
+    Block [ title = "PAGE",
+        View [ width = 100%,
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            Act [ label = { app.moveLabel }, disabled = { classroot.ro },
+                onClick() { app.openDialog("move") }
+                ],
+            Act [ label = "Move earlier", disabled = { classroot.ro },
+                onClick() { app.nudge(-1) }
+                ],
+            Act [ label = "Move later", disabled = { classroot.ro },
+                onClick() { app.nudge(1) }
+                ],
+            Act [ label = "Copy page",
+                onClick() { app.copyPage() }
+                ],
+            Act [ label = "Paste", disabled = { classroot.ro || app.copied == null },
+                onClick() { app.pastePages() }
+                ],
+            Act [ label = "Insert pages after…", disabled = { classroot.ro },
+                onClick() { app.openDialog("insert") }
+                ],
+            Act [ label = "Read from this page",
+                onClick() { app.openReader(classroot.pid) }
+                ],
+            Act [ label = "Move to holding area", disabled = { classroot.ro },
+                onClick() { app.holdChosen() }
+                ],
+            Act [ label = "Delete page", tone = "danger", disabled = { classroot.ro },
+                onClick() { app.deleteChosen() }
+                ]
+            ]
+        ],
+
+    // F-COLLAB-07: comments.
+
+    Comments [ ]
+    ]
+
+
+// A region to choose in the inspector: "Region 2 · 50%".
+
+class RegionChip extends Control [ height = 28, cornerRadius = 6, padding = [0, 8, 0, 8],
+    on: boolean = { app.regionIx == (:ri ?? 0) },
+    accessibilityLabel = { :label ?? "" },
+    accessibilityPressed = { classroot.on },
+    fill = { classroot.on ? provided("theme").selection : hovered ? provided("theme").hover : provided("theme").sunken },
+    stroke = { classroot.on ? Stroke(1.5, provided("theme").chosen) : null },
+    press() { app.regionIx = :ri ?? 0 },
+    TextLabel [ y = center, fontSize = 12, wrap = false, text = { :label ?? "" } ]
+    ]
+
+
+// A template, drawn as its regions with the page's rotation and flip (F-PAGE-06).
+
+class LayoutChoice extends Control [ width = 44, height = { 44 * Math.min(1.5, app.plan.aspect) + 16 },
+    lid: string = { :id ?? "" },
+    on: boolean = { :on ?? false },
+    accessibilityLabel = { :name ?? "" },
+    accessibilityPressed = { classroot.on },
+    tooltipLabel = { :name ?? "" },
+    disabled = { app.readOnly },
+    press() { app.setPageLayout(classroot.lid) },
+    paper: View [ width = 44, height = { 44 * Math.min(1.5, app.plan.aspect) }, cornerRadius = 2,
+        fill = { provided("theme").paper },
+        stroke = { classroot.on ? Stroke(2, provided("theme").chosen) : Stroke(1, hovered ? provided("theme").textMuted : provided("theme").paperLine) },
+        View [ datapath = :rects[], x = { :x * 40 + 2 }, y = { :y * (parent.height - 4) + 2 }, width = { :w * 40 }, height = { :h * (parent.height - 4) },
+            stroke = { Stroke(1, 0x8E8A82) }, fill = 0xEFECE6 ]
+        ],
+    Text [ y = end, width = 44, fontSize = 8, maxLines = 1, textAlign = center, textColor = { provided("theme").textMuted }, text = { :short ?? "" } ]
+    ]
+
+
+// A tag, on or off for the chosen pages (F-PAGE-08, F-PAGE-21).
+
+class TagChip extends Control [ height = 28, cornerRadius = 14, padding = [0, 10, 0, 8],
+    tid: string = { :id ?? "" },
+    on: boolean = { app.allHaveTag(classroot.tid) },
+    disabled = { app.readOnly },
+    accessibilityRole = toggle, accessibilityPressed = { classroot.on },
+    accessibilityLabel = { :name ?? "" },
+    fill = { classroot.on ? Color.mix(provided("theme").surface, Color.from(:color ?? "#888888"), 0.35) : hovered ? provided("theme").hover : null },
+    stroke = { Stroke(1, classroot.on ? Color.from(:color ?? "#888888") : provided("theme").line) },
+    press() { app.tagChosen(classroot.tid, !classroot.on) },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Dot [ width = 8, height = 8, tone = { :color ?? "#888888" } ],
+    Text [ fontSize = 12, wrap = false, text = { :name ?? "" } ]
+    ]
+
+
+// How a booking fits the chosen region (F-ADS-05).
+
+class FitChip [ height = 24, cornerRadius = 12, padding = [0, 10, 0, 10],
+    verdict: string = "any",
+    fill = { classroot.verdict == "match" ? provided("theme").okSoft : classroot.verdict == "mismatch" ? provided("theme").badSoft
+        : classroot.verdict == "partial" ? provided("theme").warnSoft : provided("theme").sunken },
+    TextLabel [ y = center, fontSize = 12, fontWeight = semibold, wrap = false,
+        textColor = { classroot.verdict == "match" ? provided("theme").good : classroot.verdict == "mismatch" ? provided("theme").danger
+            : classroot.verdict == "partial" ? provided("theme").warn : provided("theme").textMuted },
+        text = { classroot.verdict == "match" ? "✓ Fits this region" : classroot.verdict == "mismatch" ? "✕ Doesn't fit this region"
+            : classroot.verdict == "partial" ? "~ Partly fits this region" : "Any region (no size, shape or pages given)" } ]
+    ]
+
+
+// The page's artwork (F-ART-06).
+
+class ArtBlock extends Block [ title = "ARTWORK",
+    art: Art? = { app.plan.page(app.cur)?.art ?? null },
+
+    // A PDF dropped here starts its mapping (F-ART-01).
+
+    onFilesOver() { app.dropOver = true },
+    onFilesOut() { app.dropOver = false },
+    onFilesDrop(e: FilesDropEvent) { app.dropOver = false; if (!app.readOnly) { app.openDialog("upload"); app.takePdf(e.files) } },
+    fill = { app.dropOver ? provided("theme").selection : null },
+    asset: Asset? = { app.plan.asset(classroot.art?.assetId ?? "") },
+    Control [ visible = { classroot.art != null }, width = 120, height = { 120 * app.plan.aspect },
+        accessibilityLabel = "Open the reader at this page",
+        stroke = { Stroke(1, provided("theme").paperLine) }, fill = { provided("theme").paper }, clip = true,
+        press() { app.openReader(app.cur) },
+        Image [ width = 100%, height = 100%, fit = cover, source = { app.artUrl(classroot.art, 360) } ]
+        ],
+    Text [ visible = { classroot.art != null }, width = 100%, fontSize = 12, maxLines = 2, text = { classroot.asset?.name ?? "" } ],
+    Caps [ visible = { classroot.art != null }, text = { "PDF PAGE " + (classroot.art?.page ?? 0) } ],
+    View [ width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Act [ visible = { classroot.art != null && (classroot.asset?.url ?? "") != "" }, label = "Open in viewer",
+            onClick() { app.openPdf(classroot.asset?.id ?? "", classroot.art?.page ?? 1) }
+            ],
+        Act [ visible = { classroot.art != null }, disabled = { app.readOnly }, label = "Detach",
+            onClick() { app.detachChosen() }
+            ],
+        Act [ visible = { classroot.art == null && !app.readOnly }, label = "Upload artwork",
+            onClick() { app.openDialog("upload") }
+            ]
+        ],
+    Text [ visible = { classroot.art == null }, fontSize = 12, textColor = { provided("theme").textMuted }, text = "No artwork on this page yet." ]
+    ]
+
+
+// A story's facts, edited (F-STORY-07): from a region carrying it, or unplaced.
+
+class StoryFacts extends Block [ title = "STORY",
+    sid: string = "",
+    placedStory: boolean = false,
+    st: Story? = { app.plan.story(classroot.sid) },
+    ro: boolean = { app.readOnly },
+    TextInput [ width = 100%, disabled = { classroot.ro }, accessibilityLabel = "Story title", commitOn = "end",
+        value = { classroot.st?.title ?? "" },
+        commit(v: string) { app.storyTitle(classroot.sid, v) }
+        ],
+    Row [ caption = "EDITOR",
+        Button [ disabled = { classroot.ro || (classroot.st?.kind ?? "") == "advertising" }, label = { app.editorLabel(classroot.st) },
+            onClick() { app.storyFor = classroot.sid; app.editorMenu.showFor(this) }
+            ]
+        ],
+    Row [ caption = "STATUS",
+        Button [ disabled = { classroot.ro }, label = { app.plan.status(classroot.st?.status ?? "")?.name ?? "No status" },
+            onClick() { app.storyFor = classroot.sid; app.statusMenu.showFor(this) }
+            ]
+        ],
+    Checkbox [ disabled = { classroot.ro }, label = "Must begin on a right-hand page", checked = { classroot.st?.rightStart ?? false },
+        commit(v: boolean) { app.storyRightStart(classroot.sid, v) }
+        ],
+
+    // Unplaced only: section, planned pages, content type.
+
+    View [ visible = { !classroot.placedStory }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Row [ caption = "SECTION",
+            Button [ disabled = { classroot.ro }, label = { app.plan.sectionName(classroot.st?.sectionId ?? "") },
+                onClick() { app.storyFor = classroot.sid; app.storySectionMenu.showFor(this) }
+                ]
+            ],
+        Row [ caption = "PLANNED PAGES",
+            Stepper [ width = 140, disabled = { classroot.ro }, min = 1, max = 400, step = 1, accessibilityLabel = "Planned pages",
+                value = { classroot.st?.pages ?? 1 },
+                commit(v: number) { app.storyPagesSet(classroot.sid, v) }
+                ]
+            ],
+        Segmented [ width = 220, disabled = { classroot.ro }, value = { classroot.st?.kind ?? "editorial" },
+            items = { [ ({ id: "editorial", label: "Editorial" }), ({ id: "advertising", label: "Advertising" }) ] },
+            commit(v: string) { app.storyKind(classroot.sid, v) }
+            ]
+        ],
+    Row [ caption = "NOTES FOR THE DESK",
+        TextInput [ width = 100%, multiline = true, height = { Math.max(56, Math.min(contentHeight, 140)) }, disabled = { classroot.ro },
+            accessibilityLabel = "Story notes", commitOn = "end",
+            value = { classroot.st?.notes ?? "" },
+            commit(v: string) { app.storyNotes(classroot.sid, v) }
+            ]
+        ]
+    ]
+
+
+// Several pages chosen (F-PAGE-21).
+
+class ManyInspector [ width = 100%,
+    ro: boolean = { app.readOnly },
+    layout: SimpleLayout [ axis = y ],
+    Block [
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Text [ flexes = true, fontSize = 18, fontWeight = bold, text = { app.sel.length + " selected" } ],
+            Act [ label = "Clear",
+                onClick() { app.clearChoice() }
+                ]
+            ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { app.plan.rangeOf(app.plan.inOrder(app.sel)) + " · " + numberText(app.plan.adPages(app.sel)) + " pages of ads" } ]
+        ],
+    Block [ title = "STORIES ON THEM",
+        Button [ disabled = { classroot.ro }, label = "Mark every story…", menu = { app.markMenu } ]
+        ],
+    Block [ title = "SECTION",
+        Button [ disabled = { classroot.ro }, label = "Put them in a section…", menu = { app.sectionMenu } ]
+        ],
+    Block [ title = "TAGS",
+        View [ width = 100%, datapath = { app.plan.value?.fp },
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            TagChip [ datapath = :tags[] ]
+            ]
+        ],
+    Block [ title = "PAGES",
+        View [ width = 100%,
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            Act [ disabled = { classroot.ro }, label = { "Move " + app.sel.length + " pages…" },
+                onClick() { app.openDialog("move") }
+                ],
+            Act [ disabled = { classroot.ro }, label = "Copy the first page's content onto the rest",
+                onClick() { app.copyFirstOntoRest() }
+                ],
+            Act [ disabled = { classroot.ro }, label = "Attach artwork across them",
+                onClick() { app.openDialog("upload") }
+                ],
+            Act [ disabled = { classroot.ro }, label = "Detach artwork from all",
+                onClick() { app.detachChosen() }
+                ],
+            Act [ disabled = { classroot.ro }, label = "Paste", visible = { app.copied != null },
+                onClick() { app.pastePages() }
+                ],
+            Act [ disabled = { classroot.ro }, label = "Move to holding area",
+                onClick() { app.holdChosen() }
+                ],
+            Act [ disabled = { classroot.ro }, tone = "danger", label = { "Delete " + app.sel.length + " pages" },
+                onClick() { app.deleteChosen() }
+                ]
+            ]
+        ]
+    ]
+
+
+// An unplaced story chosen (F-STORY-06, -07, -08).
+
+class StoryInspector [ width = 100%,
+    sid: string = { app.pickId },
+    st: Story? = { app.plan.story(classroot.sid) },
+    places: string[] = { app.plan.fits(Math.max(1, classroot.st?.pages ?? 1)) },
+    layout: SimpleLayout [ axis = y ],
+    Block [
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Text [ flexes = true, fontSize = 18, fontWeight = bold, maxLines = 3, text = { classroot.st?.title ?? "" } ],
+            IconButton [ shape = "close", tone = { provided("theme").textMuted }, accessibilityLabel = "Clear the choice",
+                press() { app.clearChoice() }
+                ]
+            ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { "Unplaced · " + (classroot.st?.pages ?? 0) + " pages planned" } ]
+        ],
+    Block [ title = "PLACE IT",
+        Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { classroot.places.length > 0
+                ? classroot.places.length + (classroot.places.length == 1 ? " place fits." : " places fit.") + " Or drag the story card onto the flatplan."
+                : "No run of " + (classroot.st?.pages ?? 1) + " empty interior pages yet. Clear some pages, add pages, or drag the story onto the flatplan." } ],
+        Button [ visible = { classroot.places.length > 0 }, disabled = { app.readOnly }, label = { "From page " + app.plan.label(app.placeFrom) },
+            menu = { app.placesMenu } ],
+        Act [ visible = { classroot.places.length > 0 }, tone = "primary", disabled = { app.readOnly }, label = "Place story",
+            onClick() { app.placeChosenStory() }
+            ]
+        ],
+    StoryFacts [ sid = { classroot.sid }, placedStory = false ],
+    Block [
+        Act [ tone = "danger", disabled = { app.readOnly }, label = "Delete story",
+            onClick() { app.deleteChosenStory() }
+            ]
+        ]
+    ]
+
+
+// A held page chosen (F-PAGE-22).
+
+class HeldInspector [ width = 100%,
+    hid: string = { app.pickId },
+    pg: Page? = { app.plan.held(classroot.hid) },
+    layout: SimpleLayout [ axis = y ],
+    Block [
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Text [ flexes = true, fontSize = 18, fontWeight = bold, text = "A held page" ],
+            IconButton [ shape = "close", tone = { provided("theme").textMuted }, accessibilityLabel = "Clear the choice",
+                press() { app.clearChoice() }
+                ]
+            ],
+        Text [ width = 100%, fontSize = 13, text = { app.heldTitle(classroot.pg) } ],
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, text = { "Was in " + app.plan.sectionName(classroot.pg?.sectionId ?? "") } ]
+        ],
+    Block [
+        View [ width = 100%,
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+            Act [ tone = "primary", disabled = { app.readOnly }, label = "Put back before the back cover",
+                onClick() { app.putBackHeld() }
+                ],
+            Act [ tone = "danger", disabled = { app.readOnly }, label = "Delete for good",
+                onClick() { app.deleteHeld() }
+                ]
+            ],
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, text = { app.touchFirst ? "" : "Or drag it onto the flatplan." } ]
+        ]
+    ]
+
+
+// Comments on the chosen page (F-COLLAB-07).
+
+class Comments extends Block [ title = "COMMENTS",
+    rows: View [ width = 100%, datapath = { app.pageComments.value },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        CommentRow [ datapath = :rows[] ]
+        ],
+    Text [ visible = { (app.pageComments.value?.rows ?? []).length == 0 }, fontSize = 12, textColor = { provided("theme").textMuted }, text = "No comments on this page yet." ],
+    TextInput [ visible = { app.canComment }, width = 100%, placeholder = "Say something about this page", accessibilityLabel = "Comment",
+        onEnter() { app.postComment(this.text); this.value = "" }
+        ]
+    ]
+
+
+class CommentRow [ width = 100%,
+    layout: SimpleLayout [ axis = x, spacing = 8 ],
+    Avatar [ width = 24, height = 24, initials = { app.initialsOf(:by ?? "") }, tone = { app.colorOf(:by ?? "") } ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, fontSize = 11, textColor = { provided("theme").textMuted },
+            text = { app.nameOf(:by ?? "") + " · " + ago(:at ?? 0, app.now) } ],
+        Text [ width = 100%, fontSize = 13, text = { :text ?? "" } ]
+        ]
+    ]

@@ -259,9 +259,12 @@ Animator taking the slot over (it keeps the value it drove); a State overriding 
 a default that would throw but is never read (the program still boots); a read in `onInit`, and
 in a handler right after an input changed but before the settle (both see the live value — a
 stale default-owned slot is evaluated live, `attributes.ts`); an assignment (the formula is
-gone); per-instance class defaults reading `classroot`. Two slots keep the lazy form: a
-`readonly` one (its contract is the live value, never overridable) and a schema-typed one (its
-record crosses the push and tracked hooks).
+gone); per-instance class defaults reading `classroot`. A `readonly` slot keeps the lazy form
+(its contract is the live value, never overridable). A schema-typed slot stands as a rule like
+any other: its push hook normalizes a tracked view to the raw record as the rule's own write
+(`writeOwned`), so the rule keeps the slot, and a tracked reader gets a tracked view only of a
+record a dataset holds (`inDataset`), the one kind an edit changes in place; a computed record
+reads raw, so a rule landing a fresh one each frame makes no per-field cells.
 
 **The kernel lands rule values — the write path's meaning is unchanged.** A rule whose target
 is a numeric or boolean table cell returns its value and the kernel stores it; the surface push
