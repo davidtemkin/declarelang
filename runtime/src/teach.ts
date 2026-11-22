@@ -31,6 +31,8 @@ export const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
   borderRadius: "rounding is 'cornerRadius'",
   color: "text color is 'textColor' (a provided value — set it on a container to cascade)",
   zIndex: "stacking is source order — later siblings draw above; there is no z-index",
+  style: "a view's look is its own attributes, written on it — 'fill', 'stroke', 'cornerRadius', 'textColor'; a look shared by many views is a class, a look that comes and goes is a State, and a named 'style' is a text run's bundle, worn in HTMLText or Markdown by name",
+  className: "a view's look is its own attributes, written on it; a look shared by many views is a class ('class Card [ … ]', then 'Card [ … ]'), and a look that comes and goes is a State",
   overflow: "clipping is 'clip = true'; scrolling is 'scrolls = y' (the axis enum)",
   display: "arrangement is the 'layout' attribute — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
   flexDirection: "arrangement is the 'layout' attribute — 'axis = x' or 'axis = y'",

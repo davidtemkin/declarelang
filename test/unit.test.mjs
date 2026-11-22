@@ -579,7 +579,7 @@ await test("check(): a child may not take the name of one of the runtime's own m
     assert.deepEqual(check(parse(`App [ ${name}: View [ width = 10 ] ]`)), [], name);
   }
   assert.deepEqual(check(parse(`App [ strip: View [ width = 10 ] ]`)), [], "a free name");
-  assert.match(check(parse(`App [ parent: View [ width = 10 ] ]`))[0].message, /scope noun/, "the sharper message still wins for a scope noun");
+  assert.match(check(parse(`App [ parent: View [ width = 10 ] ]`))[0].message, /reserved word \(language §3/, "the sharper message still wins for a reserved word");
 });
 
 await test("check(): a Spring on a slot its view binds is refused, naming 'to'; an Animator's slide over a bound slot is not", () => {
@@ -1803,7 +1803,7 @@ await test("check() reports method-body syntax errors at the body, one per metho
   assert.equal(errors[0].pos.col, 12);
 });
 
-await test("check(): a parameter may not shadow the 'parent' scope noun", () => {
+await test("check(): a parameter may not shadow the reserved word 'parent'", () => {
   const [err] = check(parse("View [ m(parent) { } ]"));
   assert.match(err.message, /a parameter may not be named 'parent'/);
 });
@@ -3214,11 +3214,11 @@ await test("check(): declarations, methods, and named children share one member 
   assert.ok(msgs.some((m) => /App\.k: 'k' is already a child/.test(m)));
 });
 
-await test("check(): scope nouns cannot be declared, named, or shadowed by parameters", () => {
+await test("check(): reserved words cannot be declared, named, or shadowed by parameters", () => {
   const msgs = check(parseProgram("App [ width=1, parent: number = 1, classroot: View [ ], m(classroot) { } ]"))
     .map((e) => e.message);
-  assert.match(msgs[0], /'parent' is a scope noun .* cannot be declared/);
-  assert.match(msgs[1], /'classroot' is a scope noun .* a child cannot take its name/);
+  assert.match(msgs[0], /'parent' is a reserved word \(language §3.* cannot be declared; choose another name/);
+  assert.match(msgs[1], /'classroot' is a reserved word \(language §3.* a child cannot take its name; rename the child \(e\.g\. 'classroot/);
   assert.match(msgs[2], /a parameter may not be named 'classroot'/);
 });
 
@@ -3271,10 +3271,10 @@ await test("compile(): bare-slot forms inside { } name their fix — colors and 
   assert.deepEqual((await compile(`App [ n: number = { 1 + 2 } ]`, {})).errors, []);
 });
 
-await test("check(): 'app' is a scope noun — not declarable, nameable, or a parameter", () => {
+await test("check(): 'app' is a reserved word — not declarable, nameable, or a parameter", () => {
   const msgs = check(parseProgram("App [ width=1, app: number = 1, k: View [ ], m(app) { } ]"))
     .map((e) => e.message);
-  assert.match(msgs[0], /'app' is a scope noun .* cannot be declared/);
+  assert.match(msgs[0], /'app' is a reserved word \(language §3.* cannot be declared/);
   assert.match(msgs[1], /a parameter may not be named 'app'/);
 });
 

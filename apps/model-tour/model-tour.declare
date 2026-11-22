@@ -1,0 +1,852 @@
+/*
+# The Declare model, a screen at a time
+
+A tour of how Declare puts things on the screen: views, constraints, layout,
+paint, transforms and effects, composition, data, and layouts of your own. Each
+screen makes one point, shows the code that makes it, and shows it happening on
+a stage every screen shares, so one screen turns into the next in front of the
+reader.
+
+How it is built:
+
+- **The screens are data**, `steps.json`: each one's title, its point, its code,
+  its geometry and its controls. The code carries slots (`{{w}}`) filled from the
+  screen's geometry and the reader's choices, so the numbers in the code are the
+  numbers on the stage, and dragging the box rewrites its `x`.
+- **Where the reader is** is `location`, the URL's fragment: one screen's id. The
+  contents, Back and Next, and the arrow keys all write it; Back in the browser
+  undoes it. **What the reader has chosen** — where the box was dragged, the axis,
+  the padding — is one record, `choices`, which every control writes and the stage
+  reads.
+- **The stage** is in `stage.declare`: one cast of views, posed for each screen
+  by a `Director` and carried between poses on springs.
+- **The code panel moves too.** Its lines are records with identities: lines that
+  stay slide to their new places, new ones open, lines that leave fold away, and
+  the lines a screen adds to the one before it are lit.
+*/
+
+include [ "stage.declare" ]
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Plain functions of their arguments: a line of code as colored runs.
+
+script {
+    function esc(s: string): string {
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/ /g, " ")
+    }
+
+    // A line of Declare as HTML runs, one style per kind of token.
+    function colored(line: string): string {
+        const re = /(\/\/.*$)|(\x22(?:[^\x22\\]|\\.)*\x22)|(\b(?:class|extends|const|return|let|true|false)\b)|(\b[A-Z][A-Za-z0-9]*\b)|(0x[0-9A-Fa-f]+|#[0-9A-Fa-f]{6,8}\b|\b\d+(?:\.\d+)?%?)|([\[\]{}])/g
+        const kinds = ["Comment", "StringText", "Keyword", "TypeName", "NumberText", "Punctuation"]
+        let out = "", last = 0
+        let m: RegExpExecArray | null
+        while ((m = re.exec(line)) != null) {
+            const kind = kinds[[m[1], m[2], m[3], m[4], m[5], m[6]].findIndex((g) => g !== undefined)]
+            out += esc(line.slice(last, m.index)) + "<span class='" + kind + "'>" + esc(m[0]) + "</span>"
+            last = re.lastIndex
+        }
+        return out + esc(line.slice(last))
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Part [ id: string, name: string ]
+schema Choice [ id: string, label: string ]
+
+// A control a screen offers: a choice among `items`, a number from `min` to
+// `max`, a toggle (`label` while off, `labelOn` while on), or a verb on the
+// stage's records. `name` is the choice it writes, or the verb.
+
+schema Knob [ kind: "segmented" | "slider" | "toggle" | "verb", name: string, label: string,
+    labelOn?: string, items[]?: Choice, min?: number, max?: number, step?: number ]
+
+// A screen. `live` says what its chips do when pressed (they count presses, or
+// toggle), and `drag` that the box itself is dragged. `core` is its place in the
+// ten minutes; a screen without one comes after them, in the order of the file.
+
+schema Step [ id: string, part: string, title: string, point: string, hint: string, code[]: string,
+    geo?: Geo, knobs[]: Knob, live?: "press" | "toggle", drag?: boolean, core?: number ]
+
+// The colors the lessons' programs give a panel and a light box — the code says
+// them and the stage paints them, read with Color.from — one pair for a light
+// page, one for a dark.
+
+schema Paint [ panel: string, box: string ]
+schema Tour [ parts[]: Part, chip: ChipGeo, paint: [ light: Paint, dark: Paint ], steps[]: Step ]
+
+// What the reader has chosen, screen by screen.
+
+schema Choices [ dx: number, dy: number, words: string, swapped: boolean, panelWidth: number,
+    size: number, open: boolean, axis: "y" | "x", align: "start" | "center" | "end", rowWidth: number,
+    padding: number, fill: "color" | "gradient", sides: "all" | "bottom", corners: "one" | "four" | "pill",
+    lift: number, presence: "shown" | "faded" | "clear" | "hidden", done: number,
+    clip: "none" | "box" | "shape", scaleBy: number, turn: number, pivot: "middle" | "corner",
+    filter: "none" | "blur" | "grayscale" | "hue", frost: boolean, label: string, status: "doing" | "done",
+    round: boolean ]
+
+// The data screens' records, and a line of the code panel: its text and its
+// identity, then whether it is leaving and whether this screen added it.
+
+schema Item [ id: number, label: string, status: "doing" | "done" ]
+schema SourceLine [ id: string, text: string ]
+schema CodeRow [ id: string, text: string, gone: boolean, fresh: boolean ]
+
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+
+theme TourLight [
+    background = #F4F5F7, railFill = #FFFFFF, railStrokeColor = #E6E8EC,
+    railCurrentFill = #EEF2FF, railCurrentTextColor = #3A4FD9,
+    text = #1D2430, textMuted = #5D6673, textFaint = #8A93A0,
+    stageFill = #FFFFFF, stageStrokeColor = #E3E6EB, gridDotFill = #D9DDE4,
+    containerStrokeColor = #B9C1CC,
+    tones = [#3B82F6, #14B8A6, #F59E0B, #EC4899, #8B5CF6, #22C55E],
+    chipFill = #FFFFFF, chipFillHovered = #EEF1F5, chipFillPressed = #DCE2EA, chipStrokeColor = #CBD2DB, chipTextColor = #1D2430,
+    noteInk = #7C3AED, noteTextColor = #5B21B6, noteTagFill = #F3EEFF, noteWarnTextColor = #B42318, noteWarnFill = #FDECEA,
+    glassFill = #FFFFFF66, glassStrokeColor = #FFFFFFB0,
+    cardFill = #FFFFFF, cardStrokeColor = #E1E5EB, hintTextColor = #3A4FD9,
+    tickFill = #DADFE7, tickVisitedFill = #A9B4F5,
+    quietFillHovered = #E9ECF1, quietFillPressed = #DFE3EA,
+    accent = #3A4FD9, accentHovered = #3346C4, accentPressed = #2D3EAE,
+    controlSelected = #E2E7FF,
+    control = #FFFFFF, controlHovered = #F0F2F7, controlPressed = #E4E8F0, buttonStrokeColor = #D3D8E2,
+    trackFill = #E1E5EC, segmentedSelectedFill = #FFFFFF, segmentDividerColor = #00000000,
+    switchWidth = 36, switchHeight = 20, switchThumbOffSize = 16,
+    segmentedHeight = 32, segmentedCornerRadius = 16, segmentedFontSize = 13,
+    segmentedSelectedTextColor = #3A4FD9,
+    buttonHeight = 32, buttonCornerRadius = 16,
+    codeFill = #F7F8FA, codeTextColor = #24292F, codeFreshFill = #ECEFFE
+    ]
+
+
+theme TourDark [
+    background = #111318, railFill = #171A20, railStrokeColor = #262A33,
+    railCurrentFill = #232B4A, railCurrentTextColor = #A5B4FC,
+    text = #E8EBF0, textMuted = #A3ABB8, textFaint = #7A8391,
+    stageFill = #1A1D24, stageStrokeColor = #2A2F39, gridDotFill = #2E333D,
+    containerStrokeColor = #4A5363,
+    tones = [#60A5FA, #2DD4BF, #FBBF24, #F472B6, #A78BFA, #4ADE80],
+    chipFill = #242832, chipFillHovered = #2C313C, chipFillPressed = #363C49, chipStrokeColor = #3D4452, chipTextColor = #E8EBF0,
+    noteInk = #A78BFA, noteTextColor = #C4B5FD, noteTagFill = #2A2342, noteWarnTextColor = #FF8A80, noteWarnFill = #3A1F1F,
+    glassFill = #FFFFFF26, glassStrokeColor = #FFFFFF40,
+    cardFill = #171A20, cardStrokeColor = #2A2F39, hintTextColor = #A5B4FC,
+    tickFill = #2E333D, tickVisitedFill = #4B5598,
+    quietFillHovered = #1E222A, quietFillPressed = #262B35,
+    accent = #5563DE, accentHovered = #6170E6, accentPressed = #6E7CEC,
+    controlSelected = #2A3459,
+    control = #2A2F3A, controlHovered = #323845, controlPressed = #3A4150, buttonStrokeColor = #3A4150,
+    trackFill = #313744, sliderThumbFill = #E2E6FF, segmentedSelectedFill = #3B4370, segmentDividerColor = #00000000,
+    switchWidth = 36, switchHeight = 20, switchThumbOffSize = 16, switchThumbFill = #E2E6FF,
+    segmentedHeight = 32, segmentedCornerRadius = 16, segmentedFontSize = 13,
+    segmentedSelectedTextColor = #E2E6FF,
+    buttonHeight = 32, buttonCornerRadius = 16,
+    codeFill = #191E27, codeTextColor = #D8DEE9, codeFreshFill = #26355A
+    ]
+
+
+// A quiet control: smaller, its "on" and its edge greys rather than the tour's ink
+// (the "Show boxes" switch, which is an aid, not part of the lesson).
+
+theme QuietLight [ accent = #A3ABB8, line = #D5DAE1, trackFill = #E6E9EE,
+    switchWidth = 32, switchHeight = 18, switchThumbOffSize = 14
+    ]
+
+
+theme QuietDark [ accent = #5D6573, line = #343A45, trackFill = #2A2F38, switchThumbFill = #A3ABB8,
+    switchWidth = 32, switchHeight = 18, switchThumbOffSize = 14
+    ]
+
+
+// the code's colors, one per kind of token (`colored`, above, names them), for a
+// light page and for a dark one
+
+style Keyword [ textColor = #8250DF ]
+
+style TypeName [ textColor = #0B5FBF ]
+
+style StringText [ textColor = #0A7D45 ]
+
+style NumberText [ textColor = #B35400 ]
+
+style Comment [ textColor = #6E7781, italic = true ]
+
+style Punctuation [ textColor = #6E7781 ]
+
+style KeywordOnDark [ textColor = #C792EA ]
+
+style TypeNameOnDark [ textColor = #82AAFF ]
+
+style StringTextOnDark [ textColor = #C3E88D ]
+
+style NumberTextOnDark [ textColor = #F78C6C ]
+
+style CommentOnDark [ textColor = #697386, italic = true ]
+
+style PunctuationOnDark [ textColor = #89DDFF ]
+
+// ── The records ─────────────────────────────────────────────────────────────
+
+// The data screens' records, and every write to them: the verbs the change
+// screen's code shows, each a button there.
+
+class Records extends Dataset [ schema = [ rows[]: Item ],
+    all() -> Item[] { return this.read(["rows"]) ?? [] },
+    nextLabel() -> string? { return app.labels.find((l) => !this.all().some((r) => r.label == l)) ?? null },
+    can(verb: string) -> boolean {
+        switch (verb) {
+            case "insert": return this.nextLabel() != null
+            case "remove": return this.all().length > 1
+            default: return this.all().length >= 3
+            }
+        },
+    run(verb: string) {
+        const label = this.nextLabel()
+        if (!this.can(verb)) return
+        if (verb == "insert" && label != null) {
+            const id = this.all().reduce((m, r) => Math.max(m, r.id), 0) + 1
+            this.insert(["rows"], 0, ({ id: id, label: label, status: "doing" }))
+        }
+        if (verb == "remove") this.removeAt(["rows"], 0)
+        if (verb == "move") this.move(["rows"], 0, 2)
+        }
+    ]
+
+
+// ── The code panel's model ──────────────────────────────────────────────────
+
+class Listing extends Node [
+
+    // A screen's code with its slots filled. A line keeps its identity while
+    // its numbers change, so its id is its unfilled text; a line that is all
+    // slot is known by what fills it. Repeated lines are told apart by count.
+
+    lines(id: string) -> SourceLine[] {
+        const s = app.steps.find((x) => x.id == id)
+        if (s == null) return []
+        const seen = new Map<string, number>()
+        const out: SourceLine[] = []
+        for (const t of s.code) {
+            const filled = t.replace(/\{\{(\w+)\}\}/g, (_m: string, k: string) => this.slot(id, k))
+            const whole = /^\{\{\w+\}\}$/.test(t)
+            for (const line of filled.split("\n")) {
+                const key = whole ? line.replace(/,$/, "") : t
+                const n = (seen.get(key) ?? 0) + 1
+                seen.set(key, n)
+                out.push(({ id: key + "#" + n, text: line }))
+            }
+        }
+        return out
+        },
+
+    // What fills a slot: the reader's choice where the screen offers one, else
+    // the screen's geometry, else the chip's.
+
+    slot(id: string, key: string) -> string {
+        const c = app.choices.value
+        const g = app.director.geo(id)
+        const drag = app.steps.find((s) => s.id == id)?.drag ?? false
+        switch (key) {
+            case "x": return "" + ((g.x ?? 0) + (drag ? c.dx : 0))
+            case "y": return "" + ((g.y ?? 0) + (drag ? c.dy : 0))
+            case "w": {
+                const k = app.widthKnob(id)
+                return "" + (k != null ? app.widthOf(k.name) : g.w ?? 0)
+                }
+            case "words": return c.words
+            case "first": return this.child(c.swapped ? "b" : "a", g) + ","
+            case "second": return this.child(c.swapped ? "a" : "b", g)
+            case "clipLine": return this.clipLine(c.clip)
+            case "size": return "" + c.size
+            case "open": return "" + c.open
+            case "axis": return c.axis
+            case "align": return c.align
+            case "padding": return "" + c.padding
+            case "fill": return c.fill == "color" ? "steelblue" : "{ Gradient.linear(\"135deg\", 0x3B82F6, 0x8B5CF6) }"
+            case "stroke": return c.sides == "all" ? "{ Stroke(4, 0x3B82F6) }" : "{ [null, null, Stroke(4, 0x3B82F6), null] }"
+            case "corners": return this.cornersText(c.corners)
+            case "dy": return "" + Math.round(2 + 14 * c.lift)
+            case "blur": return "" + Math.round(4 + 36 * c.lift)
+            case "presence": return this.presenceText(c.presence)
+            case "done": return c.done.toFixed(2)
+            case "turn": return "" + c.turn
+            case "px": return c.pivot == "middle" ? "" + (g.w ?? 0) / 2 : "0"
+            case "py": return c.pivot == "middle" ? "" + (g.h ?? 0) / 2 : "0"
+            case "halfW": return "" + (g.w ?? 0) / 2
+            case "halfH": return "" + (g.h ?? 0) / 2
+            case "scaleBy": return c.scaleBy.toFixed(1)
+            case "filter": return this.filterText(c.filter)
+            case "frost": return c.frost ? "{ VisualFilter.frost(14) }" : "null"
+            case "panelFill": return app.paint.panel
+            case "boxFill": return app.paint.box
+            case "label": return c.label
+            case "status": return c.status
+            default: {
+                const v = g[key as keyof Geo] ?? app.director.chipGeo[key as keyof ChipGeo]
+                return v == null ? "" : "" + v
+                }
+            }
+        },
+    child(name: string, g: Geo) -> string {
+        const a = name == "a"
+        const box = a ? [g.ax, g.ay, g.aw, g.ah] : [g.bx, g.by, g.bw, g.bh]
+        return `    ${name}: View [ x = ${box[0]}, y = ${box[1]}, width = ${box[2]}, height = ${box[3]},\n        fill = ${a ? "steelblue" : "teal"} ]`
+        },
+    clipLine(m: string) -> string {
+        if (m == "none") return "    // no clip: children paint past the edge"
+        if (m == "box") return "    clip = true,"
+        return "    clip = \"" + app.director.clipShape(360, 280).split(" L ").slice(0, 3).join(" L ") + " …\","
+        },
+    cornersText(m: string) -> string {
+        if (m == "four") return "[48, 0, 48, 0]"
+        return m == "pill" ? "80" : "24"
+        },
+    presenceText(m: string) -> string {
+        switch (m) {
+            case "faded": return "opacity = 0.25"
+            case "clear": return "opacity = 0"
+            case "hidden": return "visible = false"
+            default: return "opacity = 1"
+            }
+        },
+    filterText(m: string) -> string {
+        switch (m) {
+            case "blur": return "{ VisualFilter.blur(4) }"
+            case "grayscale": return "{ VisualFilter.grayscale(1) }"
+            case "hue": return "{ VisualFilter.hueRotate(120) }"
+            default: return "null"
+            }
+        },
+
+    // What the panel shows: the current lines in order, and the lines leaving,
+    // each where it stood. A line is lit when this screen adds it to the code of
+    // the screen before — so only where the two share code: a screen whose code
+    // is all new has nothing added, and lights nothing.
+
+    merged(prev: SourceLine[], cur: SourceLine[], before: SourceLine[]) -> CodeRow[] {
+        const has = new Set(cur.map((r) => r.id))
+        const had = new Set(before.map((r) => r.id))
+        // (a line of brackets alone is shared by every screen, and says nothing)
+        const builds = cur.some((r) => had.has(r.id) && /\w/.test(r.text))
+        const out: CodeRow[] = cur.map((r) => ({ id: r.id, text: r.text, gone: false, fresh: builds && !had.has(r.id) }))
+        let anchor = -1
+        prev.forEach((r) => {
+            if (has.has(r.id)) { anchor = out.findIndex((o) => o.id == r.id); return }
+            anchor = anchor + 1
+            out.splice(anchor, 0, ({ id: r.id, text: r.text, gone: true, fresh: false }))
+            })
+        return out
+        }
+    ]
+
+
+// A line of code. A new line opens from nothing and a leaving one folds to
+// nothing, each on a spring on its own height; the panel stacks them, so the
+// lines between slide as they do.
+
+class CodeLine [ width = 100%, clip = true,
+    gone: boolean = { :gone ?? false },
+    fresh: boolean = { :fresh ?? false },
+    height = 0,
+    opacity = 0,
+    visible = { this.height > 0.5 || !classroot.gone },
+    Glide [ attribute = height, to = { classroot.gone ? 0 : 22 } ],
+    Glide [ attribute = opacity, to = { classroot.gone ? 0 : 1 } ],
+    litT: number = 0,
+    Glide [ attribute = litT, to = { classroot.fresh && !classroot.gone ? 1 : 0 } ],
+    lit: View [ width = 100%, height = 100%, fill = { provided("theme").codeFreshFill }, opacity = { classroot.litT } ],
+    bar: View [ width = 3, height = 100%, fill = { provided("theme").noteInk }, opacity = { classroot.litT } ],
+    HTMLText [ x = 16, y = 4, fontSize = 12, fontFamily = { app.monoFace },
+        bodyColor = { provided("theme").codeTextColor }, html = { colored(:text ?? "") } ]
+    ]
+
+
+// ── The screen's controls ───────────────────────────────────────────────────
+//
+// Each is a record of the screen's (`knobs`), built as the class its kind names.
+// The class reads its record — which choice, its labels, its range — and the
+// control inside it sits on the reader's choices and edits the one it names:
+// `:@[(classroot.choice)]` is that field, both ways.
+
+// (A Segmented is rooted on its own segments, so the field is held around it.)
+
+class ChoiceSegments [
+    choice: string = { :name ?? "" },
+    options: Choice[] = { :items ?? [] },
+    View [ datapath = { app.choices.value },
+        picked: string = { "" + :@[(classroot.choice)] },
+        pick(v: string) { :@[(classroot.choice)] = v },
+        Segmented [ segmentWidths = "proportional", items = { classroot.options }, value = { parent.picked },
+            commit(v: string) { parent.pick(v) }
+            ]
+        ]
+    ]
+
+
+class ChoiceSlider [
+    choice: string = { :name ?? "" },
+    Slider [ width = 160, height = { app.target }, datapath = { app.choices.value },
+        min = { parent.min }, max = { parent.max }, step = { parent.step },
+        accessibilityLabel = { parent.label },
+        value <-> { :@[(classroot.choice)] } ],
+    min: number = { :min ?? 0 },
+    max: number = { :max ?? 1 },
+    step: number = { :step ?? 0.1 },
+    label: string = { :label ?? "" }
+    ]
+
+
+class ChoiceToggle [
+    choice: string = { :name ?? "" },
+    label: string = { :label ?? "" },
+    labelOn: string = { :labelOn ?? :label ?? "" },
+    Button [ datapath = { app.choices.value },
+        on: boolean = { :@[(classroot.choice)] == true },
+        accessibilityPressed = { this.on },
+        label = { this.on ? classroot.labelOn : classroot.label },
+        onClick() { :@[(classroot.choice)] = !on }
+        ]
+    ]
+
+
+class RecordVerb extends Button [
+    verb: string = { :name ?? "" },
+    label = { :label ?? "" },
+    disabled = { !app.records.can(classroot.verb) },
+    onClick() { app.records.run(verb) }
+    ]
+
+
+// ── The tour's own controls ─────────────────────────────────────────────────
+
+// The contents' mark, drawn as the library's icons are, on a 16-unit grid: a
+// list.
+
+class ListIcon extends Icon [
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.beginPath()
+        for (const y of [4, 8, 12]) { d.moveTo(2.5, y); d.lineTo(3, y); d.moveTo(6, y); d.lineTo(13.5, y) }
+        d.stroke()
+        }
+    ]
+
+
+// A square button that is only its icon: its name is said by a screen reader
+// and shown on hover.
+
+class IconButton extends Control [ width = { app.target }, height = { app.target }, cornerRadius = 8,
+    ink: Color = { provided("theme").textMuted },
+    accessibilityLabel = { this.tooltipLabel },
+    fill = { pressed ? provided("theme").quietFillPressed : hovered ? provided("theme").quietFillHovered : null }
+    ]
+
+
+class ContentsButton extends IconButton [ tooltipLabel = "Contents",
+    ListIcon [ x = center, y = center, iconSize = 16, ink = { classroot.ink } ]
+    ]
+
+
+// Back: Next's pill, mirrored, without its fill, since going back is the
+// exception — the accent's ink alone.
+
+class BackLink extends Control [ height = { app.touchFirst ? 44 : 40 }, cornerRadius = { this.height / 2 }, padding = [0, 18, 0, 14],
+    accessibilityLabel = { "Back: " + (app.steps[app.index - 1]?.title ?? "") },
+    tooltipLabel = { app.steps[app.index - 1]?.title ?? "" },
+    fill = { pressed ? provided("theme").quietFillPressed : hovered ? provided("theme").quietFillHovered : null },
+    State [ applied = { classroot.disabled }, opacity = 0 ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    ChevronIcon [ dir = "left", iconSize = 16, ink = { provided("theme").accent } ],
+    Text [ fontSize = 14, fontWeight = semibold, textColor = { provided("theme").accent }, text = "Back" ]
+    ]
+
+
+// Next: the way a reader goes, in the tour's ink, named for where it leads —
+// on a narrow page, only "Next".
+
+class NextPill extends Control [ height = { app.touchFirst ? 44 : 40 }, cornerRadius = { this.height / 2 }, padding = [0, 14, 0, 18],
+    title: string = "",
+    accessibilityLabel = { "Next: " + classroot.title },
+    fill = { pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent },
+    State [ applied = { classroot.disabled }, opacity = { provided("theme").disabledOpacity } ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Text [ fontSize = 14, fontWeight = semibold, wrap = false, textColor = { provided("theme").accentTextColor },
+        text = { app.compact ? "Next" : "Next: " + classroot.title } ],
+    ChevronIcon [ dir = "right", iconSize = 16, ink = { provided("theme").accentTextColor } ]
+    ]
+
+
+// ── Where the reader is ─────────────────────────────────────────────────────
+
+// The way through the tour, a tick for each screen: the ten minutes, then the
+// screens going further, quieter and apart. The screens read are tinted, the one
+// shown is lit, and each tick is a link to its screen.
+
+// (Too small for a finger: on a touch device the ticks only show the way, and
+// Back, Next and the contents move along it.)
+
+class Tick extends Control [ flexes = true, height = 24, focusable = false, disabled = { app.touchFirst },
+    id: string = { :id ?? "" },
+    here: boolean = { app.stepId == classroot.id },
+    read: boolean = { classroot.rowIndex < app.index },
+    further: boolean = { :core == null },
+    startsFurther: boolean = { classroot.further && app.steps[classroot.rowIndex - 1]?.core != null },
+    State [ applied = { classroot.startsFurther }, padding = [0, 0, 0, 14] ],
+    State [ applied = { classroot.further && !classroot.here }, opacity = 0.6 ],
+    link = { "#" + classroot.id },
+    tooltipLabel = { :title ?? "" },
+    bar: View [ width = 100%, y = center, cornerRadius = 2,
+        height = { classroot.here ? 6 : classroot.hovered ? 5 : 3 },
+        fill = { classroot.here ? provided("theme").accent : classroot.read ? provided("theme").tickVisitedFill : provided("theme").tickFill } ]
+    ]
+
+
+class Progress [ datapath = { app.route.value },
+    layout: SimpleLayout [ axis = y, spacing = 2, align = center ],
+    ticks: View [ width = 100%, visible = { !app.narrow },
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        Tick [ datapath = :steps[] ]
+        ],
+
+    // (where the contents are hidden, the bar above the title says this)
+
+    Text [ visible = { app.wide }, fontSize = 12, textColor = { provided("theme").textFaint },
+        text = { app.whereIs(app.index) } ]
+    ]
+
+
+// ── The contents ────────────────────────────────────────────────────────────
+
+// A screen in the contents: its number and title, a link to it — under its
+// part's name, when it is the part's first screen.
+
+class RailStep [ width = 100%,
+    id: string = { :id ?? "" },
+    here: boolean = { app.stepId == classroot.id },
+    inCore: boolean = { :core != null },
+    startsRoute: boolean = { rowIndex == 0 || (!classroot.inCore && app.steps[rowIndex - 1]?.core != null) },
+    startsPart: boolean = { !classroot.inCore && (classroot.startsRoute || app.steps[rowIndex - 1]?.part != :part) },
+    layout: SimpleLayout [ axis = y ],
+    Text [ exists = { classroot.startsRoute }, padding = [18, 12, 4, 12], fontSize = 13, fontWeight = semibold,
+        text = { classroot.inCore ? "Declare in 10 minutes" : "Going further" } ],
+    Text [ exists = { classroot.startsPart }, padding = [10, 12, 6, 12], fontSize = 11, fontWeight = semibold,
+        letterSpacing = 0.8, textTransform = uppercase, textColor = { provided("theme").textFaint },
+        text = { app.partName(:part ?? "") } ],
+    row: View [ width = 100%, height = 32, cornerRadius = 8, padding = [0, 12, 0, 12],
+        link = { "#" + classroot.id },
+        onClick() { app.contentsOpen = false },
+        fill = { hovered ? provided("theme").background : null },
+        State [ applied = { classroot.here }, fill = { provided("theme").railCurrentFill } ],
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ width = 18, fontSize = 12, fontFamily = { app.monoFace }, textAlign = end,
+            textColor = { classroot.here ? provided("theme").railCurrentTextColor : provided("theme").textFaint }, text = { "" + (classroot.rowIndex + 1) } ],
+        Text [ flexes = true, fontSize = 14, wrap = false, maxLines = 1,
+            fontWeight = { classroot.here ? "semibold" : "regular" },
+            textColor = { classroot.here ? provided("theme").railCurrentTextColor : provided("theme").text }, text = { :title ?? "" } ]
+        ]
+    ]
+
+
+class Contents [ width = 100%, datapath = { app.route.value },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    RailStep [ datapath = :steps[] ]
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "The Declare model", minWidth = 360,
+    theme = { { ...(app.systemDark ? ({ ...SanFranciscoDark, ...TourDark }) : ({ ...SanFrancisco, ...TourLight })),
+        ...app.fingerSizes } },
+
+    // on a device built for touch, the stage's controls are a finger's size
+
+    target: number = { app.touchFirst ? 44 : 32 },
+    fingerSizes: object = { app.touchFirst
+        ? ({ segmentedHeight: 44, segmentedCornerRadius: 22, buttonHeight: 44, buttonCornerRadius: 22,
+            switchWidth: 51, switchHeight: 31, switchThumbOffSize: 27 }) : ({}) },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    uiFace: string[] = ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"],
+    monoFace: string[] = ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+    fontFamily = { app.uiFace },
+    textStyles = { app.systemDark
+        ? ({ Keyword: KeywordOnDark, TypeName: TypeNameOnDark, StringText: StringTextOnDark,
+            NumberText: NumberTextOnDark, Comment: CommentOnDark, Punctuation: PunctuationOnDark })
+        : ({ Keyword, TypeName, StringText, NumberText, Comment, Punctuation }) },
+
+    // ── the screens
+
+    tour: DataSource [ url = "steps.json", autoFetch = true, schema = Tour ],
+
+    // the ten minutes first, in their order; then every other screen, going further
+
+    steps: Step[] = { [
+        ...(app.tour.value?.steps ?? []).filter((s) => s.core != null).sort((a, b) => (a.core ?? 0) - (b.core ?? 0)),
+        ...(app.tour.value?.steps ?? []).filter((s) => s.core == null) ] },
+    route: Dataset [ contents = { { steps: app.steps } } ],
+    order: string[] = { app.steps.map((s) => s.id) },
+    coreCount: number = { app.steps.filter((s) => s.core != null).length },
+    paint: Paint = { (app.systemDark ? app.tour.value?.paint.dark : app.tour.value?.paint.light) ?? ({ panel: "whitesmoke", box: "white" }) },
+    partName(id: string) -> string { return app.tour.value?.parts.find((p) => p.id == id)?.name ?? "" },
+
+    // where a screen sits: in the ten minutes, by its number; past them, by its part
+
+    whereIs(i: number) -> string {
+        const s = app.steps[i]
+        if (s == null) return ""
+        return s.core != null ? "Declare in 10 minutes  ·  " + (i + 1) + " of " + app.coreCount
+            : "Going further  ·  " + app.partName(s.part)
+        },
+
+    // ── where the reader is: one screen, named in the URL
+
+    location = "view",
+    index: number = { Math.max(0, app.order.indexOf(app.location)) },
+    step: Step? = { app.steps[app.index] ?? null },
+    stepId: string = { app.step?.id ?? "view" },
+    go(i: number) { if (i >= 0 && i < order.length) location = order[i] },
+    next() { go(index + 1) },
+    back() { go(index - 1) },
+    keyBindings = { [ ({ key: "ArrowRight", command: "next", label: "Next screen" }),
+        ({ key: "ArrowLeft", command: "back", label: "Previous screen" }) ] },
+
+    // the screen shown before this one, whose notes and code are leaving; a
+    // screen is entered with the box where its screen puts it, and its pane at
+    // the top
+
+    prevStep: string = "view",
+    trackChanges = ["stepId"],
+    onChange(e: ChangeEvent) {
+        prevStep = e.changed[0].previousValue as string
+        choices.set(["dx"], 0)
+        choices.set(["dy"], 0)
+        app.stage.p.scrollTo(0)
+        },
+
+    // ── what the reader has chosen, screen by screen
+
+    choices: Dataset [ schema = Choices ] { {
+        "dx": 0, "dy": 0, "words": "Hello, world", "swapped": false, "panelWidth": 360, "size": 60, "open": false,
+        "axis": "y", "align": "start", "rowWidth": 460, "padding": 20, "fill": "color", "sides": "all",
+        "corners": "one", "lift": 0.5, "presence": "shown", "done": 0.6, "clip": "none", "scaleBy": 0.6,
+        "turn": 20, "pivot": "middle", "filter": "none", "frost": false, "label": "Design", "status": "doing",
+        "round": true } },
+
+    // the box dragged (or nudged), kept on the stage
+
+    moveBox(dx: number, dy: number) {
+        const g = director.geo(stepId), w = g.w ?? 0, h = g.h ?? 0, x = g.x ?? 0, y = g.y ?? 0
+        choices.set(["dx"], Math.round(Math.max(10 - x, Math.min(STAGE_W - 10 - w - x, dx))))
+        choices.set(["dy"], Math.round(Math.max(10 - y, Math.min(STAGE_H - 10 - h - y, dy))))
+        },
+
+    // the width the grip drags — the parent's where a child follows it, the
+    // row's where a child flexes — is the one the screen's width control names,
+    // kept in that control's range
+
+    widthKnob(id: string) -> Knob? {
+        return app.steps.find((s) => s.id == id)?.knobs.find((k) => k.name == "panelWidth" || k.name == "rowWidth") ?? null
+        },
+    widthOf(name: string) -> number { return name == "panelWidth" ? app.choices.value.panelWidth : app.choices.value.rowWidth },
+    resizing: boolean = { app.widthKnob(app.stepId) != null },
+    widthNow: number = { app.widthOf(app.widthKnob(app.stepId)?.name ?? "") },
+    setWidth(w: number) {
+        const k = widthKnob(stepId)
+        if (k != null) choices.set([k.name], Math.round(Math.max(k.min ?? w, Math.min(k.max ?? w, w))))
+        },
+
+    // the spring screen's spring: `t`, carried toward 1 while open
+
+    openT: number = 0,
+    Spring [ attribute = openT, to = { app.choices.value.open ? 1 : 0 }, stiffness = 120, damping = 14 ],
+
+    // the data screens' records, and the six labels the cast's pieces carry
+
+    records: Records [ ] { { "rows": [
+        { "id": 1, "label": "Design", "status": "doing" }, { "id": 2, "label": "Build", "status": "doing" },
+        { "id": 3, "label": "Ship", "status": "done" }, { "id": 4, "label": "Test", "status": "done" } ] } },
+    labels: string[] = ["Design", "Build", "Ship", "Test", "Plan", "Learn"],
+    presses: number = 0,
+
+    dragging: boolean = false,
+    outlines: boolean = false,
+    contentsOpen: boolean = false,
+
+    // what this screen's stage does
+
+    chipsLive: boolean = { app.step?.live != null },
+    chipsToggle: boolean = { app.step?.live == "toggle" },
+    dragKnob: boolean = { app.step?.drag ?? false },
+    following: boolean = { app.dragging || app.stepId == "spring" },
+
+    // ── the stage's pose
+
+    director: Director [ ],
+    scene: Scene = { app.director.scene(app.stepId) },
+    cast: Dataset [ schema = Cast, contents = { { k: app.scene.k } } ],
+    notesShown: Dataset [ contents = { { notes: app.leavingNotes() } } ],
+    leavingNotes() -> Note[] {
+        const cur = scene.notes, has = new Set(cur.map((n) => n.id))
+        const before = prevStep != stepId ? director.raw(prevStep).notes : []
+        return [...cur, ...before.filter((n) => !has.has(n.id)).map((n) => ({ ...n, gone: true }))]
+        },
+    wordsW: number = { app.stage.words.width },
+    wordsH: number = { app.stage.words.height },
+
+    // ── the code shown
+
+    listing: Listing [ ],
+    codeShown: Dataset [ schema = [ lines[]: CodeRow ],
+        contents = { { lines: app.listing.merged(app.listing.lines(app.prevStep), app.listing.lines(app.stepId),
+            app.listing.lines(app.order[app.index - 1] ?? "")) } } ],
+
+    // ── the screen: the contents beside the page on a wide window; the lesson
+    // — stage and code — as one card, the stage above the code where it is narrow
+
+    wide: boolean = { app.width >= 1000 },
+    stacked: boolean = { app.main.card.width < 820 },
+    narrow: boolean = { app.main.foot.width < 520 },      // no room for the ticks
+    compact: boolean = { app.main.foot.width < 720 },     // Next without the screen's title
+    stage: Stage = { app.main.card.stageSide.room.stage },
+
+    scrolls = none,
+    layout: SimpleLayout [ axis = x, align = stretch ],
+
+    side: View [ visible = { app.wide }, width = 280, scrolls = y,
+        padding = [24, 12, 24, 12], accessibilityRole = navigation, accessibilityLabel = "Contents",
+        fill = { provided("theme").railFill }, stroke = { [null, Stroke(1, provided("theme").railStrokeColor), null, null] },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ padding = [0, 12, 4, 12], fontSize = 17, fontWeight = semibold, text = "The Declare model" ],
+        Text [ width = 100%, padding = [0, 12, 4, 12], fontSize = 13, textColor = { provided("theme").textMuted },
+            text = "How Declare puts things on the screen, one point at a time." ],
+        Text [ width = 100%, padding = [0, 12, 8, 12], fontSize = 12, textColor = { provided("theme").textFaint },
+            text = "The stage animates each change so you can follow it; a program changes at once unless it moves its views." ],
+        Contents [ ]
+        ],
+
+    // (stacked, the page is taller than the window, and scrolls)
+
+    main: View [ flexes = true, padding = [28, 32, 32, 32], accessibilityRole = main, scrolls = { app.stacked ? "y" : "none" },
+        layout: SimpleLayout [ axis = y, spacing = 18 ],
+
+        // the screen's title and point; where the contents are hidden, a bar
+        // that opens them and says where the reader is
+
+        head: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            bar: View [ visible = { !app.wide }, width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                ContentsButton [ press() { app.contentsOpen = true }
+                    ],
+                Text [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted },
+                    text = { app.whereIs(app.index) } ]
+                ],
+            Text [ width = 100%, accessibilityRole = heading, fontSize = { app.width < 600 ? 26 : 34 }, fontWeight = semibold,
+                letterSpacing = -0.5, text = { app.step?.title ?? "" } ],
+
+            // two lines held for the point, whatever it needs, so the lesson
+            // below starts in the same place on every screen
+
+            Text [ width = { Math.min(720, parent.width) }, height = { Math.max(50, this.contentHeight) }, fontSize = 18, textColor = { provided("theme").textMuted },
+                text = { app.step?.point ?? "" } ]
+            ],
+
+        // the lesson: the stage, with what the reader can do to it along its
+        // foot, beside the code. It takes the height the title and point leave,
+        // which they hold the same on every screen, so its size follows the
+        // window and nothing else: nothing in it moves as the screens change.
+        // (Its edge is drawn over its contents, last, where they cannot cover it.)
+
+        card: View [ width = 100%, flexes = { !app.stacked }, cornerRadius = 18, clip = true,
+            fill = { provided("theme").cardFill },
+            layout: ResponsiveLayout [ align = stretch, gap = 0, plan = { [
+                ({ from: 820, flow: "row", share: ({ stageSide: 100 }) }),
+                ({ from: 0, flow: "stack", share: ({ stageSide: 100, codeBox: 100 }) }) ] } ],
+
+            // The stage side: above the stage, centred, what to do here and the
+            // screen's controls; the stage; and below it, centred, the switch for
+            // how the stage is drawn. Each row is held on every screen, so the
+            // stage is the same size on all of them.
+
+            stageSide: View [ accessibilityRole = region, accessibilityLabel = "The stage", fill = { provided("theme").stageFill },
+                State [ applied = { app.stacked }, height = { this.width * 0.7 + 48 + app.target + 64 } ],
+                layout: SimpleLayout [ axis = y ],
+
+                // (a row of controls wider than the stage, where the window is
+                // narrow, scrolls)
+
+                top: View [ width = 100%, height = { app.target + 64 }, padding = [18, 12, 10, 12], datapath = { app.step },
+                    layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+                    Text [ maxLines = 1, fontSize = 16, fontWeight = medium,
+                        textColor = { provided("theme").hintTextColor }, text = { :hint ?? "" } ],
+
+                    // (centred by a spacer each side, which give their room up first)
+
+                    controls: View [ width = 100%, scrolls = x, fontSize = 13,
+                        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                        Spacer [ ],
+                        View [ datapath = :knobs[],
+                            classFor = { ({ segmented: ChoiceSegments, slider: ChoiceSlider, toggle: ChoiceToggle, verb: RecordVerb })[:kind ?? "toggle"] ?? ChoiceToggle } ],
+                        Spacer [ ]
+                        ]
+                    ],
+                room: View [ width = 100%, flexes = true,
+                    fit: number = { Math.max(0.3, Math.min((this.width - 32) / STAGE_W, this.height / STAGE_H, 1.4)) },
+                    stage: Stage [ scale = { parent.fit }, pivotX = 0, pivotY = 0, x = center, y = center ]
+                    ],
+
+                // a quiet aid, not part of the lesson: small, and grey even when on
+
+                foot: View [ width = 100%, height = 44,
+                    theme = { app.systemDark ? ({ ...SanFranciscoDark, ...TourDark, ...QuietDark, ...app.fingerSizes })
+                        : ({ ...SanFrancisco, ...TourLight, ...QuietLight, ...app.fingerSizes }) },
+                    boxesSwitch: Switch [ x = center, y = center, label = "Show boxes", fontSize = 12,
+                        textColor = { provided("theme").textFaint }, checked = { app.outlines },
+                        commit(v: boolean) { app.outlines = v }
+                        ]
+                    ]
+                ],
+
+            codeBox: View [ padding = [20, 8, 20, 0], scrolls = { app.stacked ? "both" : "y" },
+                fill = { provided("theme").codeFill }, stroke = { [null, null, null, Stroke(1, provided("theme").cardStrokeColor)] },
+                State [ applied = { app.stacked }, height = 260, stroke = { [Stroke(1, provided("theme").cardStrokeColor), null, null, null] } ],
+
+                // as wide as the code beside the stage; as wide as the card below it
+
+                lines: View [ width = 440, datapath = { app.codeShown.value },
+                    State [ applied = { app.stacked }, width = { Math.max(440, parent.width - 8) } ],
+                    layout: SimpleLayout [ axis = y ],
+                    CodeLine [ datapath = :lines[] ]
+                    ]
+                ],
+            edge: View [ ignoreLayout = true, width = 100%, height = 100%, cornerRadius = 18, pointerEvents = "none",
+                stroke = { Stroke(1, provided("theme").cardStrokeColor) } ]
+            ],
+
+        // back, where the reader is, next
+
+        foot: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 20, align = center ],
+            backLink: BackLink [ disabled = { app.index == 0 },
+                press() { app.back() }
+                ],
+            Progress [ flexes = true ],
+            nextButton: NextPill [ disabled = { app.index >= app.order.length - 1 },
+                title = { app.steps[app.index + 1]?.title ?? "" },
+                press() { app.next() }
+                ]
+            ]
+        ],
+
+    contentsSheet: Sheet [ edge = "start", accessibilityLabel = "Contents", shown = { app.contentsOpen && !app.wide },
+        commit(open: boolean) { app.contentsOpen = open },
+        Contents [ ]
+        ]
+    ]

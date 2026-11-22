@@ -4080,31 +4080,36 @@ class CanvasSurface {
                     queueMicrotask(() => report?.(to));
                 }
             }
+            // One pass, in the order the children are declared, clipped to the
+            // pane's box: the scrolled content shifted by the offset, a pinned child
+            // (ignoreScroll) unshifted where it is declared — under the content
+            // declared after it, over the content declared before. (The VISUAL
+            // offset carries a touch session's rubber band; the fact underneath
+            // stays clamped.)
+            const sx = this.scrollsX ? -(this.scrollVisualX ?? this.scrollXOffset) : 0;
+            const sy = this.scrolls ? -(this.scrollVisualY ?? this.scrollOffset) : 0;
             ctx.save();
             ctx.beginPath();
             ctx.rect(0, 0, this.width, this.height);
             ctx.clip();
-            // (the VISUAL offset carries a touch session's rubber band; the fact
-            // underneath stays clamped)
-            ctx.translate(this.scrollsX ? -(this.scrollVisualX ?? this.scrollXOffset) : 0, this.scrolls ? -(this.scrollVisualY ?? this.scrollOffset) : 0);
+            let shifted = false;
             for (const child of this.children) {
-                if ((skipExempt && child.ignoresClip) || child.ignoresScroll)
+                if (skipExempt && child.ignoresClip)
                     continue;
+                if (!child.ignoresScroll !== shifted) {
+                    // a run of the other kind begins: shift into the content, or back out
+                    if (shifted)
+                        ctx.restore();
+                    else {
+                        ctx.save();
+                        ctx.translate(sx, sy);
+                    }
+                    shifted = !shifted;
+                }
                 child.paint(ctx);
             }
-            ctx.restore();
-            // frame chrome (ignoreScroll): rides the frame — painted unshifted,
-            // above the scrolled content (the sticky-frame order), still clipped
-            // to the pane's box
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(0, 0, this.width, this.height);
-            ctx.clip();
-            for (const child of this.children) {
-                if (!child.ignoresScroll || (skipExempt && child.ignoresClip))
-                    continue;
-                child.paint(ctx);
-            }
+            if (shifted)
+                ctx.restore();
             ctx.restore();
             // the overlay scrollbars (the fallback for a pane the browser does not
             // scroll): hidden at rest, a thin thumb while the pane moves (BAR)

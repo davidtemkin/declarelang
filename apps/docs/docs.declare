@@ -2006,6 +2006,95 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
         if (id == "essay:why-declare") { app.openURL("apps/homepage/homepage.declare") }
         },
 
+    /* ## The detail column
+       The page itself: the App scrolls, and this column is its extent — the
+       bar and the rail ride fixed beside it. It is declared before them, so
+       they paint over it as it scrolls; Tab, and a screen reader, take them
+       first (the App's tabOrder()). So the browser's own instruments
+       apply to the reading — Back returns to the scroll position it left, an
+       `@anchor` lands under the bar by `revealInset`. Guide chapters are
+       light shells (each fetches and builds its content only once visibility
+       asks — ChapterDetail); the reference is one page, re-rooted to the
+       selection (refCol). So the page only ever measures what is actually
+       being read. `selectable` (a provided value) opts the whole column into
+       ordinary browser text selection — prose, signatures, Markdown runs —
+       while the rail stays chrome.
+
+       Search replaces the content: while the query is non-empty the reading
+       column hides and the results page takes the pane — same column, same
+       scroller, no overlay chrome. Clearing the query (Escape, opening a
+       result, deleting the text) brings the page back exactly as it was:
+       `visible` conceals, it never tears down. No matches (or the index still
+       loading) says so in the middle of the pane. */
+
+    detail: View [ x = { app.docked ? app.railW : 0 }, y = { app.barH }, width = { app.width - (app.docked ? app.railW : 0) }, selectable = true,
+
+        // the reading margins are the pane's own content box, so every column
+        // in it is simply the room it is given — narrower without the rail
+
+        padding = { app.docked ? [0, 48, 0, 48] : [0, 20, 0, 20] },
+        top: View [ x = 0, y = 0, width = 1, height = 1 ],       // showPage's scroll-to-top anchor
+        col: View [ y = { app.docked ? 40 : 24 }, width = 100%, visible = { app.searchQ == "" },
+            guideCol: View [ width = 100%, visible = { app.mode == "guide" },
+                ChapterDetail [ datapath = :guide[], cid = :id ]
+                ],
+
+            /* One reference page exists at a time — the selection's. The
+               datapath computes the selected class's node, so a switch
+               re-roots this single subtree and builds just that page, and a
+               boot never constructs the hundreds it is not showing; the rail
+               (ClassTab, above) still replicates the full list — that is what
+               visibility requires of a navigator. */
+
+            refCol: View [ width = 100%, visible = { app.mode == "reference" }, exists = { app.refSeen },
+                ClassDetail [ datapath = { (app.docs.read(["tree"]) || []).find(c => c.name == app.selected) }, cname = :name ]
+                ],
+
+            // the language pane: the index (no cursor) or ONE form's page, re-rooted to
+            // the selection exactly as the reference page is
+
+            langCol: View [ width = 100%, visible = { app.mode == "language" }, exists = { app.langSeen },
+                FormIndex [ datapath = { app.docs.read(["forms"]) } ],
+                FormDetail [ datapath = { ((app.docs.read(["forms", "pages"]) || {}) as any)[app.form] }, slug = { "" + :slug } ]
+                ],
+
+            // the type pane — ONE page, re-rooted to the selection, exactly as
+            // the reference and language panes are
+
+            typeCol: View [ width = 100%, visible = { app.mode == "type" }, exists = { app.typeSeen },
+                TypeDetail [ datapath = { ((app.docs.read(["types", "pages"]) || {}) as any)[app.tname] }, tname = { "" + :name } ]
+                ]
+            ],
+
+        // the results page — rows replicate off the computed hits (the
+        // homepage's value-root + :items[] idiom); focusHit walks these
+        // children, so this column is the one place rows live
+
+        searchCol: View [ y = 24, width = 100%,
+            visible = { app.searchQ != "" && app.searchHits.length > 0 },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            datapath = { app.hits.value },
+            SearchHit [ datapath = :items[], width = 100% ]
+            ],
+
+        // the empty answer, centered in the pane — visible only once the
+        // index has answered (before that, the honest "loading")
+
+        noHits: View [ visible = { app.searchQ != "" && app.searchHits.length == 0 },
+            x = 0, y = 0, width = 100%, height = 100%,
+            msg: Muted [ x = center, y = center, fontSize = 14,
+                text = { app.searchIdx.loaded ? "No matches — the corpus has nothing for “" + app.searchQ + "”." : "Loading the search index…" } ]
+            ]
+        ],
+
+    // the bar, then the rail, then the page — the order they sit in, though
+    // the page is declared first so the two paint over it
+
+    tabOrder() {
+        const chrome: View[] = app.docked ? [this.bar, this.rail!] : [this.bar]      // the rail exists while docked
+        return [...chrome, ...this.tabDefault().filter((v) => !chrome.includes(v))]
+        },
+
     /* ## The chrome bar
        The house header — Viewer's and Tracker's bar, on this app: brand at 18
        (gradient "Declare", solid "Docs"), the search pill centered, and the
@@ -2122,85 +2211,6 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
         exists = { app.docked },
         edge: View [ x = { app.railW - 1 }, y = 0, width = 1, height = 100%, fill = { provided("theme").edge } ],
         col: NavColumn [ x = 16, y = 16, width = { app.railW - 32 } ]
-        ],
-
-    /* ## The detail column
-       The page itself: the App scrolls, and this column is its extent — the
-       bar and the rail ride fixed beside it. So the browser's own instruments
-       apply to the reading — Back returns to the scroll position it left, an
-       `@anchor` lands under the bar by `revealInset`. Guide chapters are
-       light shells (each fetches and builds its content only once visibility
-       asks — ChapterDetail); the reference is one page, re-rooted to the
-       selection (refCol). So the page only ever measures what is actually
-       being read. `selectable` (a provided value) opts the whole column into
-       ordinary browser text selection — prose, signatures, Markdown runs —
-       while the rail stays chrome.
-
-       Search replaces the content: while the query is non-empty the reading
-       column hides and the results page takes the pane — same column, same
-       scroller, no overlay chrome. Clearing the query (Escape, opening a
-       result, deleting the text) brings the page back exactly as it was:
-       `visible` conceals, it never tears down. No matches (or the index still
-       loading) says so in the middle of the pane. */
-
-    detail: View [ x = { app.docked ? app.railW : 0 }, y = { app.barH }, width = { app.width - (app.docked ? app.railW : 0) }, selectable = true,
-
-        // the reading margins are the pane's own content box, so every column
-        // in it is simply the room it is given — narrower without the rail
-
-        padding = { app.docked ? [0, 48, 0, 48] : [0, 20, 0, 20] },
-        top: View [ x = 0, y = 0, width = 1, height = 1 ],       // showPage's scroll-to-top anchor
-        col: View [ y = { app.docked ? 40 : 24 }, width = 100%, visible = { app.searchQ == "" },
-            guideCol: View [ width = 100%, visible = { app.mode == "guide" },
-                ChapterDetail [ datapath = :guide[], cid = :id ]
-                ],
-
-            /* One reference page exists at a time — the selection's. The
-               datapath computes the selected class's node, so a switch
-               re-roots this single subtree and builds just that page, and a
-               boot never constructs the hundreds it is not showing; the rail
-               (ClassTab, above) still replicates the full list — that is what
-               visibility requires of a navigator. */
-
-            refCol: View [ width = 100%, visible = { app.mode == "reference" }, exists = { app.refSeen },
-                ClassDetail [ datapath = { (app.docs.read(["tree"]) || []).find(c => c.name == app.selected) }, cname = :name ]
-                ],
-
-            // the language pane: the index (no cursor) or ONE form's page, re-rooted to
-            // the selection exactly as the reference page is
-
-            langCol: View [ width = 100%, visible = { app.mode == "language" }, exists = { app.langSeen },
-                FormIndex [ datapath = { app.docs.read(["forms"]) } ],
-                FormDetail [ datapath = { ((app.docs.read(["forms", "pages"]) || {}) as any)[app.form] }, slug = { "" + :slug } ]
-                ],
-
-            // the type pane — ONE page, re-rooted to the selection, exactly as
-            // the reference and language panes are
-
-            typeCol: View [ width = 100%, visible = { app.mode == "type" }, exists = { app.typeSeen },
-                TypeDetail [ datapath = { ((app.docs.read(["types", "pages"]) || {}) as any)[app.tname] }, tname = { "" + :name } ]
-                ]
-            ],
-
-        // the results page — rows replicate off the computed hits (the
-        // homepage's value-root + :items[] idiom); focusHit walks these
-        // children, so this column is the one place rows live
-
-        searchCol: View [ y = 24, width = 100%,
-            visible = { app.searchQ != "" && app.searchHits.length > 0 },
-            layout: SimpleLayout [ axis = y, spacing = 2 ],
-            datapath = { app.hits.value },
-            SearchHit [ datapath = :items[], width = 100% ]
-            ],
-
-        // the empty answer, centered in the pane — visible only once the
-        // index has answered (before that, the honest "loading")
-
-        noHits: View [ visible = { app.searchQ != "" && app.searchHits.length == 0 },
-            x = 0, y = 0, width = 100%, height = 100%,
-            msg: Muted [ x = center, y = center, fontSize = 14,
-                text = { app.searchIdx.loaded ? "No matches — the corpus has nothing for “" + app.searchQ + "”." : "Loading the search index…" } ]
-            ]
         ],
 
     /* ## The drawer

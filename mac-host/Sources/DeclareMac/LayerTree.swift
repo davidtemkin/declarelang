@@ -1145,14 +1145,23 @@ final class LayerTree {
         // walking to the nearest scrolling ancestor, and matching it needs
         // re-homing across nodes, not just a different host layer here.)
         let scrolling = n.content !== n.layer
-        let pinned = scrolling ? n.children.filter { $0.ignoresScroll }.flatMap { paint($0) } : []
+        // Pinned children paint where they are declared: one declared before the
+        // first child that scrolls sits under the content layer, one declared
+        // after it over the layer. (The content is one layer that moves as a
+        // whole, so a pinned child declared BETWEEN two scrolling ones sits over
+        // all of them — a placement nothing in the corpus asks for.)
+        let firstFlowing = n.children.firstIndex { !$0.ignoresScroll } ?? n.children.count
+        let pinnedUnder = scrolling ? n.children.prefix(firstFlowing).filter { $0.ignoresScroll }.flatMap { paint($0) } : []
+        let pinnedOver = scrolling ? n.children.dropFirst(firstFlowing).filter { $0.ignoresScroll }.flatMap { paint($0) } : []
         let flowing = scrolling ? n.children.filter { !$0.ignoresScroll }.flatMap { paint($0) }
                                 : n.children.flatMap { paint($0) }
         for c in flowing { if c.superlayer !== host { host.addSublayer(c) } }
-        for c in pinned { if c.superlayer !== n.layer { n.layer.addSublayer(c) } }
-        // Enforce order explicitly (CALayer keeps insertion order). Pinned chrome
-        // sits after the content layer, so it paints over what scrolls beneath it.
-        n.layer.sublayers = order + (scrolling ? [] : flowing) + pinned + top
+        for c in pinnedUnder + pinnedOver { if c.superlayer !== n.layer { n.layer.addSublayer(c) } }
+        // Enforce order explicitly (CALayer keeps insertion order): the view's own
+        // paint, the pinned children declared before the content, the content
+        // layer, then the pinned children declared after it.
+        let own = scrolling ? order.filter { $0 !== n.content } : order
+        n.layer.sublayers = own + pinnedUnder + (scrolling ? [n.content] : flowing) + pinnedOver + top
         if scrolling { n.content.sublayers = flowing }
     }
 

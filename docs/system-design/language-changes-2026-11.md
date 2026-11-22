@@ -509,3 +509,144 @@ children; if it does, the room is taken as unlimited (no shortage). What was est
   kernel's cycle detection. The second is cheap and exact by construction, but turns a
   program that today works by the guard's silence into a reported loop. Not on solid ground
   yet (DT); nothing changed.
+
+## Pinned children and order (2026-11-21)
+
+Asked for by DT after the model-tour build surfaced them. Four changes, one rule: stacking,
+Tab and reading all follow the declared order, and a `tabOrder()` is the one way to say
+otherwise for Tab and reading.
+
+**A pane's pinned children paint and take presses in declaration order.** A child with
+`ignoreScroll` inside a scrolling view used to paint above every scrolled child, wherever
+it was declared — the DOM's one shared sticky frame carried `z-index: 2`, canvas painted
+pinned children in a second pass, the Mac host put them after its content layer, and the
+shared hit walk offered them the point first. Now: the DOM gives each pinned child a
+sticky frame of its own in its place (`makeScrollFrame`, `restackFrames` — a frame after
+all the content keeps the lift, so a focus ring riding the pane stays under the chrome
+declared after it); canvas paints the pane's children in one pass; the Mac host puts
+pinned children declared before the first scrolling one under its content layer and the
+rest over it (a pinned child between two scrolling ones goes over all of them — nothing
+does that); `hit-walk.ts` offers children the point in reverse declaration order only.
+The old placement was recorded in scrolling.md as a "known v1 bound", not a rule. Audit:
+no first-party pane declared a pinned child before its content; the sampler's DataGrid
+header is after its rows and keeps the lift. Tests: `pinned-order.test` (pane, pixels and
+a press), `conform.test` (presses, DOM/canvas/Mac), the Mac gate's new `pinned-pane`
+probe (0.12% vs the DOM). Alternative not taken: keep the lift and document it as an
+exception to "stacking is declaration order".
+
+**At the App level, the same order for presses.** The hit walk's lift also applied to the
+App's own pinned children, so a bar declared *before* the page was hit on top while the
+page painted over it once scrolled (the App-level paint fix of 2026-11-20 had already made
+paint follow declaration order there). Two apps declared their bar first and relied on
+the pre-fix accident that painted it last: **docs** (the chapter text covered the header
+when scrolled) and **birds** (the plates covered the masthead). Both now declare the bar
+after the page, with an App `tabOrder()` putting it first for Tab and reading. The
+scrolling chapter's first `ignoreScroll` example declared its bar first; it now declares
+it last and says why. `gesture.test`'s walk fixture likewise.
+
+**Reading order follows `tabOrder()`.** A screen reader read a view's children in
+declaration order whatever its `tabOrder()` said, so the homepage's header was first for
+Tab and last for a screen reader. Now `readingOrder()` (semantics.ts) orders the runtime's
+semantic tree by the view's own `tabOrder()` — its own children only, the listed ones
+first, the rest after as declared, nothing removed (`visible`/`exists` decide that) — and
+the DOM says the same with `aria-owns` on the view's element, only where the order differs
+(semantics-dom.ts `readsInOrder`; a view with its own `tabOrder()` is now annotated even
+without a role). Canvas and the Mac host have no screen-reader tree yet. Test:
+`accessibility-browser.test` (Chrome's tree, the runtime's and Tab agree; a gated panel is
+still read). Alternative not taken: a `tabStart`/`tabFirst` attribute — DT ruled it sugar
+for a small problem; `tabOrder()` and `tabDefault()` suffice.
+
+**The to-do app** declares the same two-line `tabOrder()` for its bars, so Tab reaches
+search and New task first on a desk and the lists button first on a phone.
+
+**Not changed, recorded:** layouts are not mirrored for right-to-left; a `reverse`
+attribute on `SimpleLayout`/`WrappingLayout`, set by a constraint at the developer's
+discretion (from a localization bundle's `dir`), is the recorded idea. The calendar's
+collapsed `DetailSection` field is clipped but still read by a screen reader (the
+accordion builds its body only while open) — a separate, existing gap.
+
+## Two checks from the model tour (2026-11-21)
+
+**A field read by a computed key follows its writes.** `app.choices.value[k]` read the
+field once and never again: the extractor's element-access arm ended the chain at a
+non-literal key and wired only the `value` slot, which a write to `["a"]` never changes.
+`read([k])` is refused for the same reason (DECLARE7001); the index form slipped through
+in silence. Now a computed key on a reactive chain sends the body down the tracking path
+(DYNAMIC), which records the key it read — as `JSON.stringify(app.d.value)` and script
+helpers handed a tree already do (`dep-extract.ts`, `intoTree`). A function written in
+place and called with the tree, `((v) => v[k])(app.d.value)`, is treated the same way.
+Test: `silent-failures.test` (both forms follow a write). Alternative not taken: refusing
+the form as DECLARE7001 does and pointing to `:@[(k)]` — the read is legitimate
+TypeScript and the tracking path answers it correctly; `:@[(k)]` stays the form the guide
+teaches for a field chosen at runtime.
+
+**Provided values set on a container are typed.** `textStyles`, `fontWeight` and the
+other built-in provided values set on a view that does not read them itself — on the App,
+on a container for its subtree — were typed `unknown` in the checker, so `textStyles =
+{ { t } }` with an App attribute `t: number` hiding `style t` passed, and no type name in
+the tour's code was colored. `tsSlotType` (`typecheck.ts`) now falls back to the type the
+classes that read the value declare, the rule `compile.ts` `slotTypeOf` already used.
+`theme` has no declared type in any class, so it is still unchecked (`theme = { 5 }`
+passes); typing it is a schema change, not made.
+
+**Color names are read at run time (2026-11-21, DT).** `Color.from(s)` reads a CSS color
+name (any case) as well as hex, and so does a color string that reaches a color attribute
+at run time (`value.ts` `toColor`, through one `namedColor`). Before, names were read only
+where the compile could see them, to keep the names' table out of a running program; text
+that is no color is still said and paints nothing. Cost: the 148-name table now ships in
+every runtime — measured on the to-do app's production build, +1,470 bytes gzipped
+(197,281 → 198,751). DT: a decent convenience, and what the `Color` type (which includes
+`ColorName`) leads a reader to expect. Test: `color-strings.test`. Alternative not taken:
+including the table only in programs whose source calls `Color.from` (a compile-time
+exclusion); the runtime's own string reading would then still have refused names.
+
+**A Slider's thumb sits on its track at any height (2026-11-21).** The thumb was placed at
+fixed offsets (`y` 5, 4 or 2 by thumb style), which centre it only in the default 28-tall
+slider; the track is `y = center`. A slider given another height (32, or 44 for a finger)
+drew its thumb above the track. The thumb is now `y = center` too — the same positions at
+28 for all three styles. Library only (`library/slider.declare`).
+
+## From the language expert's probes (2026-11-22)
+
+**Two Springs on one attribute are refused.** Each owns the slot for as long as it lives,
+so two pulled against each other and never settled — accepted in silence before. The check
+beside the bound-slot one (`check.ts`) now refuses the second, naming the form that works
+(one spring whose target says every case); `Diag.springsSameSlot`, DECLARE2005.
+
+**A loop among one element's declared defaults is refused at compile time.**
+`a: number = { b + 1 }, b: number = { a + 1 }` was caught only by the boot's cycle guard,
+though the dep sets show it. `dep-extract.ts` `refuseDeclLoops` names the loop at the line
+(DECLARE7001). Main-tree elements only: a class body's default may be replaced where the
+class is used. The corpus has no hit but the probes.
+
+**Two messages say forms that work.** A computed attribute (`this[k]`) advised "bound the
+key's type", which the extractor never accepted (it sees no types); it now says to read each
+attribute by name, or keep the values as a record's fields and read `:@[(key)]` (the
+constraints note's policy line likewise). `style` and `className` on a view answer with
+Declare's forms (teach.ts) instead of "did you mean 'scale'".
+
+**Open, not changed: the settle runs rules in invalidation order, not dependency order.**
+`kernel.md` §3 says a topological order per phase; `kernel.c` (and `kernel-js.ts`) pop the
+queue FIFO with re-queue. Measured: a diamond is seen half-updated (a rule reading `a0` and
+`c.width`, where `c.width` follows `a0`, ran on the new `a0` and the old `c.width` and threw);
+a rule summing a chain of N views re-runs about N/2 times for one change (11 at N = 20, 66 at
+N = 130); at N = 260 the 100-run guard calls the acyclic graph a cycle. Applying the existing
+pull at settle time (run a queued rule's queued owners first) was tried: it fixes the diamond
+but not the chain (7 and 44 runs), because a chain's links are not yet queued when the reader
+is reached. The fix is a queue ordered by depth (a rule's height: one more than the heights of
+the rules that own its inputs), as §3 describes.
+
+*Tried, measured, and backed out (2026-11-22).* A height per rule (above every rule whose write
+wakes it, whose owned cell it reads, or that takes ownership of a cell it reads), and a
+lowest-height-first heap per phase, built in both kernels, C and JS in agreement (conformance
+29/29), fixed every probe: the diamond reads consistently, the chain reader runs once at
+N = 20, 130, 260, no false cycle, a real cycle still caught. But it cost more than it saved
+where the graph has a deliberate, converging feedback loop: a virtualized list's replicator
+reads where its rows were laid out to choose its window, and the layout reads the rows it
+built. Heights learned round that loop put the replicator after the layout, so it ran two to
+four times a turn and its rows' nested replications rebuilt: the tracker's search scenario ran
+17% more rules (28,387 → 33,270; the same state at every step), and a small filtered list with
+replicated labels 2.5× as many (5,432 → 13,600; views built 899 → 1,933). Boot was unchanged
+(measured back to back). "Dependency order" has no single answer inside such a loop, and FIFO by
+invalidation happens to suit it. The kernels are as they were; the attempt is kept outside the
+tree. Open: a design that orders the acyclic part and leaves converging loops in queue order.

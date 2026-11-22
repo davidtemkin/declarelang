@@ -1,0 +1,25 @@
+// Pinned children of a pane, in declaration order. A pinned backdrop declared
+// first paints UNDER the rows; a pinned bar declared last paints OVER them; both
+// hold still while the rows scroll. The pane starts scrolled, so a renderer that
+// lifts every pinned child shows red where the row is, and one that does not pin
+// shows the bar gone.
+
+App [ width = 300, height = 300, fill = #FFFFFF,
+    presses: number = 0,
+    onClick() { presses = presses + 1 },
+    pane: View [ x = 0, y = 0, width = 300, height = 300, scrolls = y, scrollStartY = 100,
+        back: View [ ignoreScroll = true, width = 300, height = 300, fill = #FF0000,
+            hits: number = 0,
+            onClick() { hits = hits + 1 }
+            ],
+        row: View [ x = 40, y = 140, width = 120, height = 120, fill = #00C000,
+            hits: number = 0,
+            onClick() { hits = hits + 1 }
+            ],
+        tall: View [ y = 900, width = 10, height = 10 ],
+        bar: View [ ignoreScroll = true, width = 300, height = 40, fill = #0000FF,
+            hits: number = 0,
+            onClick() { hits = hits + 1 }
+            ]
+        ]
+    ]

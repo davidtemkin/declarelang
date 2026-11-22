@@ -6,7 +6,7 @@
 // encoding above 2^32 (value.ts ALPHA), which bit operations would cut to 32 bits.
 // These read and write that encoding, so a program never does. A `null` color
 // (none) gives null back.
-import { colorToCss, colorWithAlpha, hexColor, toColor } from "./value.js";
+import { colorToCss, colorWithAlpha, hexColor, namedColor, toColor } from "./value.js";
 const ALPHA = 0x100000000;
 function parts(c) {
     let rgb = c, a = 255;
@@ -71,11 +71,10 @@ export function components(c) {
     const [r, g, b, a] = parts(c);
     return Object.freeze({ r, g, b, a: a / 255 });
 }
-/** The color some text writes: "#RGB", "#RRGGBB" or "#RRGGBBAA" (any case) — or null
- *  when the text is not one. A name is not read here: names are read where the
- *  compile can see them, and the names' table stays out of the running program. */
+/** The color some text writes: "#RGB", "#RRGGBB", "#RRGGBBAA" or a CSS color name
+ *  (any case) — or null when the text is not one. */
 export function from(s) {
-    return typeof s === "string" ? hexColor(s.trim()) ?? null : null;
+    return typeof s === "string" ? hexColor(s.trim()) ?? namedColor(s.trim()) ?? null : null;
 }
 /** Its hex text, as the renderers write it: "#rrggbb", or "#rrggbbaa" when it is not
  *  opaque — or null for none. */

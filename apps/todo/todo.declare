@@ -937,7 +937,13 @@ App [ appName = "To-do", minWidth = 320,
 
     // ── the bars. They stay put while the page scrolls under them, and frost
     //    once it does (`backdrop` filters what lies beneath). They come after
-    //    the page, so they paint over it.
+    //    the page, so they paint over it; Tab, and a screen reader, reach the
+    //    one at the top first.
+
+    tabOrder() {
+        const bars: View[] = [app.toolbar, app.phoneBar]
+        return [...bars, ...this.tabDefault().filter((v) => !bars.includes(v))]
+        },
 
     // A wide screen: search and add, at the top right of the page.
 

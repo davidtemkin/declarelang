@@ -64,6 +64,8 @@ const SUITE = [
   "test/dataschema.test.mjs",
   "test/typed-paths.test.mjs",      // a :path read inside { } has its field's type
   "test/schema-default-rule.test.mjs", // a schema-typed declared default stands as a rule and follows its inputs
+  "test/pinned-order.test.mjs",     // a view pinned to the window keeps its place in paint order
+  "test/scroll-clip.test.mjs",      // scrolls and clip on one view, in either order, at any time
   "test/docs-demos.test.mjs",       // every example the docs app runs beside a page compiles
   "test/datasource-failure.test.mjs",
   "test/request-failures.test.mjs",   // why a request failed (failure), and its silence timeout

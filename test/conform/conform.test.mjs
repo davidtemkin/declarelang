@@ -234,6 +234,19 @@ await test("conform: REAL presses take the same route through every renderer's s
   console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
 });
 
+await test("conform: a pane's pinned children take presses in declaration order, everywhere", async () => {
+  // A pinned backdrop declared before the rows is under them; a pinned bar
+  // declared after them is over them — the same order paint follows. The pane
+  // starts scrolled 100: the row stands at 40…160 on screen.
+  const r = await conform("test/probe/pinned-pane.declare",
+    [["click", 100, 100], ["click", 100, 20], ["click", 250, 200], ["wait", 0.3]],
+    `(() => { const f = (p) => __declare.find(p).hits; return { row: f("app.pane.row"), bar: f("app.pane.bar"), back: f("app.pane.back") }; })()`,
+    "pinned order in a pane");
+  assert.deepEqual(r.answers[0].value, { row: 1, bar: 1, back: 1 },
+    "the row over the backdrop, the bar over the row, the backdrop where nothing covers it");
+  console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
+});
+
 // ── transforms ──────────────────────────────────────────────────────────────
 // Until 2026-08-14 nothing in this corpus set `scale` or `rotation`, so the one
 // gate that holds three renderers together never asked whether they agree about

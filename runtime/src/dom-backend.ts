@@ -310,7 +310,18 @@ function watchPinchZoom(doc: Document): void {
  *  sibling is kept too, so paint order survives the round trip. */
 const FRAME_HOME = new WeakMap<HTMLElement, { parent: HTMLElement; next: Element | null }>();
 
+/** Pinned elements whose tree was not yet in the document when they were
+ *  marked. A detached tree's regime is not yet knowable — its root still
+ *  wears a pane's realization until attachRoot stamps it — and resolving
+ *  against it adopted a pinned child into a pane frame and later sent it home
+ *  behind siblings declared after it (a pinned first child painting over the
+ *  whole app). So nothing resolves until it is in the document: attachRoot
+ *  sweeps the app, and insertChild resolves what waited once its tree arrives. */
+const PIN_PENDING = new Set<HTMLElement>();
+
 function realizeIgnoreScroll(el: HTMLElement): void {
+  if (!el.isConnected) { PIN_PENDING.add(el); return; }
+  PIN_PENDING.delete(el);
   if (el.dataset.declareIgnorescroll === undefined) {
     if (el.style.position === "fixed") el.style.position = "absolute";
     anchorEnds(el);
@@ -319,14 +330,21 @@ function realizeIgnoreScroll(el: HTMLElement): void {
   }
   for (let p = el.parentElement; p !== null; p = p.parentElement) {
     if (p.dataset !== undefined && p.dataset.declareScroll !== undefined) {
-      const frame = ensureScrollFrame(p);
-      if (el.parentElement !== frame) {
-        // remember the seam-computed parent (insertChild's `target`) before the move
-        if (el.parentElement !== null && el.parentElement.dataset.declareScrollframe === undefined) {
-          FRAME_HOME.set(el, { parent: el.parentElement, next: el.nextElementSibling });
+      if (el.parentElement?.dataset.declareScrollframe === undefined) {
+        const frame = makeScrollFrame(p);
+        if (el.parentElement === p) {
+          // a child of the pane: its frame takes its place among the pane's
+          // children, so it paints where it is declared
+          p.insertBefore(frame, el);
+        } else {
+          // held one level down (a clip box): its frame goes on top of the pane,
+          // and it is sent back to where it came from when it is no longer pinned
+          if (el.parentElement !== null) FRAME_HOME.set(el, { parent: el.parentElement, next: el.nextElementSibling });
+          p.appendChild(frame);
         }
         frame.appendChild(el);
       }
+      restackFrames(p);
       return;
     }
     if (p.dataset !== undefined && p.dataset.declareApp !== undefined) {
@@ -388,27 +406,32 @@ function anchorEnds(el: HTMLElement): void {
 function sendHome(el: HTMLElement): void {
   const frame = el.parentElement;
   if (frame?.dataset.declareScrollframe === undefined) return;
+  const pane = frame.parentElement;
   const home = FRAME_HOME.get(el);
-  if (home === undefined) return;
   FRAME_HOME.delete(el);
-  const next = home.next !== null && home.next.parentElement === home.parent ? home.next : null;
-  home.parent.insertBefore(el, next);
-  // A frame that adopted nobody is litter — and litter of exactly the kind
-  // this bug hid in. ensureScrollFrame rebuilds it the moment one is needed.
+  if (home !== undefined) {
+    const next = home.next !== null && home.next.parentElement === home.parent ? home.next : null;
+    home.parent.insertBefore(el, next);
+  } else if (pane !== null) {
+    pane.insertBefore(el, frame);   // its frame stood in its place
+  }
+  // A frame that holds nobody is litter — and litter of exactly the kind this
+  // bug hid in. makeScrollFrame builds one the moment it is needed.
   if (frame.childElementCount === 0) frame.remove();
+  if (pane !== null) restackFrames(pane);
 }
 
-/** The pane's STICKY FRAME: a zero-size, in-flow `position: sticky` first
- *  child of a scroller element. The compositor holds it at the pane's frame
- *  origin while content scrolls beneath — so `ignoreScroll` children parented
- *  into it ride the frame with no per-frame JS and no lag. Zero-size +
- *  visible overflow: it occupies no layout space among the (absolute)
- *  content and contributes nothing to the scroll range itself. zIndex lifts
- *  the frame's subtree above the unindexed content and above paint guests —
- *  frame chrome paints over what it is pinned above. */
-function ensureScrollFrame(scrollerEl: HTMLElement): HTMLElement {
-  const existing = scrollerEl.querySelector<HTMLElement>(":scope > [data-declare-scrollframe]");
-  if (existing !== null) return existing;
+/** A pinned child's STICKY FRAME: a zero-size, in-flow `position: sticky`
+ *  element holding the one child, standing in that child's place among the
+ *  pane's children. The compositor holds it at the pane's frame origin while
+ *  content scrolls beneath — so the child rides the frame with no per-frame JS
+ *  and no lag. Zero-size + visible overflow: it occupies no layout space among
+ *  the (absolute) content and contributes nothing to the scroll range itself,
+ *  and since everything else in a pane is out of flow, it sits at the top
+ *  wherever it stands in the order. One frame per child keeps paint order the
+ *  declared order: chrome declared before the content paints under it, chrome
+ *  declared after paints over it (restackFrames). */
+function makeScrollFrame(scrollerEl: HTMLElement): HTMLElement {
   const frame = scrollerEl.ownerDocument.createElement("div");
   frame.dataset.declareScrollframe = "1";
   const s = frame.style;
@@ -417,11 +440,24 @@ function ensureScrollFrame(scrollerEl: HTMLElement): HTMLElement {
   s.width = "0";
   s.height = "0";
   s.overflow = "visible";
-  // above a paint guest's lift (travelWith's 1): a ring riding the pane paints
-  // under its pinned chrome, as on canvas and the Mac
-  s.zIndex = "2";
-  scrollerEl.insertBefore(frame, scrollerEl.firstChild);
   return frame;
+}
+
+/** The lift of a pane's frames. A frame with content after it is placed by
+ *  the order alone, as any child is. A frame after all the content is lifted
+ *  above a paint guest's lift (travelWith's 1) as well: a ring riding the
+ *  pane is part of the content, and paints under the chrome declared after
+ *  it, as on canvas and the Mac. Run when a frame is made or let go, and when
+ *  a child arrives in the pane. */
+function restackFrames(scrollerEl: HTMLElement): void {
+  let contentAfter = false;
+  for (let k = scrollerEl.lastElementChild; k !== null; k = k.previousElementSibling) {
+    if (!(k instanceof HTMLElement)) continue;
+    if (k.dataset.declareScrollframe !== undefined) {
+      const z = contentAfter ? "" : "2";
+      if (k.style.zIndex !== z) k.style.zIndex = z;
+    } else if (DOM_SURFACE.has(k) && k.style.zIndex === "") contentAfter = true;   // a view's element, not a guest or the strut
+  }
 }
 
 /** The frame's origin is the pane's own, not its content box's. A padded
@@ -1638,8 +1674,12 @@ export class DomSurface implements Surface {
     // App frame) can never grow the document a scroll extent. `clip`, not
     // `hidden`: a hidden box is still a scroll container. The box tracks
     // automatically — no per-resize re-derive.
+    // A scroller already clips to its box, and its overflow is its scroll:
+    // the shorthand written over it would take the scroll away (both turned
+    // on in one step left a pane that would not scroll). Its clip is kept as
+    // a fact, and written when the scroll comes off (applyScrollStyle).
     if (this.clipBox !== null) this.clipBox.style.overflow = on ? "clip" : "";
-    else this.element.style.overflow = on ? "clip" : "";
+    else if (!(this.scrollYOn || this.scrollXOn)) this.element.style.overflow = on ? "clip" : "";
     const was = this.boxClipped;
     this.boxClipped = on;
     if (on !== was) this.rerasterClipped();
@@ -1685,8 +1725,7 @@ export class DomSurface implements Surface {
     const [t, r, b, l] = insetSides(inset);
     this.element.style.padding = t === 0 && r === 0 && b === 0 && l === 0
       ? "0" : `${t}px ${r}px ${b}px ${l}px`;
-    const frame = this.element.querySelector<HTMLElement>(":scope > [data-declare-scrollframe]");
-    if (frame !== null) seatScrollFrame(frame, this.element);
+    this.element.querySelectorAll<HTMLElement>(":scope > [data-declare-scrollframe]").forEach((frame) => seatScrollFrame(frame, this.element));
   }
 
   /** A padded scroller's range (backend.ts setContentExtent): the browser's
@@ -2004,6 +2043,8 @@ export class DomSurface implements Surface {
     const any = this.scrollYOn || this.scrollXOn;
     el.style.overflowY = this.scrollYOn ? "auto" : any ? "hidden" : "";
     el.style.overflowX = this.scrollXOn ? "auto" : any ? "hidden" : "";
+    // a box clip outlives the scroll: clearing the axes cleared it too
+    if (!any && this.boxClipped && this.clipBox === null) el.style.overflow = "clip";
     // A scroller's content group ISOLATES blending (compositing.md §4.1) —
     // CSS overflow alone creates no stacking context, so a `multiply` child
     // would blend right through the pane. Declaration order is already paint
@@ -3023,20 +3064,28 @@ export class DomSurface implements Surface {
     else if (el.dataset.declareIgnoreclip) delete el.dataset.declareIgnoreclip;
     if (exempt && this.clipBox === null && this.element.style.overflow === "clip") ensureClipBoxFor(this.element);
     const target = exempt ? this.element : (this.clipBox ?? this.element);
-    const beforeEl = before === null ? null : (before as DomSurface).element;
+    // a pinned child of a pane stands in the order as its frame: the frame is
+    // what moves, and what a sibling is placed before
+    const inFrame = (x: HTMLElement): HTMLElement => x.parentElement?.dataset.declareScrollframe !== undefined && x.parentElement.parentElement === target ? x.parentElement : x;
+    const beforeEl = before === null ? null : inFrame((before as DomSurface).element);
+    const moving = inFrame(el);
     // already there: no move (a move relayouts the subtree and costs focus care)
-    if (el.parentElement === target && (beforeEl !== null && beforeEl.parentElement === target ? el.nextElementSibling === beforeEl : el === target.lastElementChild)) return;
+    if (moving.parentElement === target && (beforeEl !== null && beforeEl.parentElement === target ? moving.nextElementSibling === beforeEl : moving === target.lastElementChild)) return;
     // A move also blurs a focused field inside the moved subtree: the native
     // blur is not the person leaving it, so it is not passed on, and the field
     // is focused again where it now is (a dialog's field while the page's
     // children re-order under it).
-    keepingFocus(el, () => target.insertBefore(el, beforeEl !== null && beforeEl.parentElement === target ? beforeEl : null));
+    keepingFocus(el, () => target.insertBefore(moving, beforeEl !== null && beforeEl.parentElement === target ? beforeEl : null));
     // a subtree arriving under a view switched off for the pointer (or leaving one)
     if (target.closest("[data-declare-pe]") !== null || el.querySelector("[data-declare-pe]") !== null) refreshPointerBelow(el);
     for (const [s, l, t] of saved) { if (s.scrollLeft !== l) s.scrollLeft = l; if (s.scrollTop !== t) s.scrollTop = t; }
     // an ignoreScroll child's realization depends on the ancestry it just
-    // gained — resolve it now that the context exists
+    // gained — resolve it now that the context exists, and any pinned element
+    // of its tree that waited for the tree to reach the document
     if (el.dataset.declareIgnorescroll !== undefined) realizeIgnoreScroll(el);
+    if (PIN_PENDING.size > 0 && el.isConnected) for (const p of [...PIN_PENDING]) if (p.isConnected) realizeIgnoreScroll(p);
+    // a child arriving in a pane can put content after a pinned child's frame
+    if (target.dataset.declareScroll !== undefined && target.querySelector(":scope > [data-declare-scrollframe]") !== null) restackFrames(target);
     if (PROMOTED.size > 0) { unpromoteCovered(); if (el.matches(LAYER_WOULD_CHANGE) || el.querySelector(LAYER_WOULD_CHANGE) !== null) unpromoteAbove(el); }
   }
 

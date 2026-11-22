@@ -364,6 +364,10 @@ export const Diag = {
   // a Spring, so an error, and the message gives the form that works.
   springsBoundSlot: (owner: string, slot: string, spring: string, pos: Pos): DeclareError =>
     err(code4(2005), `${owner}.${slot} is bound by a constraint, so this ${spring} cannot drive it — a spring owns the attribute it drives for as long as it lives, and a bound attribute belongs to its constraint. Put the target in the spring and leave ${slot} unbound: ${spring} [ attribute = ${slot}, to = { … } ]`, pos),
+  // Two Springs on one slot: each owns it for as long as it lives, so they pull
+  // against each other and the motion never settles. One spring, one target.
+  springsSameSlot: (owner: string, slot: string, spring: string, pos: Pos): DeclareError =>
+    err(code4(2005), `${owner}.${slot} is already driven by a ${spring} — a spring owns the attribute it drives for as long as it lives, so two springs on one attribute pull against each other and never settle. Drive it with one: ${spring} [ attribute = ${slot}, to = { … } ], its target saying every case`, pos),
   // A HINT: a constraint that centers a box by hand. `x = center` is the
   // position literal for exactly this, and it re-resolves when either width
   // changes. Style, not a defect — the author may want the arithmetic — so it

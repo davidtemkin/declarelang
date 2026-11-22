@@ -3,12 +3,12 @@ import { DeclareError, type Pos } from "./errors.js";
 import { type ClassSchema } from "./schema.js";
 import { coerceToken, type AttrType, type AttrValue } from "./value.js";
 export { coerceToken };
-/** The scope nouns of language §11 — never legal as member or parameter names.
- *  `app` is the running-App noun (compiles to `this.$root`); reserving it here
+/** The reserved words of language §3 — never legal as member or parameter names.
+ *  `app` is the running App (compiles to `this.$root`); reserving it here
  *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
 export declare const NOUNS: string[];
 /** The other node reference the scaffold declares on every View, beside the
- *  §11 nouns above: `children`, Node's own child list. It is not a scope noun
+ *  reserved words above: `children`, Node's own child list. It is not a reserved word
  *  and not a schema attribute either, so the ordinary "a child may not take an
  *  attribute's name" rules miss it, and shadowing it breaks code that never
  *  mentions it. (`app` compiles to `this.$root`, a `$` name no program can

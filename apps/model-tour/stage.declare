@@ -1,0 +1,967 @@
+/*
+# The model tour: the stage
+
+The stage is one scene every screen shares. Its cast never changes — a parent
+box, six pieces inside it, a line of words, a pane of glass, and the notes drawn
+over them — and each screen is a pose of that cast. A screen change moves every
+member from where it is to where the new pose puts it, on springs, so the reader
+watches one thing become the next: a box becomes a parent, its children a
+column, the column's boxes chips.
+
+The poses are the `Director`'s, a class with no view. It reads each screen's
+geometry from the screens' data (`geo`), the same numbers the screen's code
+shows, and the reader's choices (`app.choices`), so a pose follows the reader's
+hand as well as the screen. The cast is one set of views across screens whose
+trees differ, so it is placed as a scene, with `x` and `y` of its own; where a
+screen's code shows a layout, the Director places the cast where that layout
+does. What is inside each member is real: a chip is a row laid out by
+`SimpleLayout`, a `Control` with its own hover and press, and the scrolling
+screen is a real pane.
+*/
+
+// The stage's own space: every pose is written in it, and the stage is scaled
+// to fit the room it is given. The chip screens are seen closer (`ZOOM`).
+
+script {
+    const STAGE_W = 600
+    const STAGE_H = 400
+    const ZOOM = 1.35
+    }
+
+
+// ── The shape of a pose ─────────────────────────────────────────────────────
+
+// A screen's geometry, as its data gives it: whichever of these the screen uses.
+
+schema Geo [ x?: number, y?: number, w?: number, h?: number, r?: number, gap?: number,
+    ax?: number, ay?: number, aw?: number, ah?: number, bx?: number, by?: number, bw?: number, bh?: number,
+    w0?: number, w1?: number, w2?: number, inset?: number, size?: number, grow?: number,
+    pad?: number, rowH?: number, line?: number, cell?: number ]
+
+// The chip, once: what the chip screens' code builds and what every chip on the
+// stage is.
+
+schema ChipGeo [ chipH: number, chipR: number, padStart: number, padEnd: number, gap: number,
+    dot: number, dotR: number, fontSize: number ]
+
+// One piece: its box in the parent's space, and how much of each look it wears,
+// each an amount from 0 to 1 — `chip` (a chip rather than a box), `grad` (a
+// gradient), `light` (a light face, with a stroke `sw` wide on every side or,
+// with `sides` 1, the bottom only), `drawn` (a drawing), `head` (a heading).
+// `rc` is its four corners, `lift` its shadow, `rot` its turn about its middle
+// (`pivot` 0) or its top-left corner (1). `a` is its opacity.
+
+schema Pose [ id: number, x: number, y: number, w: number, h: number, a: number,
+    tone: number, chip: number, zoom: number, label: string,
+    rc[]: number, grad: number, light: number, sw: number, sides: number, lift: number,
+    rot: number, pivot: number, drawn: number, head: number ]
+
+// The parent: its box on the stage, its paint (`solid` 1 is the first screen's
+// blue box, 0 a container), its zoom, and the filter over it and all it holds.
+
+schema Frame [ x: number, y: number, w: number, h: number, a: number, solid: number, r: number, zoom: number,
+    blur: number, gray: number, hue: number ]
+
+// A note drawn over the cast. `gone` marks one that is leaving, so it fades.
+
+schema Note [ id: string, kind: "label" | "tag" | "warn" | "code" | "dot" | "hdim" | "vdim" | "vdimr" | "frame" | "arrow" | "ray",
+    x: number, y: number, w: number, h: number, text: string, gone?: boolean ]
+
+// The whole pose: the parent, the words, the six pieces in paint order, the
+// glass, and the notes.
+
+schema Scene [ p: Frame, wordsA: number, k[]: Pose, glass: number, frost: number, notes[]: Note ]
+schema Cast [ k[]: Pose ]
+
+
+// ── The director ────────────────────────────────────────────────────────────
+
+class Director extends Node [
+
+    // the screen's geometry and the chip's, from the screens' data
+
+    geo(step: string) -> Geo { return app.steps.find((s) => s.id == step)?.geo ?? ({}) },
+    chipGeo: ChipGeo = { app.tour.value?.chip ?? ({ chipH: 36, chipR: 18, padStart: 12, padEnd: 14, gap: 8, dot: 10, dotR: 5, fontSize: 15 }) },
+
+    // A chip is as wide as the row it lays out: its padding, its dot, the gap,
+    // and its label in its font.
+
+    chipW(s: string) -> number {
+        const c = this.chipGeo
+        return Math.round(c.padStart + c.dot + c.gap + measureText(s, ({ fontSize: c.fontSize, fontWeight: "medium", fontFamily: app.uiFace })).width + c.padEnd)
+        },
+
+    // ── the cast's looks
+
+    look(i: number, x: number, y: number, w: number, h: number, r: number) -> Pose {
+        return ({ id: i, x: x, y: y, w: w, h: h, a: 1, tone: i, chip: 0, zoom: 1, label: "",
+            rc: [r, r, r, r], grad: 0, light: 0, sw: 0, sides: 0, lift: 0, rot: 0, pivot: 0, drawn: 0, head: 0 })
+        },
+    hidden(i: number) -> Pose { return ({ ...this.look(i, 0, 0, 0, 0, 10), a: 0 }) },
+    box(i: number, x: number, y: number, w: number, h: number) -> Pose { return this.look(i, x, y, w, h, 10) },
+    chip(i: number, x: number, y: number, label: string) -> Pose {
+        return ({ ...this.look(i, x, y, this.chipW(label), this.chipGeo.chipH, this.chipGeo.chipR), chip: 1, label: label })
+        },
+    heading(i: number, x: number, y: number, label: string) -> Pose {
+        return ({ ...this.chip(i, x, y, label), head: 1, w: this.chipW(label) - this.chipGeo.padStart - this.chipGeo.dot - this.chipGeo.gap, h: 28 })
+        },
+    frame(x: number, y: number, w: number, h: number) -> Frame {
+        return ({ x: x, y: y, w: w, h: h, a: 1, solid: 0, r: 14, zoom: 1, blur: 0, gray: 0, hue: 0 })
+        },
+
+    // the whole stage, unpainted: where the chips stand, seen at `zoom`
+
+    open(zoom: number) -> Frame { return ({ ...this.frame(0, 0, STAGE_W, STAGE_H), a: 0, r: 0, zoom: zoom }) },
+    note(id: string, kind: "label" | "tag" | "warn" | "code" | "dot" | "hdim" | "vdim" | "vdimr" | "frame" | "arrow" | "ray",
+    x: number, y: number, w: number, h: number, text: string) -> Note {
+    return ({ id: id, kind: kind, x: x, y: y, w: w, h: h, text: text })
+        },
+
+    // ── arrangements the chip screens share
+
+    // a row of chips, centered on the stage
+
+    chipRow(labels: string[], pieces: number[], y: number) -> Pose[] {
+        const ws = labels.map((s) => this.chipW(s))
+        let x = (STAGE_W - ws.reduce((a, b) => a + b, 0) - 10 * (labels.length - 1)) / 2
+        return labels.map((s, i) => {
+            const p = this.chip(pieces[i], x, y, s)
+            x = x + ws[i] + 10
+            return p
+            })
+        },
+
+    // six chips on a circle of the glide screen's radius, or in its grid
+
+    chipRing() -> Pose[] {
+        const g = this.geo("glide"), r = g.r ?? 120
+        return app.labels.map((s, i) => {
+            const a = 2 * Math.PI * i / app.labels.length
+            return this.chip(i, STAGE_W / 2 + r * Math.cos(a) - this.chipW(s) / 2, STAGE_H / 2 + r * Math.sin(a) - this.chipGeo.chipH / 2, s)
+            })
+        },
+    chipGrid() -> Pose[] {
+        const g = this.geo("glide"), cell = g.cell ?? 110, rowH = g.rowH ?? 48
+        return app.labels.map((s, i) => this.chip(i, STAGE_W / 2 - 1.5 * cell + (i % 3) * cell, STAGE_H / 2 - rowH + Math.floor(i / 3) * rowH, s))
+        },
+
+    // ── each screen's pose
+    //
+    // A pose names the pieces it shows; the others are hidden (`scene`, below,
+    // gives them a place).
+
+    raw(step: string) -> Scene {
+        const c = app.choices.value
+        const g = this.geo(step)
+        const k = [0, 1, 2, 3, 4, 5].map((i) => this.hidden(i))
+        const n: Note[] = []
+        let p = this.frame(120, 60, 360, 280)
+        let wordsA = 0, glass = 0
+        const put = (pieces: Pose[]) => { pieces.forEach((q) => { k[q.id] = q }) }
+        switch (step) {
+            case "view": {
+                p = ({ ...this.frame((g.x ?? 0) + c.dx, (g.y ?? 0) + c.dy, g.w ?? 0, g.h ?? 0), solid: 1, r: g.r ?? 0 })
+                n.push(this.note("origin", "label", -2, -18, 1, 1, "0, 0"))
+                n.push(this.note("xy", "ray", 0, 0, p.x, p.y, `x ${p.x}, y ${p.y}`))
+                n.push(this.note("w", "hdim", p.x, p.y - 14, p.w, 1, `width ${p.w}`))
+                n.push(this.note("h", "vdim", p.x - 14, p.y, 1, p.h, `height ${p.h}`))
+                break
+                }
+            case "content": {
+                const v = this.geo("view")
+                p = ({ ...this.frame(v.x ?? 0, v.y ?? 0, v.w ?? 0, v.h ?? 0), a: 0, solid: 1, r: v.r ?? 0 })
+                wordsA = 1
+                const tw = Math.round(app.wordsW), th = Math.round(app.wordsH), x = g.x ?? 0, y = g.y ?? 0
+                n.push(this.note("frame", "frame", x, y, tw, th, ""))
+                n.push(this.note("w", "hdim", x, y - 14, tw, 1, `width ${tw}: its words`))
+                n.push(this.note("h", "vdim", x - 14, y, 1, th, `height ${th}`))
+                break
+                }
+            case "children": {
+                p = this.frame((g.x ?? 0) + c.dx, (g.y ?? 0) + c.dy, g.w ?? 0, g.h ?? 0)
+                put(this.ab(g))
+                n.push(this.note("origin", "label", p.x + 6, p.y + 4, 1, 1, "0, 0"))
+                n.push(this.note("bx", "hdim", p.x, p.y + (g.by ?? 0) + (g.bh ?? 0) + 18, g.bx ?? 0, 1, `x ${g.bx}`))
+                n.push(this.note("by", "vdimr", p.x + (g.bx ?? 0) + (g.bw ?? 0) + 14, p.y, 1, g.by ?? 0, `y ${g.by}`))
+                break
+                }
+            case "order": {
+                p = this.frame(g.x ?? 0, g.y ?? 0, g.w ?? 0, g.h ?? 0)
+                const ab = this.ab(g)
+                const a = ab[0], b = ab[1]
+                // the one written later is on top: its record comes later in the cast
+                if (c.swapped) { k[0] = b; k[1] = a } else { k[0] = a; k[1] = b }
+                const top = c.swapped ? a : b
+                n.push(this.note("top", "tag", p.x + top.x + 10, p.y + top.y + top.h + 10, 1, 1,
+                    (c.swapped ? "a" : "b") + " is written later, so it is on top"))
+                return ({ p: p, wordsA: 0, k: k, glass: 0, frost: 0, notes: n })
+                }
+            case "relation": {
+                const w = c.panelWidth, inset = g.inset ?? 0, bw = g.bw ?? 0
+                p = this.frame(g.x ?? 0, g.y ?? 0, w, g.h ?? 0)
+                put([this.box(0, g.ax ?? 0, g.ay ?? 0, g.aw ?? 0, g.ah ?? 0), this.box(1, w - bw - inset, g.by ?? 0, bw, g.bh ?? 0)])
+                n.push(this.note("gap", "hdim", p.x + w - inset, p.y + (g.by ?? 0) + (g.bh ?? 0) + 24, inset, 1, "" + inset))
+                n.push(this.note("rel", "tag", p.x + 24, p.y + (g.h ?? 0) + 16, 1, 1, "b's x follows the parent's width"))
+                break
+                }
+            case "readers": {
+                p = this.open(1)
+                const z = c.size, h = g.h ?? 0, gap = g.gap ?? 0
+                const x0 = (STAGE_W - (z + 2 * z + h + 2 * gap)) / 2, y0 = 150
+                put([this.box(0, x0, y0, z, h), this.box(1, x0 + z + gap, y0, 2 * z, h), this.box(2, x0 + 3 * z + 2 * gap, y0, h, z)])
+                n.push(this.note("say", "label", 0, y0 - 44, STAGE_W, 1, `app.size = ${z}: three readers follow it`))
+                break
+                }
+            case "spring": {
+                p = this.open(1)
+                const w = (g.w ?? 0) + (g.grow ?? 0) * app.openT
+                k[0] = this.box(0, 120, 160, w, g.h ?? 0)
+                n.push(this.note("say", "label", 0, 116, STAGE_W, 1, `t = ${app.openT.toFixed(2)}`))
+                n.push(this.note("w", "hdim", 120, 262, w, 1, ""))
+                break
+                }
+            case "layout": {
+                const col = c.axis == "y", ws = this.widths(g), h = g.h ?? 0, gap = g.gap ?? 0
+                const pw = col ? Math.max(...ws) : ws.reduce((a, b) => a + b, 0) + gap * (ws.length - 1)
+                const ph = col ? ws.length * h + gap * (ws.length - 1) : h
+                p = this.frame((STAGE_W - pw) / 2, (STAGE_H - ph) / 2, pw, ph)
+                let at = 0
+                ws.forEach((w, i) => {
+                    k[i] = col ? this.box(i, 0, at, w, h) : this.box(i, at, 0, w, h)
+                    at = at + (col ? h : w) + gap
+                    })
+                if (col) n.push(this.note("sp", "vdim", p.x - 14, p.y + h, 1, gap, `spacing ${gap}`))
+                else n.push(this.note("sp", "hdim", p.x + ws[0], p.y - 14, gap, 1, `spacing ${gap}`))
+                n.push(this.note("nox", "label", p.x, p.y + ph + 18, pw, 1, "no x, no y on the children"))
+                break
+                }
+            case "align": {
+                const ws = this.widths(g), h = g.h ?? 0, gap = g.gap ?? 0
+                const pw = Math.max(...ws), ph = ws.length * h + gap * (ws.length - 1)
+                p = this.frame((STAGE_W - pw) / 2, (STAGE_H - ph) / 2, pw, ph)
+                ws.forEach((w, i) => { k[i] = this.box(i, this.alignOffset(c.align, pw, w), i * (h + gap), w, h) })
+                n.push(this.note("along", "arrow", p.x - 28, p.y, 0, ph, "along: the layout"))
+                n.push(this.note("across", "arrow", p.x, p.y + ph + 26, pw, 0, "across: align"))
+                break
+                }
+            case "flexes":
+            case "decider": {
+                const w = c.rowWidth, w0 = g.w0 ?? 0, w2 = g.w2 ?? 0, h = g.h ?? 0, gap = g.gap ?? 0
+                const flex = w - w0 - w2 - 2 * gap
+                p = this.frame((STAGE_W - w) / 2, 160, w, h)
+                put([this.box(0, 0, 0, w0, h), this.box(1, w0 + gap, 0, flex, h), this.box(2, w - w2, 0, w2, h)])
+                if (step == "flexes") n.push(this.note("left", "hdim", p.x + w0 + gap, p.y - 14, flex, 1, `flexes: what is left, ${flex}`))
+                else {
+                    n.push(this.note("dp", "tag", p.x, p.y - 40, 1, 1, "parent — width: itself · height: its content"))
+                    n.push(this.note("d0", "tag", p.x, p.y + h + 12, 1, 1, "width: itself"))
+                    n.push(this.note("d1", "tag", p.x + w0 + gap, p.y + h + 44, 1, 1, "width: the layout"))
+                    n.push(this.note("d2", "tag", p.x + w - w2, p.y + h + 12, 1, 1, "width: itself"))
+                    n.push(this.note("no", "warn", p.x, p.y + h + 94, 1, 1, "x = 40 is refused: in a row, the layout places x"))
+                }
+                break
+                }
+            case "padding": {
+                const pad = c.padding, w = g.w ?? 0, h = g.h ?? 0, gap = g.gap ?? 0
+                const ph = 2 * pad + 3 * h + 2 * gap
+                p = this.frame(80, (STAGE_H - ph) / 2, w, ph)
+                for (let i = 0; i < 3; i++) k[i] = this.box(i, pad, pad + i * (h + gap), w - 2 * pad, h)
+                n.push(this.note("inner", "hdim", p.x + pad, p.y + ph + 30, w - 2 * pad, 1, `100% = ${w - 2 * pad}`))
+                n.push(this.note("pad", "hdim", p.x, p.y - 14, Math.max(pad, 1), 1, `padding ${pad}`))
+                break
+                }
+            case "scroll": {
+                const w = g.w ?? 0, h = g.h ?? 0, pad = g.pad ?? 0, rowH = g.rowH ?? 0, gap = g.gap ?? 0
+                p = this.frame((STAGE_W - w) / 2, (STAGE_H - h) / 2, w, h)
+                for (let i = 0; i < 6; i++) k[i] = this.box(i, pad, pad + i * (rowH + gap), w - 2 * pad, rowH)
+                n.push(this.note("ph", "vdimr", p.x + w + 14, p.y, 1, h, `height ${h}`))
+                n.push(this.note("sc", "tag", p.x, p.y + h + 10, 1, 1, `six children, ${2 * pad + 6 * rowH + 5 * gap} tall: the rest scrolls`))
+                break
+                }
+            case "fill":
+            case "stroke":
+            case "corners":
+            case "shadow": {
+                p = this.open(1)
+                const w = g.w ?? 0, h = g.h ?? 0, x = (STAGE_W - w) / 2, y = (STAGE_H - h) / 2, r = g.r ?? 0
+                const b = this.look(0, x, y, w, h, 0)
+                if (step == "fill") k[0] = ({ ...b, grad: c.fill == "gradient" ? 1 : 0 })
+                if (step == "stroke") {
+                    k[0] = ({ ...b, light: 1, sw: 4, sides: c.sides == "bottom" ? 1 : 0 })
+                    n.push(this.note("w", "hdim", x, y - 14, w, 1, `width ${w}, with the stroke inside`))
+                    n.push(this.note("frame", "frame", x, y, w, h, ""))
+                    }
+                if (step == "corners") k[0] = ({ ...b, rc: this.cornersOf(c.corners) })
+                if (step == "shadow") k[0] = ({ ...b, light: 1, rc: [r, r, r, r], lift: c.lift })
+                break
+                }
+            case "presence": {
+                const gone = c.presence == "hidden", w = g.w ?? 0, h = g.h ?? 0, gap = g.gap ?? 0
+                const pw = gone ? 2 * w + gap : 3 * w + 2 * gap
+                p = ({ ...this.frame((STAGE_W - pw) / 2, 160, pw, h), a: 0 })
+                put([this.box(0, 0, 0, w, h), ({ ...this.box(1, gone ? (w + gap) / 2 : w + gap, 0, w, h), a: this.presenceAlpha(c.presence) }),
+                    this.box(2, gone ? w + gap : 2 * (w + gap), 0, w, h)])
+                n.push(this.note("say", "label", 0, 124, STAGE_W, 1, this.presenceSays(c.presence)))
+                break
+                }
+            case "draw": {
+                p = this.open(1)
+                const s = g.size ?? 0
+                k[0] = ({ ...this.look(0, (STAGE_W - s) / 2, (STAGE_H - s) / 2, s, s, 0), drawn: 1 })
+                n.push(this.note("say", "label", 0, (STAGE_H + s) / 2 + 20, STAGE_W, 1, `done = ${c.done.toFixed(2)}`))
+                break
+                }
+            case "clip": {
+                p = this.frame(g.x ?? 0, g.y ?? 0, g.w ?? 0, g.h ?? 0)
+                put(this.ab(g))
+                n.push(this.note("cl", "tag", p.x, p.y + (g.h ?? 0) + 16, 1, 1, this.clipSays(c.clip)))
+                break
+                }
+            case "scale": {
+                // the row packs each child's box as scaled about its middle, and
+                // centers it across, as SimpleLayout does
+                const s = c.scaleBy, w = g.w ?? 0, h = g.h ?? 0, gap = g.gap ?? 0
+                const rowH = Math.max(h, h * s), pw = w + gap + w * s + gap + w
+                p = this.frame((STAGE_W - pw) / 2, (STAGE_H - rowH) / 2, pw, rowH)
+                put([this.box(0, 0, (rowH - h) / 2, w, h), ({ ...this.box(1, w + gap - w * (1 - s) / 2, (rowH - h) / 2, w, h), zoom: s }),
+                    this.box(2, w + gap + w * s + gap, (rowH - h) / 2, w, h)])
+                n.push(this.note("sw", "hdim", p.x + w + gap, p.y - 14, w * s, 1, `${Math.round(w * s)} wide, as seen`))
+                n.push(this.note("sl", "label", p.x, p.y + rowH + 18, pw, 1, "the row packs what you see"))
+                break
+                }
+            case "rotate": {
+                p = this.open(1)
+                const corner = c.pivot == "corner", w = g.w ?? 0, h = g.h ?? 0
+                const x = (STAGE_W - w) / 2, y = (STAGE_H - h) / 2
+                k[0] = ({ ...this.look(0, x, y, w, h, 0), rot: c.turn, pivot: corner ? 1 : 0 })
+                n.push(this.note("frame", "frame", x, y, w, h, ""))
+                n.push(this.note("pivot", "dot", corner ? x : x + w / 2, corner ? y : y + h / 2, 1, 1, "pivot"))
+                break
+                }
+            case "filter": {
+                const w = g.w ?? 0, h = g.h ?? 0, gap = g.gap ?? 0, pw = 3 * w + 2 * gap
+                p = ({ ...this.frame((STAGE_W - pw) / 2, 160, pw, h), a: 0,
+                    blur: c.filter == "blur" ? 4 : 0, gray: c.filter == "grayscale" ? 1 : 0, hue: c.filter == "hue" ? 120 : 0 })
+                for (let i = 0; i < 3; i++) k[i] = this.box(i, i * (w + gap), 0, w, h)
+                break
+                }
+            case "frost": {
+                p = this.open(1)
+                put([this.box(0, 130, 110, 120, 120), this.box(1, 230, 180, 150, 90), this.box(2, 350, 120, 110, 130),
+                    this.look(3, 280, 90, 70, 70, 35)])
+                glass = 1
+                break
+                }
+            case "chip": {
+                p = this.open(1)
+                const cg = this.chipGeo, w = this.chipW("Design"), z = 2.2
+                k[0] = ({ ...this.chip(0, STAGE_W / 2 - w / 2, STAGE_H / 2 - cg.chipH / 2, "Design"), zoom: z })
+                const left = STAGE_W / 2 - w * z / 2, top = STAGE_H / 2 - cg.chipH * z / 2
+                const dotX = left + (cg.padStart + cg.dot / 2) * z
+                const textX = left + (cg.padStart + cg.dot + cg.gap) * z
+                n.push(this.note("pChip", "arrow", STAGE_W / 2 - 120, 70, 100, top - 74, "View: rounded, with a row layout"))
+                n.push(this.note("pDot", "arrow", dotX - 60, 320, 60, -(320 - STAGE_H / 2 - 8), "View: the dot"))
+                n.push(this.note("pText", "arrow", textX + 120, 320, -90, -(320 - STAGE_H / 2 - 12), "Text: the label"))
+                break
+                }
+            case "class":
+            case "attrs":
+            case "control":
+            case "state": {
+                p = this.open(ZOOM)
+                const same = step == "class", y = STAGE_H / 2 - this.chipGeo.chipH / 2
+                const row = this.chipRow(same ? ["Design", "Design", "Design"] : app.labels.slice(0, 3), [0, 1, 2], y)
+                put(same ? row.map((q) => ({ ...q, tone: 0 })) : row)
+                n.push(this.note("say", "label", 0, y - this.chipGeo.chipH * (ZOOM - 1) / 2 - 44, STAGE_W, 1, this.chipsSay(step)))
+                break
+                }
+            case "bind": {
+                p = this.open(ZOOM)
+                const w = this.chipW(c.label)
+                k[0] = this.chip(0, STAGE_W / 2 - w / 2, STAGE_H / 2 - this.chipGeo.chipH / 2 + 20, c.label)
+                n.push(this.note("rec", "code", STAGE_W / 2 - 110, 70, 1, 1, `{ "id": 1, "label": "${c.label}" }`))
+                n.push(this.note("ptr", "arrow", STAGE_W / 2, 108, 0, 54, ""))
+                break
+                }
+            case "replicate":
+            case "change":
+            case "derive": {
+                p = this.open(ZOOM)
+                const y = STAGE_H / 2 - this.chipGeo.chipH / 2
+                const shown = this.recordsShown(step)
+                put(this.chipRow(shown.map((r) => r.label), shown.map((r) => app.labels.indexOf(r.label)), y))
+                // a chip not shown waits, unseen, where it would come in: on the
+                // derive screen, in the other filter's row; else at the row's start
+                const others = step == "derive" ? app.records.all().filter((r) => r.status != c.status) : []
+                const otherRow = this.chipRow(others.map((r) => r.label), others.map((r) => app.labels.indexOf(r.label)), y)
+                const start = k.find((q) => q.a > 0)?.x ?? STAGE_W / 2
+                app.labels.forEach((l, i) => {
+                    if (shown.some((r) => r.label == l)) return
+                    k[i] = ({ ...this.chip(i, otherRow.find((q) => q.id == i)?.x ?? start, y, l), a: 0 })
+                    })
+                n.push(this.note("say", "label", 0, y - this.chipGeo.chipH * (ZOOM - 1) / 2 - 44, STAGE_W, 1, this.recordsSay(step, shown.length)))
+                break
+                }
+            case "kinds": {
+                p = this.open(1)
+                const x0 = 240
+                put([this.heading(4, x0, 76, "Doing"), this.chip(0, x0, 110, "Design"), this.chip(1, x0, 154, "Build"),
+                    this.heading(5, x0, 206, "Done"), this.chip(2, x0, 240, "Ship"), this.chip(3, x0, 284, "Test")])
+                n.push(this.note("h", "tag", x0 + 130, 80, 1, 1, "kind: head → Heading"))
+                n.push(this.note("c", "tag", x0 + 130, 118, 1, 1, "anything else → Chip"))
+                break
+                }
+            case "own": {
+                p = this.open(ZOOM)
+                put(this.chipRing())
+                n.push(this.note("say", "label", 0, STAGE_H / 2 - 8, STAGE_W, 1, "place(): a box for each child"))
+                break
+                }
+            case "glide": {
+                p = this.open(ZOOM)
+                put(c.round ? this.chipRing() : this.chipGrid())
+                const rowH = this.geo("glide").rowH ?? 48
+                n.push(this.note("say", "label", 0, c.round ? STAGE_H / 2 - 8 : STAGE_H / 2 - rowH * ZOOM - 44, STAGE_W, 1,
+                    c.round ? "round = true" : "round = false"))
+                break
+                }
+            }
+        return ({ p: p, wordsA: wordsA, k: k, glass: glass, frost: glass * (c.frost ? 1 : 0), notes: n })
+        },
+
+    // the two boxes of the screens that name them a and b
+
+    ab(g: Geo) -> Pose[] {
+        return [this.box(0, g.ax ?? 0, g.ay ?? 0, g.aw ?? 0, g.ah ?? 0), this.box(1, g.bx ?? 0, g.by ?? 0, g.bw ?? 0, g.bh ?? 0)]
+        },
+    widths(g: Geo) -> number[] { return [g.w0 ?? 0, g.w1 ?? 0, g.w2 ?? 0] },
+    alignOffset(align: string, room: number, w: number) -> number {
+        if (align == "center") return (room - w) / 2
+        return align == "end" ? room - w : 0
+        },
+    cornersOf(m: string) -> number[] {
+        if (m == "four") return [48, 0, 48, 0]
+        return m == "pill" ? [80, 80, 80, 80] : [24, 24, 24, 24]
+        },
+    presenceAlpha(m: string) -> number {
+        if (m == "faded") return 0.25
+        return m == "shown" ? 1 : 0
+        },
+    recordsShown(step: string) -> Item[] {
+        if (step == "change") return app.records.all()
+        if (step == "derive") return app.records.all().filter((r) => r.status == app.choices.value.status)
+        return app.records.all().slice(0, 4)
+        },
+
+    // what the notes say
+
+    presenceSays(m: string) -> string {
+        switch (m) {
+            case "faded": return "faded: still in the row"
+            case "clear": return "opacity 0: unseen, and still in the row"
+            case "hidden": return "visible = false: out of the row"
+            default: return "every box in the row"
+            }
+        },
+    clipSays(m: string) -> string {
+        switch (m) {
+            case "box": return "clip = true: cut to the parent's box"
+            case "shape": return "a shape: a press outside it reaches what is beneath"
+            default: return "a and b paint past the parent's edge"
+            }
+        },
+    chipsSay(step: string) -> string {
+        switch (step) {
+            case "class": return "Chip [ ] three times: three views, one class"
+            case "attrs": return "each use sets its label and tone"
+            case "control": return `pressed ${app.presses} ${app.presses == 1 ? "time" : "times"}`
+            default: return "on: the State holds while it is true"
+            }
+        },
+    recordsSay(step: string, count: number) -> string {
+        switch (step) {
+            case "change": return `${count} records, ${count} chips`
+            case "derive": return `the records whose status is "${app.choices.value.status}"`
+            default: return "one Chip for each record"
+            }
+        },
+
+    // The irregular clip: a star in the parent's own space.
+
+    clipShape(w: number, h: number) -> string {
+        const pts = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => {
+            const a = -Math.PI / 2 + Math.PI * i / 5
+            const rx = i % 2 == 0 ? w * 0.49 : w * 0.22, ry = i % 2 == 0 ? h * 0.49 : h * 0.22
+            return Math.round(w / 2 + rx * Math.cos(a)) + " " + Math.round(h / 2 + ry * Math.sin(a))
+            })
+        return "M " + pts.join(" L ") + " Z"
+        },
+
+    // What the parent clips to: on the clip screen, what the reader chose; as
+    // the reader leaves the scrolling pane, its box, so its rows stay inside it
+    // while they fade; else nothing.
+
+    clipFor(w: number, h: number) -> string | true | null {
+        if (app.prevStep == "scroll" && app.stepId != "scroll") return true
+        if (app.stepId != "clip" || app.choices.value.clip == "none") return null
+        return app.choices.value.clip == "box" ? true : this.clipShape(w, h)
+        },
+
+    // A screen's pose, with a place for every piece it leaves out. A piece the
+    // screen before showed fades where it was, as it was; any other waits,
+    // unseen, where it next appears, so it comes in where it belongs.
+
+    scene(step: string) -> Scene {
+        const s = this.raw(step)
+        const before = app.prevStep != step ? this.raw(app.prevStep) : null
+        const order = app.order
+        const at = order.indexOf(step)
+        const ahead = [...order.slice(at + 1), ...order.slice(0, Math.max(0, at)).reverse()]
+        const k = s.k.map((piece) => {
+            if (piece.a > 0) return piece
+            const was = before?.k.find((q) => q.id == piece.id)
+            if (was != null && was.a > 0) return ({ ...was, a: 0 })
+            for (const other of ahead) {
+                const q = this.raw(other).k.find((r) => r.id == piece.id)
+                if (q != null && q.a > 0) return ({ ...q, a: 0 })
+                }
+            return piece
+            })
+        return ({ ...s, k: k })
+        }
+    ]
+
+
+// ── The cast ────────────────────────────────────────────────────────────────
+
+// The motion every member shares: a screen change glides; a drag, and the
+// spring screen's own spring, are followed closely.
+
+class Glide extends Spring [ stiffness = { app.following ? 1400 : 170 }, damping = { app.following ? 75 : 24 } ]
+
+// A piece: a box that can become a chip, a drawing or a heading. It is a
+// Control throughout, so the chips press and hover as real controls; on the
+// screens before they do, it is disabled — out of reach and out of the Tab
+// order — and presses pass through it to the parent.
+
+class Piece extends Control [
+    pose: Pose = { :@ },
+    disabled = { !app.chipsLive || classroot.pose.a < 0.5 },
+    visible = { classroot.pose.a > 0 || this.opacity > 0.01 },
+    pointerEvents = { app.chipsLive ? "auto" : "none" },
+    accessibilityLabel = { classroot.pose.label },
+
+    // the chip's own flag, for the screens whose chips toggle
+
+    on: boolean = false,
+    accessibilityPressed = { app.chipsToggle ? classroot.on : null },
+    press() {
+        if (app.chipsToggle) on = !on
+        else app.presses = app.presses + 1
+        },
+
+    // the place, the turn and the opacity
+
+    Glide [ attribute = x, to = { classroot.pose.x } ],
+    Glide [ attribute = y, to = { classroot.pose.y } ],
+    Glide [ attribute = width, to = { classroot.pose.w } ],
+    Glide [ attribute = height, to = { classroot.pose.h } ],
+    Glide [ attribute = scale, to = { classroot.pose.zoom } ],
+    Glide [ attribute = rotation, to = { classroot.pose.rot } ],
+    Glide [ attribute = opacity, to = { classroot.pose.a } ],
+
+    // the looks, each an amount from 0 to 1, and the corners
+
+    chipT: number = 0,
+    onT: number = 0,
+    gradT: number = 0,
+    lightT: number = 0,
+    drawnT: number = 0,
+    headT: number = 0,
+    liftT: number = 0,
+    pivotT: number = 0,
+    strokeWidth: number = 0,
+    c0: number = 10,
+    c1: number = 10,
+    c2: number = 10,
+    c3: number = 10,
+    Glide [ attribute = chipT, to = { classroot.pose.chip } ],
+    Glide [ attribute = onT, to = { classroot.on && app.chipsToggle ? 1 : 0 } ],
+    Glide [ attribute = gradT, to = { classroot.pose.grad } ],
+    Glide [ attribute = lightT, to = { classroot.pose.light } ],
+    Glide [ attribute = drawnT, to = { classroot.pose.drawn } ],
+    Glide [ attribute = headT, to = { classroot.pose.head } ],
+    Glide [ attribute = liftT, to = { classroot.pose.lift } ],
+    Glide [ attribute = pivotT, to = { classroot.pose.pivot } ],
+    Glide [ attribute = strokeWidth, to = { classroot.pose.sw } ],
+    Glide [ attribute = c0, to = { classroot.pose.rc[0] } ],
+    Glide [ attribute = c1, to = { classroot.pose.rc[1] } ],
+    Glide [ attribute = c2, to = { classroot.pose.rc[2] } ],
+    Glide [ attribute = c3, to = { classroot.pose.rc[3] } ],
+    corners: [number, number, number, number] = { [classroot.c0, classroot.c1, classroot.c2, classroot.c3] },
+    cornerRadius = { classroot.corners },
+
+    // turned about its middle, or its top-left corner
+
+    pivotX = { this.width / 2 * (1 - classroot.pivotT) },
+    pivotY = { this.height / 2 * (1 - classroot.pivotT) },
+    shadow = { classroot.liftT > 0.01
+        ? Shadow(0, 2 + 14 * classroot.liftT, 4 + 36 * classroot.liftT, Color.withAlpha(0x000000, 0.28 * classroot.liftT)) : null },
+    tone: Color = { provided("theme").tones[classroot.pose.tone] },
+    boxT: number = { (1 - classroot.chipT) * (1 - classroot.drawnT) },
+
+    // a plain box: its tone, or a gradient from it
+
+    box: View [ width = 100%, height = 100%, cornerRadius = { classroot.corners },
+        fill = { classroot.tone }, opacity = { classroot.boxT * (1 - classroot.lightT) } ],
+    grad: View [ width = 100%, height = 100%, cornerRadius = { classroot.corners },
+        visible = { this.opacity > 0.01 },
+        fill = { Gradient.linear("135deg", classroot.tone, provided("theme").tones[4]) },
+        opacity = { classroot.boxT * classroot.gradT } ],
+
+    // a light face, with a stroke on every side or the bottom alone
+
+    light: View [ width = 100%, height = 100%, cornerRadius = { classroot.corners },
+        visible = { this.opacity > 0.01 },
+        fill = { Color.from(app.paint.box) },
+        stroke = { classroot.strokeWidth < 0.2 ? null : classroot.pose.sides == 1
+            ? [null, null, Stroke(classroot.strokeWidth, provided("theme").tones[0]), null] : Stroke(classroot.strokeWidth, provided("theme").tones[0]) },
+        opacity = { classroot.boxT * classroot.lightT } ],
+
+    // drawn: the draw screen's ring
+
+    drawing: Ring [ x = center, y = center, visible = { classroot.drawnT > 0.01 }, opacity = { classroot.drawnT } ],
+
+    // a chip: a light face and its row — or its tone, while on; a heading
+    // keeps only the label
+
+    face: View [ width = 100%, height = 100%, cornerRadius = { classroot.corners },
+        fill = { classroot.pressed ? provided("theme").chipFillPressed : classroot.hovered ? provided("theme").chipFillHovered : provided("theme").chipFill },
+        stroke = { Stroke(1, provided("theme").chipStrokeColor) },
+        opacity = { classroot.chipT * (1 - classroot.headT) } ],
+    onFace: View [ width = 100%, height = 100%, cornerRadius = { classroot.corners },
+        fill = { classroot.tone }, opacity = { classroot.chipT * classroot.onT } ],
+    row: ChipRow [ height = 100%, opacity = { classroot.chipT } ],
+
+    Outline [ ]
+    ]
+
+
+// The chip's row: the dot and the label laid out by SimpleLayout, its padding
+// and gap the chip's own (`chipGeo`) — the chip the chip screens' code builds.
+// A heading folds the dot away.
+
+class ChipRow [
+    g: ChipGeo = { app.director.chipGeo },
+    piece: Piece = { parent as Piece },
+    fold: number = { 1 - classroot.piece.headT },
+    padding = { [0, classroot.g.padEnd, 0, classroot.g.padStart * classroot.fold] },
+    layout: SimpleLayout [ axis = x, spacing = { classroot.g.gap * classroot.fold }, align = center ],
+    dot: View [ width = { classroot.g.dot * classroot.fold }, height = { classroot.g.dot }, cornerRadius = { classroot.g.dotR },
+        fill = { classroot.piece.tone }, opacity = { classroot.fold } ],
+    words: Words [ text = { classroot.piece.pose.label }, size = { classroot.g.fontSize },
+        ink = { Color.mix(Color.mix(provided("theme").chipTextColor, 0xFFFFFF, classroot.piece.onT), provided("theme").textMuted, classroot.piece.headT) } ]
+    ]
+
+
+// Words that cross-fade when they change: two runs, one showing, the other
+// leaving. A Text shows its new words at once; the fade is the two runs.
+
+class Words [
+    text: string = "",
+    size: number = 15,
+    ink: Color = black,
+    first: string = "",
+    second: string = "",
+    onFirst: boolean = true,
+    firstT: number = 1,
+    Glide [ attribute = firstT, to = { classroot.onFirst ? 1 : 0 } ],
+    trackChanges = ["text"],
+    onChange() { if (onFirst) { second = text; onFirst = false } else { first = text; onFirst = true } },
+    onInit() { first = text },
+    a: Text [ fontSize = { classroot.size }, fontWeight = medium, wrap = false, textColor = { classroot.ink },
+        opacity = { classroot.firstT }, text = { classroot.first } ],
+    b: Text [ ignoreLayout = true, fontSize = { classroot.size }, fontWeight = medium, wrap = false, textColor = { classroot.ink },
+        opacity = { 1 - classroot.firstT }, text = { classroot.second } ]
+    ]
+
+
+// The draw screen's ring, at the size its code gives (`geo`): how much is done,
+// as an arc. Its size never moves, so it draws again only when `done` changes.
+
+class Ring [
+    g: Geo = { app.director.geo("draw") },
+    width = { this.g.size ?? 160 }, height = { this.width },
+    draw(d: DrawContext) {
+        d.lineWidth = g.line ?? 16
+        d.lineCap = "round"
+        d.strokeStyle = provided("theme").stageStrokeColor
+        d.beginPath()
+        d.arc(d.w / 2, d.h / 2, g.r ?? 60, 0, 2 * Math.PI)
+        d.stroke()
+        d.strokeStyle = provided("theme").tones[0]
+        d.beginPath()
+        d.arc(d.w / 2, d.h / 2, g.r ?? 60, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * Math.max(0.001, app.choices.value.done))
+        d.stroke()
+        }
+    ]
+
+
+// The x-ray: a hairline round any member and its size, while the reader asks.
+
+class Outline [ width = 100%, height = 100%, visible = { app.outlines },
+    stroke = { Stroke(1, Color.withAlpha(provided("theme").noteInk, 0.7)) },
+    TextLabel [ x = 4, y = 3, fontSize = 10, fontFamily = { app.monoFace }, textColor = { provided("theme").noteInk },
+        text = { Math.round(classroot.width) + " × " + Math.round(classroot.height) } ]
+    ]
+
+
+// ── The notes ───────────────────────────────────────────────────────────────
+//
+// A note is a record (Director.note): a measure, a pointer, a frame, a tag or a
+// label. Each kind is its own class over one base, which places it on springs
+// and fades it in and out; `classFor` picks the class. None draws at a size that
+// is moving: its lines are thin views, turned and stretched.
+
+class NoteView [
+    kind: string = { :kind ?? "label" },
+    say: string = { :text ?? "" },
+    gone: boolean = { :gone ?? false },
+    gx: Glide [ attribute = x, to = { :x ?? 0 } ],
+    gy: Glide [ attribute = y, to = { :y ?? 0 } ],
+    gw: Glide [ attribute = width, to = { :w ?? 1 } ],
+    gh: Glide [ attribute = height, to = { :h ?? 1 } ],
+    Glide [ attribute = opacity, to = { classroot.gone ? 0 : 1 } ],
+    opacity = 0,
+    visible = { this.opacity > 0.01 || !classroot.gone },
+
+    // a new note takes its place at once, and only fades in
+
+    onInit() { gx.arrive(); gy.arrive(); gw.arrive(); gh.arrive() }
+    ]
+
+
+// the words a note says, in the notes' ink
+
+class NoteWords extends TextLabel [ fontSize = 12, fontWeight = medium, wrap = false,
+    textColor = { provided("theme").noteTextColor }
+    ]
+
+
+// a hairline, `length` long, turned by `angle` degrees about its start
+
+class Hairline [ height = 1.25, pivotX = 0, pivotY = 0.6,
+    length: number = 0,
+    angle: number = 0,
+    width = { Math.max(0, this.length) }, rotation = { this.angle },
+    fill = { provided("theme").noteInk }
+    ]
+
+
+// a width measured: a line with a tick at each end, its words above
+
+class WidthNote extends NoteView [
+    Hairline [ length = { classroot.width } ],
+    Hairline [ x = 0.6, y = -4, length = 8, angle = 90 ],
+    Hairline [ x = { classroot.width + 0.6 }, y = -4, length = 8, angle = 90 ],
+    NoteWords [ x = center, y = -20, text = { classroot.say } ]
+    ]
+
+
+// a height measured, its words to the left — or to the right, for `vdimr`
+
+class HeightNote extends NoteView [
+    right: boolean = { classroot.kind == "vdimr" },
+    Hairline [ x = 0.6, length = { classroot.height }, angle = 90 ],
+    Hairline [ x = -4, length = 8 ],
+    Hairline [ x = -4, y = { classroot.height }, length = 8 ],
+    NoteWords [ x = { classroot.right ? 8 : -this.width - 8 }, y = center, text = { classroot.say } ]
+    ]
+
+
+// a pointer from its corner to the far one: an arrow, its words at the start, or
+// a ray, its words beside its middle
+
+class PointerNote extends NoteView [
+    length: number = { Math.hypot(this.width, this.height) },
+    angle: number = { Math.atan2(this.height, this.width) * 180 / Math.PI },
+    Hairline [ length = { classroot.length }, angle = { classroot.angle } ],
+    Arrowhead [ x = { classroot.width - 9 }, y = { classroot.height - 5 }, rotation = { classroot.angle } ],
+    NoteWords [ text = { classroot.say },
+        x = { classroot.kind == "ray" ? classroot.width / 2 + 10 : -this.width / 2 },
+        y = { classroot.kind == "ray" ? classroot.height / 2 - this.height - 2 : classroot.height >= 0 ? -this.height - 6 : 6 } ]
+    ]
+
+
+// the head of a pointer: drawn once, at its own size, and turned about its tip
+
+class Arrowhead [ width = 10, height = 10, pivotX = 9, pivotY = 5,
+    draw(d: DrawContext) {
+        d.strokeStyle = provided("theme").noteInk
+        d.lineWidth = 1.25
+        d.beginPath()
+        d.moveTo(4, 1); d.lineTo(9, 5); d.lineTo(4, 9)
+        d.stroke()
+        }
+    ]
+
+
+// a box framed in a hairline
+
+class FrameNote extends NoteView [ stroke = { Stroke(1, Color.withAlpha(provided("theme").noteInk, 0.8)) } ]
+
+// a point marked, its words beside it
+
+class DotNote extends NoteView [
+    View [ x = -4.5, y = -4.5, width = 9, height = 9, cornerRadius = 4.5, fill = { provided("theme").noteInk } ],
+    NoteWords [ x = 9, y = { -this.height / 2 }, text = { classroot.say } ]
+    ]
+
+
+// words in a pill: a tag, a warning, or a record written out
+
+class TagNote extends NoteView [
+    pill: View [ x = -8, y = -5, padding = [5, 8, 5, 8], cornerRadius = 8,
+        fill = { classroot.kind == "warn" ? provided("theme").noteWarnFill : provided("theme").noteTagFill },
+        NoteWords [ text = { classroot.say }, fontFamily = { classroot.kind == "code" ? app.monoFace : app.uiFace },
+            textColor = { classroot.kind == "warn" ? provided("theme").noteWarnTextColor : provided("theme").noteTextColor } ]
+        ]
+    ]
+
+
+// words alone, centered on the note's span when it has one
+
+class LabelNote extends NoteView [
+    NoteWords [ x = { classroot.width > 1 ? (classroot.width - this.width) / 2 : 0 }, text = { classroot.say } ]
+    ]
+
+
+// ── The stage ───────────────────────────────────────────────────────────────
+
+// The parent's paint, where the box and the parent can be dragged — or moved
+// with the arrow keys, once it has the focus.
+
+class DragSurface [ width = 100%, height = 100%, visible = { app.dragKnob },
+    focusable = true, accessibilityRole = group, accessibilityLabel = "The box: drag it, or move it with the arrow keys",
+    cursor = "grab",
+    fromX: number = 0,
+    fromY: number = 0,
+    onDragStart(e: PointerEvent) { fromX = app.choices.value.dx; fromY = app.choices.value.dy; app.dragging = true },
+    onDrag(e: PointerEvent) { app.moveBox(fromX + e.deltaX, fromY + e.deltaY) },
+    onDragEnd(e: DragEndEvent) { app.dragging = false },
+    keyBindings = { [ ({ key: "ArrowLeft", command: "nudge", args: [-10, 0] }), ({ key: "ArrowRight", command: "nudge", args: [10, 0] }),
+        ({ key: "ArrowUp", command: "nudge", args: [0, -10] }), ({ key: "ArrowDown", command: "nudge", args: [0, 10] }) ] },
+    nudge(dx: number, dy: number) { app.moveBox(app.choices.value.dx + dx, app.choices.value.dy + dy) }
+    ]
+
+
+// The stage: the cast in its own space, STAGE_W by STAGE_H, scaled to fit where
+// it is shown. A faint grid of dots behind it is the space the first screens
+// measure in.
+
+class Stage [ width = { STAGE_W }, height = { STAGE_H },
+    grid: View [ width = 100%, height = 100%,
+        draw(d: DrawContext) {
+            d.fillStyle = provided("theme").gridDotFill
+            for (let y = 20; y < STAGE_H; y = y + 20) for (let x = 20; x < STAGE_W; x = x + 20) d.fillRect(x - 1, y - 1, 2, 2)
+            }
+        ],
+
+    // the parent: a box, then a container, then (for the chips) the whole
+    // stage, unpainted. Its pieces are its children, in the cast's order, which
+    // is their paint order.
+
+    p: View [
+        frame: Frame = { app.scene.p },
+        paintT: number = 1,
+        solidT: number = 1,
+        Glide [ attribute = x, to = { parent.frame.x } ],
+        Glide [ attribute = y, to = { parent.frame.y } ],
+        Glide [ attribute = width, to = { parent.frame.w } ],
+        Glide [ attribute = height, to = { parent.frame.h } ],
+        Glide [ attribute = cornerRadius, to = { parent.frame.r } ],
+        Glide [ attribute = paintT, to = { parent.frame.a } ],
+        Glide [ attribute = solidT, to = { parent.frame.solid } ],
+        Glide [ attribute = scale, to = { parent.frame.zoom } ],
+        pivotX = { this.width / 2 },
+        pivotY = { this.height / 2 },
+
+        // a filter over the parent and everything in it, from three amounts
+
+        blurT: number = 0,
+        grayT: number = 0,
+        hueT: number = 0,
+        Glide [ attribute = blurT, to = { parent.frame.blur } ],
+        Glide [ attribute = grayT, to = { parent.frame.gray } ],
+        Glide [ attribute = hueT, to = { parent.frame.hue } ],
+        visualFilter = { this.blurT + this.grayT + this.hueT < 0.01 ? null
+            : [VisualFilter.blur(this.blurT), VisualFilter.grayscale(this.grayT), VisualFilter.hueRotate(this.hueT)] },
+
+        // the scrolling screen's pane: the pane scrolls, and its bottom inset
+        // is the room past its last row (a scroller clips to its box)
+
+        scrolls = { app.stepId == "scroll" ? "y" : "none" },
+        padding = { app.stepId == "scroll" ? [0, 0, app.director.geo("scroll").pad ?? 0, 0] : 0 },
+        clip = { app.director.clipFor(this.width, this.height) },
+
+        // a container's paint is the parent's own, so it stays put when the
+        // parent scrolls; the first screen's solid box is a layer over it
+
+        containerT: number = { this.paintT * (1 - this.solidT) },
+        fill = { Color.withAlpha(Color.from(app.paint.panel), this.containerT) },
+        stroke = { Stroke(1.5, Color.withAlpha(provided("theme").containerStrokeColor, this.containerT)) },
+        solid: View [ width = 100%, height = 100%, cornerRadius = { parent.cornerRadius },
+            visible = { this.opacity > 0.01 },
+            fill = { provided("theme").tones[0] }, opacity = { parent.paintT * parent.solidT } ],
+        handle: DragSurface [ ],
+        pieces: View [ width = 100%, height = 100%, datapath = { app.cast.value },
+            Piece [ datapath = :k[] ]
+            ],
+        Outline [ visible = { app.outlines && parent.paintT > 0.5 } ]
+        ],
+
+    // a line of words, as large as they are
+
+    words: Text [ wrap = false, fontWeight = semibold, text = { app.choices.value.words },
+        g: Geo = { app.director.geo("content") },
+        x = { this.g.x ?? 150 }, y = { this.g.y ?? 180 }, fontSize = { this.g.size ?? 32 },
+        Glide [ attribute = opacity, to = { app.scene.wordsA } ],
+        Outline [ ]
+        ],
+
+    // the glass over the pieces, frosting what is behind it
+
+    glass: View [ pointerEvents = "none",
+        g: Geo = { app.director.geo("frost") },
+        width = { this.g.w ?? 260 }, height = { this.g.h ?? 120 }, cornerRadius = { this.g.r ?? 20 },
+        x = center, y = 140,
+        frostT: number = 0,
+        Glide [ attribute = frostT, to = { app.scene.frost } ],
+        Glide [ attribute = opacity, to = { app.scene.glass } ],
+        opacity = 0,
+        visible = { this.opacity > 0.01 },
+        fill = { provided("theme").glassFill },
+        stroke = { Stroke(1, provided("theme").glassStrokeColor) },
+        backdrop = { this.frostT > 0.01 ? VisualFilter.frost(14 * this.frostT, 1.5) : null }
+        ],
+
+    // the parent's right edge, to drag where its width is the point (a slider
+    // above the stage does the same from the keyboard)
+
+    grip: View [ visible = { app.resizing }, width = 12, height = 40, cornerRadius = 6, cursor = "ew-resize",
+        x = { classroot.p.x + classroot.p.width - 6 },
+        y = { classroot.p.y + classroot.p.height / 2 - 20 },
+        fill = { provided("theme").noteInk },
+        from: number = 0,
+        onDragStart(e: PointerEvent) { from = app.widthNow; app.dragging = true },
+        onDrag(e: PointerEvent) { app.setWidth(from + e.deltaX * (app.stepId == "relation" ? 1 : 2)) },
+        onDragEnd(e: DragEndEvent) { app.dragging = false }
+        ],
+
+    // the notes, over everything
+
+    notes: View [ width = 100%, height = 100%, pointerEvents = "none", datapath = { app.notesShown.value },
+        NoteView [ datapath = :notes[],
+            classFor = { ({ hdim: WidthNote, vdim: HeightNote, vdimr: HeightNote, arrow: PointerNote, ray: PointerNote, frame: FrameNote,
+                dot: DotNote, tag: TagNote, warn: TagNote, code: TagNote, label: LabelNote })[:kind ?? "label"] ?? LabelNote } ]
+        ]
+    ]

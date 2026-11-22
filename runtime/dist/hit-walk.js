@@ -12,11 +12,12 @@
 //     view by definition, whatever its clip says;
 //   · a clip bounds its subtree's hits, except for children that opt out with
 //     `ignoreClip` (frame chrome straddling the frame still hits);
-//   · a scroller's frame chrome (`ignoreScroll`) paints above its scrolled
-//     content, so it is offered the point first, in its own unshifted frame;
-//   · children are offered the point in reverse paint order, each in its own
-//     frame (the adapter's parent→child transform: scroll, content inset,
-//     translate, the paint transform inverted);
+//   · children are offered the point in reverse paint order — the reverse of
+//     the order they are declared in — each in its own frame (the adapter's
+//     parent→child transform: scroll, content inset, translate, the paint
+//     transform inverted). A scroller's pinned child (`ignoreScroll`) is
+//     offered it where it is declared, in its own unshifted frame: over the
+//     content declared before it, under the content declared after;
 //   · then the node itself, when the point is inside its box (and its clip),
 //     if it is what the question asks for. A node the question passes over —
 //     pointer-transparent, or holding no input — lets the walk go on to the
@@ -56,23 +57,6 @@ export function walkHit(n, lx, ly, A, accept, trace) {
     }
     const outside = A.clips(n) && !A.insideClip(n, lx, ly);
     const kids = A.children(n);
-    if (scroller) {
-        for (let i = kids.length - 1; i >= 0; i--) {
-            const c = kids[i];
-            if (!A.isNode(c) || !A.ignoresScroll(c))
-                continue;
-            if (!A.visible(c) && trace === undefined)
-                continue;
-            if (outside && !A.ignoresClip(c))
-                continue;
-            const [cx, cy] = A.toChild(n, c, lx, ly);
-            if (trace === undefined && beyond(A, c, cx, cy))
-                continue;
-            const hit = walkHit(c, cx, cy, A, accept, trace);
-            if (hit !== null)
-                return hit;
-        }
-    }
     for (let i = kids.length - 1; i >= 0; i--) {
         const c = kids[i];
         if (!A.isNode(c))
@@ -81,8 +65,6 @@ export function walkHit(n, lx, ly, A, accept, trace) {
         // still visits it, to say so
         if (!A.visible(c) && trace === undefined)
             continue;
-        if (scroller && A.ignoresScroll(c))
-            continue; // offered above
         if (outside && !A.ignoresClip(c))
             continue;
         const [cx, cy] = A.toChild(n, c, lx, ly);

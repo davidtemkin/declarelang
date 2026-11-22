@@ -308,17 +308,10 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
     cols:  number = { app.colW < 560 ? 2 : app.colW < 840 ? 3 : 5 },
     tileW: number = { (app.colW - (app.cols - 1) * 18) / app.cols },
 
-    // ── fixed chrome: the masthead rides the window over the page scroll ─────
+    // the masthead first, though it is declared last so that it paints over
+    // the page as it scrolls
 
-    bar: View [ ignoreScroll = true, x = 0, y = 0, width = { app.width }, height = 58, fill = { provided("theme").glass },
-        stroke = { [null, null, Stroke(1, provided("theme").hair), null] },   // the rule under the masthead, not a child view
-        mark: Text [ x = { app.colX }, y = center, fontSize = 19, letterSpacing = 2,
-            text = "50 BIRDS", link = "#", textColor = { provided("theme").ink } ],
-        sub: Text [ x = { app.colX + 118 }, y = 22, fontSize = 12, textColor = { provided("theme").muted }, wrap = false,
-            visible = { app.colW >= 700 }, text = "the plates of John James Audubon, 1827–1838" ],
-        quizLink: Text [ x = { app.colX + app.colW - 64 }, y = center, fontSize = 14,
-            link = "#quiz", text = "The Quiz", textColor = { app.dest == "quiz" ? provided("theme").oxblood : provided("theme").ink } ]
-        ],
+    tabOrder() { return [this.bar as View, ...this.tabDefault().filter((v) => v != this.bar)] },
 
     // ═══ the shelf — every plate, grouped; each tile a link (an address) ═════
 
@@ -488,5 +481,18 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         x = { app.lerp(app.colX, app.tileRectOf(app.retSlug).x, app.retT) },
         y = { app.lerp(84, app.tileRectOf(app.retSlug).y, app.retT) },
         width = { app.lerp(app.page.plateW, app.tileRectOf(app.retSlug).w, app.retT) },
-        height = { this.width * app.lerp(1.05, 1, app.retT) } ]
+        height = { this.width * app.lerp(1.05, 1, app.retT) } ],
+
+    // ── fixed chrome: the masthead rides the window over the page scroll,
+    //    declared last so that the page, and a plate in flight, pass under it
+
+    bar: View [ ignoreScroll = true, x = 0, y = 0, width = { app.width }, height = 58, fill = { provided("theme").glass },
+        stroke = { [null, null, Stroke(1, provided("theme").hair), null] },   // the rule under the masthead, not a child view
+        mark: Text [ x = { app.colX }, y = center, fontSize = 19, letterSpacing = 2,
+            text = "50 BIRDS", link = "#", textColor = { provided("theme").ink } ],
+        sub: Text [ x = { app.colX + 118 }, y = 22, fontSize = 12, textColor = { provided("theme").muted }, wrap = false,
+            visible = { app.colW >= 700 }, text = "the plates of John James Audubon, 1827–1838" ],
+        quizLink: Text [ x = { app.colX + app.colW - 64 }, y = center, fontSize = 14,
+            link = "#quiz", text = "The Quiz", textColor = { app.dest == "quiz" ? provided("theme").oxblood : provided("theme").ink } ]
+        ]
     ]

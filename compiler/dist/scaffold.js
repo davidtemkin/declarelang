@@ -234,8 +234,9 @@ declare const Color: {
    *  to show a color as text, or to write one to data that keeps colors as strings. Two
    *  colors are the same color when their hex text is the same, however each was written. */
   hex(c: Color): \`#\${string}\` | null;
-  /** The color some text writes — \`"#RGB"\`, \`"#RRGGBB"\` or \`"#RRGGBBAA"\` — or null when
-   *  the text is not one: a field a person types a color into, or text from a service.
+  /** The color some text writes — \`"#RGB"\`, \`"#RRGGBB"\`, \`"#RRGGBBAA"\` or a CSS name
+   *  (\`"crimson"\`, any case) — or null when the text is not one: a field a person types a
+   *  color into, or text from a service.
    *  The way back is \`Color.hex\`. */
   from(s: string): Color;
 };

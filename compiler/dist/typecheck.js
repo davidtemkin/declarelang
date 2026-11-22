@@ -80,7 +80,7 @@ const TYPE_VALUES = {
 };
 /** The services a body asks, by name (Focus, Keyboard): in use at run time. */
 const RUNTIME_SERVICE_NAMES = new Set(["Focus", "Keyboard", ...Object.keys(LANGUAGE_STATICS)]);
-import { SCHEMAS, attrType, descendsFrom } from "../../runtime/dist/schema.js";
+import { SCHEMAS, attrType, descendsFrom, BUILTIN_PROVIDED } from "../../runtime/dist/schema.js";
 import { declaredType, isAuthoredUnion, hexColor, DECLARED_TYPE_NAMES } from "../../runtime/dist/value.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
@@ -1540,7 +1540,10 @@ function tsSlotType(schemas, tag, slot) {
     const schema = schemas[tag];
     if (schema === undefined)
         return "unknown";
-    const t = attrType(schema, slot);
+    // A built-in provided value set on a view that does not read it itself —
+    // `textStyles` or `theme` on a container, for its subtree — is typed as the
+    // classes that read it declare it (compile.ts slotTypeOf, the same rule).
+    const t = attrType(schema, slot) ?? (BUILTIN_PROVIDED.has(slot) ? providedType(slot) : null);
     if (t === null)
         return "unknown";
     // The check-block annotates the slot with its WRITE type, and a cursor
@@ -1549,6 +1552,14 @@ function tsSlotType(schemas, tag, slot) {
     if (t.kind === "cursor")
         return "DataCursor | object | null";
     return tsType(t);
+}
+function providedType(slot) {
+    for (const sc of [SCHEMAS.Text, ...Object.values(SCHEMAS)]) {
+        const t = sc === undefined ? null : attrType(sc, slot);
+        if (t !== null)
+            return t;
+    }
+    return null;
 }
 // ── The standard-library provider (the ONE host seam) ────────────────────────
 // tsc needs the ES `lib.*.d.ts` declaration files (data, not code — the typed

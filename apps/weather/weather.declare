@@ -617,7 +617,7 @@ class CityRow extends Control [ width = 100%, height = { ROW_H }, cursor = "poin
         // the row is hidden under the city it became: focus goes to the city's
         // way back, and comes back to this row when the city closes
         app.openedRow = this
-        afterSettle(() => Focus.focus(app.phoneUI.back.btn))
+        afterSettle(() => Focus.focus(app.back.btn))
         }
     ]
 
@@ -639,6 +639,7 @@ class CityRow extends Control [ width = 100%, height = { ROW_H }, cursor = "poin
 class CityView [
     seat: number = 0,
     pinned: boolean = false,
+    readerY: number = 0,      // pinned: how far into this city it shows (a page being left)
 
     // `openIn` is the raw scalar; `open` is it clamped, and everything below
     // reads the clamped one. A spring at ζ≈0.87 rings past both ends by about
@@ -664,21 +665,17 @@ class CityView [
     /*
     ## How far the reader has scrolled into this city
 
-    Zero on the row — and a question with no answer until the city has landed. While the
-    view is travelling, its `y` and the page's scroll offset are both moving,
-    and they do not move by the same mechanism: `y` follows the anchor in the
-    settle, while `app.scrollY` is mirrored from a scroll event the browser
-    fires on its own schedule. Asking mid-flight gets an answer built from one
-    number that has moved and one that has not.
-
-    So the question is not asked until it has one — nothing scrolls during the
-    transition anyway, and the header condenses on scroll alone. It holds
-    still for the first CONDENSE_SPAN and then rides off with the content,
-    which in a document is simply scrolling.
+    In the document it is the page's scroll: the city is the page. Pinned, it
+    is where the reader was when the city left the document (`app.pinSy`, 0
+    on the way open), and it unwinds with `open` as the city shrinks home, so
+    the header and the sky go back to the row's as the box does. The header
+    condenses on it: it holds still for the first CONDENSE_SPAN and then rides
+    off with the content, which in a document is simply scrolling.
     */
 
-    sy: number = { this.pinned || !app.listGone ? 0
-        : Math.max(0, app.scrollY - this.y) },
+    sy: number = { this.pinned ? this.readerY
+        : app.cityInDoc ? Math.max(0, app.scrollY)
+        : app.pinSy * this.open },
     condense: number = { Math.min(1, this.sy / CONDENSE_SPAN) * this.open },
     hold: number = { Math.min(CONDENSE_SPAN, this.sy) * this.open },
 
@@ -698,13 +695,15 @@ class CityView [
     plain `open`, no delay. A sky that lagged the box would let the border
     race ahead of the picture: a white rectangle sweeping down over flat blue,
     the sky arriving behind it.
+
+    It stays this view's own, under the cards, because the cards are frosted
+    and a frost blurs only what is painted within the view it sits in.
     */
 
     back: View [ x = 0, width = 100%, clip = true,
         cornerRadius = { lerp(14, 0, classroot.open) },
 
-        y = { classroot.pinned ? 0
-            : classroot.sy - lerp(0, EDGE_SLACK, classroot.open) },
+        y = { classroot.sy - lerp(0, EDGE_SLACK, classroot.open) },
         height = { lerp(ROW_H, app.hostHeight + EDGE_SLACK * 2, classroot.open) },
         sky: WSky [ width = 100%, height = 100%,
             cond = { :cond ?? "sunny" } ],
@@ -923,34 +922,41 @@ App [ textColor = whitesmoke, appName = "Weather",
 
     // ── the open/close transition ─────────────────────────────────────────
     // `openTo` is the intent (0 or 1); `openT` is the live progress a spring
-    // drives toward it. One object reads it — the CityView — and handlers only
-    // ever set `openTo`. Re-aiming mid-flight is what a spring does naturally,
-    // and that is the whole interruption story.
+    // drives toward it. Handlers only ever set `openTo`. Re-aiming mid-flight is
+    // what a spring does naturally, and that is the whole interruption story.
     //
-    // The one piece of trickery, and it is all here. The page is the document,
-    // so opening a city has to end with that city's top at the document's top
-    // — otherwise scrolling up dead-ends in the middle of nowhere. But moving
-    // the page while the view animates would fight the browser's own scroll,
-    // so instead nothing scrolls during the transition at all:
+    // An open city is the page: at rest it is the document, at its top, so
+    // scrolling it is the page scrolling — the browser tucks its bars away and
+    // bounces at the ends as it does for any page. Getting there means the list
+    // and the city trade places in the document, and the page's scroll offset
+    // has to change with them. That change is the platform's to carry out, in
+    // its own time: a request lands a frame late, waits for a finger to lift,
+    // and the browser moves its bars in answer. So the city never relies on it:
     //
-    //   `openAnchor` is the page scroll captured when the row was tapped. The
-    //   CityView travels from the tapped row's seat to exactly that offset, so
-    //   when it lands its top sits at the viewport. Then, at rest, `land()`
-    //   sets the anchor to 0 and scrolls the page to 0 in the same settle —
-    //   and because only the difference between content position and scroll
-    //   offset is visible, both moving by the same amount moves nothing. The
-    //   city is simply at the top of the document now.
+    //   While it moves — opening, closing, paging — the city is pinned to the
+    //   window (`cityInDoc` false: `ignoreScroll`), placed in screen space
+    //   between the tapped row's place on screen and the top. Nothing the page
+    //   does can move it, and the page is changed (the list hidden or shown, the
+    //   scroll requested) only while the city covers the whole screen.
     //
-    // Closing runs it backwards, with one addition: the landing scroll is
-    // chosen before the animation (`liftOff`), clamped to the real range, so
-    // the row is guaranteed to be on screen when it arrives and the final
-    // trade is exact. Discovering the clamp afterwards is what would jump.
+    //   It joins the document only when the page is where its document place
+    //   needs it — scrolled to 0 — which the page's own scroll reports
+    //   (`onChange` on `scrollY`). Pinned at the top with the page at 0, and in
+    //   the document at 0: the same pixels, whenever the moment comes.
+    //
+    // Closing pins it where the reader is — `pinSy` is how far into the city
+    // they had scrolled — and shrinks it from there to the row.
 
     openId: string = "",
     openT: number = 0,
     openTo: number = 0,
-    openAnchor: number = 0,
     openSeat: number = 0,
+    cityInDoc: boolean = false,
+    pinSy: number = 0,
+    rowScroll: number = 0,
+    tradeBack: boolean = false,
+    leaving: boolean = false,
+    leaveSy: number = 0,
     openSpring: Spring [ attribute = openT, to = { app.openTo },
         stiffness = { slowK(320) }, damping = { slowC(31) }, epsilon = { slowEps(0.002) },
 
@@ -989,63 +995,98 @@ App [ textColor = whitesmoke, appName = "Weather",
         return Math.max(0, i) * (ROW_H + ROW_GAP)
         },
 
-    // the CityView's travel: from the row's seat to the anchor, and home again
+    // Where the tapped row is on screen: its seat in the document, less the
+    // page's scroll the list is at while the city moves — the scroll it was
+    // tapped at on the way open, the one the close asks for on the way home.
+    // Read from that plan rather than from the live scroll, the city's target
+    // does not move when the page's scroll lands.
 
-    cityY: number = { lerp(LIST_TOP + app.safeTop + app.openSeat, app.openAnchor, app.openT) },
+    rowScreenY: number = { LIST_TOP + app.safeTop + app.openSeat - app.rowScroll },
+
+    // the city's top: in the document, 0; pinned, on screen — from the row's
+    // place to the reader's place in the city
+
+    cityY: number = { app.cityInDoc ? 0 : lerp(app.rowScreenY, -app.pinSy, app.openT) },
 
     // ...and the two numbers the rest of the list rides on, which is what
     // makes this an expansion in place rather than a fade. `cityLift` is how
-    // far the view has travelled from its own seat; `cityGrow` is how much
-    // taller than a row it has become. Everything above the opened row moves
-    // by the lift alone — so it stays glued to the view's top edge — and
-    // everything below moves by the lift plus the growth, which is exactly
-    // what one item growing inside a stack does to its neighbours.
+    // far the view's top has travelled from the row's place; `cityGrow` is how
+    // much taller than a row it has become. Everything above the opened row
+    // moves by the lift alone — so it stays glued to the view's top edge — and
+    // everything below moves by the lift plus the growth, which is exactly what
+    // one item growing inside a stack does to its neighbours.
 
-    cityLift: number = { app.cityY - (LIST_TOP + app.safeTop + app.openSeat) },
-    cityGrow: number = { app.phoneUI.city.height - ROW_H },
+    cityLift: number = { app.cityInDoc ? 0 : app.cityY - app.rowScreenY },
+    cityGrow: number = { app.cityPage.height - ROW_H },
 
     openRow(id: string, seatY: number) {
-        // a fresh open starts from a clean swipe axis, anchors to the scroll
-        // the reader is already looking at, and remembers the seat it grew from
+        // a fresh open starts from a clean swipe axis, pinned at the top of the
+        // city, and remembers the seat it grew from
         dragging = false
         swipeTo = 0
         swipeX = 0
-        openAnchor = app.scrollY
+        cityInDoc = false
+        pinSy = 0
+        tradeBack = false
+        rowScroll = app.scrollY
         openSeat = seatY
         selectById(id)
         openId = id
         openTo = 1
         },
 
-    // The trade, at rest, in one settle: the anchor and the page scroll both
-    // give up the same amount, so the pixels do not move — and the city's top
-    // becomes the document's top, which is what makes scrolling up dead-end
-    // where a reader expects it to.
+    // The trade, at rest: the city covers the screen, so the list leaves and
+    // the page is asked to its top, and the city joins the document once the
+    // page is there (now, or when its scroll reports it).
 
     land() {
         listGone = true
-        openSeat = 0
-        openAnchor = 0
         app.scrollTo(0)
+        joinDocument()
         },
 
-    // The reverse trade, before the close animates: restore the seat and the
-    // anchor the view needs and take the page there in the same settle. The
-    // target is chosen so the row lands on screen — a third of the way down,
-    // clamped to the range the list actually has — because the whole point of
-    // shrinking back into a row is to show the reader where that city was.
+    joinDocument() {
+        if (!cityInDoc && listGone && openTo == 1 && openT == 1 && pinSy == 0
+            && app.scrollY == 0 && !app.swiping) cityInDoc = true
+        },
+
+    // the page's scroll is the report a pinned city waits for, and a swipe
+    // coming to rest the other; the close's first step is when the list returns
+
+    trackChanges = ["scrollY", "swiping", "openT"],
+    onChange() {
+        if (!app.swiping) leaving = false
+        if (!cityInDoc) joinDocument()
+        if (tradeBack && openT < 1) returnList()
+        },
+
+    // The reverse trade, in two steps. First the city is pinned where the
+    // reader is — the same pixels, now held by the window. Then, on the close's
+    // first step, the list comes back and the page is asked to the place the
+    // row should land — a third of the way down, clamped to the range the list
+    // has — while the city still covers the screen. Not in the same frame: a
+    // view that becomes fixed while the page's scroll jumps is composited from
+    // the old scroll for a frame on iOS, and the city would twitch. A close
+    // that interrupts an open has no trade to undo: the list never left.
 
     liftOff() {
-        listGone = false
+        if (cityInDoc) pinSy = Math.max(0, app.scrollY)
+        cityInDoc = false
+        if (!listGone) return
         const rank = app.openRank
         const seat = rank * (ROW_H + ROW_GAP)
         const rowY = LIST_TOP + app.safeTop + seat
         const bottom = LIST_TOP + app.safeTop + app.shown.value.rows.length * (ROW_H + ROW_GAP)
             + LIST_TAIL + app.safeBottom - app.hostHeight
-        const want = Math.max(0, Math.min(Math.max(0, bottom), rowY - app.hostHeight / 3))
         openSeat = seat
-        openAnchor = want
-        app.scrollTo(want)
+        rowScroll = Math.max(0, Math.min(Math.max(0, bottom), rowY - app.hostHeight / 3))
+        tradeBack = true
+        },
+
+    returnList() {
+        tradeBack = false
+        listGone = false
+        app.scrollTo(rowScroll)
         },
 
     openedRow: View? = null,
@@ -1053,7 +1094,9 @@ App [ textColor = whitesmoke, appName = "Weather",
     closeCity() {
         const back = openedRow
         openedRow = null
-        if (back != null && Focus.holds(app.phoneUI)) afterSettle(() => Focus.focus(back))
+        // focus goes back to the row when it was on the city or its chrome
+        const inCity = Focus.holds(app.cityPage) || Focus.holds(app.pill) || Focus.holds(app.back)
+        if (back != null && inCity) afterSettle(() => Focus.focus(back))
         liftOff()
         openTo = 0
         dragging = false
@@ -1115,9 +1158,17 @@ App [ textColor = whitesmoke, appName = "Weather",
     // scrolled deep would leave a city with its name nowhere on screen.
 
     pageTo(i: number) {
+        // the page being left slides away as the reader left it (peekPage)
+        leaveSy = cityInDoc ? Math.max(0, app.scrollY) : 0
+        leaving = true
         cityIndex = i
         openId = app.cities[i].id
+        // the new page is read from its top: pinned there while the page is
+        // asked back to 0, and in the document again once it is
+        cityInDoc = false
+        pinSy = 0
         app.scrollTo(0)
+        joinDocument()
         },
 
     endSwipe(canceled: boolean) {
@@ -1178,27 +1229,24 @@ App [ textColor = whitesmoke, appName = "Weather",
     // here rather than an overlay with a scroller inside it. On a desktop the
     // content fits one screen and the inner panes scroll instead.
     //
-    // The two extents are declared rather than measured. A height that
-    // measured the live rows would shrink under the scroll offset mid-
-    // transition, and the browser would clamp the page out from under the
-    // morph. Declared, the page only ever grows on the way open.
+    // The two extents are declared rather than measured: the page is the list
+    // or the city, never both. A city is in the document only once the list
+    // has left (see the transition above); while the two share the screen the
+    // city is pinned and adds nothing to the page.
 
     rowCount: number = { app.shown.value == null ? 0 : app.shown.value.rows.length },
-    cardsH: number = { app.phoneUI.city.cardsH },
+    cardsH: number = { app.cityPage.cardsH },
     listH: number = { LIST_TOP + app.safeTop + app.rowCount * (ROW_H + ROW_GAP)
         + LIST_TAIL + app.safeBottom },
-    cityH: number = { app.openAnchor + HERO_H + app.safeTop + app.cardsH
-        + LIST_TAIL + app.safeBottom },
-
-    // ...and while it is moving, the page holds the larger of the two extents
-    // rather than interpolating: a document whose scroll height changes every
-    // frame reflows the whole page every frame. Nothing scrolls mid-transition,
-    // so the exact value only has to be right at the two ends.
-
-    extentH: number = { app.listGone ? app.cityH
-        : app.openT < 0.002 ? app.listH
-        : Math.max(app.listH, app.cityH) },
+    cityH: number = { HERO_H + app.safeTop + app.cardsH + LIST_TAIL + app.safeBottom },
+    extentH: number = { app.listGone ? app.cityH : app.listH },
     height = { app.phone ? Math.max(app.hostHeight, app.extentH) : app.hostHeight },
+
+    // While a city is up, the page's scroll moves only by the transition's own
+    // requests: the platform's keeping of the reader's place would be a second
+    // hand on it as the list leaves and returns.
+
+    scrollAnchor = { app.cityUp ? "none" : "content" },
 
     // `edges = cover` is the edge-to-edge opt-in: the app extends under the
     // device's own chrome (notch, home indicator), and `app.safeTop` /
@@ -1219,40 +1267,48 @@ App [ textColor = whitesmoke, appName = "Weather",
 
     It swaps at the landing instead, where it cannot be seen: by then the
     city's own sky covers the viewport edge to edge, and on the way back
-    `liftOff` restores it while the city still covers everything. It has to
-    swap at all because `fill` is the page's background — the colour the
-    browser paints in the overscroll and behind its own chrome — and that band
-    has to match the city you are reading.
+    `liftOff` restores it while the city still covers everything.
+
+    `fill` is another matter: it is the page's background, the colour the
+    browser paints in the overscroll and behind its own chrome — the band
+    under the status bar — and nothing the app draws covers it. So it does not
+    swap; it travels with the open spring, from the list's tone to the city's,
+    as the city's sky grows over everything else.
     */
 
     backCond: string = { app.phone ? (app.listGone ? app.cond : "sunny") : app.cond },
-    skyTone: number = { ({ night: 0x0A1230, sunny: 0x2E7FD0, cumulus: 0x4A648A })[app.backCond] ?? 0x91A1AD },
-    fill = { app.skyTone },
+    toneOf(cond: string) -> number { return ({ night: 0x0A1230, sunny: 0x2E7FD0, cumulus: 0x4A648A })[cond] ?? 0x91A1AD },
+    skyTone: number = { app.toneOf(app.backCond) },
+    fill = { app.phone ? Color.mix(app.toneOf("sunny"), app.toneOf(app.cond), Math.max(0, Math.min(1, app.openT)))
+        : app.skyTone },
 
     /*
     ## The floor
 
-    The backdrop the list is read against. It never scrolls: it glues itself
-    to the viewport by reading the page scroll, as an ordinary first child —
-    so it stays behind everything in paint order.
+    The backdrop the list is read against. It never scrolls: pinned to the
+    window (`ignoreScroll`), so the browser holds it still as the page moves,
+    the bars come and go and the page bounces — in the same frame, where a
+    position computed from the page's scroll would follow a frame late. First
+    in the App, so it is behind everything.
 
-    The height carries EDGE_SLACK for the zones a browser lets content occupy
-    beyond the layout viewport as its chrome comes and goes, capped at the
-    app's own bottom (an overflowing child would grow the document).
+    It reaches EDGE_SLACK past both edges of the window, as an open city's
+    sky does: the zones a browser lets content occupy as its chrome comes and
+    goes.
     */
 
-    sky: WSky [ width = 100%, y = { app.scrollY },
-        height = { Math.min(app.hostHeight + EDGE_SLACK, app.height - app.scrollY) },
+    sky: WSky [ width = 100%, ignoreScroll = true, y = { -EDGE_SLACK },
+        height = { app.hostHeight + 2 * EDGE_SLACK },
         cond = { app.backCond } ],
-    dim: View [ width = 100%, y = { app.scrollY },
-        height = { Math.min(app.hostHeight + EDGE_SLACK, app.height - app.scrollY) },
+    dim: View [ width = 100%, ignoreScroll = true, y = { -EDGE_SLACK },
+        height = { app.hostHeight + 2 * EDGE_SLACK },
         fill = #0A1422, opacity = 0.10, pointerEvents = "none" ],
 
-    // the same tone fading into the clouds, so the flat band behind the
-    // browser's chrome and the textured sky never meet at a hard edge.
+    // the list's tone fading into the clouds, so the flat band behind the
+    // browser's chrome and the textured sky never meet at a hard edge — the
+    // list's alone: an open city's sky has none, so it leaves with the list
 
-    haze: View [ width = 100%, y = { app.scrollY }, height = 140,
-        visible = { app.phone }, pointerEvents = "none",
+    haze: View [ width = 100%, ignoreScroll = true, y = 0, height = 140,
+        visible = { app.phone && !app.listGone }, pointerEvents = "none",
         fill = { Gradient.linear("180deg", app.skyTone, Color.withAlpha(app.skyTone, 0)) } ],
 
     // ── the phone dialect ─────────────────────────────────────────────────
@@ -1321,81 +1377,92 @@ App [ textColor = whitesmoke, appName = "Weather",
                 ],
             tail: View [ y = { app.listGone ? app.cityH : app.listH }, width = 100%,
                 height = { LIST_TAIL + app.safeBottom } ]
+            ]
+
+        ],
+
+    // ── the phone's open city and its chrome ──────────────────────────────
+    // Children of the App, not of the list's view: `ignoreScroll` pins a view
+    // against its own parent's scroll, and the page is the App's. Declared after
+    // the list, so they paint over it.
+
+    // The one expanded city — the sky, the header and the cards, in a
+    // single instance. It sits beside the list rather than inside it, so
+    // nothing about where it goes has to agree with the stack's spacing;
+    // `cityY` carries it from the tapped row's place on screen to the top,
+    // pinned to the window until it is the page, and `swipeX` slides it
+    // sideways as you page.
+
+    cityPage: CityView [ y = { app.cityY }, datapath = { app.city },
+        ignoreScroll = { !app.cityInDoc },
+        openIn = { app.openT }, seat = { app.openSeat },
+        x = { lerp(16, 0, app.openT) + app.swipeX },
+        visible = { app.cityUp } ],
+
+    // The neighbour beside the page while it moves sideways: the same class,
+    // given one record and held outside the document (`ignoreScroll`), because
+    // the page's extent must be exactly the city you are reading. `pinned`
+    // tells its sky not to cancel a page scroll it does not ride. Arriving
+    // under a finger it shows its city from the top; once the page has turned
+    // it is the city being left, and it slides away showing it where the
+    // reader was (`leaveSy`).
+
+    peekPage: CityView [ ignoreScroll = true, visible = { app.swiping },
+        pinned = true, openIn = 1, datapath = { app.peekCity },
+        readerY = { app.leaving ? app.leaveSy : 0 },
+        x = { app.peekSlide }, y = { app.leaving ? -app.leaveSy : 0 } ],
+
+    // The floating chrome: the pager pill and the back-to-list button.
+    // Both clear the two bands at the foot of the screen a finger cannot
+    // rely on — the home indicator's, and the browser's own, which is 0
+    // while its bars are shown and their height once they retract (a tap
+    // there brings the bars back instead of reaching the app). Reading
+    // the live fact rather than guessing a constant is what keeps these
+    // controls in one place on screen as the bars come and go.
+
+    pill: GlassChip [ ignoreScroll = true,
+        y = { app.hostHeight - 60 - Math.max(app.safeBottom, app.underlapBottom) },
+        height = 48, cornerRadius = 24,
+        x = 16, width = { parent.width - 16 - 48 - 10 - 16 },
+        visible = { app.cityUp },
+        opacity = { fadeIn(app.openT, 0.55, 2.2) },
+
+        // the chevrons draw small and hit large: the library's chevron
+        // inside 44 points of target, dimmed at the ends of the list
+
+        prev: Control [ x = 2, y = center, width = 44, height = 44, cursor = "pointer", fill = null, tooltipLabel = "Previous city",
+            opacity = { app.cityIndex <= 0 ? 0.25 : 0.9 },
+            press() { app.stepCity(-1) },
+            ChevronIcon [ x = center, y = center, iconSize = 22, dir = "left", ink = white, weight = 2 ]
+            ],
+        next: Control [ x = { parent.width - 46 }, y = center, width = 44, height = 44, cursor = "pointer", fill = null, tooltipLabel = "Next city",
+            opacity = { app.cityIndex >= app.cities.length - 1 ? 0.25 : 0.9 },
+            press() { app.stepCity(1) },
+            ChevronIcon [ x = center, y = center, iconSize = 22, dir = "right", ink = white, weight = 2 ]
             ],
 
-        // The one expanded city — the sky, the header and the cards, in a
-        // single instance. It sits beside the list rather than inside it, so
-        // nothing about where it goes has to agree with the stack's spacing;
-        // `cityY` carries it from the tapped row's seat to the anchor, and
-        // `swipeX` slides it sideways as you page.
+        // the dots divide the room between the chevrons, so any count
+        // fills the same track
 
-        city: CityView [ y = { app.cityY }, datapath = { app.city },
-            openIn = { app.openT }, seat = { app.openSeat },
-            x = { lerp(16, 0, app.openT) + app.swipeX },
-            visible = { app.cityUp } ],
-
-        // The arriving neighbour: the same class, given one record and held
-        // outside the document (`ignoreScroll`), because the page's extent
-        // must be exactly the city you are reading — a neighbour occupying a
-        // row would add its height to the scroll range. `pinned` tells its sky
-        // not to cancel a page scroll it does not ride.
-
-        peek: CityView [ ignoreScroll = true, visible = { app.swiping },
-            pinned = true, openIn = 1, datapath = { app.peekCity },
-            x = { app.peekSlide }, y = 0 ],
-
-        // The floating chrome: the pager pill and the back-to-list button.
-        // Both clear the two bands at the foot of the screen a finger cannot
-        // rely on — the home indicator's, and the browser's own, which is 0
-        // while its bars are shown and their height once they retract (a tap
-        // there brings the bars back instead of reaching the app). Reading
-        // the live fact rather than guessing a constant is what keeps these
-        // controls in one place on screen as the bars come and go.
-
-        pill: GlassChip [ ignoreScroll = true,
-            y = { app.hostHeight - 60 - Math.max(app.safeBottom, app.underlapBottom) },
-            height = 48, cornerRadius = 24,
-            x = 16, width = { parent.width - 16 - 48 - 10 - 16 },
-            visible = { app.cityUp },
-            opacity = { fadeIn(app.openT, 0.55, 2.2) },
-
-            // the chevrons draw small and hit large: the library's chevron
-            // inside 44 points of target, dimmed at the ends of the list
-
-            prev: Control [ x = 2, y = center, width = 44, height = 44, cursor = "pointer", fill = null, tooltipLabel = "Previous city",
-                opacity = { app.cityIndex <= 0 ? 0.25 : 0.9 },
-                press() { app.stepCity(-1) },
-                ChevronIcon [ x = center, y = center, iconSize = 22, dir = "left", ink = white, weight = 2 ]
-                ],
-            next: Control [ x = { parent.width - 46 }, y = center, width = 44, height = 44, cursor = "pointer", fill = null, tooltipLabel = "Next city",
-                opacity = { app.cityIndex >= app.cities.length - 1 ? 0.25 : 0.9 },
-                press() { app.stepCity(1) },
-                ChevronIcon [ x = center, y = center, iconSize = 22, dir = "right", ink = white, weight = 2 ]
-                ],
-
-            // the dots divide the room between the chevrons, so any count
-            // fills the same track
-
-            track: View [ x = center, y = center, height = 44,
-                width = { parent.width - 100 },
-                dots: View [ width = 100%, height = 44,
-                    layout: SimpleLayout [ axis = x, spacing = 0 ],
-                    datapath = { app.data.loaded ? app.data.value : null },
-                    Dot [ flexes = true, minWidth = 6,
-                        datapath = :cities[], identityKey = :id ]
-                    ]
+        track: View [ x = center, y = center, height = 44,
+            width = { parent.width - 100 },
+            dots: View [ width = 100%, height = 44,
+                layout: SimpleLayout [ axis = x, spacing = 0 ],
+                datapath = { app.data.loaded ? app.data.value : null },
+                Dot [ flexes = true, minWidth = 6,
+                    datapath = :cities[], identityKey = :id ]
                 ]
-            ],
-        back: GlassChip [ ignoreScroll = true,
-            x = { parent.width - 64 },
-            y = { app.hostHeight - 60 - Math.max(app.safeBottom, app.underlapBottom) },
-            width = 48, height = 48, cornerRadius = 24,
-            visible = { app.cityUp },
-            opacity = { fadeIn(app.openT, 0.55, 2.2) },
-            btn: Control [ width = 100%, height = 100%, cornerRadius = 24, cursor = "pointer", fill = null, tooltipLabel = "All cities",
-                ic: ListIcon [ x = center, y = center, width = 26, height = 26 ],
-                press() { app.closeCity() }
-                ]
+            ]
+        ],
+    back: GlassChip [ ignoreScroll = true,
+        x = { parent.width - 64 },
+        y = { app.hostHeight - 60 - Math.max(app.safeBottom, app.underlapBottom) },
+        width = 48, height = 48, cornerRadius = 24,
+        visible = { app.cityUp },
+        opacity = { fadeIn(app.openT, 0.55, 2.2) },
+        btn: Control [ width = 100%, height = 100%, cornerRadius = 24, cursor = "pointer", fill = null, tooltipLabel = "All cities",
+            ic: ListIcon [ x = center, y = center, width = 26, height = 26 ],
+            press() { app.closeCity() }
             ]
         ],
 

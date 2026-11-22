@@ -64,7 +64,7 @@ mainstream, made with eyes open (§4).
 > *A `{ }` reads specific named things, and the compiler must be able to name every
 > one. If it can't — you indexed by a runtime value, used a computed data path, or
 > aggregated over the live view tree — that's an error, and the message names the one
-> rewrite that fixes it (bound the key, use a literal path, or read from a Dataset).*
+> rewrite that fixes it (name each read, use a literal path, or read from a Dataset).*
 > Every such diagnostic **names its single canonical fix** — see `diagnostics.md`
 > §"Errors are for an LLM"; a residue error that only *describes* the problem is a bug.
 

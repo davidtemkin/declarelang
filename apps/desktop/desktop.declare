@@ -2324,10 +2324,20 @@ class WinManager extends Node [
     // the keyboard goes with the front: however a window comes to the front, it
     // takes the keyboard, and with none in front the desktop has it
 
-    trackChanges = ["frontWin"],
+    // …and the other way: the keyboard moving into a window behind (Tab, F6)
+    // brings that window to the front, as a press in it would
+
+    keyWin: DeskWindow? = { this.windows().find((w) => w.containsFocus) ?? null },
+
+    trackChanges = ["frontWin", "keyWin"],
     onChange(e: ChangeEvent) {
-        if (this.frontWin != null) this.frontWin.takeKeyboard()
-        else Focus.blur()
+        for (const c of e.changed) {
+            if (c.name == "frontWin") {
+                if (this.frontWin != null) this.frontWin.takeKeyboard()
+                else Focus.blur()
+                }
+            else if (this.keyWin != null && this.keyWin != this.frontWin) this.keyWin.activate()
+            }
         },
 
     // two counters, one job each: `idSeq` mints record identity, `winCount`
@@ -2621,7 +2631,7 @@ class Launcher extends Node [
     openAddress(n: IslandNavigation, owner: DesktopApp?) {
         if (n.program == "") { app.openURL(n.to); return }
         const hosted = this.hostedFor(n.program)
-        const open = app.wm.windows().find((w) => w.appPath != "" && this.sameProgram(w.appPath, n.program))
+        const open = [...app.wm.windows()].reverse().find((w) => w.appPath != "" && this.sameProgram(w.appPath, n.program))   // the front-most
         if (open != null) {
             (open as AppWindow).island.location = n.location
             app.wm.focusWin(open)
@@ -2746,7 +2756,7 @@ class Launcher extends Node [
     // new one opened at it
 
     openInDocs(loc: string, v: View?) {
-        const open = app.wm.windows().find((w) => w.appPath != "" && this.sameProgram(w.appPath, "" + this.docs.prog))
+        const open = [...app.wm.windows()].reverse().find((w) => w.appPath != "" && this.sameProgram(w.appPath, "" + this.docs.prog))   // the front-most
         if (open != null) { (open as AppWindow).island.location = loc; app.wm.focusWin(open); return }
         this.openHosted(this.docs, v, "", loc)
         },
@@ -2945,6 +2955,9 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     keys: KeyListener [
         onKeyDown(e: KeyEvent) {
+            // the raw stream hears a text field's typing too: a letter typed
+            // into a field (the Help search) is the field's, not an egg
+            if (app.focusedView instanceof TextInput) return
             if (e.key == "`" && !e.meta && !e.repeat) { app.wallpaper.seed = app.wallpaper.seed + 1; return }   // cycle the wallpaper
             if (e.key == "r" && !e.meta && !e.repeat) { app.tiltSeed = app.tiltSeed + 1; return }   // the tilt egg: every window springs to a random lean
             if (e.key == "R" && !e.meta && !e.repeat) { app.tiltSeed = 0; return }                  // …and level again
@@ -3453,9 +3466,10 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // ── The "Not implemented" alert: a translucent app-modal sheet — the scrim
     // swallows every press — sitting frontmost over all the chrome. Its icon
     // is the subject app's own (AppGlyph — the dock's renderer), badged with a
-    // caution triangle.
+    // caution triangle. It is modal to the keyboard too: open, it takes the
+    // focus (onto OK), Tab stays inside it, and Escape dismisses it.
 
-    alert: View [
+    alert: Floating [
         // its own single attribute of state: an inert app assigns itself here
         // (InertApp.launch), dismiss clears it, null = no alert — the state
         // lives where the pixels are, and everything below (icon, headline,
@@ -3463,6 +3477,15 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
         subject: DesktopApp? = null,
         dismiss() { this.subject = null },
+        shown = { this.subject != null },
+        commit(open: boolean) { if (!open) this.subject = null },
+        pressPolicy = "block", takesFocus = true, focusScope = modal,
+        accessibilityRole = alertDialog,
+        accessibilityLabel = { this.subject != null ? this.subject.quip : "" },
+
+        // it appears and goes at once, as it always has: no closing motion
+        // keeps it on screen after OK
+
         visible = { this.subject != null },
         x = 0, y = 0, width = { app.width }, height = { app.height },
         onPointerDown() { },                           // modal: presses on the scrim do nothing

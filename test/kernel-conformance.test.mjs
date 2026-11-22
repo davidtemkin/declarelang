@@ -638,4 +638,5 @@ await bothAgree("a long batch of reads lands though only a short free list is sp
   assert.equal(K.deps(b).length, 40, "every read became an edge");
 }, { extra_elems: 16, extra_cells: 256, extra_rules: 64, dyn_edges: 12, ring: 64, track_ring: 256, code_words: 64, consts: 16 });
 
+
 summarize("kernel-conformance");

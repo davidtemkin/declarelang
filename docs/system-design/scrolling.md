@@ -120,13 +120,20 @@ rasters — so platform is the default wherever it exists.
   (`realizeIgnoreScroll`, re-run at insert and at attachRoot): under the
   page regime → `position: fixed` (viewport-anchored; adds no document
   extent by the platform's own definition); under a pane → the element moves
-  into the pane's **sticky frame** (`ensureScrollFrame`: a zero-size,
-  in-flow `position: sticky` first child of the scroller, `z-index: 1`) —
-  compositor-held at the pane's frame origin, no per-frame JS, no lag.
-  Known v1 bounds: the fixed arm is top-level only (an embedded island's
-  root sits offset in a host page where viewport coordinates would be
-  wrong); frame chrome paints above pane content (the sticky frame's
-  z-index), regardless of declaration order.
+  into a **sticky frame** of its own (`makeScrollFrame`: a zero-size, in-flow
+  `position: sticky` element standing in the child's place among the pane's
+  children) — compositor-held at the pane's frame origin, no per-frame JS, no
+  lag. Everything else in a pane is out of flow, so a frame sits at the top
+  wherever it stands, and paint order stays declaration order: a frame with
+  content after it is placed by the order alone; one after all the content
+  is lifted (`restackFrames`, `z-index: 2`) over a paint guest's lift too, so
+  a ring riding the pane paints under the chrome declared after it. Canvas
+  paints a pane's children in one pass in the same order, the Mac host puts
+  pinned children declared before the first scrolling one under its content
+  layer and the rest over it, and the hit walk offers them the point in the
+  same order (hit-walk.ts). Known v1 bound: the fixed arm is top-level only
+  (an embedded island's root sits offset in a host page where viewport
+  coordinates would be wrong).
 
 ## The runtime provider (canvas) — built 2026-09-10
 
@@ -253,8 +260,9 @@ giving the document its scroll range; and the root becomes a
 scroll listener invalidates). The existing pane walks then paint and hit the
 right slice unchanged. `scrollBy`/`wheelTo` never *consume* for a pageRoot —
 the page's scroll is the browser's; `scrollIntoView` asks `window.scrollTo`.
-`ignoreScroll` children are painted and hit **unshifted** (above the scrolled
-content, mirroring the sticky frame) and excluded from every extent loop.
+`ignoreScroll` children are painted and hit **unshifted**, in declaration
+order among the scrolled content (as the sticky frames place them), and
+excluded from every extent loop.
 Parked as before: pane x-scroll is a no-op on canvas, editable overlays
 inside `ignoreScroll` subtrees don't compensate, and an embedded canvas app
 keeps its box realization.

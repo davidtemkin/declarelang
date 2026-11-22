@@ -47,7 +47,7 @@ written as a string, `"#4169E1"` or `"royalblue"`, or as a number, `0x4169E1`; a
 takes the quoted spelling too. A color's operations are on `Color`: `Color.withAlpha(c, 0.4)`,
 `Color.mix(a, b, t)`, `Color.lighter(c, 0.1)` and `Color.darker`, `Color.contrast(a, b)` (the
 WCAG ratio, which picks the ink that reads on a fill). Text is not a color until it is read as
-one: `Color.from(s)` reads `"#RRGGBB"` (null when the text is not a color), and `Color.hex(c)`
+one: `Color.from(s)` reads `"#RRGGBB"` or a CSS name (null when the text is not a color), and `Color.hex(c)`
 writes a color as text. A color with alpha is held in an encoding of its own, so compute with these, never
 with bit shifts.
 

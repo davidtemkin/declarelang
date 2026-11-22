@@ -155,6 +155,53 @@ await test("a field's purpose reaches its input: autofill name, keyboard, and a 
   assert.equal(b.pw.autocomplete, "current-password", "and still a password to a password manager");
 });
 
+// READING ORDER IS TAB ORDER. A bar declared last so it paints over the page,
+// put first by the App's tabOrder(), is read first too; a panel whose
+// tabOrder() lets Tab in nowhere is still read, where it is declared — leaving
+// a view out of Tab does not hide it.
+const ORDER_SOURCE = `App [ width = 400, height = 300,
+    tabOrder() { return [this.bar as View, ...this.tabDefault().filter((v) => v != this.bar)] },
+    body: View [ y = 60, layout: SimpleLayout [ axis = y ],
+        Button [ label = "Alpha" ],
+        Button [ label = "Beta" ] ],
+    panel: View [ y = 200, tabOrder() { return [] },
+        Button [ label = "Gamma" ] ],
+    bar: View [ width = 400, height = 50,
+        Button [ label = "Menu" ] ] ]`;
+
+await test("a tabOrder() orders what is read: Chrome's tree, the runtime's, and Tab agree", async () => {
+  const compiled = await compile(ORDER_SOURCE);
+  assert.deepEqual(compiled.errors, [], "the fixture compiles");
+  const p2 = await browser.newPage();
+  await p2.setViewport({ width: 500, height: 400 });
+  await p2.goto(BASE + "/", { waitUntil: "domcontentloaded" });
+  const ours = await p2.evaluate(async (base, json) => {
+    const rt = await import(base + "/runtime/dist/index.js");
+    const sem = await import(base + "/runtime/dist/semantics.js");
+    const dom = await import(base + "/runtime/dist/semantics-dom.js");
+    await rt.kernelReady?.();
+    const host = document.createElement("div");
+    host.style.cssText = "position:absolute;left:0;top:0;width:400px;height:300px";
+    document.body.appendChild(host);
+    const app = rt.buildProgram(JSON.parse(json));
+    rt.mountApp(app, host, new rt.DomBackend());
+    const frame = () => new Promise((res) => requestAnimationFrame(() => setTimeout(res, 0)));
+    rt.settle(); await frame(); dom.flushAnnotations(); rt.settle(); await frame();
+    const out = [];
+    const walk = (n) => { if (n.role === "button") out.push(n.name); n.children.forEach(walk); };
+    walk(sem.semanticTree(app));
+    const tab = rt.Focus.sequenceFor(null).map((v) => v.label);
+    return { read: out, tab };
+  }, BASE, JSON.stringify(compiled.program));
+  const c2 = await p2.createCDPSession();
+  const { nodes } = await c2.send("Accessibility.getFullAXTree");
+  const chrome = nodes.filter((n) => !n.ignored && n.role?.value === "button").map((n) => n.name?.value);
+  await p2.close();
+  assert.deepEqual(ours.tab, ["Menu", "Alpha", "Beta"], "Tab: the bar first, the gated panel left out");
+  assert.deepEqual(ours.read, ["Menu", "Alpha", "Beta", "Gamma"], "the runtime's tree: the bar first, the panel still read");
+  assert.deepEqual(chrome, ours.read, "Chrome's tree reads as the runtime's does");
+});
+
 await test("Chrome's accessibility tree says what the runtime's semantic tree says", async () => {
   const ours = await page.evaluate(() => {
     const { sem, app } = window.__t;

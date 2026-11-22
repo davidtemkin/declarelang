@@ -103,6 +103,7 @@ export declare const Diag: {
     shadowsTsGlobal: (kind: string, name: string, lib: string, rename: string, pos: Pos) => DeclareError;
     shadowsDeclareType: (kind: string, name: string, rename: string, pos: Pos, what?: string) => DeclareError;
     springsBoundSlot: (owner: string, slot: string, spring: string, pos: Pos) => DeclareError;
+    springsSameSlot: (owner: string, slot: string, spring: string, pos: Pos) => DeclareError;
     centersByHand: (axis: "x" | "y", pos: Pos) => DeclareError;
     animatorNeverStarts: (tag: string, name: string | null, pos: Pos) => DeclareError;
     buttonPressOverride: (owner: string, pos: Pos) => DeclareError;

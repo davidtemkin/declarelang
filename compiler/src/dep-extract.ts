@@ -564,7 +564,15 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
     const segs: ts.Node[] = [];
     while (ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n) || ts.isCallExpression(n) || ts.isNonNullExpression(n) || ts.isParenthesizedExpression(n)) {
       segs.push(n);
-      if (ts.isCallExpression(n)) { noteScriptCall(n); for (const a of n.arguments) walk(a); }
+      if (ts.isCallExpression(n)) {
+        noteScriptCall(n);
+        // a function written in place and called — ((v) => v[k])(app.d.value) —
+        // reads into what it is handed, as a script helper does
+        let fn: ts.Expression = n.expression;
+        while (ts.isParenthesizedExpression(fn)) fn = fn.expression;
+        if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) intoTree(n.arguments);
+        for (const a of n.arguments) walk(a);
+      }
       if (ts.isElementAccessExpression(n) && n.argumentExpression) walk(n.argumentExpression);
       n = n.expression;
     }
@@ -661,7 +669,14 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
         const idx = s.argumentExpression;
         if (idx && (ts.isNumericLiteral(idx) || ts.isStringLiteral(idx))) { pathEnd = s; }
         else {
-          if (isPureNodeNav(s.expression)) errors.push(new DepError(`computed attribute — this[<expr>] selects an attribute at runtime; name it, or bound the key's type`, s.getStart()));
+          if (isPureNodeNav(s.expression)) errors.push(new DepError(`computed attribute — this[<expr>] selects an attribute at runtime, so the compiler cannot name what it reads, whatever the key's type; read each attribute by name (a conditional over them), or keep the values as the fields of a record and read the one the key names with :@[(key)]`, s.getStart()));
+          // A computed key into a reactive chain — `app.d.value[k]`, `:rows[i]`'s
+          // compiled form aside — reads a field this extractor cannot name. The
+          // path so far is still an edge, but the field under the key changes
+          // without that edge changing (a write to `["a"]` leaves `value` the
+          // same object), so the body takes the tracking path, which records
+          // the key it actually read.
+          else if (reactive) reads.add(DYNAMIC);
           break;
         }
       } else if (ts.isCallExpression(s)) {
@@ -1788,7 +1803,54 @@ export function extractProgram(program: Program, oracle: TypeOracle | null = nul
     }
     out.push({ tag: c.tag, name: c.name, attr: c.attr, offset: c.offset, node: c.node, reads: [...canon], dynamic: dynamic || undefined, errors: errors.map((e) => ({ message: e.message, offset: e.offset })) });
   }
+  refuseDeclLoops(constraints, out);
   return out;
+}
+
+/** A LOOP among one element's declared defaults — `a: number = { b + 1 }`,
+ *  `b: number = { a + 1 }` — is a cycle the dep sets already show: each waits on
+ *  the other, and the boot's cycle guard is the first to say so. It is refused
+ *  here, at the line, with the loop named. Only the main tree's elements: a
+ *  class body's default may be replaced where the class is used, so a loop
+ *  there need not stand. (A constraint reading its own slot is the
+ *  self-dependence case above.) */
+function refuseDeclLoops(
+  constraints: readonly { attr: string; owner: unknown; classRoot: unknown; decl?: boolean }[],
+  out: ExtractedConstraint[],
+): void {
+  const groups = new Map<unknown, Map<string, number>>();
+  constraints.forEach((c, i) => {
+    if (c.decl !== true || c.classRoot !== null || c.attr.includes(".")) return;
+    let g = groups.get(c.owner);
+    if (g === undefined) groups.set(c.owner, g = new Map());
+    g.set(c.attr, i);
+  });
+  for (const g of groups.values()) {
+    if (g.size < 2) continue;
+    const next = new Map<string, string[]>();
+    for (const [attr, i] of g) {
+      const to = new Set<string>();
+      for (const rd of out[i].reads) {
+        const m = /^this\.(?:\$root\.)?([A-Za-z_$][\w$]*)/.exec(rd);
+        if (m !== null && m[1] !== attr && g.has(m[1])) to.add(m[1]);
+      }
+      next.set(attr, [...to]);
+    }
+    const state = new Map<string, 1 | 2>();   // 1 on the path, 2 done
+    const path: string[] = [];
+    const visit = (a: string): void => {
+      state.set(a, 1); path.push(a);
+      for (const b of next.get(a) ?? []) {
+        if (state.get(b) === 1) {
+          const loop = [...path.slice(path.indexOf(b)), b];
+          const i = g.get(b)!;
+          out[i].errors.push({ message: `'${loop[0]}' is part of a loop: ${loop.join(" → ")} — each waits on the next, so none has a value; give one of them a base (a literal, or a read of something outside the loop)`, offset: 0 });
+        } else if (state.get(b) === undefined) visit(b);
+      }
+      path.pop(); state.set(a, 2);
+    };
+    for (const a of g.keys()) if (state.get(a) === undefined) visit(a);
+  }
 }
 
 /** Extract deps and ATTACH them to the program AST (`attr.value.deps`), so the

@@ -137,6 +137,22 @@ export function fieldCaption(v: View, role: string): string {
 const POSITIONED = new Set(["listItem", "menuItem", "menuItemRadio", "tab", "radio", "option", "treeItem", "row"]);
 const PRESENTATIONAL = new Set(["button", "toggle", "checkbox", "switch", "radio", "tab", "slider", "spinButton", "progress", "meter", "separator", "option", "menuItem", "menuItemRadio", "image"]);
 
+/** The order a view's children are read in: the order its own `tabOrder()`
+ *  gives them, where it writes one, so Tab and a screen reader go the same way
+ *  — then every child it leaves out, as declared, since leaving a view out of
+ *  Tab does not hide it from reading (`visible` and `exists` do that). Only
+ *  the view's own children are placed: a `tabOrder()` naming a view elsewhere
+ *  moves Tab there, not what is read. */
+export function readingOrder(v: View): View[] {
+  const own = v.children.filter((c): c is View => c instanceof View);
+  const fn = (v as unknown as { tabOrder?: () => unknown }).tabOrder;
+  if (typeof fn !== "function") return own;
+  const listed = fn.call(v);
+  if (!Array.isArray(listed)) return own;
+  const first = listed.filter((c): c is View => c instanceof View && c.parent === v);
+  return first.length === 0 ? own : [...new Set([...first, ...own])];
+}
+
 function walk(v: View, out: SemNode[]): void {
   // what cannot be seen is not read: hidden, or faded to nothing; nor is what
   // is seen and marked hidden from a screen reader
@@ -157,7 +173,7 @@ function walk(v: View, out: SemNode[]): void {
   }
   const role = roleOf(v);
   if (role === "none") {
-    for (const c of v.children) if (c instanceof View) walk(c, out);
+    for (const c of readingOrder(v)) walk(c, out);
     return;
   }
   const node = nodeFor(v, role);
@@ -169,7 +185,7 @@ function walk(v: View, out: SemNode[]): void {
   if (node.name === "") node.name = fieldCaption(v, role);
   // a tip that is not the name describes: "Archive" on a button that says "A"
   if (node.hint === undefined && v.tooltipLabel !== "" && v.tooltipLabel !== node.name) node.hint = v.tooltipLabel;
-  for (const c of v.children) if (c instanceof View) walk(c, node.children);
+  for (const c of readingOrder(v)) walk(c, node.children);
   // the text a name was taken from, or that only repeats it or the value, is not read again;
   // nor is any text inside a role whose content is presentation (ARIA's "children
   // presentational": a button says its name, never the label inside it as well)

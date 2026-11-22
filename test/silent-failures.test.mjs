@@ -1,7 +1,8 @@
 // silent-failures — what an agent met that went wrong without a word, each now
-// either working or said: a whole dataset handed to a function goes stale no
-// more; a write to a computed dataset and a rowIndex that is always 0 are
-// warned of; a misplaced two-way arrow names the form that works; the semantic
+// either working or said: a whole dataset handed to a function, or a field read
+// by a computed key, goes stale no more; a write to a computed dataset and a
+// rowIndex that is always 0 are warned of; a misplaced two-way arrow names the
+// form that works; the semantic
 // tree prints whole; a paragraph's direction reaches the page; a field the
 // program owns is still judged by its validate(); a combobox picks the item
 // autofill fills in; an input handler reads the caret after the keystroke, and
@@ -43,6 +44,21 @@ await test("a dataset's tree handed to JSON.stringify follows every write", () =
   const r = run("look.mjs", BOOK, "--read", "app.saved", "--call", "app.bump()", "--read", "app.saved");
   assert.equal(r.status, 0, r.out);
   assert.match(r.out, /app\.saved = .*"amount\\":5/, r.out);
+});
+
+await test("a field read by a computed key, or by a function written in place, follows every write", () => {
+  const f = join(DIR, "keyed.declare");
+  writeFileSync(f, `App [ width = 200, height = 100,
+    choices: Dataset { { "a": false, "b": false } },
+    k: string = "a",
+    keyed: boolean = { app.choices.value[app.k] == true },
+    inPlace: boolean = { ((v) => v[app.k] == true)(app.choices.value) },
+    flip() { app.choices.set(["a"], true) }
+    ]`);
+  const r = run("look.mjs", f, "--call", "app.flip()", "--read", "app.keyed", "--read", "app.inPlace");
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /app\.keyed = true/, r.out);
+  assert.match(r.out, /app\.inPlace = true/, r.out);
 });
 
 await test("warned: a write to a computed dataset, and rowIndex on a view that is not replicated", () => {

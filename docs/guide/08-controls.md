@@ -311,7 +311,8 @@ When you need more:
 - When the view with focus is hidden or removed, focus goes where the nearest container's
   [`restoresFocusTo`](declare-docs:View.restoresFocusTo) says; inside a list or a grid, to
   the list. Otherwise it is cleared, and the next Tab starts from where it was.
-- A container reorders or gates what Tab reaches by overriding [`tabOrder()`](declare-docs:View.method.tabOrder) — a closed
+- A container reorders or gates what Tab reaches by overriding [`tabOrder()`](declare-docs:View.method.tabOrder) — the
+  order it gives is also the order a screen reader reads its children in — a closed
   pane returns nothing, so Tab never reaches content the user cannot see.
 - [`focusScope`](declare-docs:View.focusScope) says what Tab does at a container's edge:
   `stop` makes it one stop whose arrows move among its members, `capture` lets Tab walk into

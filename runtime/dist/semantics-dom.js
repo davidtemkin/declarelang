@@ -21,7 +21,7 @@ import { Focus, bareScroller } from "./focus.js";
 import { Constraint, untracked, afterSettle } from "./reactive.js";
 import { onDiscard } from "./node.js";
 import { readRowIndex } from "./view.js";
-import { rowsUnder, roleOf, textOf, contentOf, nameOfContent, fieldCaption, NAMED_BY_CONTENT, REACHED_APART } from "./semantics.js";
+import { rowsUnder, roleOf, textOf, contentOf, nameOfContent, fieldCaption, readingOrder, NAMED_BY_CONTENT, REACHED_APART } from "./semantics.js";
 import { provideAnnouncer } from "./accessibility-service.js";
 import { inPointer } from "./pointer-dispatch.js";
 /** The ARIA role each word maps to on the web. */
@@ -306,7 +306,8 @@ function install(v) {
     k.owner = v;
     RULE_OF.set(v, k);
     k.run();
-    onDiscard(v, () => { k.dispose(); if (v.focusScope === "modal")
+    const order = readsInOrder(v);
+    onDiscard(v, () => { k.dispose(); order?.dispose(); if (v.focusScope === "modal")
         holdInert(v, false); });
     // a press a screen reader makes arrives as a click with no pointer behind it
     // (`detail` 0); the pointer's own clicks reach press() through the router
@@ -319,6 +320,41 @@ function install(v) {
             untracked(() => v.press());
         });
     }
+}
+// ── reading order: a view's tabOrder() orders what is read, too ──────────────
+/** A view that writes its own `tabOrder()` is read in that order (semantics.ts
+ *  readingOrder). The DOM's order is paint order and cannot move, so the
+ *  element OWNS its children's elements in the reading order (`aria-owns`) —
+ *  only where that differs from the order they stand in. Kept true as the
+ *  order changes. */
+function readsInOrder(v) {
+    if (typeof v.tabOrder !== "function")
+        return null;
+    const k = new Constraint(`${nodeLabel(v)} (reading order)`, () => {
+        const kids = readingOrder(v).filter((c) => c.visible).map((c) => elementOf(c)).filter((e) => e !== null);
+        const natural = [...kids].sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0 ? -1 : 1);
+        return kids.every((e, i) => e === natural[i]) ? [] : kids;
+    }, (kids) => {
+        const el = elementOf(v);
+        if (el === null)
+            return;
+        const owned = kids;
+        if (owned.length === 0) {
+            if (el.hasAttribute("aria-owns"))
+                el.removeAttribute("aria-owns");
+            return;
+        }
+        for (const e of owned)
+            if (e.id === "")
+                e.id = "declare-ax-" + (++AX_IDS);
+        const ids = owned.map((e) => e.id).join(" ");
+        if (el.getAttribute("aria-owns") !== ids)
+            el.setAttribute("aria-owns", ids);
+    });
+    k.pushes = true;
+    k.owner = v;
+    k.run();
+    return k;
 }
 // ── an open modal makes the rest of its app inert ────────────────────────────
 const INERT = new Map();

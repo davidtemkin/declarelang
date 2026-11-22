@@ -6,6 +6,7 @@
 // Declare source. Each type's `coerce` case owns its "expects …" wording, so
 // a type and its diagnostics are one thing and cannot drift apart.
 
+import { CSS_COLORS } from "./css-colors.js";
 import type { Literal, ShapeField } from "./parser.js";
 import { diag } from "./errors.js";
 import type { Motion } from "./animate.js";
@@ -43,15 +44,21 @@ export function hexColor(s: string): number | undefined {
   return long.length === 8 ? colorWithAlpha(rgb, parseInt(long.slice(6), 16)) : rgb;
 }
 
-/** A color as it may be written in code — a number, `null`, or a CSS hex
- *  string — as the number the runtime holds. A string that arrives at run time
- *  (from data, or a value the compile could not see) is parsed here; a CSS name
- *  is not, since its table stays out of a running program: the compile turns
- *  each name it sees into its number, and one it cannot see is said, loudly,
- *  and paints nothing. */
+/** A CSS color name (any case) as its Color number, or undefined when the text
+ *  names no color. */
+export function namedColor(s: string): number | undefined {
+  const key = s.toLowerCase();
+  return Object.hasOwn(CSS_COLORS, key) ? CSS_COLORS[key] : undefined;
+}
+
+/** A color as it may be written in code — a number, `null`, a CSS hex string or
+ *  a CSS color name — as the number the runtime holds. The compile turns each
+ *  literal it sees into its number; a string that arrives at run time (from data,
+ *  or a value the compile could not see) is read here, and one that is not a
+ *  color is said, loudly, and paints nothing. */
 export function toColor(v: unknown, where?: () => string): Color {
   if (typeof v !== "string") return v as Color;
-  const n = hexColor(v);
+  const n = hexColor(v.trim()) ?? namedColor(v.trim());
   if (n !== undefined) return n;
   warnColorString(v, where);
   return null;
@@ -62,7 +69,7 @@ function warnColorString(v: string, where?: () => string): void {
   if (saidColorStrings.has(v) || typeof console === "undefined") return;
   saidColorStrings.add(v);
   const on = where === undefined ? "" : ` on ${where()}`;
-  console.error(diag`[Declare] the color ${JSON.stringify(v)}${on} arrived as a string at run time, where only hex is read — write it as "#RRGGBB" (a color name is read where the compile can see it), and read text as a color with Color.from(s). Nothing was painted.`);
+  console.error(diag`[Declare] the color ${JSON.stringify(v)}${on} arrived as a string at run time, and it is not a color — write a color as "#RRGGBB" or a CSS name ("crimson"), and read text that may not be one with Color.from(s), which gives null. Nothing was painted.`);
 }
 
 /** A gradient stop: an explicit 0…1 offset, or null for even spacing. */

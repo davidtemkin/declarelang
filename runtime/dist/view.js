@@ -579,7 +579,8 @@ export class View extends Node {
         }
         this.$flush(s);
         if ((typeof __DECLARE_ACCESSIBILITY__ === "undefined" || __DECLARE_ACCESSIBILITY__)
-            && annotator !== null && (this.accessibilityRole !== "none" || this.$leafRole?.() === "textField" || this.accessibilityLabel !== "" || this.accessibilityHidden || this.link !== "" || this.scrolls !== "none"))
+            && annotator !== null && (this.accessibilityRole !== "none" || this.$leafRole?.() === "textField" || this.accessibilityLabel !== "" || this.accessibilityHidden || this.link !== "" || this.scrolls !== "none"
+            || typeof this.tabOrder === "function"))
             annotator(this);
         // the place among the siblings is the model's: the first later sibling with
         // a surface of its own HERE (not a stand-in, not one painting elsewhere)

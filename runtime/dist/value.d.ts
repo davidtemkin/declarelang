@@ -16,12 +16,14 @@ export declare function colorWithAlpha(rgb: number, a: number): number;
 /** A `#RGB`, `#RGBA`, `#RRGGBB` or `#RRGGBBAA` string as its Color number, or
  *  undefined when it is not one. Short forms double their digits, as in CSS. */
 export declare function hexColor(s: string): number | undefined;
-/** A color as it may be written in code — a number, `null`, or a CSS hex
- *  string — as the number the runtime holds. A string that arrives at run time
- *  (from data, or a value the compile could not see) is parsed here; a CSS name
- *  is not, since its table stays out of a running program: the compile turns
- *  each name it sees into its number, and one it cannot see is said, loudly,
- *  and paints nothing. */
+/** A CSS color name (any case) as its Color number, or undefined when the text
+ *  names no color. */
+export declare function namedColor(s: string): number | undefined;
+/** A color as it may be written in code — a number, `null`, a CSS hex string or
+ *  a CSS color name — as the number the runtime holds. The compile turns each
+ *  literal it sees into its number; a string that arrives at run time (from data,
+ *  or a value the compile could not see) is read here, and one that is not a
+ *  color is said, loudly, and paints nothing. */
 export declare function toColor(v: unknown, where?: () => string): Color;
 /** A gradient stop: an explicit 0…1 offset, or null for even spacing. */
 export interface GradientStop {

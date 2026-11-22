@@ -73,10 +73,10 @@ A header that must not scroll away is a child that opts out of its scroller's sc
 
 ```declare-fragment
 App [
-    bar: View [ ignoreScroll = true, width = 100%, height = 56, fill = #10202C ],
     column: View [ y = 56, width = { Math.min(680, app.width - 48) }, x = center,
         layout: SimpleLayout [ axis = y, spacing = 24 ]
-        ]
+        ],
+    bar: View [ ignoreScroll = true, width = 100%, height = 56, fill = #10202C ]
     ]
 ```
 
@@ -90,6 +90,16 @@ scroller it pins against, shown with that screen's condition; the boot check nam
 that is nested. It is the third of the opt-outs a child
 declares for itself, with [`ignoreLayout`](declare-docs:View.ignoreLayout) and [`ignoreClip`](declare-docs:View.ignoreClip)
 ([Size, position and layout](declare-docs:guide:layout)).
+
+A pinned view paints in the order it is declared, like any other: the bar comes after
+the column, so the column scrolls *under* it. Declared first, it would be a backdrop the
+column scrolls over. Declaring a bar last also makes it last for Tab and for a screen
+reader; when it belongs first, the scroller's [`tabOrder()`](declare-docs:View.method.tabOrder)
+says so, and both follow it:
+
+```declare-fragment
+tabOrder() { return [this.bar as View, ...this.tabDefault().filter((v) => v != this.bar)] },
+```
 
 **A bar at the window's foot** is placed with `y = end`, as a child of the App:
 

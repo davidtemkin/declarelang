@@ -60,6 +60,7 @@ const CORPUS = [
   "test/probe/roundrect.declare",
   "test/probe/vignette.declare",
   "test/probe/ignorescroll.declare",
+  "test/probe/pinned-pane.declare",
   "test/probe/blendview.declare",
   "test/probe/frost.declare",
   "test/probe/rotation.declare",

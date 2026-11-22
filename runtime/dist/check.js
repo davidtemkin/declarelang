@@ -799,7 +799,7 @@ classRoot = false) {
             // as `bg` / `this.bg`") — so its name obeys the member namespace.
             const structural = structuralReason(child.name);
             if (NOUNS.includes(child.name)) {
-                errors.push(new DeclareError(`'${child.name}' is a scope noun (language §11) — a child cannot take its name`, child.pos));
+                errors.push(new DeclareError(`'${child.name}' is a reserved word (language §3: this, parent, classroot, app) — a child cannot take its name; rename the child (e.g. '${child.name === "this" ? "self" : child.name}${child.tag.replace(/^.*\./, "")}')`, child.pos));
             }
             else if (structural !== null) {
                 errors.push(new DeclareError(`'${child.name}' is ${structural} — a child cannot take its name; choose another`, child.pos));
@@ -835,7 +835,9 @@ classRoot = false) {
         if (!consumed.has(child))
             checkElement(child, errors, schemas, false, env, childCtx);
     }
-    // A Spring child driving a slot this element binds: two owners for one slot.
+    // A Spring child driving a slot this element binds, or one another Spring
+    // already drives: two owners for one slot.
+    const sprung = new Set();
     for (const child of el.children) {
         const cs = Object.hasOwn(schemas, child.tag) ? schemas[child.tag] : null;
         if (cs === null || !descendsFrom(cs, "Spring"))
@@ -847,6 +849,9 @@ classRoot = false) {
         const bound = el.attrs.find((a) => a.name === slot && (a.value.kind === "code" || a.value.kind === "path" || a.value.kind === "percent"));
         if (bound !== undefined)
             errors.push(Diag.springsBoundSlot(el.name ?? el.tag, slot, child.tag, target.value.pos));
+        else if (sprung.has(slot))
+            errors.push(Diag.springsSameSlot(el.name ?? el.tag, slot, child.tag, target.value.pos));
+        sprung.add(slot);
     }
 }
 /** A declaration taking one of the runtime's own members' names (a field like
@@ -1889,7 +1894,7 @@ export function checkAttr(schema, attr) {
  *  (not an attribute's — methods and attributes are one member namespace,
  *  language §4), a handler-shaped name must answer a declared event (the
  *  typo'd-handler compile error §8 promises), a parameter may not shadow
- *  a scope noun, and the body must be valid statement syntax. Like checkAttr,
+ *  a reserved word, and the body must be valid statement syntax. Like checkAttr,
  *  check() collects these and instantiate() throws them — one message
  *  source. */
 /** checkMethod, plus the rule only a whole program can decide: a METHOD
@@ -2255,7 +2260,7 @@ export function checkMethod(schema, m) {
     }
     const noun = m.params.map((p) => p.name).find((p) => p === "parent" || p === "classroot" || p === "app");
     if (noun !== undefined) {
-        return err(`${schema.name}.${m.name}: a parameter may not be named '${noun}' — it is a scope noun (language §11)`, m.pos);
+        return err(`${schema.name}.${m.name}: a parameter may not be named '${noun}' — it is a reserved word (language §3: this, parent, classroot, app); rename the parameter (e.g. '${noun}View')`, m.pos);
     }
     const e = validateBody(m.params.map((p) => p.name), m.body);
     if (e !== null) {

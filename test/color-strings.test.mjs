@@ -1,8 +1,7 @@
 // color-strings — a color in code may be written as CSS writes it, `"#4169E1"` or
 // `"royalblue"`, wherever TypeScript types it as a Color, beside `0x4169E1`. The
-// compile turns each such literal into its number; a hex string arriving at run
-// time is read where it lands; a color name arriving at run time is said, since
-// the names' table stays out of a running program.
+// compile turns each such literal into its number; a hex string or a color name
+// arriving at run time is read where it lands; text that is no color is said.
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
@@ -63,14 +62,16 @@ App [ width = 200, height = 100,
   assert.ok(app.w.fill > 0xFFFFFF, "an alpha hex is the runtime's alpha encoding");
 });
 
-await test("a color name that arrives at run time is said, naming the view and attribute, and paints nothing", async () => {
-  const { app } = await boot(`App [ width = 200, height = 100, v: View [ width = 50, height = 50 ] ]`);
+await test("a color name that arrives at run time is read; text that is no color is said, naming the view and attribute, and paints nothing", async () => {
+  const { app } = await boot(`App [ width = 200, height = 100, v: View [ width = 50, height = 50 ], w: View [ width = 50, height = 50 ] ]`);
+  app.v.fill = JSON.parse('"Crimson"');
+  assert.equal(app.v.fill, 0xDC143C, "a name, in any case, is its color");
   const said = [];
   const orig = console.error;
   console.error = (...a) => said.push(a.join(" "));
-  try { app.v.fill = JSON.parse('"crimson"'); } finally { console.error = orig; }
-  assert.equal(app.v.fill, null);
-  assert.ok(said.some((s) => /"crimson" on app\.v\.fill arrived as a string at run time/.test(s)), said.join("\n"));
+  try { app.w.fill = JSON.parse('"crimsonish"'); } finally { console.error = orig; }
+  assert.equal(app.w.fill, null);
+  assert.ok(said.some((s) => /"crimsonish" on app\.w\.fill arrived as a string at run time, and it is not a color/.test(s)), said.join("\n"));
 });
 
 await test("the runtime's built-in color attributes are exactly the schemas' color and fill attributes", async () => {
@@ -134,14 +135,14 @@ App [ width = 100, height = 100, fill = { "royalblue" },
   assert.equal(app.fill, 0x4169E1, "a literal headed for a view is still its number");
 });
 
-await test("Color.from reads a color from text, and gives null for text that is not one", async () => {
+await test("Color.from reads a color from text — hex or a CSS name — and gives null for text that is not one", async () => {
   const { app } = await boot(`App [ width = 100, height = 100,
     a: Color = { Color.from("#5B3DF5") }, b: Color = { Color.from("#abc") },
     c: string = { Color.hex(Color.from("#5b3df580")) ?? "" }, d: Color = { Color.from("crimson") }, e: Color = { Color.from("") } ]`);
   assert.equal(app.a, 0x5B3DF5);
   assert.equal(app.b, 0xAABBCC);
   assert.equal(app.c, "#5b3df580");
-  assert.equal(app.d, null, "a name is not read at run time");
+  assert.equal(app.d, 0xDC143C, "a CSS name is read");
   assert.equal(app.e, null);
   const hint = await errorsOf(`schema T [ tone: string ]
 App [ width = 100, height = 100, t: T = { { tone: "#112233" } }, v: View [ fill = { app.t.tone } ] ]`);

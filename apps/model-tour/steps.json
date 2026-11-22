@@ -1,0 +1,1245 @@
+{
+  "parts": [
+    {
+      "id": "views",
+      "name": "Views"
+    },
+    {
+      "id": "constraints",
+      "name": "Constraints"
+    },
+    {
+      "id": "layout",
+      "name": "Layout"
+    },
+    {
+      "id": "paint",
+      "name": "Paint"
+    },
+    {
+      "id": "effects",
+      "name": "Transforms and effects"
+    },
+    {
+      "id": "compose",
+      "name": "Composition"
+    },
+    {
+      "id": "data",
+      "name": "Data"
+    },
+    {
+      "id": "motion",
+      "name": "Your own layouts"
+    }
+  ],
+  "chip": {
+    "chipH": 36,
+    "chipR": 18,
+    "padStart": 12,
+    "padEnd": 14,
+    "gap": 8,
+    "dot": 10,
+    "dotR": 5,
+    "fontSize": 15
+  },
+  "paint": {
+    "light": {
+      "panel": "whitesmoke",
+      "box": "white"
+    },
+    "dark": {
+      "panel": "#20242C",
+      "box": "#242832"
+    }
+  },
+  "steps": [
+    {
+      "id": "view",
+      "part": "views",
+      "title": "A view is a box",
+      "point": "Everything on screen is a view: a place (x, y), a size (width, height) and paint.",
+      "hint": "Drag the box.",
+      "code": [
+        "App [",
+        "    box: View [ x = {{x}}, y = {{y}},",
+        "        width = {{w}}, height = {{h}},",
+        "        fill = steelblue, cornerRadius = {{r}} ]",
+        "    ]"
+      ],
+      "geo": {
+        "x": 180,
+        "y": 110,
+        "w": 240,
+        "h": 160,
+        "r": 12
+      },
+      "knobs": [],
+      "drag": true,
+      "core": 1
+    },
+    {
+      "id": "content",
+      "part": "views",
+      "title": "No size? Its content decides",
+      "point": "A view that states no size is as large as what it holds. A Text holds its words.",
+      "hint": "Change the words.",
+      "code": [
+        "App [",
+        "    label: Text [ x = {{x}}, y = {{y}},",
+        "        fontSize = {{size}}, text = \"{{words}}\" ]",
+        "    ]"
+      ],
+      "geo": {
+        "x": 150,
+        "y": 180,
+        "size": 32
+      },
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "words",
+          "label": "",
+          "items": [
+            {
+              "id": "Hi",
+              "label": "Hi"
+            },
+            {
+              "id": "Hello, world",
+              "label": "Hello, world"
+            },
+            {
+              "id": "Sizes come from content",
+              "label": "A longer line"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "children",
+      "part": "views",
+      "title": "Views hold views",
+      "point": "A view's children are placed from its top-left corner, and travel with it.",
+      "hint": "Drag the parent.",
+      "code": [
+        "panel: View [ x = {{x}}, y = {{y}},",
+        "    width = {{w}}, height = {{h}}, fill = {{panelFill}},",
+        "    a: View [ x = {{ax}}, y = {{ay}}, width = {{aw}}, height = {{ah}},",
+        "        fill = steelblue ],",
+        "    b: View [ x = {{bx}}, y = {{by}}, width = {{bw}}, height = {{bh}},",
+        "        fill = teal ]",
+        "    ]"
+      ],
+      "geo": {
+        "x": 120,
+        "y": 60,
+        "w": 360,
+        "h": 280,
+        "ax": 24,
+        "ay": 24,
+        "aw": 120,
+        "ah": 80,
+        "bx": 180,
+        "by": 120,
+        "bw": 140,
+        "bh": 100
+      },
+      "knobs": [],
+      "drag": true
+    },
+    {
+      "id": "order",
+      "part": "views",
+      "title": "Later paints on top",
+      "point": "There is no z-index. Siblings paint in the order they are written: the later one is on top.",
+      "hint": "Swap the order.",
+      "code": [
+        "panel: View [ x = {{x}}, y = {{y}},",
+        "    width = {{w}}, height = {{h}}, fill = {{panelFill}},",
+        "{{first}}",
+        "{{second}}",
+        "    ]"
+      ],
+      "geo": {
+        "x": 120,
+        "y": 60,
+        "w": 360,
+        "h": 280,
+        "ax": 60,
+        "ay": 60,
+        "aw": 170,
+        "ah": 130,
+        "bx": 140,
+        "by": 110,
+        "bw": 170,
+        "bh": 130
+      },
+      "knobs": [
+        {
+          "kind": "toggle",
+          "name": "swapped",
+          "label": "Swap a and b",
+          "labelOn": "Swap a and b"
+        }
+      ]
+    },
+    {
+      "id": "relation",
+      "part": "constraints",
+      "title": "A value can be a relationship",
+      "point": "In braces, a value is a constraint: it stays true as what it reads changes.",
+      "hint": "Drag the parent's edge.",
+      "code": [
+        "panel: View [ x = {{x}}, y = {{y}},",
+        "    width = {{w}}, height = {{h}}, fill = {{panelFill}},",
+        "    a: View [ x = {{ax}}, y = {{ay}}, width = {{aw}}, height = {{ah}},",
+        "        fill = steelblue ],",
+        "    b: View [ y = {{by}}, width = {{bw}}, height = {{bh}},",
+        "        fill = teal, x = { parent.width - width - {{inset}} } ]",
+        "    ]"
+      ],
+      "geo": {
+        "x": 120,
+        "y": 60,
+        "h": 280,
+        "ax": 24,
+        "ay": 24,
+        "aw": 120,
+        "ah": 80,
+        "by": 120,
+        "bw": 140,
+        "bh": 100,
+        "inset": 24
+      },
+      "knobs": [
+        {
+          "kind": "slider",
+          "name": "panelWidth",
+          "label": "Width",
+          "min": 260,
+          "max": 460,
+          "step": 10
+        }
+      ],
+      "core": 2
+    },
+    {
+      "id": "readers",
+      "part": "constraints",
+      "title": "One value, many readers",
+      "point": "Read a value inside braces and you follow it. Assign it, and every reader follows. There is no update code.",
+      "hint": "Change the size.",
+      "code": [
+        "App [ size: number = {{size}},",
+        "    layout: SimpleLayout [ axis = x, spacing = {{gap}} ],",
+        "    View [ width = { app.size }, height = {{h}},",
+        "        fill = steelblue ],",
+        "    View [ width = { app.size * 2 }, height = {{h}},",
+        "        fill = teal ],",
+        "    View [ width = {{h}}, height = { app.size },",
+        "        fill = orange ]",
+        "    ]"
+      ],
+      "geo": {
+        "h": 60,
+        "gap": 24
+      },
+      "knobs": [
+        {
+          "kind": "slider",
+          "name": "size",
+          "label": "Size",
+          "min": 30,
+          "max": 120,
+          "step": 10
+        }
+      ]
+    },
+    {
+      "id": "spring",
+      "part": "constraints",
+      "title": "A Spring is a value in motion",
+      "point": "A Spring moves a value toward a target; whatever reads the value moves with it. This whole stage works that way.",
+      "hint": "Open and close it, again before it lands.",
+      "code": [
+        "App [ open: boolean = {{open}},",
+        "    t: number = 0,",
+        "    Spring [ attribute = t, to = { app.open ? 1 : 0 } ],",
+        "    box: View [ height = {{h}}, fill = steelblue,",
+        "        width = { {{w}} + {{grow}} * app.t } ]",
+        "    ]"
+      ],
+      "geo": {
+        "w": 120,
+        "grow": 240,
+        "h": 80
+      },
+      "knobs": [
+        {
+          "kind": "toggle",
+          "name": "open",
+          "label": "Open",
+          "labelOn": "Close"
+        }
+      ],
+      "core": 3
+    },
+    {
+      "id": "layout",
+      "part": "layout",
+      "title": "A layout places the children",
+      "point": "A layout is an object a view holds. It places each child, so the children state no x or y.",
+      "hint": "Change the axis.",
+      "code": [
+        "panel: View [ x = center, y = center,",
+        "    layout: SimpleLayout [ axis = {{axis}}, spacing = {{gap}} ],",
+        "    View [ width = {{w0}}, height = {{h}}, fill = steelblue ],",
+        "    View [ width = {{w1}}, height = {{h}}, fill = teal ],",
+        "    View [ width = {{w2}}, height = {{h}}, fill = orange ]",
+        "    ]"
+      ],
+      "geo": {
+        "w0": 150,
+        "w1": 100,
+        "w2": 190,
+        "h": 56,
+        "gap": 12
+      },
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "axis",
+          "label": "",
+          "items": [
+            {
+              "id": "y",
+              "label": "axis = y"
+            },
+            {
+              "id": "x",
+              "label": "axis = x"
+            }
+          ]
+        }
+      ],
+      "core": 4
+    },
+    {
+      "id": "align",
+      "part": "layout",
+      "title": "Along the flow, and across it",
+      "point": "Along its flow the layout always decides. Across it, align decides; without one, each child sits at the start.",
+      "hint": "Change the alignment.",
+      "code": [
+        "panel: View [ x = center, y = center,",
+        "    layout: SimpleLayout [ axis = y, spacing = {{gap}},",
+        "        align = {{align}} ],",
+        "    View [ width = {{w0}}, height = {{h}}, fill = steelblue ],",
+        "    View [ width = {{w1}}, height = {{h}}, fill = teal ],",
+        "    View [ width = {{w2}}, height = {{h}}, fill = orange ]",
+        "    ]"
+      ],
+      "geo": {
+        "w0": 150,
+        "w1": 100,
+        "w2": 190,
+        "h": 56,
+        "gap": 12
+      },
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "align",
+          "label": "",
+          "items": [
+            {
+              "id": "start",
+              "label": "start"
+            },
+            {
+              "id": "center",
+              "label": "center"
+            },
+            {
+              "id": "end",
+              "label": "end"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flexes",
+      "part": "layout",
+      "title": "Asking for a share",
+      "point": "A child never works out its size from its siblings. It says flexes, and the layout gives it what is left.",
+      "hint": "Drag the parent's edge.",
+      "code": [
+        "panel: View [ x = center, y = center, width = {{w}},",
+        "    layout: SimpleLayout [ axis = x, spacing = {{gap}} ],",
+        "    View [ width = {{w0}}, height = {{h}}, fill = steelblue ],",
+        "    View [ flexes = true, height = {{h}}, fill = teal ],",
+        "    View [ width = {{w2}}, height = {{h}}, fill = orange ]",
+        "    ]"
+      ],
+      "geo": {
+        "w0": 100,
+        "w2": 80,
+        "h": 56,
+        "gap": 12
+      },
+      "knobs": [
+        {
+          "kind": "slider",
+          "name": "rowWidth",
+          "label": "Width",
+          "min": 300,
+          "max": 580,
+          "step": 10
+        }
+      ],
+      "core": 5
+    },
+    {
+      "id": "decider",
+      "part": "layout",
+      "title": "One decider for each value",
+      "point": "Each x, y, width and height is decided by one thing: the view itself, its parent's layout, or its content.",
+      "hint": "Drag the parent's edge.",
+      "code": [
+        "panel: View [ x = center, y = center, width = {{w}},",
+        "    layout: SimpleLayout [ axis = x, spacing = {{gap}} ],",
+        "    View [ width = {{w0}}, height = {{h}}, fill = steelblue ],",
+        "    View [ flexes = true, height = {{h}}, fill = teal ],",
+        "    // ✗ refused: in a row, the layout places x",
+        "    View [ width = {{w2}}, height = {{h}}, fill = orange,",
+        "        x = 40 ]",
+        "    ]"
+      ],
+      "geo": {
+        "w0": 100,
+        "w2": 80,
+        "h": 56,
+        "gap": 12
+      },
+      "knobs": [
+        {
+          "kind": "slider",
+          "name": "rowWidth",
+          "label": "Width",
+          "min": 300,
+          "max": 580,
+          "step": 10
+        }
+      ],
+      "core": 6
+    },
+    {
+      "id": "padding",
+      "part": "layout",
+      "title": "Padding makes a content box",
+      "point": "Padding insets the room a view gives its children. 100% means that room, not the whole box.",
+      "hint": "Change the padding.",
+      "code": [
+        "panel: View [ x = center, y = center, width = {{w}},",
+        "    padding = {{padding}}, fill = {{panelFill}},",
+        "    layout: SimpleLayout [ axis = y, spacing = {{gap}} ],",
+        "    View [ width = 100%, height = {{h}}, fill = steelblue ],",
+        "    View [ width = 100%, height = {{h}}, fill = teal ],",
+        "    View [ width = 100%, height = {{h}}, fill = orange ]",
+        "    ]"
+      ],
+      "geo": {
+        "w": 440,
+        "h": 48,
+        "gap": 12
+      },
+      "knobs": [
+        {
+          "kind": "slider",
+          "name": "padding",
+          "label": "Padding",
+          "min": 0,
+          "max": 40,
+          "step": 4
+        }
+      ]
+    },
+    {
+      "id": "scroll",
+      "part": "layout",
+      "title": "More than fits scrolls",
+      "point": "A view with a size of its own and scrolls = y scrolls whatever outgrows it. The program never sets where it is.",
+      "hint": "Scroll inside the box.",
+      "code": [
+        "panel: View [ x = center, y = center, fill = {{panelFill}},",
+        "    width = {{w}}, height = {{h}}, padding = {{pad}}, scrolls = y,",
+        "    layout: SimpleLayout [ axis = y, spacing = {{gap}} ],",
+        "    View [ width = 100%, height = {{rowH}}, fill = steelblue ],",
+        "    View [ width = 100%, height = {{rowH}}, fill = teal ],",
+        "    // … six in all",
+        "    ]"
+      ],
+      "geo": {
+        "w": 300,
+        "h": 320,
+        "pad": 16,
+        "rowH": 64,
+        "gap": 12
+      },
+      "knobs": []
+    },
+    {
+      "id": "fill",
+      "part": "paint",
+      "title": "Fill paints the box",
+      "point": "fill is a color or a gradient. A view with no fill paints nothing, and still takes its room.",
+      "hint": "Change the fill.",
+      "code": [
+        "View [ width = {{w}}, height = {{h}},",
+        "    fill = {{fill}} ]"
+      ],
+      "geo": {
+        "w": 240,
+        "h": 160
+      },
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "fill",
+          "label": "",
+          "items": [
+            {
+              "id": "color",
+              "label": "a color"
+            },
+            {
+              "id": "gradient",
+              "label": "a gradient"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stroke",
+      "part": "paint",
+      "title": "A stroke is drawn inside",
+      "point": "stroke draws a border inside the box, so it never changes the box's size. One for every side, or four, from the top.",
+      "hint": "Change the sides.",
+      "code": [
+        "View [ width = {{w}}, height = {{h}}, fill = {{boxFill}},",
+        "    stroke = {{stroke}} ]"
+      ],
+      "geo": {
+        "w": 240,
+        "h": 160
+      },
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "sides",
+          "label": "",
+          "items": [
+            {
+              "id": "all",
+              "label": "every side"
+            },
+            {
+              "id": "bottom",
+              "label": "the bottom"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "corners",
+      "part": "paint",
+      "title": "Rounding, one corner at a time",
+      "point": "cornerRadius rounds the box: one number for every corner, or four, clockwise from the top-left.",
+      "hint": "Change the corners.",
+      "code": [
+        "View [ width = {{w}}, height = {{h}}, fill = steelblue,",
+        "    cornerRadius = {{corners}} ]"
+      ],
+      "geo": {
+        "w": 240,
+        "h": 160
+      },
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "corners",
+          "label": "",
+          "items": [
+            {
+              "id": "one",
+              "label": "24"
+            },
+            {
+              "id": "four",
+              "label": "[48, 0, 48, 0]"
+            },
+            {
+              "id": "pill",
+              "label": "80"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "shadow",
+      "part": "paint",
+      "title": "A shadow falls from the box",
+      "point": "shadow casts the box's shape, rounding included. Like a stroke, it takes no room.",
+      "hint": "Lift it.",
+      "code": [
+        "View [ width = {{w}}, height = {{h}}, fill = {{boxFill}},",
+        "    cornerRadius = {{r}},",
+        "    shadow = { Shadow(0, {{dy}}, {{blur}}, 0x00000040) } ]"
+      ],
+      "geo": {
+        "w": 240,
+        "h": 160,
+        "r": 16
+      },
+      "knobs": [
+        {
+          "kind": "slider",
+          "name": "lift",
+          "label": "Lift",
+          "min": 0,
+          "max": 1,
+          "step": 0.05
+        }
+      ]
+    },
+    {
+      "id": "presence",
+      "part": "paint",
+      "title": "Faded, or gone",
+      "point": "opacity is paint: a faded view keeps its room. visible = false takes it out of the picture, the layout and input.",
+      "hint": "Fade the middle box, or remove it.",
+      "code": [
+        "row: View [",
+        "    layout: SimpleLayout [ axis = x, spacing = {{gap}} ],",
+        "    View [ width = {{w}}, height = {{h}}, fill = steelblue ],",
+        "    View [ width = {{w}}, height = {{h}}, fill = teal,",
+        "        {{presence}} ],",
+        "    View [ width = {{w}}, height = {{h}}, fill = orange ]",
+        "    ]"
+      ],
+      "geo": {
+        "w": 100,
+        "h": 80,
+        "gap": 12
+      },
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "presence",
+          "label": "",
+          "items": [
+            {
+              "id": "shown",
+              "label": "opacity 1"
+            },
+            {
+              "id": "faded",
+              "label": "0.25"
+            },
+            {
+              "id": "clear",
+              "label": "0"
+            },
+            {
+              "id": "hidden",
+              "label": "visible = false"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "draw",
+      "part": "paint",
+      "title": "Draw what attributes can't say",
+      "point": "A view can paint itself in draw(). It runs again whenever what it read changes: here, done.",
+      "hint": "Change how much is done.",
+      "code": [
+        "ring: View [ width = {{size}}, height = {{size}},",
+        "    done: number = {{done}},",
+        "    draw(d: DrawContext) {",
+        "        d.lineWidth = {{line}}",
+        "        d.strokeStyle = \"#3B82F6\"",
+        "        d.beginPath()",
+        "        d.arc(d.w / 2, d.h / 2, {{r}}, -Math.PI / 2,",
+        "            -Math.PI / 2 + 2 * Math.PI * done)",
+        "        d.stroke()",
+        "        }",
+        "    ]"
+      ],
+      "geo": {
+        "size": 160,
+        "line": 16,
+        "r": 60
+      },
+      "knobs": [
+        {
+          "kind": "slider",
+          "name": "done",
+          "label": "Done",
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        }
+      ]
+    },
+    {
+      "id": "clip",
+      "part": "effects",
+      "title": "Clip cuts children to a shape",
+      "point": "A view paints its children wherever they are, even past its edges, unless it clips: to its box, or to any shape. A press outside the shape reaches what is beneath.",
+      "hint": "Change the clip.",
+      "code": [
+        "panel: View [ x = {{x}}, y = {{y}},",
+        "    width = {{w}}, height = {{h}}, fill = {{panelFill}},",
+        "{{clipLine}}",
+        "    a: View [ x = {{ax}}, y = {{ay}}, width = {{aw}}, height = {{ah}},",
+        "        fill = steelblue ],",
+        "    b: View [ x = {{bx}}, y = {{by}}, width = {{bw}}, height = {{bh}},",
+        "        fill = teal ]",
+        "    ]"
+      ],
+      "geo": {
+        "x": 120,
+        "y": 60,
+        "w": 360,
+        "h": 280,
+        "ax": -40,
+        "ay": 40,
+        "aw": 200,
+        "ah": 120,
+        "bx": 250,
+        "by": 150,
+        "bw": 160,
+        "bh": 160
+      },
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "clip",
+          "label": "",
+          "items": [
+            {
+              "id": "none",
+              "label": "no clip"
+            },
+            {
+              "id": "box",
+              "label": "clip = true"
+            },
+            {
+              "id": "shape",
+              "label": "a shape"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scale",
+      "part": "effects",
+      "title": "Scale is geometry, not paint",
+      "point": "A scaled view really takes less room, so its layout closes up around it. Paint, presses and layout all see the same box.",
+      "hint": "Scale the middle box.",
+      "code": [
+        "panel: View [ x = center, y = center,",
+        "    layout: SimpleLayout [ axis = x, spacing = {{gap}},",
+        "        align = center ],",
+        "    View [ width = {{w}}, height = {{h}}, fill = steelblue ],",
+        "    View [ width = {{w}}, height = {{h}}, fill = teal,",
+        "        scale = {{scaleBy}}, pivotX = {{halfW}}, pivotY = {{halfH}} ],",
+        "    View [ width = {{w}}, height = {{h}}, fill = orange ]",
+        "    ]"
+      ],
+      "geo": {
+        "w": 100,
+        "h": 80,
+        "gap": 12
+      },
+      "knobs": [
+        {
+          "kind": "slider",
+          "name": "scaleBy",
+          "label": "Scale",
+          "min": 0.4,
+          "max": 1.6,
+          "step": 0.1
+        }
+      ],
+      "core": 7
+    },
+    {
+      "id": "rotate",
+      "part": "effects",
+      "title": "Rotation turns about a pivot",
+      "point": "rotation turns a view about its pivot. Presses follow what you see, and a layout makes room for the turned box.",
+      "hint": "Turn it; move the pivot.",
+      "code": [
+        "View [ width = {{w}}, height = {{h}}, fill = steelblue,",
+        "    rotation = {{turn}},",
+        "    pivotX = {{px}}, pivotY = {{py}} ]"
+      ],
+      "geo": {
+        "w": 200,
+        "h": 120
+      },
+      "knobs": [
+        {
+          "kind": "slider",
+          "name": "turn",
+          "label": "Rotation",
+          "min": -90,
+          "max": 90,
+          "step": 5
+        },
+        {
+          "kind": "segmented",
+          "name": "pivot",
+          "label": "",
+          "items": [
+            {
+              "id": "middle",
+              "label": "pivot: middle"
+            },
+            {
+              "id": "corner",
+              "label": "corner"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "filter",
+      "part": "effects",
+      "title": "A filter treats a view as one picture",
+      "point": "visualFilter blurs, grays or shifts a view and everything in it, as one picture.",
+      "hint": "Change the filter.",
+      "code": [
+        "row: View [ visualFilter = {{filter}},",
+        "    layout: SimpleLayout [ axis = x, spacing = {{gap}} ],",
+        "    View [ width = {{w}}, height = {{h}}, fill = steelblue ],",
+        "    View [ width = {{w}}, height = {{h}}, fill = teal ],",
+        "    View [ width = {{w}}, height = {{h}}, fill = orange ]",
+        "    ]"
+      ],
+      "geo": {
+        "w": 100,
+        "h": 80,
+        "gap": 12
+      },
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "filter",
+          "label": "",
+          "items": [
+            {
+              "id": "none",
+              "label": "none"
+            },
+            {
+              "id": "blur",
+              "label": "blur"
+            },
+            {
+              "id": "grayscale",
+              "label": "grayscale"
+            },
+            {
+              "id": "hue",
+              "label": "hue"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "frost",
+      "part": "effects",
+      "title": "Frost blurs what is behind",
+      "point": "backdrop blurs whatever has painted beneath a view, inside its shape, then paints the view's fill over it.",
+      "hint": "Frost the glass.",
+      "code": [
+        "glass: View [ width = {{w}}, height = {{h}},",
+        "    cornerRadius = {{r}}, fill = #FFFFFF59,",
+        "    backdrop = {{frost}} ]"
+      ],
+      "geo": {
+        "w": 260,
+        "h": 120,
+        "r": 20
+      },
+      "knobs": [
+        {
+          "kind": "toggle",
+          "name": "frost",
+          "label": "Frost the glass",
+          "labelOn": "Clear the glass"
+        }
+      ]
+    },
+    {
+      "id": "chip",
+      "part": "compose",
+      "title": "Views make a thing",
+      "point": "A chip is nothing new: a rounded view with a row layout, holding a dot and a label.",
+      "hint": "",
+      "code": [
+        "View [ height = {{chipH}}, cornerRadius = {{chipR}},",
+        "    padding = [0, {{padEnd}}, 0, {{padStart}}],",
+        "    layout: SimpleLayout [ axis = x, spacing = {{gap}},",
+        "        align = center ],",
+        "    View [ width = {{dot}}, height = {{dot}}, cornerRadius = {{dotR}},",
+        "        fill = tomato ],",
+        "    Text [ text = \"Design\" ]",
+        "    ]"
+      ],
+      "knobs": []
+    },
+    {
+      "id": "class",
+      "part": "compose",
+      "title": "Name it, and it is a class",
+      "point": "class Chip [ … ] makes the same tree a kind of view. Chip [ ] makes one, anywhere a view fits.",
+      "hint": "",
+      "code": [
+        "class Chip [ height = {{chipH}}, cornerRadius = {{chipR}},",
+        "    padding = [0, {{padEnd}}, 0, {{padStart}}],",
+        "    layout: SimpleLayout [ axis = x, spacing = {{gap}},",
+        "        align = center ],",
+        "    View [ width = {{dot}}, height = {{dot}}, cornerRadius = {{dotR}},",
+        "        fill = tomato ],",
+        "    Text [ text = \"Design\" ]",
+        "    ]",
+        "",
+        "row: View [",
+        "    layout: SimpleLayout [ axis = x, spacing = 10 ],",
+        "    Chip [ ],",
+        "    Chip [ ],",
+        "    Chip [ ]",
+        "    ]"
+      ],
+      "knobs": [],
+      "core": 8
+    },
+    {
+      "id": "attrs",
+      "part": "compose",
+      "title": "Attributes make each its own",
+      "point": "A class declares attributes; its parts read them through classroot; each use sets them.",
+      "hint": "",
+      "code": [
+        "class Chip [ height = {{chipH}}, cornerRadius = {{chipR}},",
+        "    padding = [0, {{padEnd}}, 0, {{padStart}}],",
+        "    label: string = \"\",",
+        "    tone: Color = gray,",
+        "    layout: SimpleLayout [ axis = x, spacing = {{gap}},",
+        "        align = center ],",
+        "    View [ width = {{dot}}, height = {{dot}}, cornerRadius = {{dotR}},",
+        "        fill = { classroot.tone } ],",
+        "    Text [ text = { classroot.label } ]",
+        "    ]",
+        "",
+        "row: View [",
+        "    layout: SimpleLayout [ axis = x, spacing = 10 ],",
+        "    Chip [ label = \"Design\", tone = tomato ],",
+        "    Chip [ label = \"Build\", tone = teal ],",
+        "    Chip [ label = \"Ship\", tone = orange ]",
+        "    ]"
+      ],
+      "knobs": []
+    },
+    {
+      "id": "control",
+      "part": "compose",
+      "title": "Extend Control, and it can be pressed",
+      "point": "A Control is a view that takes presses: click, tap, Space or Enter all call press(). Hover and pressed are values.",
+      "hint": "Press a chip, or Tab to one and press Space.",
+      "code": [
+        "class Chip extends Control [ height = {{chipH}},",
+        "    cornerRadius = {{chipR}}, padding = [0, {{padEnd}}, 0, {{padStart}}],",
+        "    label: string = \"\",",
+        "    tone: Color = gray,",
+        "    fill = { pressed ? provided(\"theme\").controlPressed",
+        "        : hovered ? provided(\"theme\").controlHovered",
+        "        : provided(\"theme\").control },",
+        "    // the row, the dot and the label, as before",
+        "    ]",
+        "",
+        "row: View [",
+        "    layout: SimpleLayout [ axis = x, spacing = 10 ],",
+        "    Chip [ label = \"Design\", tone = tomato,",
+        "        press() { app.presses = app.presses + 1 } ],",
+        "    // …and the others the same",
+        "    ]"
+      ],
+      "knobs": [],
+      "live": "press"
+    },
+    {
+      "id": "state",
+      "part": "compose",
+      "title": "A State is a look that holds",
+      "point": "A State's values apply while its condition holds, and come off when it lifts. There is no code to undo it.",
+      "hint": "Press the chips.",
+      "code": [
+        "class Chip extends Control [ height = {{chipH}},",
+        "    cornerRadius = {{chipR}}, padding = [0, {{padEnd}}, 0, {{padStart}}],",
+        "    label: string = \"\",",
+        "    tone: Color = gray,",
+        "    on: boolean = false,",
+        "    accessibilityRole = toggle,",
+        "    accessibilityPressed = { on },",
+        "    press() { on = !on },",
+        "    fill = { pressed ? provided(\"theme\").controlPressed",
+        "        : hovered ? provided(\"theme\").controlHovered",
+        "        : provided(\"theme\").control },",
+        "    State [ applied = { on }, fill = { classroot.tone } ],",
+        "    // the row and the dot as before, and the label:",
+        "    Text [ text = { classroot.label },",
+        "        State [ applied = { classroot.on },",
+        "            textColor = white ] ]",
+        "    ]"
+      ],
+      "knobs": [],
+      "live": "toggle",
+      "core": 9
+    },
+    {
+      "id": "bind",
+      "part": "data",
+      "title": "A view reads a record",
+      "point": "datapath points a view at a record, and :label reads a field of it. Change the record, and the view follows.",
+      "hint": "Change the record.",
+      "code": [
+        "App [",
+        "    item: Dataset { { \"id\": 1, \"label\": \"{{label}}\" } },",
+        "    Chip [ datapath = { app.item.value }, label = :label ]",
+        "    ]"
+      ],
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "label",
+          "label": "",
+          "items": [
+            {
+              "id": "Design",
+              "label": "Design"
+            },
+            {
+              "id": "Draft",
+              "label": "Draft"
+            },
+            {
+              "id": "A longer label",
+              "label": "A longer label"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "replicate",
+      "part": "data",
+      "title": "One view per record",
+      "point": "End the path in [] and the view is made once for each record. There is no loop: the data is the list.",
+      "hint": "",
+      "code": [
+        "items: Dataset { { \"rows\": [",
+        "    { \"id\": 1, \"label\": \"Design\" },",
+        "    { \"id\": 2, \"label\": \"Build\" },",
+        "    { \"id\": 3, \"label\": \"Ship\" },",
+        "    { \"id\": 4, \"label\": \"Test\" } ] } },",
+        "",
+        "row: View [ datapath = { app.items.value },",
+        "    layout: SimpleLayout [ axis = x, spacing = 10 ],",
+        "    Chip [ datapath = :rows[], label = :label ]",
+        "    ]"
+      ],
+      "knobs": [],
+      "core": 10
+    },
+    {
+      "id": "change",
+      "part": "data",
+      "title": "Change the data, and the views follow",
+      "point": "Write to the data and the views follow it: one arrives, one leaves, one moves. Each record keeps its own view.",
+      "hint": "Add, remove, move.",
+      "code": [
+        "// each a write to the data, which the chips follow",
+        "app.items.insert([\"rows\"], 0, ({ id: 5, label: \"Plan\" }))",
+        "app.items.removeAt([\"rows\"], 0)",
+        "app.items.move([\"rows\"], 0, 2)"
+      ],
+      "knobs": [
+        {
+          "kind": "verb",
+          "name": "insert",
+          "label": "Insert"
+        },
+        {
+          "kind": "verb",
+          "name": "remove",
+          "label": "Remove"
+        },
+        {
+          "kind": "verb",
+          "name": "move",
+          "label": "Move"
+        }
+      ],
+      "core": 11
+    },
+    {
+      "id": "derive",
+      "part": "data",
+      "title": "Data derived from data",
+      "point": "A Dataset whose contents is a constraint makes records from other state. Views bound to it follow it like any data.",
+      "hint": "Change the filter.",
+      "code": [
+        "shown: Dataset [ contents = { { rows: app.items.value.rows",
+        "    .filter((r) => r.status == \"{{status}}\") } } ],",
+        "",
+        "row: View [ datapath = { app.shown.value },",
+        "    layout: SimpleLayout [ axis = x, spacing = 10 ],",
+        "    Chip [ datapath = :rows[], label = :label ]",
+        "    ]"
+      ],
+      "knobs": [
+        {
+          "kind": "segmented",
+          "name": "status",
+          "label": "",
+          "items": [
+            {
+              "id": "doing",
+              "label": "doing"
+            },
+            {
+              "id": "done",
+              "label": "done"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kinds",
+      "part": "data",
+      "title": "Each kind of record, its own class",
+      "point": "When records are different kinds of thing, each kind is a class, and classFor picks one for each record.",
+      "hint": "",
+      "code": [
+        "class Heading [ Text [ fontWeight = semibold,",
+        "    text = :label ] ]",
+        "",
+        "list: View [ datapath = { app.items.value },",
+        "    layout: SimpleLayout [ axis = y, spacing = 8 ],",
+        "    View [ datapath = :rows[],",
+        "        classFor = { :kind == \"head\" ? Heading : Chip } ]",
+        "    ]"
+      ],
+      "knobs": []
+    },
+    {
+      "id": "own",
+      "part": "motion",
+      "title": "A layout is one method",
+      "point": "A layout of your own is a class with place(): it returns a box for each child. The library's layouts are written the same way.",
+      "hint": "",
+      "code": [
+        "class Ring extends Layout [ r: number = {{r}},",
+        "    place() {",
+        "        const kids = this.laid(), n = kids.length",
+        "        const cx = this.contentExtent(\"width\") / 2",
+        "        const cy = this.contentExtent(\"height\") / 2",
+        "        return kids.map((c, i) => {",
+        "            const a = 2 * Math.PI * i / n",
+        "            const px = cx + r * Math.cos(a)",
+        "            const py = cy + r * Math.sin(a)",
+        "            return ({ x: px - c.width / 2,",
+        "                y: py - c.height / 2 })",
+        "            })",
+        "        }",
+        "    ]",
+        "",
+        "ring: View [ width = 400, height = 320,",
+        "    layout: Ring [ ],",
+        "    Chip [ label = \"Design\" ],",
+        "    Chip [ label = \"Build\" ],",
+        "    // … six in all",
+        "    ]"
+      ],
+      "geo": {
+        "r": 120
+      },
+      "knobs": []
+    },
+    {
+      "id": "glide",
+      "part": "motion",
+      "title": "Change the arrangement; it glides",
+      "point": "Extend TweenLayout and change what place() reads: the children glide to their new boxes, and turn mid-flight if it changes again.",
+      "hint": "Rearrange, then rearrange again before it lands.",
+      "code": [
+        "class RingOrGrid extends TweenLayout [ r: number = {{r}},",
+        "    round: boolean = true,",
+        "    place() {",
+        "        const kids = this.laid(), n = kids.length",
+        "        const cx = this.contentExtent(\"width\") / 2",
+        "        const cy = this.contentExtent(\"height\") / 2",
+        "        return kids.map((c, i) => {",
+        "            const a = 2 * Math.PI * i / n",
+        "            const px = cx + r * Math.cos(a)",
+        "            const py = cy + r * Math.sin(a)",
+        "            return round",
+        "                ? ({ x: px - c.width / 2,",
+        "                    y: py - c.height / 2 })",
+        "                : ({ x: i % 3 * {{cell}},",
+        "                    y: Math.floor(i / 3) * {{rowH}} })",
+        "            })",
+        "        }",
+        "    ]",
+        "",
+        "ring: View [ width = 400, height = 320,",
+        "    layout: RingOrGrid [ round = { app.round } ],",
+        "    // … six chips",
+        "    ],",
+        "Button [ label = \"Rearrange\",",
+        "    onClick() { app.round = !app.round } ]"
+      ],
+      "geo": {
+        "r": 120,
+        "cell": 110,
+        "rowH": 48
+      },
+      "knobs": [
+        {
+          "kind": "toggle",
+          "name": "round",
+          "label": "Rearrange",
+          "labelOn": "Rearrange"
+        }
+      ],
+      "core": 12
+    }
+  ]
+}

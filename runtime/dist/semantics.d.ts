@@ -51,6 +51,13 @@ export declare const STEPPED: Set<string>;
 /** The caption of the `Field` a control is in, when it has no name of its own and is
  *  a kind a field names — `""` otherwise. */
 export declare function fieldCaption(v: View, role: string): string;
+/** The order a view's children are read in: the order its own `tabOrder()`
+ *  gives them, where it writes one, so Tab and a screen reader go the same way
+ *  — then every child it leaves out, as declared, since leaving a view out of
+ *  Tab does not hide it from reading (`visible` and `exists` do that). Only
+ *  the view's own children are placed: a `tabOrder()` naming a view elsewhere
+ *  moves Tab there, not what is read. */
+export declare function readingOrder(v: View): View[];
 /** How many records the replications under a list hold — its own, or those of
  *  the views with no role between it and its rows (a scroller, a body). Only
  *  the outermost replication counts: what a row replicates in turn (its cells)

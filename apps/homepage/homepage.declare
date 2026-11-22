@@ -534,6 +534,8 @@ class Footer [ width = 100%,
     FootSep [ ],
     FootLink [ link = "apps/docs/docs.declare", text = "Docs" ],
     FootSep [ ],
+    FootLink [ link = "#language", text = "The language" ],
+    FootSep [ ],
     FootLink [ link = "https://github.com/davidtemkin/declarelang", text = "GitHub" ],
     FootSep [ ],
     lic: FootLink [ link = "https://github.com/davidtemkin/declarelang/blob/main/LICENSE", text = "MIT License" ],
@@ -959,7 +961,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 learn: View [ width = 100%,
                     layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 32 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     why: SmallLink [ fontSize = 15, text = "Why a new language, now? →", link = "#why" ],
-                    onefile: SmallLink [ fontSize = 15, text = "The whole language, in one file →", link = "#language" ]
+                    tour: SmallLink [ fontSize = 15, text = "Declare in 10 minutes →", link = "apps/model-tour/model-tour.declare" ]
                     ]
                 ],
 

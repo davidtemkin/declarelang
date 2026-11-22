@@ -206,7 +206,7 @@ class Slider extends ValueControl [
     _thumb: View [
         width  = { classroot.barStyle() ? 5 : classroot.dotStyle() ? 20 : 18 },
         height = { classroot.barStyle() ? 24 : classroot.dotStyle() ? 20 : 18 },
-        y      = { classroot.barStyle() ? 2 : classroot.dotStyle() ? 4 : 5 },
+        y      = center,
         cornerRadius = { this.width / 2 },
         x = { (classroot.width - 18) * frac + (classroot.barStyle() ? 6 : classroot.dotStyle() ? -1 : 0) },
         fill = { classroot.barStyle() ? provided("theme").accent : (provided("theme").sliderThumbFill ?? provided("theme").surface) },

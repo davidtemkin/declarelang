@@ -187,13 +187,13 @@ const selCompiled = await compile(SEL_RAW);
 assert.deepEqual(selCompiled.errors, [], "selection fixture compiles clean");
 
 // THE SCROLL-AWARE WALK (ruled 2026-07-30): hovered/pressed hit where things
-// PAINT, at any page or pane scroll; ignoreScroll chrome hits at its frame.
+// PAINT, at any page or pane scroll; ignoreScroll chrome hits at its frame. The
+// bar is declared last, so it paints — and is hit — over the page scrolled under it.
 const WALK_RAW = `App [ fill = #202830,
     hd: boolean = { this.deep.hovered },
     pd: boolean = { this.deep.pressed },
     hbar: boolean = { this.bar.hovered },
     hi: boolean = { this.column.pane.inner.hovered },
-    bar: View [ ignoreScroll = true, width = { app.width }, height = 40, fill = #10202C ],
     column: View [ y = 40, width = { app.width }, height = 3000, fill = #223344,
         pane: View [ x = 40, y = 1200, width = 300, height = 200, fill = #445566, scrolls = y, scrollStartY = 240,
             inner: View [ x = 0, y = 400, width = 300, height = 60, fill = #66AA88 ],
@@ -201,6 +201,7 @@ const WALK_RAW = `App [ fill = #202830,
         ],
     deep: View [ x = 40, y = 900, width = 200, height = 60, fill = #3A4855,
         onClick() { } ],
+    bar: View [ ignoreScroll = true, width = { app.width }, height = 40, fill = #10202C ],
     ]`;
 const walkCompiled = await compile(WALK_RAW);
 assert.deepEqual(walkCompiled.errors, [], "walk fixture compiles clean");

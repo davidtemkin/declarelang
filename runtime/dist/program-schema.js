@@ -25,12 +25,12 @@ import { validateExpr } from "./expr.js";
 import { BUILTIN_COLOR_ATTRS } from "./attributes.js";
 /** The text face a container provides by declaring it (schema.ts FACE_ATTRS). */
 const PROVIDED_FACE = ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing"];
-/** The scope nouns of language §11 — never legal as member or parameter names.
- *  `app` is the running-App noun (compiles to `this.$root`); reserving it here
+/** The reserved words of language §3 — never legal as member or parameter names.
+ *  `app` is the running App (compiles to `this.$root`); reserving it here
  *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
 export const NOUNS = ["this", "parent", "classroot", "app"];
 /** The other node reference the scaffold declares on every View, beside the
- *  §11 nouns above: `children`, Node's own child list. It is not a scope noun
+ *  reserved words above: `children`, Node's own child list. It is not a reserved word
  *  and not a schema attribute either, so the ordinary "a child may not take an
  *  attribute's name" rules miss it, and shadowing it breaks code that never
  *  mentions it. (`app` compiles to `this.$root`, a `$` name no program can
@@ -347,7 +347,7 @@ isClassName = () => false,
 isShape = () => false) {
     const err = (message, pos) => ({ ok: false, error: new DeclareError(message, pos) });
     if (NOUNS.includes(d.name)) {
-        return err(diag `'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
+        return err(diag `'${d.name}' is a reserved word (language §3: this, parent, classroot, app) — it cannot be declared; choose another name (e.g. '${d.name === "this" ? "self" : d.name}Value')`, d.pos);
     }
     const structural = structuralReason(d.name);
     if (structural !== null) {

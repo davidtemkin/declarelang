@@ -144,5 +144,10 @@
     "differing": 1.59,
     "structural": 1.02,
     "theme": "light"
+  },
+  "pinned-pane": {
+    "differing": 0.12,
+    "structural": 0.01,
+    "theme": "light"
   }
 }

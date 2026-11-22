@@ -7,7 +7,7 @@
 // position. On an unannotated tree (direct instantiate) it remains the whole
 // evaluation story, tracking included.
 //
-// Scope inside a body: the three injected scope nouns of language §11 — `this`
+// Scope inside a body: the three injected reserved words of language §3 — `this`
 // (the node the code is on), `parent` (its view-tree parent), and `classroot`
 // (the enclosing class instance, R6). (The `app` noun needs no runtime binding
 // — compile.ts rewrites it to `this.$root`.) Bare reads of enclosing-scope

@@ -294,6 +294,10 @@ all this one attribute. A child pinned against an edge of the frame is chrome th
 reads: a view brought into view by focus (Tab) lands clear of it, as CSS's scroll-padding would
 have it, with nothing declared (a link's arrival clears chrome by `App.revealInset`).
 
+Pinned or not, a child paints and takes presses in the order it is declared, in a pane as
+under the App: a pinned backdrop declared before the rows is under them, a pinned bar
+declared after them is over them.
+
 ## scrolls
 Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,
 or `both`. One class overrides that default: an **`App` scrolls `y` by default**, and its
@@ -1499,6 +1503,12 @@ hidden. Compose with `tabDefault()` rather than rebuilding the list. The list ma
 name views further down, in the order Tab should take them — a toolbar's search field,
 then the list below it, then the toolbar's other buttons — and Tab enters each as it would
 on its own.
+
+**It is the reading order too.** A screen reader reads this view's children in the order
+the list puts them, so Tab and reading never disagree — the bar declared last so it paints
+over the page, and put first here, is read first. Only the view's own children are
+reordered for reading, and leaving one out of the list keeps it out of Tab, not out of
+what is read: `visible` and `exists` decide that.
 
 ```declare-fragment
 tabOrder() { return open ? this.tabDefault() : [] }
