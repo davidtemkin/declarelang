@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "a79ec50eae24",
+  "buildId": "52f6945e3e65",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -120561,8 +120561,8 @@
       "probe": "App [ a: View [ ], a: View [ ] ]"
      },
      {
-      "rule": "A child cannot be named after a scope noun.",
-      "says": "'this' is a scope noun (language §11) — a child cannot take its name",
+      "rule": "A child cannot be named after a reserved word.",
+      "says": "'this' is a reserved word (language §3: this, parent, classroot, app) — a child cannot take its name",
       "probe": "App [ this: View [ ] ]"
      }
     ],
@@ -121469,13 +121469,13 @@
       "probe": "App [ t: Text [ text = { classroot.name } ] ]"
      },
      {
-      "rule": "A scope noun cannot name a child.",
-      "says": "'app' is a scope noun (language §11) — a child cannot take its name",
+      "rule": "A reserved word cannot name a child.",
+      "says": "'app' is a reserved word (language §3: this, parent, classroot, app) — a child cannot take its name",
       "probe": "App [ app: View [ ] ]"
      },
      {
-      "rule": "A scope noun cannot be declared.",
-      "says": "'parent' is a scope noun (language §11) — it cannot be declared",
+      "rule": "A reserved word cannot be declared.",
+      "says": "'parent' is a reserved word (language §3: this, parent, classroot, app) — it cannot be declared",
       "probe": "App [ parent: number = 1 ]"
      },
      {

@@ -276,6 +276,12 @@ await test("a real name near a hint key answers as itself, not as the hint's nea
   assert.match(help("bordr").out, /is not a Declare name/, "a genuine misspelling still reaches the hint");
 });
 
+await test("a near-miss on a name Declare retired is not routed to its hint (online ≠ outline)", () => {
+  const r = help("App.online").out;
+  assert.doesNotMatch(r, /stroke/, "online is a word of its own, not a reach for outline");
+  assert.match(help("outline").out, /textStroke/, "the retired name written whole still answers");
+});
+
 await test("a member a class inherits from Node is answered under the class (View.datapath, Button.onInit)", () => {
   assert.match(help("View.datapath").out, /^Node\.datapath — attribute/);
   assert.match(help("Button.onInit").out, /^Node\.event\.init — event/);

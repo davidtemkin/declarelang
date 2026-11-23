@@ -8865,6 +8865,23 @@ Body with **bold** and [a link](https://x.example/).
     '<img src="pic.png">');          // and ghost (visible=false) emitted nothing
 });
 
+await test("extractStatic: a closed overlay gives its links, and nothing else, as a <nav>", async () => {
+  // A site's nav menu is how its pages are reached: the destinations in a closed
+  // menu are the page's links as much as one on the page, while what the menu
+  // shows when open is not the page's text.
+  const src = `App [
+  t: Text [ text = "page" ],
+  menu: Floating [
+    Text [ text = "a heading inside" ],
+    Text [ link = "https://x.example/why", text = "Why" ],
+    Text [ link = "https://x.example/faq", text = "FAQ" ]
+    ]
+  ]`;
+  const out = await extractStatic(src);
+  assert.equal(out.report, "");
+  assert.equal(out.html, '<p>page</p>\n<nav><a href="https://x.example/why"><p>Why</p></a>\n<a href="https://x.example/faq"><p>FAQ</p></a></nav>');
+});
+
 await test("extractStatic: the environment vector selects content (responsive constraints)", async () => {
   // Geometry leaks into CONTENT through responsive constraints — the viewport
   // is an explicit parameter (DEFAULT_ENV = 1200×800), not an accident.

@@ -49,6 +49,15 @@ script {
         }
         return out + esc(line.slice(last))
     }
+
+    // The appearance the page that sent the reader here was wearing, when its
+    // link said (`?appearance=dark` or `light`); "auto" otherwise, and where there
+    // is no address (the Mac app).
+    function requestedAppearance(): string {
+        const location = (globalThis as { location?: { search: string } }).location
+        const m = location?.search.match(/[?&]appearance=(light|dark)\b/)
+        return m != null ? m[1] : "auto"
+    }
     }
 
 
@@ -562,7 +571,14 @@ class Contents [ width = 100%, datapath = { app.route.value },
 // ── The app ─────────────────────────────────────────────────────────────────
 
 App [ appName = "The Declare model", minWidth = 360,
-    theme = { { ...(app.systemDark ? ({ ...SanFranciscoDark, ...TourDark }) : ({ ...SanFrancisco, ...TourLight })),
+
+    // the appearance: the one the sending page asked for, else the system's,
+    // until the reader presses the switch, after which theirs holds
+
+    themeMode: string = { requestedAppearance() },
+    isDark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
+
+    theme = { { ...(app.isDark ? ({ ...SanFranciscoDark, ...TourDark }) : ({ ...SanFrancisco, ...TourLight })),
         ...app.fingerSizes } },
 
     // on a device built for touch, the stage's controls are a finger's size
@@ -576,7 +592,7 @@ App [ appName = "The Declare model", minWidth = 360,
     uiFace: string[] = ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"],
     monoFace: string[] = ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
     fontFamily = { app.uiFace },
-    textStyles = { app.systemDark
+    textStyles = { app.isDark
         ? ({ Keyword: KeywordOnDark, TypeName: TypeNameOnDark, StringText: StringTextOnDark,
             NumberText: NumberTextOnDark, Comment: CommentOnDark, Punctuation: PunctuationOnDark })
         : ({ Keyword, TypeName, StringText, NumberText, Comment, Punctuation }) },
@@ -593,7 +609,7 @@ App [ appName = "The Declare model", minWidth = 360,
     route: Dataset [ contents = { { steps: app.steps } } ],
     order: string[] = { app.steps.map((s) => s.id) },
     coreCount: number = { app.steps.filter((s) => s.core != null).length },
-    paint: Paint = { (app.systemDark ? app.tour.value?.paint.dark : app.tour.value?.paint.light) ?? ({ panel: "whitesmoke", box: "white" }) },
+    paint: Paint = { (app.isDark ? app.tour.value?.paint.dark : app.tour.value?.paint.light) ?? ({ panel: "whitesmoke", box: "white" }) },
     partName(id: string) -> string { return app.tour.value?.parts.find((p) => p.id == id)?.name ?? "" },
 
     // where a screen sits: in the ten minutes, by its number; past them, by its part
@@ -723,7 +739,13 @@ App [ appName = "The Declare model", minWidth = 360,
         padding = [24, 12, 24, 12], accessibilityRole = navigation, accessibilityLabel = "Contents",
         fill = { provided("theme").railFill }, stroke = { [null, Stroke(1, provided("theme").railStrokeColor), null, null] },
         layout: SimpleLayout [ axis = y, spacing = 4 ],
-        Text [ padding = [0, 12, 4, 12], fontSize = 17, fontWeight = semibold, text = "The Declare model" ],
+        titleRow: View [ width = 100%, padding = [0, 4, 4, 12],
+            layout: SimpleLayout [ axis = x, align = center ],
+            Text [ flexes = true, fontSize = 17, fontWeight = semibold, text = "The Declare model" ],
+            AppearanceSwitch [ dark = { app.isDark },
+                commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
+                ]
+            ],
         Text [ width = 100%, padding = [0, 12, 4, 12], fontSize = 13, textColor = { provided("theme").textMuted },
             text = "How Declare puts things on the screen, one point at a time." ],
         Text [ width = 100%, padding = [0, 12, 8, 12], fontSize = 12, textColor = { provided("theme").textFaint },
@@ -745,8 +767,11 @@ App [ appName = "The Declare model", minWidth = 360,
                 layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
                 ContentsButton [ press() { app.contentsOpen = true }
                     ],
-                Text [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted },
-                    text = { app.whereIs(app.index) } ]
+                Text [ flexes = true, fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted },
+                    text = { app.whereIs(app.index) } ],
+                AppearanceSwitch [ dark = { app.isDark },
+                    commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
+                    ]
                 ],
             Text [ width = 100%, accessibilityRole = heading, fontSize = { app.width < 600 ? 26 : 34 }, fontWeight = semibold,
                 letterSpacing = -0.5, text = { app.step?.title ?? "" } ],
@@ -805,7 +830,7 @@ App [ appName = "The Declare model", minWidth = 360,
                 // a quiet aid, not part of the lesson: small, and grey even when on
 
                 foot: View [ width = 100%, height = 44,
-                    theme = { app.systemDark ? ({ ...SanFranciscoDark, ...TourDark, ...QuietDark, ...app.fingerSizes })
+                    theme = { app.isDark ? ({ ...SanFranciscoDark, ...TourDark, ...QuietDark, ...app.fingerSizes })
                         : ({ ...SanFrancisco, ...TourLight, ...QuietLight, ...app.fingerSizes }) },
                     boxesSwitch: Switch [ x = center, y = center, label = "Show boxes", fontSize = 12,
                         textColor = { provided("theme").textFaint }, checked = { app.outlines },

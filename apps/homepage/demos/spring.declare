@@ -1,13 +1,21 @@
-App [ on: boolean = false,
-    onClick() { on = !on },
-    group: View [ x = center, y = center, width = 80%, height = { this.contentHeight },
-        layout: SimpleLayout [ axis = y, spacing = 20 ],
-        Text [ width = { parent.width }, textAlign = center, textColor = slategray, text = "click anywhere to toggle" ],
-        lane: View [ width = { parent.width }, height = 60,
-            ball: View [ y = center, height = 60, width = 60, cornerRadius = 30, fill = dodgerblue,
-                Spring [ attribute = x, to = { on ? lane.width - ball.width : 0 },
-                    stiffness = 190, damping = 20 ]
-                ]
+// A ball that moves between two places on a Spring: it says where
+// the ball belongs, and finds the way there.
+
+App [
+
+    lane: View [ x = center, y = center, width = 80%, height = 60,
+
+        ball: View [ y = center, width = 60, height = 60,
+            cornerRadius = 30, fill = dodgerblue,
+            Spring [ attribute = x, to = { right ? lane.width - ball.width : 0 },
+                stiffness = 190, damping = 20 ]
             ]
-        ]
+        ],
+
+    hint: Text [ x = center, y = 28, textColor = slategray,
+        text = "click anywhere to move the ball" ],
+
+    right: boolean = false,
+
+    onClick() { right = !right }
     ]

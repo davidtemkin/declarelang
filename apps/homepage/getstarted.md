@@ -35,7 +35,9 @@ Write a program to my-apps/hello.declare and browse to it under the server's add
 
 ## Learning Declare
 
-[**The Declare docs**](https://davidtemkin.github.io/declarelang/apps/docs/) are the place to start, and they come in four parts:
+Start with **[Declare in 10 minutes](https://davidtemkin.github.io/declarelang/apps/model-tour/)**, a twelve-screen tour of how Declare puts things on the screen, with a live stage for each idea.
+
+[**The Declare docs**](https://davidtemkin.github.io/declarelang/apps/docs/) take it from there, in four parts:
 
 - **The guide**, in <!--stat:guide.chapters-->31<!--/stat--> chapters. It starts from first principles and covers each part of building an app, from layout, controls and data to motion, accessibility, touch and embedding. It also walks through a complete calendar app, and has a glossary and notes for people coming from other frameworks.
 - **The language**, a page for each form the grammar accepts.

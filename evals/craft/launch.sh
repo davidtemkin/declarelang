@@ -88,6 +88,14 @@ mkdir -p "$RUN/logs" "$RUN/work/task"
 LOGS="$RUN/logs"
 cd "$RUN/work"
 
+# The docs give the dev server's default port, 8200, and an agent that reads them
+# starts its server there itself (Desktop 2, 2026-11-22: `PORT=8200 npm start`
+# found a person's server holding the port, so it picked 8207). The copy names the
+# port this run was given instead, as the brief's copy names the run's service port.
+point_docs_at_dev_port() {
+  ( cd declarelang && grep -rlE '\b8200\b' --include='*.md' . 2>/dev/null | while read -r f; do perl -pi -e "s/\\b8200\\b/$DEV_PORT/g" "$f"; done )
+}
+
 # the subject: a fresh download of the published distribution, minus the evals
 if [ -z "$STACK" ] && [ -n "$LOCAL" ]; then
   # the tree on disk, as a fresh clone would hold it: the files git tracks plus the new
@@ -102,6 +110,7 @@ if [ -z "$STACK" ] && [ -n "$LOCAL" ]; then
   SUBJECT="local tree at $(git -C "$TREE" log -1 --format='%h %s') + $CHANGED changed, $ADDED new uncommitted (evals/, docs/system-design/ and test/ removed)"
   rm -rf declarelang/evals declarelang/docs/system-design declarelang/test
   for p in ${STRIP:-}; do rm -rf "declarelang/$p"; SUBJECT="$SUBJECT; $p removed"; done
+  point_docs_at_dev_port
   # a repository of its own, one commit, as a clone has one — made AFTER the removals,
   # so no answer key is in its history
   ( cd declarelang && git init -q && git add -A && git -c user.name=eval -c user.email=eval@localhost commit -qm "Declare (local tree)" )
@@ -119,6 +128,7 @@ elif [ -z "$STACK" ]; then
   # the clone's history still holds what was just removed (`git show HEAD:evals/…`):
   # a repository of one commit in its place, as --local makes
   rm -rf declarelang/.git
+  point_docs_at_dev_port
   ( cd declarelang && git init -q && git add -A && git -c user.name=eval -c user.email=eval@localhost commit -qm "Declare" )
 else
   SUBJECT="none — $STACK, from the brief alone"
@@ -135,6 +145,15 @@ if [ -f "$SRC/reference/visible.txt" ]; then
   mkdir -p task/reference
   while read -r f; do [ -n "$f" ] && cp "$SRC/reference/$f" task/reference/; done < "$SRC/reference/visible.txt"
   [ -f "$SRC/reference/README.solver.md" ] && cp "$SRC/reference/README.solver.md" task/reference/README.md
+fi
+# an app built on files from this repository (pictures, data, documents) is given them in
+# task/assets/, each at its repository path, as its assets.txt lists them
+if [ -f "$SRC/assets.txt" ]; then
+  ROOT="$(cd "$EVALS/.." && pwd)"
+  while read -r f; do
+    [ -n "$f" ] || continue
+    mkdir -p "task/assets/$(dirname "$f")" && cp "$ROOT/$f" "task/assets/$f"
+  done < "$SRC/assets.txt"
 fi
 if [ -d "$SRC/fixtures" ]; then
   mkdir -p task/api && cp "$SRC/api/API.md" task/api/

@@ -47,6 +47,8 @@ const FORMATS = {
   "tracker.code":      () => group(stats.tracker.code),
   "tracker.comment":   () => String(stats.tracker.comment),
   "tracker.wireKB":    () => String(Math.round(stats.tracker.wireGzip / 1024)),
+  // The desktop is the FAQ's acid test: one program, its code counted.
+  "desktop.code":      () => group(stats.desktop.code),
   // The to-do app is the skill's first read: its own file, and with the parts
   // it includes (the two are read together).
   "todo.code":         () => String(stats.todo.code),

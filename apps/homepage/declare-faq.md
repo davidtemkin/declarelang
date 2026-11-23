@@ -12,7 +12,15 @@ Because most of what makes UI code hard isn't your application — it's the plum
 
 ### What kinds of applications is it designed to build?
 
-Any kind of data-driven application, at any level of interactivity — Declare is designed for everyday apps with everyday needs: forms, lists, settings screens, dashboards, admin tools. It is especially well suited to continuous, dynamic interfaces — the app-like web rather than the page-like web: calendars, editors, data tools, product sites. Text and documents are first-class too (Markdown rendering is built in), so content-heavy apps work well. Everything on this site is a Declare program: the homepage you're reading, the documentation app, the calendar.
+Declare is at its best where an interface has to be designed, not just assembled: custom, fluid experiences of the kind you find in the best native apps — calendars, editors, dashboards, product sites — where views become one another and motion carries meaning. Everyday apps come with it: forms, lists, settings screens and admin tools are what the library's controls are for, and content-heavy apps work well (Markdown rendering is built in). Everything on this site is a Declare program: the homepage, the documentation, the calendar, the desktop.
+
+### Does an AI make the design decisions?
+
+An AI can produce a standard-looking app easily, and in Declare it can produce one verifiably. A custom experience is a set of decisions — how it should look, how it should move, what should happen when — and those come from human judgment and direction. What Declare changes is how directly those decisions can be expressed in code: layout, motion, states and theming are the language itself, so what you meant stays legible in the code, and the AI that writes it, the compiler that checks it and the colleague who reads it later are all looking at the same design.
+
+### Could Declare's desktop example be built in other toolkits?
+
+Yes, with effort. Windows that drag, resize and layer; minimizing into live thumbnails; a magnifying dock; menus that follow focus; other programs running inside windows — in a mainstream web stack each of those is usually its own library or its own project, and keeping them coherent (focus, stacking, hit-testing, animation that can be interrupted) is where the effort goes. In Declare they are the language and its library, and the [desktop](https://github.com/davidtemkin/declarelang/blob/main/apps/desktop/desktop.declare) is one program of <!--stat:desktop.code-->2,011<!--/stat--> lines of code. That is why it makes a good acid test for any UI toolkit.
 
 ### What specific features make it well-suited to continuous, dynamic user experiences?
 
@@ -20,7 +28,10 @@ Time and change live in the language instead of being bolted on:
 
 - **Constraints** — any attribute can be a `{ }` expression; the compiler works out what it depends on, and it stays current. No re-render ceremony, no manual subscriptions.
 - **Animation as declaration** — springs and animators are attributes; states are named bundles of overrides you can be *in* or *not in*.
-- **Layout as an attribute** — how a view arranges its children is a value you set, not a system you fight.
+- **Layout as an attribute** — how a view arranges its children is a value you set, not a system you fight. And layouts are written in Declare too: a class with one method, place(), so a layout of your own is no harder to make than to use.
+- **Controls you can write** — the library's buttons, sliders and menus are ordinary Declare classes. Extend `Control` and yours takes clicks, taps, focus and keys exactly as theirs do, so there is no cliff between using a component and building one.
+- **Drawing and effects in the same tree** — `draw()`, clipping to any shape, filters and backdrop blur are attributes of a view, alongside its layout and motion, not a separate canvas or effects layer.
+- **Performance from the model** — because the compiler knows every dependency in advance, the reactive core runs as a small C kernel: WebAssembly in the browser, native on the Mac. That cut update time 42–53% on every platform measured, and made a window drag’s updates five or more times faster.
 - **Data binding** — UI replicates over data with a cursor (`datapath`), and two-way binding connects editable fields to the data they edit.
 - **One input model** — pointer and keyboard events are routed identically on every renderer, with a built-in keyboard focus system.
 
@@ -40,11 +51,7 @@ The `[ ]` structure is Declare; everything inside `{ }` — expressions, event h
 
 ### How do encapsulation and composition work in Declare?
 
-A reusable view is a class: `class PriceTag [ … ]`. Its attributes are its public interface — parents set them, and values *derive down* through constraints. Information travels back *up* through events a view declares and fires; events are delivered to the handler that declared interest, never bubbled through the tree. Inside a class, code reaches other parts through explicit scopes — `this`, `parent`, `classroot` (the component instance the code belongs to), and `app` — so a component's internals stay its own. Composition is just nesting: your classes are used exactly like built-ins, including replication over data.
-
-### How are Declare's controls and views created?
-
-By writing classes in Declare. The entire standard library — Button, Slider, Checkbox, Switch, RadioGroup, ProgressBar, and the rest — is written in Declare itself, in readable source you can open (and live-edit) on this site. There is no privileged API underneath: the library's classes are the same kind of thing yours are.
+A reusable view is a class: `class PriceTag [ … ]`. Its attributes are its public interface, and it reports back through events it declares. Composition is just nesting: your classes are used exactly like built-ins, including replication over data.
 
 ### Can I use CSS to style a Declare app?
 
@@ -56,11 +63,11 @@ Side by side, yes; interleaved, no. A Declare app embeds in any page — includi
 
 ### How do I deep-link into an app? Is there a router?
 
-There's no router object — location is an attribute, like everything else. An app declares `location` on its root and the host wires it to the URL fragment: writing it navigates (one history entry per change), the back button writes it back, and a deep link is just an initial value — state *derives* from location the same way everything else derives. The documentation app on this site works this way: `#guide/14-data` opens that chapter directly, and a trailing anchor can scroll a specific heading into view. Apps opt in — a demo that declares no location simply has none — and static extraction follows an app's locations, so deep-linkable content is also crawlable content.
+No router is needed: the URL is just an attribute. Declare `location` on your app and it follows the address bar. Setting it navigates, Back restores it, and a deep link is simply its starting value; the rest of the app derives from it like any other value. In the docs on this site, `#guide/14-data` opens that chapter directly. Deep-linked pages are crawlable too.
 
-### How do Declare-written sites handle crawlers and SEO without server-side rendering?
+### How does SEO work without server-side rendering?
 
-Through static extraction, which is built into the compiler. The compiler runs the program headlessly to its settled state and serializes its actual content as semantic HTML — real headings, real paragraphs, real links — which is baked into the page at build time. A crawler (or an AI reading the web, which typically runs no JavaScript at all) reads that document; a person gets the live app, which replaces it at boot. Content reachable through in-app navigation is included, and links inside the app become real links in the document. It works on a plain static host — this site runs on GitHub Pages with no server at all.
+At build time, the compiler runs the app headlessly and bakes its content into the page as plain HTML: real headings, paragraphs and links. Crawlers and AI readers get that; people get the live app. No server needed: this site runs on GitHub Pages.
 
 ### What benefits does in-browser compilation bring? Can I ship a Declare site without the compiler?
 
@@ -90,9 +97,9 @@ Live numbers are on the homepage, measured from the deployed artifacts themselve
 
 When machines write the code, the properties that matter change. Familiarity matters less; *verifiability* matters more. Declare's bet: give the model a small, closed, regular language, and give the toolchain the strictness to catch what the model gets wrong. Every compile type-checks every expression — a hallucinated attribute or misused API is an error with a message that names the fix, so the model's write-check-revise loop converges fast. And because an entire application is a few hundred lines of declarations, what the model produced can actually be audited — by a person or by another model. The calendar on this site reports its own number: zero lines written by hand.
 
-### The calendar says "0 lines written by hand." What did that actually involve?
+### The calendar says "0 lines typed by hand." What did that actually involve?
 
-A person directed; a model wrote. The calendar was built by describing what was wanted and letting an LLM write the Declare — every line — with the compiler in the loop: each attempt was compiled and type-checked, the diagnostics steered the next revision, and the running app was the judge. The person's work was product work — deciding what the calendar should be, reviewing behavior, and pushing back — not typing code. That's the workflow the language is designed around: the human owns intent, the model owns the text, and the toolchain keeps the text honest.
+Human-designed and directed, built with AI. The calendar was built by describing what was wanted and letting an LLM write the Declare — every line — with the compiler in the loop: each attempt was compiled and type-checked, the diagnostics steered the next revision, and the running app was the judge. The person's work was product design work — deciding what the calendar should be, reviewing behavior, and pushing back — not typing code. That's the workflow the language is designed around: the human owns intent, the model owns the text, and the toolchain keeps the text honest.
 
 ### How can Declare, with no training data to speak of, be useful to an LLM — or compete with billions of lines of training corpus?
 
@@ -100,6 +107,7 @@ Two ways. First, the language is small enough that its *entire definition* fits 
 
 ### What does Declare do to optimize for reliability and correctness of LLM-generated code?
 
+- **Steered toward idiomatic code** — the Declare skill and documentation don't just teach the syntax; they steer the model to use the language's own constructs (constraints, states, layouts, data binding) rather than carrying over habits from other frameworks, so what it writes is shorter, clearer and easier to check.
 - **Mandatory type-checking** — every `{ }` body, every compile, no opt-out; the checker is held to zero false positives across the repository's own corpus (every app, library class, and documentation example it ships), so an error always means something is actually wrong.
 - **Diagnostics that name the fix** — messages are written to steer the *next* attempt, including "did you mean" guidance for common instincts from other frameworks (e.g., reaching for a CSS property).
 - **No magic** — Declare consistently chooses predictability over cleverness: dependencies are extracted statically, events don't bubble, there's one way to say most things. Code that looks right *is* right more often, and code that's wrong fails loudly.
@@ -109,9 +117,9 @@ Two ways. First, the language is small enough that its *entire definition* fits 
 
 Starting cold from the repository, agents have built complete apps and passed hidden acceptance checks they never saw:
 
-- **A box office** — a drawn seat map, seats selling live while you choose, sign-in and checkout. Claude Code built it in Declare and, separately, in React. Both finished passing all <!--stat:venue.checks-->11<!--/stat--> checks. The Declare app was <!--stat:venue.declare.code-->1,279<!--/stat--> lines of code, the React app <!--stat:venue.react.code-->2,666<!--/stat-->; the first Declare build that ran passed <!--stat:venue.declare.firstBoot-->11<!--/stat-->, <!--stat:venue.declare.firstBootMin-->12.5<!--/stat--> minutes in, where the first React build passed <!--stat:venue.react.firstBoot-->6<!--/stat-->.
+- **A ticket-buying app** — a drawn seat map, seats selling live while you choose, sign-in and checkout. Claude Code built it in Declare and, separately, in React. Both finished passing all <!--stat:venue.checks-->11<!--/stat--> checks. The Declare app was <!--stat:venue.declare.code-->1,279<!--/stat--> lines of code, the React app <!--stat:venue.react.code-->2,666<!--/stat-->; the first Declare build that ran passed <!--stat:venue.declare.firstBoot-->11<!--/stat-->, <!--stat:venue.declare.firstBootMin-->12.5<!--/stat--> minutes in, where the first React build passed <!--stat:venue.react.firstBoot-->6<!--/stat-->.
 - **A slide editor** with a service behind it: <!--stat:presentify.delivered-->19 of 19<!--/stat--> checks as delivered.
-- **The same box office, built by OpenAI's Codex** from the same cold download.
+- **The same ticket-buying app, built by OpenAI's Codex** from the same cold download.
 
 They are single runs, not yet a benchmark, and [every one is published in full](https://github.com/davidtemkin/declarelang/tree/main/evals/reports), the agent's own account included.
 
@@ -169,7 +177,7 @@ Yes. The library's controls tell a screen reader what they are, what they are ca
 
 ### What do I need to learn in order to use it, with or without an LLM?
 
-The shape of the language: `[ ]` declares structure, `{ }` holds TypeScript, attributes can be constraints, events get handlers. Then about twenty built-in classes and a standard library of controls. If you know TypeScript, the guide's tutorial has you productive in an afternoon; the entire language reference is one readable file. Working with an LLM, you hand it that file (or install the packaged agent skill) and describe what you want — the compiler's diagnostics keep the loop honest either way.
+The shape of the language: `[ ]` declares structure, `{ }` holds TypeScript, attributes can be constraints, events get handlers. Then about twenty built-in classes and a standard library of controls. Start with [Declare in 10 minutes](https://davidtemkin.github.io/declarelang/apps/model-tour/), a twelve-screen tour of the model. Then the guide, in [the docs](https://davidtemkin.github.io/declarelang/apps/docs/), walks you through building real apps; if you know TypeScript, you'll be productive in an afternoon. The entire language reference is one readable file. Working with an LLM, you hand it that file (or install the packaged agent skill) and describe what you want — the compiler's diagnostics keep the loop honest either way.
 
 ### How do I get data into an app?
 
@@ -183,7 +191,7 @@ Declare is young and moving quickly. The language surface is deliberately small 
 
 ### What browsers and devices does it support?
 
-Modern evergreen browsers. Input is a unified pointer model, so touch works alongside mouse and keyboard; layouts are constraint-driven, so apps adapt to the window they're given. The DOM renderer produces real elements — native text selection, native form fields, built-in keyboard focus and tab navigation.
+Modern browsers. Input is a unified pointer model, so touch works alongside mouse and keyboard; layouts are constraint-driven, so apps adapt to the window they're given. The DOM renderer produces real elements — native text selection, native form fields, built-in keyboard focus and tab navigation.
 
 ### What license is Declare offered under?
 

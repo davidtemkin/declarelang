@@ -341,13 +341,15 @@ class DeskWindow extends Window [ width = 560, height = 400,
     sizeY0: number = 0,                          // window y at size start (top-edge modes)
 
     // Shade (the Jot's collapse widget) and zoom each remember what they
-    // displace so they can restore it. Minimize sends the window down into the
+    // displace so they can restore it, each in its own place: a shaded window
+    // can be zoomed, and its height under the shade must survive the zoom. Minimize sends the window down into the
     // dock's minimized section — the same open/close curve, aimed at its tile —
     // and back out when the tile is clicked.
 
     shaded: boolean = false,
     zoomed: boolean = false,
     minimized: boolean = false,
+    shadeH: number = 0,
     saveH: number = 0,
     saveX: number = 0,
     saveY: number = 0,
@@ -413,8 +415,8 @@ class DeskWindow extends Window [ width = 560, height = 400,
     // desktop, leaving the dock's band clear at the bottom.
 
     shadeToggle() {
-        if (shaded) { this.height = saveH; shaded = false }
-        else { saveH = this.height; this.height = barH; shaded = true }
+        if (shaded) { this.height = shadeH; shaded = false }
+        else { shadeH = this.height; this.height = barH; shaded = true }
         },
 
     zoomToggle() {

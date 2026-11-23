@@ -1,7 +1,8 @@
 # Desktop eval — assets
 
-Copy these into the task directory handed to the builder, **keeping each file's repository
-path** (the brief serves them under one site root with these paths, §14). Everything else the
+The launcher copies these into `task/assets/`, **keeping each file's repository path** (the
+brief serves them under one site root with these paths, §14). `assets.txt` is the list it
+reads; keep the two in step. Everything else the
 desktop shows is drawn or written from the brief itself.
 
 | copy (repository path) | used for |
@@ -64,5 +65,5 @@ among them (the Markdown application's launch document):
 - `docs/operational/verify.md`
 
 Not copied: the repository's hosted apps (docs, calendar, birds, marketmap, tracker, the viewer).
-The six hosted dock slots keep their names, icons and blurbs but run the Handbook test program
-the builder writes (brief §12).
+They are not part of this build; the one hosted dock application, Swatches, is a test program the
+builder writes (brief §12).

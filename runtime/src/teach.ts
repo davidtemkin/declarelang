@@ -291,8 +291,16 @@ export function cssAttributeHint(name: string): string {
  *  same floor nearestName already uses to widen its own budget. */
 export function hintedForeignName(name: string): string | null {
   // React's `key` is written whole or not at all: `keyed` and `keyId` are names
-  // of the program's own, not a reach for record identity
-  return name.length >= 5 ? nearestName(name, Object.keys(CSS_ATTRIBUTE_HINTS).filter((k) => !REACT_NAMES.has(k))) : null;
+  // of the program's own, not a reach for record identity. A former Declare name
+  // is answered when it is spelled right in any case (`ondblclick`), never by a
+  // near miss: a near miss on another platform's name is a reach for that
+  // platform's idea, but one on a name Declare retired is almost always a
+  // different word (`online` is one edit from `outline`, and nobody typing it
+  // means a text stroke).
+  if (name.length < 5) return null;
+  const lower = name.toLowerCase();
+  for (const k of FORMER_DECLARE_NAMES) if (k.toLowerCase() === lower) return k;
+  return nearestName(name, Object.keys(CSS_ATTRIBUTE_HINTS).filter((k) => !REACT_NAMES.has(k) && !FORMER_DECLARE_NAMES.has(k)));
 }
 
 /** The HOST-GLOBAL table: the browser's (and Node's) names a body may reach

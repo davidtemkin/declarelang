@@ -1,99 +1,88 @@
 # Why a new language, now?
 
-Start with the obvious objection. LLMs write code now, and they’re best at the
-languages they’ve seen the most — so the winning move is to use whatever has
-the biggest corpus and let the model figure it out. By that logic the era of
-new programming languages is over.
+Start with the obvious objection. AI writes most code now, and it is best at the
+languages it has seen the most — so the sensible move is to use whatever has the
+biggest corpus and let the model figure it out. By that logic the era of new
+programming languages is over.
 
-That argument gets its facts right and its conclusion backwards. Producing
-code is now nearly free; trusting it costs what it always did. An LLM writing
-React verifies its work by resemblance — this looks like the billion lines it
-trained on — and resemblance is not correctness. Meanwhile, less and less of
-the code passes under human eyes, which leaves the language and its compiler
-as the one reviewer that is always present. Handing the writing to a machine
-doesn’t make the language irrelevant. It makes it load-bearing.
+That argument gets its facts right and its conclusion backwards. Writing code is
+now nearly free; trusting it costs what it always did. An AI writing React
+verifies its work by resemblance — this looks like the billion lines it trained
+on — and resemblance is not correctness. Meanwhile less and less code passes
+under human eyes, which leaves the language and its compiler as the one reviewer
+that is always present. Handing the writing to a machine doesn’t make the
+language irrelevant. It makes it load-bearing.
 
-## Two kinds of leverage
+## Two aims
 
-What an LLM gets from a mainstream stack is corpus leverage: fluency by
-imitation — broad, shallow, self-contradictory, unverifiable. The other kind
-is comprehension leverage: a language small enough to hand to a model whole,
+Declare set out to be two things at once.
+
+**Expressive.** A language that can say what a real interface is — not just data
+entry screens, but fast, polished, custom software designed to be used, even
+enjoyed: views that become the next view, motion that carries meaning, layouts
+that answer to content and to the screen they are on.
+
+**Verifiable.** A language that can be learned, written, debugged and tested by an
+AI, and whose programs a compiler can check rather than guess at.
+
+Most attempts to make code safe for machines make it duller for people. Declare refuses that tradeoff. Every feature that makes a program checkable — one tree for
+structure, style and behavior; every dependency visible to the compiler; one
+decider for each value — is also what makes it short, and readable to the person
+who has to judge it.
+
+## Made for the people who make interfaces
+
+A well-designed experience is a set of decisions — how it should look, how it should
+move, what should feel inevitable — and those decisions are yours. An AI can
+produce a standard-looking app easily, and in Declare it can produce one
+verifiably. What it cannot supply is a custom-crafted design.
+
+That is why layout, motion, states, theming and drawing are part of the language itself rather than libraries: a `Spring` on an attribute, a layout as a value a view
+holds, a mode as a state you are in or not. The continuous version of an
+interface is often less code than the discrete one. And because a Declare
+program is one complete description — no separate stylesheet, no framework
+lifecycle, no build of a dozen files — the design you meant is written plainly
+in the code, where you, a colleague or an AI can read it back and see that it
+is still what you meant.
+
+## Verifiable, by design
+
+What an AI gets from a mainstream stack is corpus leverage: fluency by imitation
+— broad, shallow, self-contradictory, unverifiable. The other kind is
+comprehension leverage: a language small enough to hand to a model whole,
 regular enough that its programs can be analyzed rather than pattern-matched,
 and backed by a compiler that turns each mistake into a precise correction.
 Corpus leverage arrives free with popularity. Comprehension leverage has to be
-designed in — and it is the only kind a new language can compete on.
+designed in, and it is the only kind a new language can compete on.
 
-This is a measured bet, not a hunch. LLMs can learn a language they never
-trained on from a spec in context — in recent studies, a small language
-purpose-designed for LLM use, with zero training exposure, beat the same model
-writing Python, its best-trained language. And what bounds a model’s ability
-to repair its own mistakes is the quality of the feedback: a compiler that
-explains beats one that merely rejects, by a double-digit margin.
+It is a measured bet: a small language handed to a model in context has beaten the
+same model writing Python ([study →](https://arxiv.org/abs/2512.23214)), and a
+compiler that explains its errors measurably improves a model’s repairs
+([study →](https://arxiv.org/abs/2504.06939)).
 
-The studies: [a zero-corpus DSL vs. Python →](https://arxiv.org/abs/2512.23214) · [feedback quality vs. repair →](https://arxiv.org/abs/2504.06939)
+Declare was built the same way it is meant to be used: eval by eval. An agent that
+had never seen the language was given a written application spec and the Declare download, and
+built the app while I watched — how long it took, what it tripped on, what it
+found missing, how well its code read, how well the app worked. Another agent built the same spec in React. Over a hundred runs, what improved was not the
+model but the language: the same ticket-buying app went from 48 minutes to 24, compiler
+errors per build from 32 to 6. In the latest pair the Declare app was <!--stat:venue.declare.code-->1,279<!--/stat-->
+lines to React’s <!--stat:venue.react.code-->2,666<!--/stat-->, and its first build that ran passed all
+<!--stat:venue.checksWord-->eleven<!--/stat--> hidden checks; React’s passed <!--stat:venue.react.firstBootWord-->six<!--/stat-->. Single runs, not yet
+a benchmark. [The runs, in full →](https://github.com/davidtemkin/declarelang/tree/main/evals/reports)
 
-We measure it too. Given the same brief — a box office with a drawn seat map,
-seats selling live while you choose, sign-in and checkout — the same agent,
-Claude Code (Opus 5.5), built it once in React and once in Declare, from a
-download it had never seen. Both finished passing all <!--stat:venue.checksWord-->eleven<!--/stat--> of the same hidden
-acceptance checks, which drive the app by its controls' accessible names. The
-Declare app was <!--stat:venue.declare.code-->1,279<!--/stat--> lines of code; the React app, <!--stat:venue.react.code-->2,666<!--/stat-->. And the first Declare
-build that ran passed <!--stat:venue.declare.firstBootWord-->eleven<!--/stat--> of <!--stat:venue.checksWord-->eleven<!--/stat-->, <!--stat:venue.declare.firstBootMin-->12.5<!--/stat--> minutes in. The first React
-build passed <!--stat:venue.react.firstBootWord-->six<!--/stat-->, and its main bug was fixed at <!--stat:venue.react.fixMin-->23<!--/stat--> minutes.
+## What it’s for
 
-[The runs, in full →](https://github.com/davidtemkin/declarelang/tree/main/evals/reports)
+The most prized quality of a great interface — the continuity you feel in the best
+native apps — has always been bespoke: specialist craft, one interaction at a
+time, locked to a platform, and wrong in ways nothing catches. Declare makes
+that continuity the grain of the language, and puts it where a compiler can
+check it. The calendar is the proof: four
+views as one zooming surface, about <!--stat:calendar.codeAbout-->600<!--/stat--> lines, human-designed and directed, and built with AI.
 
-## Designed in, not bolted on
+There is another generation of experiences beyond today’s hand-crafted best —
+built on a foundation with continuity at its core, deployed as widely as a URL,
+and shaped by people with an idea of how software should feel, working with an
+AI at their side. Declare is built to find out what they make.
 
-Declare’s declarative layer is small — the whole language fits in a model’s
-context window with room left for your app — and everything inside a { } is
-ordinary TypeScript, so the hard part of generation rides the largest corpus
-there is. Where Declare looks familiar, it behaves the way a model — or you —
-will assume: assignment is assignment, and there is no bypass to forget. Where
-it’s genuinely new, it looks new — brackets for structure, :path for data — a
-visible cue to consult the spec instead of autocompleting from memory.
-
-And because a UI’s real structure — views, state, data, what reacts to
-what — is expressed in the language, the compiler can see all of it: it
-extracts every binding’s dependencies statically, checks the shape of the
-tree, and types the seams. What a model reasons about is exactly what the
-compiler verifies, and its errors are written for that loop — each one states
-the rule and names the rewrite that fixes it, because the primary reader of a
-compiler message, now, is an LLM deciding what to do next.
-
-Indexable content is there from the start: the compiler runs your program at
-build time and serializes what it renders, so what a visitor sees and what a
-crawler sees can never drift. No server-side rendering, no hydration. That’s
-why this page works on a static host like GitHub Pages.
-
-## What it’s actually for
-
-All of that is the floor, not the point. The point is what a language makes
-sayable. The most prized layer of modern UI — the continuity you feel in the
-best native software, where a view doesn’t switch so much as become the next
-one, where motion carries meaning and everything stays interruptible — has
-always been bespoke: specialist craft, one interaction at a time, locked to a
-platform. It is also the least machine-writable code there is; the corpus is
-thin, custom, and wrong in ways nothing catches.
-
-Declare makes continuity the grain, not the garnish. Motion is a Spring on an
-attribute; layout is a reactive attribute; a mode is a reversible state — so the
-continuous version of an interface is often less code than the discrete one.
-The reference app is a calendar whose four views are one surface seen through
-a moving, zooming rectangle — normally a bespoke project of its own, here
-about <!--stat:calendar.codeAbout-->600<!--/stat--> lines of code, readable end to end, written with an LLM.
-The whole category moves into the declarative, analyzable layer: the hardest
-part of ambitious UX becomes the part a model is best at.
-
-And that is the forward-looking wager. There is another generation of
-experiences beyond the hand-crafted best-in-class interfaces of today — built
-on a foundation with continuity at its core, enabled at the language level,
-deployed as universally as a URL, and iterated by imaginative
-designer-developers working with an LLM at their side. Declare is built to
-find that out.
-
-None of this trades away the human. What makes code legible to a model is what
-makes it fast for you to read — and you are still the reader who decides. You
-don’t teach an LLM Declare with a million examples. You hand it the language
-and let the compiler keep it honest. The corpus will come; the language
-doesn’t need it first.
+*Further: [the FAQ](#faq) · [how it works](#architecture) ·
+[the whole language, in one file](#language)*

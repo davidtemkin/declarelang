@@ -1,12 +1,23 @@
+// One value, v, and three things that follow it.
+
 App [ textColor = slategray,
+
+    group: View [ x = center, y = center, width = 80%,
+        layout: SimpleLayout [ axis = y, spacing = 20 ],
+
+        number: Text [ width = 100%, textAlign = center,
+            fontSize = 70, fontWeight = bold, text = { "" + v } ],
+
+        bar: Gauge [ width = 100%, value = { v },
+            tint = { v < 50 ? cool : warm }, accessibilityLabel = "v" ],
+
+        hint: Text [ width = 100%, textAlign = center,
+            text = "click anywhere to change v" ]
+        ],
+
     v: number = 40,
     cool: Color = dodgerblue,
     warm: Color = turquoise,
-    onClick() { v = (v + 20) % 100 },
-    group: View [ x = center, y = center, width = 80%, height = { this.contentHeight },
-        layout: SimpleLayout [ axis = y, spacing = 20 ],
-        Text [ width = { parent.width }, textAlign = center, text = "click anywhere to change v" ],
-        Text [ width = { parent.width }, textAlign = center, fontSize = 70, fontWeight = bold, text = { v + "" } ],
-        Gauge [ width = { parent.width }, value = { v }, tint = { v < 50 ? cool : warm }, accessibilityLabel = "v" ]
-        ]
+
+    onClick() { v = (v + 20) % 100 }
     ]

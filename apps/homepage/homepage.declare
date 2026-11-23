@@ -129,6 +129,10 @@ content origin and the pill's width is simply what it holds.
 class NavLink extends Control [ height = 33, cornerRadius = 8, padding = [0, 12, 0, 12],
     label:   string = "",
 
+    // the header's one button: filled in the accent, where the rest are plain
+
+    primary: boolean = false,
+
     // a link, named by its label; the one that drops a list of pages says so
     // (a link has no "expanded" — the hint carries it)
 
@@ -144,9 +148,9 @@ class NavLink extends Control [ height = 33, cornerRadius = 8, padding = [0, 12,
     press() {
         if (!this.dropdown) return
         const o = this.rootOrigin()
-        app.appsX = o.x - app.scrollX
-        app.appsY = o.y - app.scrollY + this.height + 6
-        app.appsOpen = !app.appsOpen
+        app.menuX = o.x - app.scrollX
+        app.menuY = o.y - app.scrollY + this.height + 6
+        app.navMenu = app.navMenu == this.label ? "" : this.label
         },
 
     // where it goes is the `link` the use site sets — "#why" is a destination,
@@ -154,9 +158,12 @@ class NavLink extends Control [ height = 33, cornerRadius = 8, padding = [0, 12,
     // makes it a real anchor (hover preview, ⌘-click, copy-link) and a Tab stop
 
     fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
+    State [ applied = { primary },
+        fill = { pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent } ],
     lbl: Text [ y = 8, fontFamily = { app.uiFace }, fontSize = 14,
-        text = { classroot.label },
-        textColor = { classroot.hovered || classroot.pressed ? provided("theme").text : provided("theme").muted } ],
+        fontWeight = { classroot.primary ? "medium" : "normal" },
+        text = { classroot.label + (classroot.dropdown ? " ▾" : "") },
+        textColor = { classroot.primary ? "white" : classroot.hovered || classroot.pressed ? provided("theme").text : provided("theme").muted } ],
     width = { this.contentWidth }
     ]
 
@@ -191,7 +198,7 @@ class MobileNavRow [ width = 100%, height = 44, cornerRadius = 8,
     // the handler closes the menus, then the row's `link` is followed —
     // a row can have both, and the navigation itself is the link
 
-    onClick()     { app.menuOpen = false; app.appsOpen = false },
+    onClick()     { app.menuOpen = false; app.navMenu = "" },
 
     lbl: Text [ x = { classroot.sub ? 30 : 14 }, y = center, fontFamily = { app.uiFace },
         fontSize = 16, fontWeight = medium,
@@ -530,11 +537,13 @@ class Footer [ width = 100%,
         textStyles = { { g: { textFill: provided("theme").brand } } },
         html = "Built in <span class='g'>Declare</span>" ],
     FootSep [ ],
-    FootLink [ link = "apps/homepage/homepage.declare?viewer", text = "View Source" ],
+    FootLink [ link = { app.site + "apps/homepage/homepage.declare?viewer" }, text = "View Source" ],
     FootSep [ ],
-    FootLink [ link = "apps/docs/docs.declare", text = "Docs" ],
+    FootLink [ link = { app.site + "apps/docs/docs.declare" }, text = "Docs" ],
     FootSep [ ],
     FootLink [ link = "#language", text = "The language" ],
+    FootSep [ ],
+    FootLink [ link = "#architecture", text = "How it works" ],
     FootSep [ ],
     FootLink [ link = "https://github.com/davidtemkin/declarelang", text = "GitHub" ],
     FootSep [ ],
@@ -766,6 +775,10 @@ stays put.
 // into the document's title.
 
 App [ tagline: string = "a UI language for you and your AI",
+    // the site's root, from this program's folder: every cross-site link reads
+    // it ("" where the page is the site's own front page)
+
+    site: string = "",
     edges = cover,
     revealInset = 80,
     appName = { "Declare — " + app.tagline },
@@ -848,25 +861,29 @@ App [ tagline: string = "a UI language for you and your AI",
     // get rows of their own.
 
     navItems: array = { [
-        ({ label: "Try it now", link: "#getstarted", children: [] }),
-        ({ label: "Why Declare",     link: "#why",        children: [] }),
-        ({ label: "FAQ",             link: "#faq",        children: [] }),
-        ({ label: "Architecture",    link: "#architecture", children: [] }),
         // "#apps" is a BARE ANCHOR (§01's section carries `anchor = "apps"`):
-        // the runtime derives its destination and lands on it — no section
-        // machinery here, and the reference survives the section moving.
+        // the sheet's parent row lands there; the pill opens the list
         ({ label: "Apps", link: "#apps", children: [
-            ({ label: "Calendar", link: "apps/calendar/calendar.declare", children: [] }),
-            ({ label: "Desktop",  link: "apps/desktop/desktop.declare",  children: [] }),
-            ({ label: "Tracker",  link: "apps/tracker/tracker.declare",  children: [] }),
-            ({ label: "Weather",  link: "apps/weather/weather.declare",  children: [] }),
-            ({ label: "Market Map", link: "apps/marketmap/marketmap.declare", children: [] }),
-            ({ label: "Asteroids", link: "apps/games/asteroids/asteroids.declare", children: [] }),
+            ({ label: "Calendar", link: app.site + "apps/calendar/calendar.declare", children: [] }),
+            ({ label: "Desktop",  link: app.site + "apps/desktop/desktop.declare",  children: [] }),
+            ({ label: "Tracker",  link: app.site + "apps/tracker/tracker.declare",  children: [] }),
+            ({ label: "Weather",  link: app.site + "apps/weather/weather.declare",  children: [] }),
+            ({ label: "Market Map", link: app.site + "apps/marketmap/marketmap.declare", children: [] }),
+            ({ label: "Asteroids", link: app.site + "apps/games/asteroids/asteroids.declare", children: [] }),
             ] }),
-        ({ label: "Docs",     link: "apps/docs/docs.declare", children: [] }),
-        // last, and the only item that leaves the site — an off-site link placed
-        // mid-row would split the applications from the Docs they belong beside
+        ({ label: "Learn", link: "", children: [
+            ({ label: "Declare in 10 minutes", link: app.site + "apps/model-tour/model-tour.declare?appearance=" + app.appearance, children: [] }),
+            ({ label: "Docs", link: app.site + "apps/docs/docs.declare", children: [] }),
+            ({ label: "The language, in one file", link: "#language", children: [] }),
+            ({ label: "How it works", link: "#architecture", children: [] }),
+            ] }),
+        ({ label: "About", link: "#why", children: [
+            ({ label: "Why Declare", link: "#why", children: [] }),
+            ({ label: "FAQ", link: "#faq", children: [] }),
+            ({ label: "Origins", link: "#story", children: [] }),
+            ] }),
         ({ label: "GitHub",   link: "https://github.com/davidtemkin/declarelang", children: [] }),
+        ({ label: "Get started", link: "#getstarted", children: [] }),
         ] },
 
     navSource: Dataset [ contents = { { items: app.navItems } } ],
@@ -875,10 +892,10 @@ App [ tagline: string = "a UI language for you and your AI",
     // the Apps dropdown (wide rendition): open state + the gesture-time anchor,
     // and its rows DERIVED from the one navItems list (no second list to drift)
 
-    appsOpen: boolean = false,
-    appsX: number = 0,
-    appsY: number = 0,
-    appsSource: Dataset [ contents = { { items: (app.navItems.find((i) => i.label == "Apps") || ({ children: [] })).children } } ],
+    navMenu: string = "",          // the label of the item whose menu is open, or ""
+    menuX: number = 0,
+    menuY: number = 0,
+    menuSource: Dataset [ contents = { { items: (app.navItems.find((i) => i.label == app.navMenu) || ({ children: [] })).children } } ],
 
     // the content measure and the centering gutter — the one geometry every
     // aligned edge on the page (column, wordmark, nav) derives from
@@ -927,7 +944,7 @@ App [ tagline: string = "a UI language for you and your AI",
                (GitHub, or edit this page’s own source) */
 
             hero: View [ width = 100%,
-                layout: SimpleLayout [ axis = y, spacing = 24 ],
+                layout: SimpleLayout [ axis = y, spacing = 40 ],
                 top: View [ width = 100%,
                     layout: SimpleLayout [ axis = y, spacing = 26 ],
 
@@ -943,25 +960,25 @@ App [ tagline: string = "a UI language for you and your AI",
                         ],
                     paras: View [ width = 100%,
                         layout: SimpleLayout [ axis = y, spacing = 12 ],
-                        HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { provided("theme").lead },
-                            html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window." ],
+                        HTMLText [ width = { Math.min(700, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { provided("theme").lead },
+                            html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces — for taking the custom, fluid experience you have in mind beyond a prototype, into a real app: structured, verifiable, and with the design written plainly in its code." ],
 
-                        // The page's most arresting fact, and the only claim on it a
-                        // visitor can falsify in their own browser in three clicks —
-                        // so it reads as a statement, not a caption under the one above.
-
-                        Lead [ width = { Math.min(680, parent.width) }, fontWeight = semibold,
+                        Lead [ width = { Math.min(700, parent.width) }, fontWeight = semibold,
                             textColor = { provided("theme").text },
                             text = "This page is written in it. By an LLM." ]
                         ]
                     ],
 
-                // the two doors in, side by side with room between them
+                // the way in — the tour — and two quieter ones beside it: the
+                // proof, and the whole language for the reader (or the AI) who
+                // wants it in one file
 
                 learn: View [ width = 100%,
-                    layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 32 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
-                    why: SmallLink [ fontSize = 15, text = "Why a new language, now? →", link = "#why" ],
-                    tour: SmallLink [ fontSize = 15, text = "Declare in 10 minutes →", link = "apps/model-tour/model-tour.declare" ]
+                    layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 28, align: "center" }), ({ from: 0, flow: "stack", gap: 14 })] } ],
+                    SiteButton [ width = 224, height = 40, fontSize = 15, primary = true, label = "Declare in 10 minutes →",
+                        link = { app.site + "apps/model-tour/model-tour.declare?appearance=" + app.appearance } ],
+                    SmallLink [ fontSize = 15, text = "Run the calendar →", link = { app.site + "apps/calendar/calendar.declare" } ],
+                    SmallLink [ fontSize = 15, text = "The language, in one file →", link = "#language" ]
                     ]
                 ],
 
@@ -981,8 +998,8 @@ App [ tagline: string = "a UI language for you and your AI",
 
                 layout: SimpleLayout [ axis = y, spacing = 72 ],
 
-                SectionHead [ num = "01", head = "Three applications, written in Declare.",
-                    lead = "Complete programs — open one, read it end to end, and edit it live in the browser you're using." ],
+                SectionHead [ num = "01", head = "Expressive. And verifiable.",
+                    lead = "A calendar that zooms through time, a desktop with real windows: complete programs, each readable end to end and checked by the compiler. Open one, or edit it live in the browser you’re using." ],
 
                 /* The calendar takes its own row: the pitch on the LEFT where the
                    eye starts, the plate on the right at half the column — the same
@@ -1007,21 +1024,14 @@ App [ tagline: string = "a UI language for you and your AI",
                         // rather than each climbing three parents to find it
 
                         head: CardHead [ num = "1", title = "Declare Calendar",
-                            url = "apps/calendar/calendar.declare",
+                            url = { app.site + "apps/calendar/calendar.declare" },
                             hot = { parent.parent.hot } ],
 
-                        Lead [ fontSize = 17, width = 100%,
-                            text = "It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible." ],
-
-                        // The clip beside this shows a detail panel opening and an
-                        // event being dragged to another day — operations, not
-                        // motion. This line names that, because it is the clip's
-                        // strongest beat and nothing else in the column claims it:
-                        // it answers the doubt a video invites — is this the thing,
-                        // or a recording of it — with what the drag commits.
+                        // what the clip beside it shows, and what it commits: the doubt
+                        // a video invites (is this the thing?) answered by the drag
 
                         Lead [ fontSize = 17, width = 100%,
-                            text = "It runs on real data: open an event, drag it to another day, and it’s moved." ],
+                            text = "Day, week, month and year views are one surface, zooming continuously; a view doesn’t switch so much as become the next one, and every motion can be interrupted. It runs on real data: drag an event to another day, and it’s moved." ],
 
                         stat: View [ width = 100%, height = { this.contentHeight },
                             layout: SimpleLayout [ axis = x, spacing = 20 ],
@@ -1038,10 +1048,10 @@ App [ tagline: string = "a UI language for you and your AI",
                             MiniMetric [ value = { app.stats.value?.calendar?.wireGzip ? Math.round(app.stats.value.calendar.wireGzip / 1024) + " KB" : "—" },
                                 note = "over the wire, gzipped — app (structure, logic, styling) and runtime" ],
                             MiniMetric [ value = "0",
-                                note = "lines written by hand — an LLM wrote it" ]
+                                note = "lines typed by hand — human-designed and directed, built with AI" ]
                             ],
 
-                        actions: View [ width = 100%,
+                        actions: View [ width = 100%, padding = [12, 0, 0, 0],
                             layout: ResponsiveLayout [ plan = { [({ from: 420, flow: "row", gap: 18, align: "center" }), ({ from: 0, flow: "stack", gap: 14 })] } ],
 
                             // PRIMARY: the accent fill. Running the thing the
@@ -1049,14 +1059,14 @@ App [ tagline: string = "a UI language for you and your AI",
                             // here, so it reads as the button it is rather than
                             // as another quiet surface.
 
-                            SiteButton [ width = 240, primary = true, label = "Run Declare Calendar →",
-                                link = "apps/calendar/calendar.declare" ],
+                            SiteButton [ width = 212, height = 40, fontSize = 15, primary = true, label = "Run Declare Calendar →",
+                                link = { app.site + "apps/calendar/calendar.declare" } ],
 
                             // the quieter way in, centred on the button while
                             // the two share a row (the row tier's align)
 
                             SmallLink [ text = "View & edit source →",
-                                link = "apps/calendar/calendar.declare?viewer" ]
+                                link = { app.site + "apps/calendar/calendar.declare?viewer" } ]
                             ]
                         ],
 
@@ -1065,7 +1075,7 @@ App [ tagline: string = "a UI language for you and your AI",
                     // apps band, whose opacity is that reveal — so a visitor who
                     // never scrolls here never decodes a frame.
 
-                    plate: Shot [ src = { app.isDark ? "shots/calendar-dark.webp" : "shots/calendar-light.webp" }, link = "apps/calendar/calendar.declare",
+                    plate: Shot [ src = { app.isDark ? "shots/calendar-dark.webp" : "shots/calendar-light.webp" }, link = { app.site + "apps/calendar/calendar.declare" },
                         accessibilityLabel = "Open Declare Calendar",
 
                         // Its last frame IS its first, so the loop has no seam to
@@ -1082,13 +1092,21 @@ App [ tagline: string = "a UI language for you and your AI",
                 // a picture needs from its own caption
 
                 pair: View [ width = 100%,
-                    layout: ResponsiveLayout [ plan = { [({ from: 720, flow: "row", gap: 56, share: ({ trk: 50, dsk: 50 }) }),
-                                                         ({ from: 0, flow: "stack", gap: 56, share: ({ trk: 100, dsk: 100 }) })] } ],
+                    layout: ResponsiveLayout [ plan = { [({ from: 720, flow: "row", gap: 56, share: ({ dsk: 50, trk: 50 }) }),
+                                                         ({ from: 0, flow: "stack", gap: 56, share: ({ dsk: 100, trk: 100 }) })] } ],
 
-                    trk: AppCard [ title = "Declare Tracker", num = "2",
+                    dsk: AppCard [ title = "Declare Desktop", num = "2",
+                        shot   = { app.isDark ? "shots/desktop-dark.webp" : "shots/desktop-light.webp" },
+                        url = { app.site + "apps/desktop/desktop.declare" },
+                        srcUrl = { app.site + "apps/desktop/desktop.declare?viewer" },
+                        blurb = "The acid test for a UI language: multiple applications, windows that drag, resize, layer and minimize into live thumbnails, a magnifying dock, menus that follow focus, and separately loaded apps running inside its windows. Elsewhere that is a project assembled from several libraries; here it is one program.",
+                        figures = { hpLines(app.stats.value?.desktop?.total, app.stats.value?.desktop?.code, app.stats.value?.desktop?.comment)
+                              + hpWire(app.stats.value?.desktop?.wireGzip) + " · every pixel drawn from shapes, no image assets" } ],
+
+                    trk: AppCard [ title = "Declare Tracker", num = "3",
                         shot   = { app.isDark ? "shots/tracker-dark.webp" : "shots/tracker-light.webp" },
-                        url    = "apps/tracker/tracker.declare",
-                        srcUrl = "apps/tracker/tracker.declare?viewer",
+                        url = { app.site + "apps/tracker/tracker.declare" },
+                        srcUrl = { app.site + "apps/tracker/tracker.declare?viewer" },
                         blurb = "1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code",
 
                         // the wire figure is the production BUILD — app, runtime and
@@ -1098,36 +1116,36 @@ App [ tagline: string = "a UI language for you and your AI",
                         // small download.
 
                         figures = { hpLines(app.stats.value?.tracker?.total, app.stats.value?.tracker?.code, app.stats.value?.tracker?.comment)
-                              + hpWire(app.stats.value?.tracker?.wireGzip) + ", before its data · no dependencies" } ],
+                              + hpWire(app.stats.value?.tracker?.wireGzip) + ", before its data · no dependencies" } ]
 
-                    dsk: AppCard [ title = "Declare Desktop", num = "3",
-                        shot   = { app.isDark ? "shots/desktop-dark.webp" : "shots/desktop-light.webp" },
-                        url    = "apps/desktop/desktop.declare",
-                        srcUrl = "apps/desktop/desktop.declare?viewer",
-                        blurb = "Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them",
-                        figures = { hpLines(app.stats.value?.desktop?.total, app.stats.value?.desktop?.code, app.stats.value?.desktop?.comment)
-                              + hpWire(app.stats.value?.desktop?.wireGzip) + " · every pixel drawn from shapes, no image assets" } ]
+                    ],
+
+                // the rest, named: the dropdown is no longer the only way to them
+
+                more: View [ width = 100%,
+                    layout: WrappingLayout [ spacing = 22, rowSpacing = 10 ],
+                    FootLabel [ text = "And more:" ],
+                    SmallLink [ text = "Weather →", link = { app.site + "apps/weather/weather.declare" } ],
+                    SmallLink [ text = "Market Map →", link = { app.site + "apps/marketmap/marketmap.declare" } ],
+                    SmallLink [ text = "Birds →", link = { app.site + "apps/birds/birds.declare" } ],
+                    SmallLink [ text = "To-do →", link = { app.site + "apps/todo/todo.declare" } ],
+                    SmallLink [ text = "Asteroids →", link = { app.site + "apps/games/asteroids/asteroids.declare" } ]
                     ]
                 ],
 
-            /* ### 02–04 — one `DemoSection` each. These three are the language's
-               genuinely new ideas — a constraint, replication over data, and a
-               spring — one each, nothing else. */
+            /* ### 02 — Expressive by design: the language was made for the people
+               who make interfaces first, and one live program says so better
+               than three. The tour carries the rest of the model. */
 
-            s3: DemoSection [ num = "02", head = "Declare it. It runs. It stays true.",
-                lead = "A constraint isn’t a callback you remember to re-run — it’s a standing relationship the runtime keeps true, re-derived the moment its inputs change.",
-                caption = "Three constraints track one value: the big number, the bar’s width, and its color. Click to bump v — all three update together, and the color crosses cool to warm at the halfway mark.",
-                demo = "demos/reactivity" ],
-
-            s4: DemoSection [ num = "03", head = "Declare the shape, not the loop.",
-                lead = "A view can be built from data instead of laid out by hand — the shape written once, the data deciding how many there are and what each one says.",
-                caption = "One Gauge, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Gauge is auto-included: no import, no definition, just use it.",
-                demo = "demos/from-data" ],
-
-            s5: DemoSection [ num = "04", head = "Motion you declare, not schedule.",
-                lead = "You say where a thing belongs; a Spring finds the path there and settles by physics — motion you declare, not a timeline you sequence.",
-                caption = "Click to toggle the ball’s target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand.",
-                demo = "demos/spring" ],
+            craft: DemoSection [ num = "02", head = "Say what you mean. Exactly.",
+                lead = "Declare was designed first for the people who make interfaces. Layout, motion, states, theming and drawing are the language itself, not libraries bolted on — so the experience you have in mind is something you can write down directly, and read back later as it was meant.",
+                samples = { [
+                    ({ id: "demos/reactivity", label: "Rules",
+                        caption: "Three things follow one value: the number, the bar’s length and its color. Click to change v — all three update together, because each is a relationship that stays true, not a step someone remembered to run." }),
+                    ({ id: "demos/from-data", label: "Data",
+                        caption: "One Gauge, written once; the data decides how many there are and what each says. Edit a number or add a record and the list follows — no loop, no keys." }),
+                    ({ id: "demos/spring", label: "Motion",
+                        caption: "Click to move the ball. A Spring says where it belongs and finds the way there, and a second click mid-flight simply sends it back — no timeline, no frames driven by hand." }) ] } ],
 
             /* ### The feedback loop — the page's argument for WHY the language is
                shaped this way, placed where it can land: after three tiny programs
@@ -1175,7 +1193,7 @@ App [ tagline: string = "a UI language for you and your AI",
                         a: Point [ ptitle = "Start with context",
                             body = "One installable skill: the language, the library, the conventions, the working loop — nothing to reconstruct from a repository. And declare-help answers any name or error code on demand." ],
                         b: Point [ ptitle = "Correct, don’t guess",
-                            body = "Every diagnostic names the broken rule and the valid rewrite. Try it: change textColor to color in the first panel above and read what comes back." ]
+                            body = "Every diagnostic names the broken rule and the valid rewrite. Try it: change textColor to color in the panel above and read what comes back." ]
                         ],
 
                     second: View [ width = 100%,
@@ -1192,8 +1210,13 @@ App [ tagline: string = "a UI language for you and your AI",
                 // "0 lines written by hand" — not a restatement of the four beats.
                 // No door: the FAQ is one click away in the header on every view.
 
+                // the evidence, on the page and with its caveat, then the proof
+                // already above it
+
+                evidence: BannerLead [ fontSize = 17, measure = 760,
+                    text = "Measured: given the same brief, the same agent built a ticket-buying app twice. The Declare app was 1,279 lines to React’s 2,666, and its first build that ran passed all eleven hidden checks; React’s passed six. Single runs, not yet a benchmark — every run is in the repository." ],
                 close: BannerLead [ fontSize = 17, measure = 760,
-                    text = "The calendar above was built this way: a person directed, an AI wrote every line, and the compiler kept it honest." ]
+                    text = "The calendar above was built this way: human-designed and directed, built with AI, and kept honest by the compiler." ]
                 ],
 
             /* ### The closing line — centered between two accent rules. Two
@@ -1219,7 +1242,7 @@ App [ tagline: string = "a UI language for you and your AI",
                follow closer */
 
             cta: View [ width = 100%, height = 0,
-                SiteButton [ width = 260, x = center, y = -24, label = "Try it now →", link = "#getstarted" ]
+                SiteButton [ width = 260, x = center, y = -24, label = "Get started →", link = "#getstarted" ]
                 ],
 
             /* ### Footer */
@@ -1313,7 +1336,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
        The getting-started guide (getstarted.md) as a DocView at #getstarted. */
 
-    getStartedView: DocView [ shows = "getstarted", src = { app.guide }, eyebrow = "TRY IT NOW",
+    getStartedView: DocView [ shows = "getstarted", src = { app.guide }, eyebrow = "GET STARTED",
         waiting = "Loading the guide…",
         trouble = "The guide did not load — " ],
 
@@ -1418,6 +1441,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 layout: SimpleLayout [ axis = x, spacing = 2 ],
                 datapath = { app.navSource.value },
                 NavLink [ datapath = :items[], label = { :label }, dropdown = { :children.length > 0 },
+                    primary = { :primary == true },
                     link = { :children.length > 0 ? "" : :link } ]
                 ],
 
@@ -1510,20 +1534,19 @@ App [ tagline: string = "a UI language for you and your AI",
             ]
         ],
 
-    // the Apps dropdown — the pill row's own menu, the same rows as the sheet
-    // (MobileNavRow), anchored under the Apps pill. A transparent catcher
-    // below closes it on an outside tap; narrowing past the breakpoint hides
-    // it with the pills it belongs to.
+    // a pill's dropdown — the pill row's own menu, the same rows as the sheet
+    // (MobileNavRow), anchored under the pill that opened it. The overlay is the
+    // panel itself, so a press anywhere outside its box closes it; narrowing past
+    // the breakpoint hides it with the pills it belongs to.
 
-    appsMenu: Floating [ shown = { app.appsOpen && !app.header.bar.kebab.visible },
-        commit(open: boolean) { app.appsOpen = open },
+    navMenuPanel: Floating [ shown = { app.navMenu != "" && !app.header.bar.kebab.visible },
+        commit(open: boolean) { if (!open) app.navMenu = "" },
         pressPolicy = "dismiss", takesFocus = true, focusScope = modal,
-        panel: View [ x = { app.appsX }, y = { app.appsY }, width = 190,
-            cornerRadius = 12, padding = 6,
-            fill = { provided("theme").surface }, shadow = { Shadow(0, 12, 40, provided("theme").shade) },
-            layout: SimpleLayout [ axis = y, spacing = 0 ],
-            datapath = { app.appsSource.value },
-            MobileNavRow [ datapath = :items[], label = { :label }, link = { :link } ]
-            ]
+        x = { app.menuX }, y = { app.menuY }, width = 220,
+        cornerRadius = 12, padding = 6,
+        fill = { provided("theme").surface }, shadow = { Shadow(0, 12, 40, provided("theme").shade) },
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        datapath = { app.menuSource.value },
+        MobileNavRow [ datapath = :items[], label = { :label }, link = { :link } ]
         ]
     ]

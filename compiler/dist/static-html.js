@@ -274,9 +274,51 @@ function navHref(v) {
     }
     return typeof val === "string" && val !== "" ? val : null;
 }
+/** Whether `v` is an overlay — an instance of the library's `Floating` (a menu,
+ *  a sheet, a popover, a dialog): a Declare class, so it is known by the name
+ *  the program stamped on it, found up the instance's class chain. */
+function isOverlay(v) {
+    for (let c = v.constructor; typeof c === "function"; c = Object.getPrototypeOf(c)) {
+        const d = Object.getOwnPropertyDescriptor(c, "name");
+        if (d?.configurable === false && d.value === "Floating")
+            return true;
+    }
+    return false;
+}
+/** A CLOSED OVERLAY'S LINKS. A menu or a sheet is one press from the page, and
+ *  the destinations in it are the page's navigation as much as a link on the page
+ *  is — a site's nav menu IS how its pages are reached. So a closed overlay
+ *  contributes its links, each with its own text, as a `<nav>`; nothing else in
+ *  it does, because what it shows when open is not the page's content. Only what
+ *  the settled tree holds: an overlay that builds its rows when it opens has none
+ *  to give. */
+function overlayLinks(v, out, headingOf) {
+    const links = [];
+    const scan = (n) => {
+        const href = navHref(n);
+        if (href !== null) {
+            const inner = [];
+            emit(n, inner, headingOf);
+            if (inner.length > 0)
+                links.push(`<a href="${escAttr(href)}">${inner.join("\n")}</a>`);
+            return;
+        }
+        if (n.visible === false && n !== v)
+            return;
+        for (const c of n.children)
+            if (c instanceof View)
+                scan(c);
+    };
+    scan(v);
+    if (links.length > 0)
+        out.push(`<nav>${links.join("\n")}</nav>`);
+}
 function walk(v, out, headingOf, tenants) {
-    if (v.visible === false)
+    if (v.visible === false) {
+        if (isOverlay(v))
+            overlayLinks(v, out, headingOf);
         return;
+    }
     // an island whose tenant program the crawl extracted (crawl.ts tenantsOf):
     // the tenant's content stands where the island stands
     const tenant = tenants?.get(v);

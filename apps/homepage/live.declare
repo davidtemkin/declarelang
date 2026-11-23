@@ -130,23 +130,41 @@ source panel's height, so the code is never a scrolling listing and the picture
 beside it is always the same size as the code that makes it.
 */
 
+// One sample a section may offer among several: its program, the switch's
+// label for it, and the caption it is shown with.
+
+schema Sample [ id: string, label: string, caption: string ]
+
+/* A section's live program. Given `samples`, it offers them on a switch above
+   the panels and shows the one picked (the first, until one is); given none,
+   it shows `demo` with `caption`. */
+
 class DemoSection [ width = 100%,
     num:     string = "",
     head:    string = "",
     lead:    string = "",
     caption: string = "",
     demo:    string = "",
-    code: DataSource [ url = { classroot.demo + ".declare" }, format = "text", autoFetch = true ],
+    samples: Sample[] = [],
+    picked:  string = "",
+    shown: string = { classroot.samples.length == 0 ? classroot.demo : (classroot.picked || classroot.samples[0].id) },
+    shownCaption: string = { classroot.samples.find((s) => s.id == classroot.shown)?.caption ?? classroot.caption },
+    code: DataSource [ url = { classroot.shown + ".declare" }, format = "text", autoFetch = true ],
     layout: SimpleLayout [ axis = y, spacing = 36 ],
     SectionHead [ num = { classroot.num }, head = { classroot.head }, lead = { classroot.lead } ],
     demoBody: View [ width = 100%,
         layout: SimpleLayout [ axis = y, spacing = 14 ],
-        Body [ fontSize = 15, width = 100%, text = { classroot.caption } ],
+        Segmented [ visible = { classroot.samples.length > 0 }, accessibilityLabel = "Sample",
+            items = { classroot.samples.map((s) => ({ id: s.id, label: s.label })) },
+            value = { classroot.shown },
+            commit(v: string) { classroot.picked = v }
+            ],
+        Body [ fontSize = 15, width = 100%, text = { classroot.shownCaption } ],
         cards: View [ width = 100%,
             layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
-            src: SourcePanel [ editName = { classroot.demo },
+            src: SourcePanel [ editName = { classroot.shown },
                 src = { classroot.code.value || "" } ],
-            prev: PreviewFrame [ runName = { classroot.demo }, height = { parent.src.height } ]
+            prev: PreviewFrame [ runName = { classroot.shown }, height = { parent.src.height } ]
             ]
         ]
     ]

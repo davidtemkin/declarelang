@@ -71,7 +71,8 @@ await test("every app on the homepage's Apps menu is on the prewarm list", async
   // `children: []` is empty, so the first "]" is no boundary)
   const next = src.indexOf("\n        ({ label:", start + 1);
   const menu = src.slice(start, next < 0 ? undefined : next);
-  const links = [...menu.matchAll(/link: "(apps\/[^"]+\.declare)"/g)].map((m) => m[1]);
+  // a link is written plain or from the site's root (`app.site + "apps/…"`)
+  const links = [...menu.matchAll(/link: (?:app\.site \+ )?"(apps\/[^"]+\.declare)"/g)].map((m) => m[1]);
   assert.ok(links.length >= 5, "found the menu's app links: " + links.join(", "));
   const listed = new Set(PREWARMED.map((p) => p.main));
   assert.deepEqual(links.filter((l) => !listed.has(l)), [], "Apps menu entries missing from browser/prewarm-manifest.js");

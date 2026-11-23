@@ -5,18 +5,18 @@ and windows you open, drag, resize, zoom, minimize into the dock and close — a
 browser, a document viewer, sticky notes, About boxes, and windows that run other,
 separately built programs. It is called **Declare Desktop**.
 
-This is not a picture of a desktop. The point is behaviour: which window is in front, what
+This is not a picture of a desktop. The point is behavior: which window is in front, what
 the menu bar belongs to, how far the dock has swelled under the pointer, where a window
 goes when it is minimized and how it comes back — all of it true at once, while the person
-drags, resizes and clicks. And it is not only behaviour: the look is specified to the
-pixel, colour and millisecond, and a build that gets the behaviour right but the finish
+drags, resizes and clicks. And it is not only behavior: the look is specified to the
+pixel, color and millisecond, and a build that gets the behavior right but the finish
 wrong has not done the job. The two are one: a shadow that deepens when a window comes to
 the front *is* the front window.
 
-Every behaviour below is numbered (**D-1**, **D-2**, …) so it can be checked. Where this
-brief gives a number — a size, a colour, a duration — that number is the
-requirement. Where it describes a behaviour by a familiar convention, the behaviour stated
-is the requirement, not the convention. Visual requirements sit beside the behaviours they
+Every behavior below is numbered (**D-1**, **D-2**, …) so it can be checked. Where this
+brief gives a number — a size, a color, a duration — that number is the
+requirement. Where it describes a behavior by a familiar convention, the behavior stated
+is the requirement, not the convention. Visual requirements sit beside the behaviors they
 belong to and are numbered with them. Section 15 lists acceptance checks derived from
 them. Reference screenshots of some states may be supplied; where they disagree with a
 number here, the number wins.
@@ -26,9 +26,9 @@ Conventions used throughout:
 - **Points.** All sizes are CSS pixels. "x, y" positions are measured from the top-left of
   the named box. *Screen* means the whole desktop stage; *the windows layer* is the stage
   minus the 32-px menu bar (its y = 0 is screen y = 32).
-- **Colours** are hex (`#RRGGBB`, or `#RRGGBBAA` with alpha), or `rgba()`. "Light / dark"
+- **Colors** are hex (`#RRGGBB`, or `#RRGGBBAA` with alpha), or `rgba()`. "Light / dark"
   gives the value in each appearance mode.
-- **Shadows** are written *(x-offset, y-offset, blur, colour)*.
+- **Shadows** are written *(x-offset, y-offset, blur, color)*.
 - **Motion** is specified by what a person sees: start and end values, how long it takes,
   its shape, whether it overshoots, and what it does if its destination changes partway.
   Durations and settle times are ±15 %. Unless a motion says otherwise it is
@@ -60,7 +60,7 @@ in that window's own overlay layer (D-60). A minimized window paints inside the 
 `-apple-system` on a Mac). Sizes and weights are given where each text appears.
 
 **D-4 · Two appearances.** The desktop has a light and a dark appearance (§13). Every
-surface below names its colour by one of these tokens, which take these values:
+surface below names its color by one of these tokens, which take these values:
 
 | token | light | dark |
 |---|---|---|
@@ -110,7 +110,7 @@ Until it arrives, Files windows show one empty column.
 2. a **Files** window (D-62): 560 × 400 at windows-layer (118, 72).
 
 Files is the front window, the welcome note sits behind it, and Files has the keyboard. The
-boot windows play the normal open animation from their own centres (D-46). Neither bounces
+boot windows play the normal open animation from their own centers (D-46). Neither bounces
 a dock icon.
 
 **D-10 · Boot state of the rest.** Files and Jots are running (their dock dots lit, D-94);
@@ -125,10 +125,12 @@ setting. The wallpaper is seed 7 (§3). The clock shows the current local date a
 **D-11 · What it is.** A generated mesh-gradient field, drawn (no image), a pure function of
 an integer *seed* that starts at **7**. It is drawn once into a fixed 1920 × 1200 frame and
 then scaled, uniformly, to *cover* the stage (scale = max(stageW / 1920, stageH / 1200)),
-centred, the overflow cropped. Resizing the browser re-scales it; it is never redrawn for a
+centered, the overflow cropped. Resizing the browser re-scales it; it is never redrawn for a
 resize.
 
-**D-12 · The drawing.** Reproduce this exactly, in a 1920 × 1200 canvas (W × H):
+**D-12 · The drawing.** Reproduce this exactly, in a 1920 × 1200 canvas (W × H). The steps
+below are pseudocode in the style of JavaScript drawing on an HTML canvas (`imul` is 32-bit
+integer multiplication, `>>>` an unsigned right shift):
 
 ```
 seeded PRNG (mulberry32): a = (seed >>> 0) || 1
@@ -184,11 +186,11 @@ of the open menu wears a capsule highlight: 24 tall (inset 4 px from the bar's t
 bottom), corner radius 6, filled menuTitleHighlight. Titles do not highlight on mere hover.
 
 **D-16 · The brand title.** The first title is not a word but a mark: an 18-px white disc
-(`#FFFFFF`) with "[ ]" centred on it in 9-px bold black (`#000000`). Its accessible name is
+(`#FFFFFF`) with "[ ]" centered on it in 9-px bold black (`#000000`). Its accessible name is
 "Declare".
 
 **D-17 · The clock.** At the right, its right edge 14 px from the stage's right edge,
-vertically centred: 13-px medium, `#F2F2F5`, reading e.g. **`Wed Aug 12  10:30 AM`** —
+vertically centered: 13-px medium, `#F2F2F5`, reading e.g. **`Wed Aug 12  10:30 AM`** —
 three-letter weekday, three-letter month, day of month without padding, *two* spaces, hour
 on a 12-hour clock without padding (12 for noon and midnight), minutes with two digits,
 "AM"/"PM". It changes on the minute, exactly at the minute boundary.
@@ -203,17 +205,14 @@ item lists: label · shortcut · state.
    - **Dark Mode** · ⌘K — icon: half-filled circle (D-31). Reads **Light Mode** while the
      desktop is dark.
    - *divider*
-   - View & Edit Source — icon: code chevrons ‹ › (D-31)
    - Declare Home
 2. **The application menu**, titled with the active application's *title* (§8), in bold:
    - About ⟨title⟩
-   - *divider*
-   - View & Edit Source
    - *divider*, then **Quit ⟨title⟩** · ⌘Q — both absent when the application is Files
-     (Files is always running).
+     (Files is always running), which leaves the menu with About Files alone.
 3. **File**:
    - New · ⌘N
-   - Open… · ⌘O — disabled while the active application is Calendar
+   - Open… · ⌘O
    - *divider*
    - Close Window · ⌘W — disabled while there is no front window
 4. **Edit** — every item present, shown with its shortcut, and always disabled (nothing on
@@ -221,7 +220,7 @@ item lists: label · shortcut · state.
    Select All ⌘A.
 5. **Window** — one row per open window of the active application (About boxes excluded,
    minimized windows included), in stacking order from back to front with minimized windows
-   last; each row labelled with the window's title, or the application's title when the
+   last; each row labeled with the window's title, or the application's title when the
    window has none (a Jot). The front window's row is checked (a radio-style check: these
    rows are one set). When the application has no such windows, one disabled row: **No
    Windows**.
@@ -240,10 +239,8 @@ next painted frame):
 |---|---|
 | About Declare Desktop | opens the desktop's own About box (D-83) |
 | Dark Mode / Light Mode | switches appearance to the other mode and **locks** it: from then on, the operating system's setting no longer changes it (D-149) |
-| View & Edit Source (brand menu) | opens the desktop's source in the Viewer (D-119) |
 | Declare Home | the browser navigates to `apps/homepage/homepage.declare` under the site root (§14.1) — the desktop is left (that page need not exist in this build) |
 | About ⟨title⟩ | opens the active application's About box |
-| View & Edit Source (app menu) | opens the active application's source in the Viewer |
 | Quit ⟨title⟩ | quits the active application (D-118) |
 | New | the active application's *launch* action (D-115) |
 | Open… | if the active application is Files and there is a front window: open that Files window's selection (D-75); otherwise the application's launch action |
@@ -275,7 +272,7 @@ are drawn at 0.5 opacity and cannot be picked. A row whose menu has a check colu
 
 **D-25 · Columns and width.** The label column starts at x = 17; at x = 24 when any row in
 that menu can be checked; at x = 43 when any row carries an icon; at 50 with both. Icons are
-16 × 16, at x = 18 (25 with a check column), vertically centred. The panel's width is the
+16 × 16, at x = 18 (25 with a check column), vertically centered. The panel's width is the
 largest of: 120; any row's stated minimum (the Help search row asks 244); and *label start
 + widest label + (26 + widest key + 16 if any row has a key, else 18)*.
 
@@ -303,22 +300,20 @@ row. The row is 48 tall and takes no highlight and no pick. The field is a capsu
 (corner radius 15), 5 px from the row's top, its left edge at x = 31 in the panel and its
 right edge 12 px from the panel's right edge; inner padding 28 px left, 8 px right;
 placeholder **Search**; the look of D-6. A 14 × 14 magnifier sits 10 px in from the
-capsule's left edge, vertically centred: a 1.5-px textFaint stroke, round caps — a circle of
-radius 4.2 centred at (6, 6) and a handle from (9.4, 9.4) to (12.5, 12.5). Clicking the field
+capsule's left edge, vertically centered: a 1.5-px textFaint stroke, round caps — a circle of
+radius 4.2 centered at (6, 6) and a handle from (9.4, 9.4) to (12.5, 12.5). Clicking the field
 focuses it for typing; what is typed is kept while the menu is open and searches nothing.
 
 **D-30 · The bar follows focus.** The application title, the application menu, File's
 enabled states, the Window menu and the Help row label all change the moment the front
 window changes — including while a menu is open.
 
-**D-31 · The menu icons**, each drawn in a 16 × 16 box in the row's text colour (white on a
+**D-31 · The menu icons**, each drawn in a 16 × 16 box in the row's text color (white on a
 highlighted row), round caps and joins, 1.5-px stroke:
 - *brackets*: two strokes — (5.4, 3.4) → (3.0, 3.4) → (3.0, 12.6) → (5.4, 12.6), and
   (10.6, 3.4) → (13.0, 3.4) → (13.0, 12.6) → (10.6, 12.6);
 - *half-filled circle*: a circle of radius 5.4 at (8, 8), stroked, with its left half
   (from 90° to 270°) filled;
-- *code chevrons*: (6.4, 4.2) → (2.6, 8.0) → (6.4, 11.8) and (9.6, 4.2) → (13.4, 8.0) →
-  (9.6, 11.8);
 - *lightbulb*: a filled bulb outline (a rounded bulb whose sides taper into a neck at
   y ≈ 12.5) with a separate thin bar beneath at y ≈ 13.6 and a rounded tip ending at
   y = 16 — any clean, filled 16-px lightbulb glyph.
@@ -326,7 +321,7 @@ highlighted row), round caps and joins, 1.5-px stroke:
 **D-32 · Shortcuts are the menu items.** Every item's shortcut works from anywhere in the
 desktop, exactly while the item is present in the bar, with exactly the item's effect, and
 not while the item is disabled. So ⌘Q exists only while the application menu shows a Quit
-item; ⌘O does nothing while Calendar is active; ⌘W does nothing with no front window; the
+item; ⌘W does nothing with no front window; the
 Edit shortcuts never fire (and are not taken from a focused text field, where ⌘C/⌘V/⌘X/⌘Z/⌘A
 keep their usual editing meaning). A shortcut taken by the desktop is not also performed by
 the browser.
@@ -338,7 +333,7 @@ the browser.
 There are five kinds of window (§6): **Files**, **Markdown viewer**, **Jot** (sticky note),
 **About** box, and **hosted** (running a separately built program). They share everything
 in this section; §6 gives what each adds. A Jot has its own chrome (D-93) but the same
-behaviour.
+behavior.
 
 ### The frame
 
@@ -353,7 +348,7 @@ change is immediate when the front window changes.
 **D-35 · Title bar.** 35 tall, across the top. In the front window it is a vertical gradient
 — light `#FAFAFC` → `#E6E6EA`, dark `#3B3B40` → `#2E2E32`; in any other window it is the
 flat background token. A 1-px separator in line runs along the bar's bottom (y = 34) in both
-states. The title is centred on the window, 13-px semibold, single line, in text when the
+states. The title is centered on the window, 13-px semibold, single line, in text when the
 window is front and textMuted otherwise; it is as wide as its words but never wider than
 the bar's width − 152 (− 280 when the window has back/forward arrows), cut short past that.
 
@@ -367,10 +362,10 @@ the bar's width − 152 (− 280 when the window has back/forward arrows), cut s
 | minimize | `#F5BF4F` | `#D9A340` | `#8F5B00` |
 | zoom | `#61C554` | `#4CAF45` | `#145E14` |
 
-They are *lit* (coloured) while the window is front **or** while the pointer is anywhere
+They are *lit* (colored) while the window is front **or** while the pointer is anywhere
 over the 54 × 14 block. Unlit, each is a flat gray — light `#D2D2D6`, dark `#54545A` — with a
 barely-there rim `#00000014`. While the pointer is over the block (and only then), the lit
-circles also show their glyphs, drawn in the circle's 14-px box in its ink colour with round
+circles also show their glyphs, drawn in the circle's 14-px box in its ink color with round
 caps: close, an × of two 1.6-px strokes (4.5, 4.5)→(9.5, 9.5) and (9.5, 4.5)→(4.5, 9.5);
 minimize, a 1.8-px bar (3.5, 7)→(10.5, 7); zoom, two filled triangles (4.1, 4.1), (8.5, 4.1),
 (4.1, 8.5) and (9.9, 9.9), (5.5, 9.9), (9.9, 5.5). Hovering the rest of the title bar does
@@ -441,16 +436,16 @@ its height. Instant. While shaded, the resize band and grip are gone.
 1 in **230 ms**, fast at first and easing into place (about 70 % of the growth is done in the
 first third of the time; no overshoot), about a *pivot point*. When the window was opened
 *from* something on screen — a dock icon, a Files row or the Open button, i.e. the view the
-person pressed — the pivot is that view's centre, expressed in the window's own coordinates,
+person pressed — the pivot is that view's center, expressed in the window's own coordinates,
 and the start scale is **0.15**: the window appears to grow out of what was pressed. (Its
 position is taken *with* scroll offsets: a row in a scrolled list is where it shows, not
 where it would be unscrolled.) If the origin's x relative to the window is negative (the
 origin lies left of the window) the window instead starts at **0.85** with the pivot's x at
-the window's centre; independently, a negative origin y puts the pivot's y at the centre.
+the window's center; independently, a negative origin y puts the pivot's y at the center.
 A window opened with no origin — from a menu, a shortcut, a context menu, or the boot —
-starts at **0.85** and grows about its own centre. Only these opens have an origin: dock
+starts at **0.85** and grows about its own center. Only these opens have an origin: dock
 icons of Markdown and the hosted applications; a Files row (double-click or Enter) or the
-detail column's Open button opening a document or a Documentation place. (Files, Jots and
+detail column's Open button opening a document. (Files, Jots and
 folder windows open with no origin; see D-48 for a folder window's close.) The window is
 fully opaque throughout and usable at once. (Exact definition: Appendix B, *window open*; any implementation that produces the same motion is fine.)
 
@@ -458,13 +453,13 @@ fully opaque throughout and usable at once. (Exact definition: Appendix B, *wind
 current scale to **0.15** in **200 ms**, starting slowly and accelerating to the end, about
 the same pivot, then is gone (no
 fade; it vanishes at 0.15). If the window was opened from a view that still exists on screen,
-the pivot is recomputed at close time to that view's current centre (it may have moved or
+the pivot is recomputed at close time to that view's current center (it may have moved or
 scrolled) — the window shrinks back into what it came from. A window closes with the close
 control, Close Window / ⌘W, its application's Quit, or (About boxes) dismissal. A second
 close request during the animation is ignored. (Exact definition: Appendix B, *window close*; any implementation that produces the same motion is fine.)
 
 **D-48 · Folder windows close into their row.** A Files window opened from a folder row
-(double-click or Enter) opens from its centre (D-46) but remembers the row: when closed while
+(double-click or Enter) opens from its center (D-46) but remembers the row: when closed while
 that row is still on screen, it shrinks toward the row.
 
 ### Front window, stacking and the keyboard
@@ -503,25 +498,25 @@ forward (and gives it the keyboard). A Files row, a button, or a hosted program 
 background window does not react to that first press at all — the next press does. The
 title bar, its controls and the resize band stay live on background windows.
 
-### The window eggs
+### The window easter eggs
 
 **D-55 · Tilt.** Pressing **r** (no ⌘, not an auto-repeat) swings every window — those open and
 those opened later — to its own random lean, a fresh uniform random angle in [−30°, 30°) per
 window; **r** again re-rolls all of them; **R** (Shift-r) levels them all. Each window swings to
 its new angle with a small wobble: it overshoots by roughly 12 % of the swing, swings back, and
 settles within about 0.6 s; a re-roll mid-swing redirects it smoothly. A tilted window turns
-about its own centre. Everything keeps working on a tilted window: dragging; resizing along
+about its own center. Everything keeps working on a tilted window: dragging; resizing along
 the window's own (turned) edges, with the opposite edge staying planted; menus and popups
 opened inside it turn with it. A tilted window straightens on its way into the dock (D-106),
-so thumbnails park straight. (Exact definition: Appendix B, *tilt and egg scale*; any implementation that produces the same motion is fine.)
+so thumbnails park straight. (Exact definition: Appendix B, *tilt and easter-egg scale*; any implementation that produces the same motion is fine.)
 
-**D-56 · Zoom egg.** **s** sends every window to a random scale, uniform in [0.55, 1.45) per
+**D-56 · Zoom easter egg.** **s** sends every window to a random scale, uniform in [0.55, 1.45) per
 window, with the same wobble and timing as the tilt; **s** re-rolls; **S** returns all to 1. A
-scaled window scales about its centre; resizing a scaled window follows the pointer in screen
-pixels (each window pixel covers *scale* screen pixels). The egg scale fades out of the
-window's size as it goes into the dock, so it parks at exactly its thumbnail size. (Exact definition: Appendix B, *tilt and egg scale*; any implementation that produces the same motion is fine.)
+scaled window scales about its center; resizing a scaled window follows the pointer in screen
+pixels (each window pixel covers *scale* screen pixels). The easter-egg scale fades out of the
+window's size as it goes into the dock, so it parks at exactly its thumbnail size. (Exact definition: Appendix B, *tilt and easter-egg scale*; any implementation that produces the same motion is fine.)
 
-**D-57 · When the egg keys work.** r, R, s, S and ` are heard whenever the desktop itself has
+**D-57 · When the easter-egg keys work.** r, R, s, S and ` are heard whenever the desktop itself has
 the keyboard — but not while a text field has focus (typing into the Help search types the
 letter), not while a hosted program has the keyboard (its window is front), and not with ⌘
 held.
@@ -536,14 +531,15 @@ click; a press-and-hold at the hold.
 **D-60 · The window's overlay layer.** Menus and popups that belong to a window — a Files
 row's context menu, a hosted program's own menus — open in that window's overlay layer:
 above the window's content, allowed to hang past the window's edges (never past the stage's,
-kept 4 px inside it), and turned and scaled with the window when the eggs are active.
+kept 4 px inside it), and turned and scaled with the window when the easter eggs are active.
 
-**D-61 · Back / forward arrows.** Windows of the Documentation and 50 Birds applications
+**D-61 · Back / forward arrows.** Windows of an application that asks for back/forward — in
+this build, Swatches —
 carry ‹ and › buttons in the title bar at x = 80, y = 6, 2 px apart: each 26 × 23, corner
-radius 6, its glyph in 22-px text (‹ or ›) centred and raised 3 px. Hovering fills the button
+radius 6, its glyph in 22-px text (‹ or ›) centered and raised 3 px. Hovering fills the button
 controlHovered. A button with nowhere to go is disabled: its glyph in textMuted at 0.45
 opacity, and it does nothing. They are keyboard-focusable buttons, named "Back" and
-"Forward". Their behaviour is D-134.
+"Forward". Their behavior is D-134.
 
 ---
 ## 6. The kinds of window
@@ -569,7 +565,7 @@ unless its *depth* has been resized (D-69).
 1 px between rows, 6 px of space after the last; the column scrolls vertically when they
 overflow. A row is 24 tall and as wide as the column:
 - folder items show a folder icon (17 × 13) at x = 11; documents a page icon (13 × 16) at
-  x = 12; both vertically centred;
+  x = 12; both vertically centered;
 - the name at x = 34, 13-px, single line, clipped to the column width − 52, in text;
 - folders show a "›" at x = column width − 15, 12-px, in textFaint;
 - the **folder icon**: a back tab, rounded rect (0, 0, 7.5 × 4, radius 1.5) `#4E9FEA`; the body
@@ -601,7 +597,7 @@ its preview (12-px, wrapping, text); and an **Open** button (92 wide, the primar
 when the document has a file or an inline text. Open opens the document (D-72), growing from
 the button.
 
-**D-69 · Resizing columns.** Each column's right edge carries an 8-px wide seam (centred on
+**D-69 · Resizing columns.** Each column's right edge carries an 8-px wide seam (centered on
 the edge, cursor `col-resize`). Dragging it changes that column's width, following the
 pointer, between 150 and 460. The new width belongs to that column *depth* in that window:
 every column later shown at that depth in that window has it.
@@ -620,16 +616,15 @@ File ▸ Open with a folder selected) opens a new Files window at the next casca
 with the selection set to that folder, so the columns show the whole path from the top level
 to the folder's children. Its title is the folder's name. The column that lists the folder
 among its siblings is glided to the strip's left edge (D-70), so the folder and its contents
-lead, and the whole path stays reachable by scrolling left. It opens about its own centre
+lead, and the whole path stays reachable by scrolling left. It opens about its own center
 (D-46). Opening a folder window closes any About boxes.
 
-**D-72 · Opening a document.** In priority order:
-1. it has a **place** in the Documentation application (`loc`): the Documentation window is
-   brought forward and sent to that place, or, if none is open, a new Documentation window
-   opens there (D-122);
-2. it has **inline text** (`doc`): a Markdown viewer opens on that text, titled with the
-   item's name;
-3. it has a **file** (`path`): a Markdown viewer opens on that file.
+**D-72 · Opening a document.** Every document opens in a Markdown viewer (D-77):
+1. if it has **inline text** (`doc`), on that text, titled with the item's name;
+2. otherwise on its **file** (`path`), titled with the file's name.
+
+(The library's `loc` field — a place in the original's documentation app — is ignored in
+this build.)
 
 **D-73 · Context menu.** Right-click, or long-press on touch, on a row opens a menu at the
 pointer, in the window's overlay layer (D-60). It brings the window forward first; it does not
@@ -682,7 +677,7 @@ wrapping).
 **D-80 · Look.** Default 300 × 250, minimum 160 × 90. Square corners; paper `#FEF49C`; a
 0.5-px rim `#4E4E52`. Shadow when front (0, 10, 26, `#00000052`), else (0, 3, 9, `#00000038`).
 No standard title bar: a 12-px **strip** across the top, `#FEEA3D` while the note is front and
-the paper colour otherwise (so an inactive note is chromeless).
+the paper color otherwise (so an inactive note is chromeless).
 
 **D-81 · Strip widgets** (shown only while the note is front), 1.4-px `#DBC501` lines over
 `#FFF49C` fill:
@@ -692,7 +687,7 @@ the paper colour otherwise (so an inactive note is chromeless).
 - a **collapse** widget at (width − 21, 2.25), 8 × 8: a square (0.7, 0.7, 6.6 × 6.6) with a
   line across at y = 3.1 — toggles shade (D-45).
 
-**D-82 · Behaviour.** The strip is the title bar: drag by it (D-38), press-and-hold on touch.
+**D-82 · Behavior.** The strip is the title bar: drag by it (D-38), press-and-hold on touch.
 The note resizes from every edge and corner (D-40) with no grip art drawn. The note's text is
 Markdown, rendered on the paper — x = 12, y = 18, width − 24 wide, height − 28 tall, clipped,
 at 0.82 × the normal text size (13 × 0.82 ≈ 10.7 px), line height 1.45, ink `#1D1D1F` in both
@@ -712,12 +707,12 @@ other About boxes. While it is front, the menu bar belongs to its subject: its a
 menu is that application's (for the desktop's own box, "Declare Desktop", whose application
 menu has a Quit item that closes the box).
 
-**D-84 · Content**, below the title bar, padding 22 top/bottom, 24 left/right, a centred
+**D-84 · Content**, below the title bar, padding 22 top/bottom, 24 left/right, a centered
 vertical stack 10 px apart:
 - the application's icon (D-104) at 96 × 96;
 - its title, 17-px bold, text;
 - "Version pre-1.0", 11-px, textMuted;
-- 2 px of space; its blurb (§8), 11-px textMuted, centred, wrapping;
+- 2 px of space; its blurb (§8), 11-px textMuted, centered, wrapping;
 - 8 px of space; "Built in Declare · MIT · © 2026 David Temkin", 10-px, textMuted.
 
 ### 6.5 Hosted window
@@ -725,17 +720,17 @@ vertical stack 10 px apart:
 **D-85 · What it is.** A window whose whole body (below the 35-px title bar, full width) is a
 separately built program running live (§11). Default 880 × 560. Its title is the name the
 program reports, or the application's title until the program has reported one. Hosted
-windows of Documentation and 50 Birds have back/forward (D-61, D-134). Opening positions
+windows of Swatches have back/forward (D-61, D-134). Opening positions
 are in D-121.
 
 ---
 
 ## 7. The dock
 
-**D-86 · Placement.** The dock is centred horizontally at the bottom of the stage. Its
+**D-86 · Placement.** The dock is centered horizontally at the bottom of the stage. Its
 **plate** is 88 tall with its bottom 5.5 px above the stage's bottom (plate top at stage
 height − 93.5), corner radius 27. The plate is as wide as the icon row plus 16 px on each
-side, plus the minimized section when there is one (D-99). It stays centred as it widens.
+side, plus the minimized section when there is one (D-99). It stays centered as it widens.
 
 **D-87 · Plate look.** Filled light `#FCFCFE`, dark `#2A2A30`, at **0.4 opacity** (the
 wallpaper shows through; no blur). Over it, at full strength: an outer 1-px hairline (a
@@ -744,32 +739,32 @@ and a top-lit inner rim, a 1.5-px stroke of a rounded rect inset 1.4 (radius 25.
 with a vertical gradient — light `rgba(255,255,255,0.62)` at the top, `0.13` at 42 % down,
 `0` at the bottom; dark `0.30`, `0.05`, `0`.
 
-**D-88 · The icons.** Twelve icons in one row, in the roster order of §8, 16 px apart, the row
+**D-88 · The icons.** Seven icons in one row, in the roster order of §8, 16 px apart, the row
 starting 16 px inside the plate. At rest each is 56 × 56, its bottom 16 px above the plate's
 bottom (21.5 px above the stage bottom), so 16 px of plate shows above it.
 
 **D-89 · An icon's look.** A rounded square (corner radius 0.23 × its edge), clipped, filled
 with a vertical gradient from the application's first hue (top) to its second (bottom), with
-either its text glyph (white `#FFFFFF`, semibold, at 0.42 × the edge, centred) or its drawn
+either its text glyph (white `#FFFFFF`, semibold, at 0.42 × the edge, centered) or its drawn
 face (§8). Over it, a glossy rim: a 1-px stroke of a rounded rect inset 0.5 (radius
 0.23 × edge − 0.5), painted with a vertical gradient `rgba(255,255,255,0.42)` at the top,
 `0.07` at 34 %, `0` at the bottom. When magnified, the whole icon scales smoothly — no
 shimmer, no stepping of the glyph.
 
 **D-90 · Magnification — the size-by-distance curve.** When the pointer is near the bottom of
-the stage the dock swells under it like a lens. Each icon has a *resting centre* — its centre
+the stage the dock swells under it like a lens. Each icon has a *resting center* — its center
 with nothing magnified and no minimized section:
-*cx₀ = stageW / 2 + (index − 5.5) × 72 − (minimized-section width) / 2*, where 72 is the pitch
-(56 + 16) and 5.5 is the middle of 12 icons. While the dock is magnifying, an icon's size is
+*cx₀ = stageW / 2 + (index − 3) × 72 − (minimized-section width) / 2*, where 72 is the pitch
+(56 + 16), index counts from 0, and 3 is the middle of 7 icons. While the dock is magnifying, an icon's size is
 56 × **m(d)**, where d = |pointer x − cx₀| and m is piecewise linear between these points:
 
 | d | 0 | 72 | 144 | 216 | ≥ 288 |
 |---|---|---|---|---|---|
 | m | 1.55 | 1.35 | 1.18 | 1.06 | 1.00 |
 
-Distances are always to the *resting* centres, never to where magnified icons have moved. An
+Distances are always to the *resting* centers, never to where magnified icons have moved. An
 icon stays bottom-anchored, so it grows upward; the row is laid out with the real, magnified
-widths, so neighbours are pushed aside and the plate stretches to hold them.
+widths, so neighbors are pushed aside and the plate stretches to hold them.
 
 **D-91 · Where it magnifies.** The dock magnifies while the pointer is inside the browser
 window and below the line 100 px above the stage's bottom. Once it is magnified, that line
@@ -787,15 +782,15 @@ whenever the pointer moves mid-motion. (Exact definition: Appendix B, *dock magn
 
 **D-93 · Label pill.** Hovering an icon (no delay) shows its application's *label* in a pill
 above it: one shape — a stadium body 22 tall (fully rounded ends) with a small triangle tail
-under its centre, 7 tall on a 16-px base — filled light `rgba(242,242,246,0.88)`, dark
+under its center, 7 tall on a 16-px base — filled light `rgba(242,242,246,0.88)`, dark
 `rgba(46,46,51,0.9)`, outlined 1 px light `rgba(196,196,204,0.85)`, dark `rgba(0,0,0,0.35)`, no
-shadow. Its text is 13-px, light `#1D1D1F`, dark `#F2F2F5`, centred in the body; the pill is
+shadow. Its text is 13-px, light `#1D1D1F`, dark `#F2F2F5`, centered in the body; the pill is
 the text width + 26 wide. Every pill's top sits at the same height — 151.5 px above the stage
 bottom, whatever the magnification — so pills never ride the swell. It disappears the moment
 the pointer leaves the icon.
 
 **D-94 · Running dot.** Under each running application's icon, a 4-px dot (radius 2) in the
-text token, centred, 6 px below the icon. It does not bounce.
+text token, centered, 6 px below the icon. It does not bounce.
 
 **D-95 · Launch bounce.** When an application is launched for the first time (D-116), its
 icon bounces twice, like a ball: it rises 30 px, decelerating to a stop at the top (about
@@ -830,22 +825,22 @@ pixels.
 **D-100 · The section opens and closes smoothly.** The section's resting width is
 34 − 8 + Σ(tile width + 8) (0 with no tiles). The plate widens to admit a tile and narrows when
 one leaves, smoothly, in about 250 ms with no visible overshoot, redirecting without a jump if
-another window is minimized or restored meanwhile; the whole dock stays centred as it does.
+another window is minimized or restored meanwhile; the whole dock stays centered as it does.
 The divider fades in with the widening: its opacity is min(1, section width / 26). The section
 is absent while its width is below 0.5. (Exact definition: Appendix B, *minimized section width*; any implementation that produces the same motion is fine.)
 
 **D-101 · The thumbnail is the window.** The thing in the tile is the window itself, live,
 scaled down — not a snapshot. Its content keeps updating (a hosted program keeps running).
-It is centred vertically on the plate's centre line (49.5 px above the stage bottom) at rest,
+It is centered vertically on the plate's center line (49.5 px above the stage bottom) at rest,
 with corners rounded 3.5 px (at thumbnail scale), and paints above the plate but below the
 icons and the badges.
 
 **D-102 · Tiles ride the swell.** Tiles magnify with the icons, by the same curve (D-90) about
-their own resting centres, in the same band (D-91), following the pointer as smoothly as the
+their own resting centers, in the same band (D-91), following the pointer as smoothly as the
 icons (settling within about 130 ms, no visible overshoot, no stepping). A magnified tile grows
 rightward from its left edge (it never crosses the divider) and upward from a baseline 19 px
-above the stage bottom: its centre is at 19 + 30.5 × m px above the stage bottom for
-magnification m, and its size is m × its resting size. Neighbours are pushed right; the plate
+above the stage bottom: its center is at 19 + 30.5 × m px above the stage bottom for
+magnification m, and its size is m × its resting size. Neighbors are pushed right; the plate
 widens by the extra width. (Exact definition: Appendix B, *tile magnification*; any implementation that produces the same motion is fine.)
 
 **D-103 · Badge and pill.** Once the window has settled into its tile, the tile shows its
@@ -859,8 +854,7 @@ application title for an untitled window), its top at the shared pill height. Cl
 
 **D-104 · One icon everywhere.** Anywhere an application's icon appears — the dock, an
 About box (96 px), the alert (64 px), a tile's badge (20 px) — it is the same art: the D-89
-rounded square, gradient, rim and glyph or face, drawn at that size. The Calendar's face
-carries the live date wherever it appears (D-113).
+rounded square, gradient, rim and glyph or face, drawn at that size.
 
 
 ### Minimize and restore
@@ -877,7 +871,7 @@ accelerating into the dock. From its first frame it paints in the dock (above th
 the icons and badges). Everything moves together, in step: its top-left corner travels in a
 straight line from its free position to its tile's top-left; its size shrinks to the tile's
 (scaling about its own top-left corner); its corner radius goes from 10 to the thumbnail's
-3.5 px (in dock pixels, × the tile's magnification); a tilt or egg scale fades to none. The tile
+3.5 px (in dock pixels, × the tile's magnification); a tilt or easter-egg scale fades to none. The tile
 is live during the journey: if the dock swells or shifts, the window's destination moves with
 it and the window follows without a jump. (Exact definition: Appendix B, *minimize journey*; any implementation that produces the same motion is fine.)
 
@@ -900,8 +894,8 @@ A minimized window cannot be minimized again. (Exact definition of the flight ho
 B, *restore journey*; any implementation that produces the same motion is fine.)
 
 **D-108 · Bringing a window forward, from anywhere.** Whenever the desktop brings a
-particular window forward — the Window menu, a link a hosted program follows (D-135), a
-document sent to the Documentation window (D-122) — a minimized window is restored (D-107)
+particular window forward — the Window menu, or a link a hosted program follows (D-135) — a
+minimized window is restored (D-107)
 and any other window is activated (D-49).
 
 **D-109 · Closing a minimized window.** A minimized window can be closed only by its
@@ -913,82 +907,48 @@ top-left corner unless it has an origin view still on screen (D-47).
 
 ## 8. Applications
 
-**D-110 · The roster.** The dock shows twelve applications, in this order. Hues are the icon's
+**D-110 · The roster.** The dock shows seven applications, in this order. Hues are the icon's
 gradient, top → bottom. *Kind*: **built-in** applications open windows of the desktop itself;
-**hosted** applications run a separately built program in a window (§11); **inert**
+the **hosted** application runs a separately built program in a window (§11, §12); **inert**
 applications are not included and show the alert (§9).
 
 | # | id | label (dock) | title (menus, About) | kind | hues | glyph / face |
 |---|---|---|---|---|---|---|
 | 1 | files | Files | Files | built-in, always running | `#59B0F6` → `#1D6FD1` | face: folder |
 | 2 | markdown | Markdown | Markdown | built-in | `#8E7CE8` → `#5A46B8` | glyph "M↓" |
-| 3 | viewer | Declare Viewer | Declare Viewer | hosted | `#2E6FE0` → `#12A594` | glyph "[  ]" (two spaces) |
-| 4 | docs | Documentation | Declare Docs | hosted, back/forward | `#FFA94D` → `#F7811E` | face: open book |
-| 5 | calendar | Calendar | Declare Calendar | hosted, cannot Open…, clears the dock | `#FFFFFF` → `#EFEFF2` | face: live date |
-| 6 | jots | Jots | Jots | built-in | `#FCF4A7` → `#F3E27E` | face: note |
-| 7 | birds | 50 Birds | 50 Birds | hosted, back/forward | `#66C95F` → `#2C9243` | face: bird |
-| 8 | marketmap | Market Map | Market Map | hosted | `#1C1E22` → `#1C1E22` | face: treemap |
-| 9 | tracker | Tracker | Tracker | hosted | `#8E7CF0` → `#5B45C9` | face: list |
-| 10 | mail | Mail | Mail | inert, quip "Nope." | `#1E8CFB` → `#1667D9` | face: envelope |
-| 11 | music | Music | Music | inert, quip "Nah." | `#FB5C74` → `#FA233B` | face: eighth note |
-| 12 | terminal | Terminal | Terminal | inert, quip "Never." | `#3A3D44` → `#16171B` | face: prompt |
+| 3 | swatches | Swatches | Swatches | hosted, back/forward | `#2C2C2E` → `#1C1C1E` | face: four chips |
+| 4 | jots | Jots | Jots | built-in | `#FCF4A7` → `#F3E27E` | face: note |
+| 5 | mail | Mail | Mail | inert, quip "Nope." | `#1E8CFB` → `#1667D9` | face: envelope |
+| 6 | music | Music | Music | inert, quip "Nah." | `#FB5C74` → `#FA233B` | face: eighth note |
+| 7 | terminal | Terminal | Terminal | inert, quip "Never." | `#3A3D44` → `#16171B` | face: prompt |
 
-A thirteenth, **the desktop itself** — title "Declare Desktop", glyph "[  ]", hues `#4AA8E8` →
-`#35C4B5` — is not in the dock; it is the subject of About Declare Desktop and the brand
-menu's View & Edit Source, and its launch action is a new Files window.
+Swatches stands where the original's hosted applications stood (in its Documentation slot);
+the original's six hosted applications (Declare Viewer, Documentation, Calendar, 50 Birds,
+Market Map, Tracker) are not part of this build.
 
-**D-111 · Blurbs** (the About box's line), verbatim:
+A further one, **the desktop itself** — title "Declare Desktop", glyph "[  ]", hues `#4AA8E8` →
+`#35C4B5` — is not in the dock; it is the subject of About Declare Desktop, and its launch
+action is a new Files window.
+
+**D-111 · Blurbs** (the About box's line), verbatim from the original except Swatches':
 - Files — "Browses the live documentation model — every chapter, every element."
 - Markdown — "Renders the real files, and reference pages synthesized from the model."
-- Declare Viewer — "Reader, source, and live editor over any Declare program — here, hosted as
-  an embedded app."
-- Declare Docs — "The actual apps/docs — the guide and the reference — hosted as an embedded
-  app."
-- Declare Calendar — "The actual apps/calendar, running as an embedded child app in this
-  window's island."
+- Swatches — "A separately built program, hosted in this window — every named color, by name
+  or by hue."
 - Jots — "Small paper notes with their own window chrome — built into this program."
-- 50 Birds — "The actual apps/birds — Audubon's plates as a field guide — hosted as an embedded
-  app."
-- Market Map — "The actual apps/marketmap — the S&P 500 as a treemap through the years — hosted
-  as an embedded app."
-- Tracker — "The actual apps/tracker — ten thousand issues to list, filter and edit — hosted as
-  an embedded app."
 - Mail, Music, Terminal — (they have no About box: they never become active).
 - Declare Desktop — "A Mac desktop, declared. Windows, dock, and menus are views and records,
   all drawn — no bitmaps, no borrowed art."
-
-(The six hosted slots keep the original applications' names, icons and blurbs; in this build
-each runs the Handbook test program, §12.)
 
 **D-112 · Faces**, each drawn in a 48 × 48 box scaled to the icon's edge, over the gradient
 plate (all fills `#FFFFFF` unless stated):
 - **Files** — folder: rounded rect (9, 13.5, 14 × 8, r 2) and (9, 16, 30 × 19, r 2.5) in
   `#D9E7FA`; over them (9, 20, 30 × 15, r 2.5) in white.
-- **Docs** — open book: page block polygon (24, 16.5) (9.5, 14.5) (9.5, 35.5) (24, 38.5)
-  (38.5, 35.5) (38.5, 14.5) in `#FCE3C4`; two white pages — left: from (23.4, 14.8) a quadratic
-  curve (control 18, 11.4) to (11.5, 12), line to (11.5, 33.4), quadratic (control 18, 33) to
-  (23.4, 36.2), closed; right: its mirror about x = 24.
-- **Calendar** — white square (0, 0, 48 × 48); a red band `#FB4238` (0, 0, 48 × 13); the
-  weekday, three capital letters ("WED"), white, bold 7.5-px, centred at (24, 7); the day of the
-  month, `#1D1D1F`, 27-px regular, centred at (24, 31). It shows today and changes at midnight,
-  wherever the icon appears (dock, badge, About box).
+- **Swatches** — four paint chips in a 2 × 2 grid on the dark plate: rounded squares 13 × 13,
+  corner radius 3, at (10, 10) `#FF453A`, (25, 10) `#FFD60A`, (10, 25) `#32D74B`, (25, 25)
+  `#0A84FF`.
 - **Jots** — a band `#F3DC49` (0, 0, 48 × 10); three ruled lines, 2-px `#E0CE66`: (8, 19)→(40, 19),
   (8, 27)→(40, 27), (8, 35)→(26, 35).
-- **50 Birds** — a perched songbird facing right, one white silhouette: from the beak tip
-  (41.5, 16.5) to (34.6, 13.4); cubic (33.2, 8.6) (26.4, 7.2) → (22.8, 10.8) [crown]; cubic
-  (17.5, 15.8) (12.2, 25.4) → (8.5, 37) [back]; line to (16.2, 34.2) [tail notch]; cubic
-  (21.5, 36.6) (28.4, 36.4) → (32.4, 32.2) [belly]; cubic (35.6, 28.8) (36.2, 23.6) → (34.9, 19.6)
-  [breast]; close. An eye, a disc of radius 1.6 at (30.2, 14.6), and a folded wing, a 1.6-px
-  round-capped stroke from (24.5, 18.5) quadratic (control 17.5, 22.5) to (14.8, 30.5) — both
-  in the plate's first hue.
-- **Market Map** — a treemap edge to edge: rectangles `#34C759` (0, 0, 27 × 30) and
-  (27.8, 0, 20.2 × 13); `#C0352C` (0, 30.8, 15 × 17.2); `#248A3D` (15.8, 30.8, 11.2 × 17.2),
-  (27.8, 24.8, 11 × 23.2), (39.6, 37, 8.4 × 11); `#FF453A` (27.8, 13.8, 20.2 × 10.2),
-  (39.6, 24.8, 8.4 × 11.4); then over all a vertical gradient `rgba(255,255,255,0.16)` →
-  `rgba(0,0,0,0.18)`.
-- **Tracker** — three rows at y = 14, 24, 34: a dot of radius 3.2 at (13, y) — filled on the
-  first row, a 1.6-px white ring on the others — and a bar, a rounded rect (20, y − 2, 20 × 4,
-  r 2) (15 wide on the last row).
 - **Mail** — a white rectangle (9, 15)–(39, 34) with a flap, a 1.6-px `#B9C6DB` stroke
   (9.5, 15.8) → (24, 26) → (38.5, 15.8).
 - **Music** — an eighth note: a head, an ellipse at (19.4, 34.2) with radii 7 × 5.3 rotated
@@ -996,10 +956,9 @@ plate (all fills `#FFFFFF` unless stated):
   (36.8, 16.8) → (35.6, 27.5), cubic (35.2, 22.8) (31.2, 20.2) → (27.2, 19.6), closed.
 - **Terminal** — a chevron, a 3-px round-capped, round-joined white stroke (12, 16) → (19, 23)
   → (12, 30); a cursor bar (23, 28.5, 12 × 3).
-(The Calendar's face is D-113.)
 
-**D-113 · The live date.** The Calendar face (D-112) reads the same clock as the menu bar
-(D-17): the weekday and day change together with it.
+**D-113 · (removed)** The live calendar date in an icon belonged to the original's Calendar
+application, which is not in this build.
 
 **D-114 · The cascade counter.** One counter, starting at 0, counts window opens that cascade:
 every New / launch / folder window / document / hosted window / About box adds one *before*
@@ -1014,7 +973,7 @@ with nothing open do):
 | Files, Declare Desktop | a new Files window, no selection (closes About boxes) |
 | Markdown | a Markdown viewer on `docs/declare.md` (first-launch rule, D-116) |
 | Jots | a new note, "*A new note.*" (first-launch rule, D-116) |
-| each hosted application | a new hosted window of its program (first-launch rule, D-116) |
+| Swatches | a new Swatches window, at its list (first-launch rule, D-116) |
 | Mail, Music, Terminal | the alert (§9) |
 
 Every launch of a built-in or hosted application also closes open About boxes.
@@ -1035,25 +994,17 @@ running — its dot stays lit, and its next open is instant. Only Quit ends it.
 normal windows, its minimized windows and its About boxes — each with its own close zoom, and
 marks it not running (the dot goes out; the next open bounces again). Files has no Quit.
 
-**D-119 · View & Edit Source.** Opens a new **Viewer** hosted window whose program is told,
-as its *subject*, the address of the source file of the application in question: for the
-brand menu, the desktop's own main source file; for the application menu, that of the active
-application — the desktop's main source file for Files, Markdown and Jots, and the test
-program's main source file (§12) for the six hosted applications. (It goes through the
-Viewer's first launch like any hosted open, and opens with no origin.)
+**D-119 · (removed)** View & Edit Source opened an application's source in the original's
+Declare Viewer, a hosted application not in this build; the item is dropped from both menus.
 
 **D-120 · Opening About boxes.** About ⟨title⟩ opens that application's About box; About
 Declare Desktop opens the desktop's. Each request opens a new box (several may be open).
 
 **D-121 · Hosted window placement.** A hosted window opens at windows-layer
-x = 110 + (n mod 5) × 30, y = 24 + (n mod 5) × 22, 880 × 560 — except **Calendar**, which clears
-the dock: width = clamp(stage width − 80, 480, 920), height = clamp(stage height − 32 − 28 −
-168, 420, 600), x = round((stage width − width) / 2), y = 28.
+x = 110 + (n mod 5) × 30, y = 24 + (n mod 5) × 22, 880 × 560.
 
-**D-122 · Places in Documentation.** Opening a library item that has a Documentation place
-(D-72): if a Documentation window is open (the front-most one, if several; minimized or not),
-it is sent to that place and brought forward (D-108); otherwise a new Documentation window
-opens at that place, from the row or button pressed (first-launch rule, D-116).
+**D-122 · (removed)** Library items with a place in the original's documentation app opened
+in that hosted app; in this build every library item opens in a Markdown viewer (D-72).
 
 ---
 
@@ -1063,7 +1014,7 @@ opens at that place, from the row or button pressed (first-launch rule, D-116).
 the alert for that application. It appears instantly (no animation) and nothing else opens.
 
 **D-124 · Look.** Over the whole stage, above everything but the bar menus: a scrim
-`#00000026` (15 % black). On it a panel 300 × 422, centred horizontally, its top at one third of
+`#00000026` (15 % black). On it a panel 300 × 422, centered horizontally, its top at one third of
 the leftover height ((stage height − 422) / 3); corner radius 20; fill menuFill (translucent,
 no blur); a 1-px `#FFFFFF80` border; shadow (0, 16, 50, `#00000059`). In the panel, absolutely
 placed:
@@ -1073,14 +1024,14 @@ placed:
   filled with a vertical gradient `#FFD426` → `#F5B800` (y 3 → 43), over a white halo (the same
   triangle grown by 2.6 units with radius 7); an exclamation mark in `#3A2E00`: a bar
   (22, 17, 4 × 13) and a dot of radius 2.3 at (24, 34);
-- the quip ("Nope.", "Nah.", "Never."), 15-px semibold, text, centred, at y = 112;
+- the quip ("Nope.", "Nah.", "Never."), 15-px semibold, text, centered, at y = 112;
 - the message **"Declare Desktop doesn't include Mail."** (with the application's title),
-  12-px textMuted, centred, wrapping, in a 260-wide box at (20, 136);
+  12-px textMuted, centered, wrapping, in a 260-wide box at (20, 136);
 - the picture `rick.jpeg` (§14.5), stretched to 256 × 160 at (22, 184), corner radius 10,
   clipped, with a 1-px border light `#0000002E`, dark `#FFFFFF2E`;
 - an **OK** button (D-5) at x = 16, y = 376, width 268.
 
-**D-125 · Behaviour.** The alert is modal to the pointer: every press on the scrim does
+**D-125 · Behavior.** The alert is modal to the pointer: every press on the scrim does
 nothing, and nothing beneath can be pressed. OK dismisses it at once. It takes the keyboard
 while it is up: focus moves onto OK, Tab and ⇧Tab stay on it, Enter or Space presses it, and
 Escape dismisses it, as OK does; when it goes, focus returns to where it was. Its look does not
@@ -1122,7 +1073,7 @@ holding the program's own focus.
 
 **D-128 · The shortcut panel.** Holding ⌘ **alone** for **700 ms** shows a panel listing the
 keyboard shortcuts in force where the focus is; releasing ⌘, pressing any other key, or pressing
-the pointer hides it (a press before 700 ms means it never shows). Look: 340 wide, centred
+the pointer hides it (a press before 700 ms means it never shows). Look: 340 wide, centered
 horizontally, its top at max(52, (stage height − its height) / 2); padding 8 top, 18 sides, 14
 bottom; corner radius 14; fill surface; shadow (0, 16, 50, `#00000059`). Content, top to bottom,
 grouped: a **heading** row per group (28 tall, the group name in 11-px semibold textMuted, its
@@ -1130,7 +1081,7 @@ baseline 3 px above the row's bottom), then a **line** per shortcut (24 tall: th
 13-px, text — textFaint if the shortcut is disabled — at the left; its key as the keyboard spells
 it, 13-px textMuted, at the right). A group is the menu the shortcut sits in ("Declare", the
 application title, "File", "Edit"), or for a hosted program's own shortcuts the name of that
-program's set (§12: "Handbook"). Groups appear in the order their first shortcut does, nearest
+program's set (§12: "Swatches"). Groups appear in the order their first shortcut does, nearest
 to the focus first — so a hosted program's own shortcuts lead. Each key appears once (the
 nearest declaration wins). The panel shows the state as the hold began.
 
@@ -1141,10 +1092,11 @@ nearest declaration wins). The panel shows the state as the hold began.
 The desktop runs other programs in its windows. A *program* is built separately — its own
 code, its own build — and is identified by an **address** (a URL path, or a module path that
 resolves to one). The desktop must be able to load any such program into a window at run
-time, given only its address. In this build, the six hosted applications each name an address
-(§12.1), and all six addresses run the one test program the builder also writes (§12). Iframes,
+time, given only its address. In this build there is one hosted application, Swatches, whose
+program is the test program the builder also writes (§12); a second address serving the same
+build stands for a program the roster does not list (§12.1, D-135 rule 4). Iframes,
 module federation, a dynamic import, a web component — the mechanism is the builder's; the
-behaviours below are the requirement, and several of them (D-138) rule out a mechanism that
+behaviors below are the requirement, and several of them (D-138) rule out a mechanism that
 cannot let a program's popups extend past the window.
 
 **D-129 · Mounting.** A hosted window mounts the program in its body, below the title bar, full
@@ -1156,11 +1108,11 @@ is its own running instance: two windows of the same program do not share state.
 (e.g. it changes as the program navigates). Until the program has reported one, the title is
 the application's title.
 
-**D-131 · Values, downward.** The window provides the program three named values, which it
+**D-131 · Values, downward.** The window provides the program named values, which it
 reads at any time and which update live: **dark** (true while the desktop is in dark
 appearance — flipping appearance re-themes every hosted program at once), **base** (the
-application's home address, a string), and **subject** (the program the Viewer is asked to show,
-D-119; empty otherwise).
+application's home address, a string). (The original also passed a *subject*, used only by
+its source viewer; it is not part of this build.)
 
 **D-132 · Where it is, both ways.** The program has a *location* (a string naming the place it
 shows; "" is its start). The window can start the program at a location, and can send it to a
@@ -1172,8 +1124,8 @@ place* — how far each of its scrolling areas was scrolled — as an opaque val
 with a location, the program returns to that location *and* to those scroll positions once it
 has laid out.
 
-**D-134 · Back and forward.** A window whose application has back/forward (Documentation,
-50 Birds) keeps a *trail* of stops, each {location, place}, and a current index (−1 at first;
+**D-134 · Back and forward.** A window whose application asks for back/forward (Swatches)
+keeps a *trail* of stops, each {location, place}, and a current index (−1 at first;
 both arrows disabled).
 - When the program's location changes from *prev* to *now* — by the program's own navigation
   or by the desktop sending it somewhere — and the change was not caused by an arrow: drop the
@@ -1189,7 +1141,10 @@ it follows that leads out of it, or a request to open something in a new window)
 carries the address, and, when the address names a program, that program and a location in it.
 The desktop decides:
 1. no program named → the browser follows the address (the desktop is left);
-2. a window already running that program is open (the front-most, if several) → that window is
+2. a window already running that program is open (the front-most, if several) — a window
+   runs program *P* when its own address, with leading `./` and `../` segments and a file
+   extension removed, equals *P* or is the final segment(s) of *P* (`swatches` matches
+   `extra/swatches`, not `extra/palette`) → that window is
    sent to the location and brought forward (D-108);
 3. one of the roster's hosted applications runs that program → a new window of that application,
    at that location (through its first launch, D-116);
@@ -1210,103 +1165,117 @@ activates (D-54); the program does not see it.
 
 **D-138 · The program's popups.** Menus, popovers and dialogs the program opens appear in the
 window's overlay layer (D-60): above the program, free to hang past the window's edges (kept on
-the stage), and turned and scaled with the window under the eggs.
+the stage), and turned and scaled with the window under the easter eggs.
 
 **D-139 · Live thumbnails.** A minimized hosted window keeps its program running and visibly
 updating inside its dock tile (D-101).
 
 ---
-## 12. The test program: Handbook
+## 12. The test program: Swatches
 
 Write this small program separately from the desktop — its own source and its own build —
-so that the desktop loads it only through §11's capability. It is deliberately plain; what it
-exercises is the hosting.
+so that the desktop loads it only through §11's capability. It is a browser of the CSS named
+colors; what it exercises is the hosting.
 
 ### 12.1 Addresses
 
-The six hosted applications each run Handbook at their own address, and provide it these
-values (D-131):
+Swatches is served at two addresses: `swatches`, the Swatches application's program, and
+`extra/palette`, the same build standing for a program no dock application lists (reached only
+by a link, D-145). The window provides it (D-131):
 
-| application | program address | base | subject |
+| opened as | program address | base | dark |
 |---|---|---|---|
-| Declare Viewer | `hosted/viewer` | `hosted/viewer/` | (see D-119; empty unless opened by View & Edit Source — a Viewer opened from the dock gets the desktop's main source file) |
-| Declare Docs | `hosted/docs` | `hosted/docs/` | "" |
-| Declare Calendar | `hosted/calendar` | `hosted/calendar/` | "" |
-| 50 Birds | `hosted/birds` | `hosted/birds/` | "" |
-| Market Map | `hosted/marketmap` | `hosted/marketmap/` | "" |
-| Tracker | `hosted/tracker` | `hosted/tracker/` | "" |
+| the Swatches application (dock, File ▸ New) | `swatches` | `swatches/` | the desktop's appearance |
+| an unlisted program (D-135 rule 4) | `extra/palette` | "" | the desktop's appearance |
 
-The same Handbook build may be served at all six addresses by any means. Two addresses name
-the same program when they are equal after removing leading `./` and `../` segments and a file
-extension. An address is resolved against the desktop's own address.
+An address is resolved against the desktop's own address.
 
-### 12.2 What Handbook shows
+### 12.2 What Swatches shows
 
-**D-140 · Places (its location).** "" — the **contents**; `chapter/<id>` — one of five chapters;
-`source` — the subject's source text; any other location — such as the places the Files
-library sends to the Documentation window (`guide/06-layout`, `reference/Button`, …) — a
-*place page*. Handbook starts at the location the window gives it; with
-none, at `source` if it was given a non-empty subject, else at the contents.
+**D-140 · Places (its location).** "" — the **list** of all colors; a color's name in lower
+case (e.g. `rebeccapurple`) — that color's **page**; anything else — a **not-found** page.
+Swatches starts at the location the window gives it, else at the list.
 
-**D-141 · Its name** (reported up, D-130): "Handbook" on the contents; "Handbook — ⟨chapter
-title⟩" on a chapter; "Handbook — Source" on the source page; "Handbook — ⟨location⟩" on a place page.
+**D-141 · Its name** (reported up, D-130): "Swatches" on the list; the color's name on a color
+page (e.g. "rebeccapurple"); "Swatches" on a not-found page.
 
-**D-142 · Look.** Its own surface fills the window body: light `#FFFFFF` with text `#1D1D1F`,
-muted `#6E6E73`, links `#007AFF`, rules `#E5E5EA`; dark (when the provided *dark* is true)
-`#232326`, text `#F2F2F7`, muted `#98989D`, links `#0A84FF`, rules `#3A3A3C`. It switches the
-moment the desktop's appearance does. A **toolbar** 36 tall runs across the top (it does not
-scroll), with a 1-px rule under it: at the left (12 px in) a "‹ Contents" link, hidden on the
-contents page; at the right (12 px in) a **Text Size** button (13-px, 24 tall, corner radius 6,
-1-px rule-coloured border, a "▾" after the label). Below the toolbar the page scrolls vertically,
-with 24 px of padding all round; body text is 15 px by default with line height 1.5.
+**D-142 · Look.** Its own surface fills the window body: light `#FFFFFF`, text `#1D1D1F`, muted
+`#6E6E73`, rules `#E5E5EA`, links `#007AFF`, row hover `#F2F2F7`; dark (when the provided *dark*
+is true) `#232326`, text `#F2F2F7`, muted `#98989D`, rules `#3A3A3C`, links `#0A84FF`, row hover
+`#2C2C2E`. It switches the moment the desktop's appearance does. Type is the platform UI face;
+hex and numeric values are in the platform monospace face. Every swatch carries a 1-px border
+in the rule color, so white and near-white swatches stay visible on the light surface (and
+black ones on the dark).
 
-**D-143 · The Text Size menu.** Pressing Text Size opens a menu directly below the button
-(4 px gap), right-aligned to it, in the window's overlay layer (D-138): three rows **Small**,
-**Medium**, **Large**, one checked (they are one set; Medium at first), giving body text 13, 15
-or 17 px. It uses the desktop's menu look (D-23 – D-26) and keyboard (D-28), closes on a pick,
-Escape, or a press outside. It must be able to hang past the window's bottom edge: with the
-window resized to its minimum height, the menu extends below the window.
+A **toolbar** 40 tall runs across the top (it does not scroll), with a 1-px rule under it. On
+the list: at the left, 12 px in, a **filter field** 200 × 26, corner radius 13, 1-px rule-color
+border (accent `#007AFF` / `#0A84FF` while focused), placeholder "Filter", 13-px text, 10 px of
+inner padding; at the right, 12 px in, a **Sort** button — 26 tall, corner radius 6, 1-px
+rule-color border, 13-px label "Sort: Name ▾" or "Sort: Hue ▾". On a color page or the
+not-found page: at the left, a "‹ All Colors" link (13-px, link color).
 
-**D-144 · Contents page.** "Handbook" (22-px semibold); a muted 12-px line **"Base: ⟨base⟩ ·
-Subject: ⟨subject, or —⟩ · Appearance: ⟨Dark or Light⟩"**; then the five chapter titles as
-links, one per line; then, only when the subject is non-empty, a **Source** link; then a heading
-"Elsewhere" (13-px semibold muted) with two links:
-- **Calendar’s handbook, at The Keyboard** — asks the desktop to open program `hosted/calendar`
-  at `chapter/keyboard` (D-135);
-- **An outside address** — asks the desktop to open `https://example.com/` (no program).
+**D-143 · The Sort menu.** Pressing Sort opens a menu directly below the button (4 px gap),
+its right edge on the button's right edge, in the window's overlay layer (D-138): two rows,
+**Name** and **Hue**, one set, the current one checked. It uses the desktop's menu look
+(D-23 – D-26) and keyboard (D-28), closes on a pick, Escape, or a press outside. It must be able
+to hang past the window's edges: with the window resized to its minimum height (120), the menu
+extends below the window's bottom edge, fully visible. *Name* sorts alphabetically; *Hue* sorts
+the chromatic colors by HSL hue (then lightness, then name) and puts the achromatic ones
+(saturation 0) after them, from lightest to darkest. The choice lasts for the window's life.
 
-**D-145 · A chapter page.** The chapter title (22-px semibold); its paragraph (§12.3); a
-heading "Notes"; a numbered list of forty lines, "Note 1 of ⟨title⟩." … "Note 40 of ⟨title⟩."
-(enough that the page scrolls in any window); then a row of links: "← ⟨previous chapter
-title⟩" (absent on the first), "⟨next chapter title⟩ →" (absent on the last), and **Open in
-Documentation**, which asks the desktop to open program `hosted/docs` at this chapter's location.
+**D-144 · The list.** Below the toolbar the list scrolls vertically: one row per color that
+passes the filter, in the chosen order. A row is 32 tall, full width: a 20 × 20 swatch (corner
+radius 4) 16 px from the left, vertically centered; the name at x = 48, 14-px, text; the hex
+(`#663399`, lower case) right-aligned 16 px from the right edge, 12-px monospace, muted. A 1-px
+rule separates rows. Hovering a row fills it with the row-hover color; the pointer is a hand.
+Clicking a row (or Enter on a focused row; the rows are a Tab stop, ↑/↓ move among them) goes
+to that color's page. The filter matches, case-insensitively, any color whose name or hex
+contains what is typed, as it is typed; with no match, a centered muted 13-px line "No colors
+match “⟨text⟩”." Below the last row, a muted 12-px footer 16 px in: "⟨count⟩ colors · served from
+⟨base, or “—”⟩".
 
-**D-146 · Source page.** Fetches the subject address as text and shows it in 12-px monospace,
-lines preserved, wrapping long lines; "Loading…" while it loads; "Could not load ⟨subject⟩."
-if it fails. A **place page** shows the location string as its title (22-px semibold), a muted 12-px
-line "The original's documentation app shows this place here.", and the same forty numbered
-lines as a chapter ("Note 1 of ⟨location⟩." …), so back/forward and scroll return work on it.
+**D-145 · A color page.** Below the toolbar the page scrolls vertically, with 24 px of padding:
+- a swatch the full content width, 160 tall, corner radius 12;
+- 16 px below, the name, 24-px semibold;
+- a three-row table of values, 13-px, labels muted and values in monospace: **HEX** `#663399`;
+  **RGB** `102, 51, 153`; **HSL** `270°, 50%, 40%` (rounded to whole numbers);
+- a heading **Nearest colors** (13-px semibold, muted), then the six colors nearest to this one
+  by straight-line distance in RGB (excluding this color and any color with the same hex;
+  ties by name), each a 28-tall row with a 16 × 16 swatch and the name as a link to its page;
+- a heading **Elsewhere** (13-px semibold, muted), then three links:
+  - **Look it up on MDN** — asks the desktop to open
+    `https://developer.mozilla.org/en-US/docs/Web/CSS/named-color` (no program; D-135 rule 1:
+    the browser leaves the desktop);
+  - **Open in a separate window** — asks the desktop to open program `extra/palette` at this
+    color (D-135 rule 4: a new window belonging to Swatches, titled "palette" until the program
+    reports its name);
+  - **Show in Swatches** — asks the desktop to open program `swatches` at this color (D-135
+    rule 2: the front-most Swatches window is sent there and brought forward; rule 3 when no
+    Swatches window is open: a new Swatches window).
 
-**D-147 · Navigation.** Following a contents, chapter, previous/next or "‹ Contents" link
-changes Handbook's location internally (and reports it, D-132); each new page starts scrolled to
-its top unless the window hands back a place (D-133, where the place is the page's scroll
-offset).
+The page is long enough to scroll in an 880 × 560 window.
 
-**D-148 · Keys.** Handbook declares a shortcut set titled **"Handbook"**: **J** "Next Chapter"
-(from the contents, the first chapter; nothing on the last), **K** "Previous Chapter" (from the
-first chapter, the contents; nothing on the contents), and **⌘E** "Go to Contents". J and K are
-plain keys; ⌘E is a chord the program takes. They appear in the hold-⌘ panel's "Handbook" group
-first (D-128).
+**D-146 · The not-found page.** "No color named “⟨location⟩”." (15-px) and a link "‹ All Colors".
 
-### 12.3 The chapters
+**D-147 · Navigation.** Following a row, a nearest-color link or "‹ All Colors" changes Swatches'
+location internally and reports it (D-132). A newly shown page starts scrolled to its top unless
+the window hands back a place with it (D-133), in which case it returns to that scroll position
+— the list's, after a ‹ from a color page, restores where the person was in the list. The
+filter text and sort order are kept while moving between pages.
 
-| id | title | paragraph |
-|---|---|---|
-| `windows` | Windows | Every window can be dragged by its title bar, resized from any edge or corner, zoomed to fill the desktop and minimized into the dock. The window in front casts the deeper shadow, and the menu bar belongs to its application. |
-| `dock` | The Dock | The dock magnifies under the pointer like a lens: the icon beneath it swells the most and its neighbours make room. Minimized windows wait at its right end as live thumbnails, wearing their application's badge. |
-| `menus` | Menus | The menu bar follows the front window. Every item's shortcut works from anywhere, and a disabled item's shortcut does nothing. Menus open with a click and follow the pointer across the bar while one is open. |
-| `keyboard` | The Keyboard | Tab moves from the menu bar to the windows to the dock. F6 moves between windows. Hold the command key for a moment to see every shortcut that applies where you are. |
-| `hosting` | Programs in Windows | A window can run a program built separately. The program fills the window, follows its size, reports its name for the title bar, and opens its own menus past the window's edge. |
+**D-148 · Keys.** Swatches declares a shortcut set titled **"Swatches"**: **⌘F** "Filter Colors"
+— shows the list if on a color page and puts the keyboard in the filter field with its text
+selected — and **Escape** in the filter field clears it. Typing in the filter is the program's:
+letters such as r and s typed there never reach the desktop (D-136). ⌘F appears in the hold-⌘
+panel's "Swatches" group, first (D-128), and is not also the browser's Find.
+
+### 12.3 The colors
+
+All 148 CSS named colors of the CSS Color Module Level 4 list (`aliceblue` … `yellowgreen`,
+including `rebeccapurple` and both spellings where the list has two: `gray`/`grey`,
+`darkgray`/`darkgrey`, `aqua`/`cyan`, `fuchsia`/`magenta`, …), each with its standard sRGB
+value. `transparent` and `currentcolor` are not colors here. The builder writes this list into
+the program.
 
 ---
 
@@ -1320,13 +1289,13 @@ token of D-4 and every surface that names a light/dark pair: window frames, titl
 unlit traffic lights, menus, Files, viewers, the About box, the alert's panel and picture border,
 the shortcut panel, the dock's plate, rim, divider, pills and dots, and hosted programs (through
 *dark*). It does **not** change the wallpaper, the menu bar's titles and clock (`#F2F2F5` always),
-Jots (always yellow with dark ink), the application icons, or the lit traffic-light colours.
+Jots (always yellow with dark ink), the application icons, or the lit traffic-light colors.
 
 **D-150 · Resizing the browser.** Everything anchored to an edge re-derives at once: the menu
 bar's width and the clock's right edge, the dock's centring and bottom seat, the wallpaper's
 cover scale, the alert's centring, the shortcut panel's centring. Windows keep their positions
-and sizes (a window may end up partly off the stage, clipped). Zoom, Calendar placement and
-the welcome note's position use the stage size at the moment they are computed. Below the
+and sizes (a window may end up partly off the stage, clipped). Zoom and the welcome
+note's position use the stage size at the moment they are computed. Below the
 800 × 600 floor see D-1.
 
 **D-151 · Accessibility.** The menu bar is exposed as a menu bar; each title as a menu item
@@ -1338,7 +1307,7 @@ element reachable by pointer is reachable by keyboard: menus (D-27, D-28), the d
 Files (D-74), the ‹ › buttons, the Open and OK buttons, hosted programs (D-136).
 
 **D-152 · No persistence.** Nothing survives a reload: windows, positions, appearance lock,
-wallpaper seed and egg states all return to D-9/D-10.
+wallpaper seed and easter-egg states all return to D-9/D-10.
 
 ---
 
@@ -1363,7 +1332,7 @@ Node = { "name": string,              // shown in the row; unique among its sibl
                                       //   "Built-in element", "Page API", "Reference"
          "path"?: string,             // a Markdown file, relative to the site root
          "doc"?: string,              // inline Markdown, already assembled
-         "loc"?: string,              // a place in the Documentation application
+         "loc"?: string,              // a place in the original's documentation app — ignored
          "preview"?: string,          // plain text shown in the detail column
          "children"?: [ Node, … ] }   // non-empty ⇒ a folder
 ```
@@ -1381,10 +1350,10 @@ at most three levels deep:
 | Vocabulary | 7 reference pages (Types and functions, Theme tokens, Enums, …) | `doc` only |
 | Operational | 16 operational documents | `path` only |
 
-So every kind of opening occurs: a guide chapter or a reference class opens in the
-Documentation window at its `loc` (D-72); a tenet or a vocabulary page opens in a Markdown
-viewer on its inline `doc`, titled with its name; a Language or Operational document opens in
-a Markdown viewer on its file, titled with the file's name. "Open as Text" is enabled for the
+So both kinds of opening occur (D-72): a reference class, a form, a tenet or a vocabulary page
+opens in a Markdown viewer on its inline `doc`, titled with its name; a guide chapter, a
+Language or an Operational document opens in a Markdown viewer on its file, titled with the
+file's name. "Open as Text" is enabled for the
 items with a `path` (the files and the guide chapters) and disabled for the rest.
 
 ### 14.2 Markdown files
@@ -1395,10 +1364,9 @@ under the site root, and fetched there. The Markdown application's launch opens
 `doc` pages (many are written as `declare-docs:` addresses) are not specified: following one
 need not do anything.
 
-### 14.3 Sources served as text
+### 14.3 (removed)
 
-The desktop's main source file and Handbook's main source file must each be fetchable as text
-at the addresses the builder gives them as *subjects* (D-119), so the Viewer can show them.
+The original served program sources for its source viewer; this build has none (D-119).
 
 ### 14.4 The welcome note
 
@@ -1411,14 +1379,19 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
 **Try things.** Drag the windows. Open apps from the dock. Minimize something. Browse the language's documentation in the Documentation window.
 
-**Curious how it's made?** Press the `[ ]` icon in the dock to read this desktop's own source.
+**One more thing.** Swatches, in the dock, is a separate program, running inside one of these windows.
 
 **Never, ever, press the 'r' or 's' keys.**
 ```
 
-(The `[ ]` icon is the Declare Viewer; from the dock it shows the desktop's main source, D-119.)
+(The original's text, with one line changed to match this build: Swatches is the program
+that runs inside a window. "The Documentation window" is the Files window, which opens with
+that title, D-9.)
 
 ### 14.5 Assets you are given
+
+They are in `assets/`, beside this brief, each at the path given here; serve that folder as
+the site root.
 
 - `apps/desktop/rick.jpeg` — 212 × 148 JPEG, the alert's picture (D-124), shown stretched to
   256 × 160.
@@ -1431,17 +1404,17 @@ no other images.
 ---
 ## 15. Acceptance checks
 
-Each check names the behaviours it exercises. Unless it says otherwise it starts from a fresh
+Each check names the behaviors it exercises. Unless it says otherwise it starts from a fresh
 load at 1280 × 800 in light appearance. *Visual* checks compare against the stated values
-(colours exact; sizes ±1 px; durations and settle times ±15 %).
+(colors exact; sizes ±1 px; durations and settle times ±15 %).
 
 **Opening state**
 - A-1 (D-9, D-10) Two windows: the welcome note behind, Files ("Documentation") in front at
   screen (118, 104), 560 × 400; the note at screen (790, 152), 400 × 385. Files and Jots show
   running dots; no other dot. The menu bar reads: brand mark, **Files**, File, Edit, Window,
   Help; the clock at the right.
-- A-2 *Visual* (D-33 – D-36) Files has the front shadow, the gradient title bar, coloured
-  lights; the note has the lighter shadow and a strip the colour of its paper.
+- A-2 *Visual* (D-33 – D-36) Files has the front shadow, the gradient title bar, colored
+  lights; the note has the lighter shadow and a strip the color of its paper.
 - A-3 *Visual* (D-11, D-12) The wallpaper matches the seed-7 drawing; pressing ` changes it
   instantly; reloading returns seed 7.
 - A-4 (D-17) The clock reads in the exact format and flips at the minute boundary.
@@ -1454,17 +1427,16 @@ load at 1280 × 800 in light appearance. *Visual* checks compare against the sta
   clicking the open title closes it; Escape closes it.
 - A-7 (D-27, D-28) Keyboard only: Tab to the bar, → to File, ↓ opens it, ↓↓ highlights Open…,
   → moves to the Edit menu, ← back, Escape closes and focus returns to the title. In the brand
-  menu, typing "v" highlights View & Edit Source.
+  menu, typing "d" highlights Dark Mode and "d" again Declare Home.
 - A-8 (D-18, D-19, D-30) With Files front, the application menu has no Quit; with the note
-  front, it reads About Jots / View & Edit Source / Quit Jots ⌘Q, and the Window menu lists
+  front, it reads About Jots / Quit Jots ⌘Q, and the Window menu lists
   "Jots" checked. Opening the Window menu and then clicking another window (pointer, with the
   menu open) moves the check live.
 - A-9 (D-20, D-149) Brand ▸ Dark Mode switches to dark instantly; the item now reads Light
   Mode; changing the system setting afterwards does nothing.
 - A-10 (D-29) The Help menu's search field accepts typing; its capsule, placeholder and
   magnifier match D-29; the "Files Help" row picks to nothing.
-- A-11 (D-32) ⌘W closes the front window; with no front window ⌘W does nothing; with Calendar
-  front ⌘O does nothing; with Files front ⌘Q does nothing; ⌘C in the Help field copies text
+- A-11 (D-32) ⌘W closes the front window; with no front window ⌘W does nothing; with Files front ⌘Q does nothing; ⌘C in the Help field copies text
   normally.
 
 **Windows**
@@ -1480,11 +1452,11 @@ load at 1280 × 800 in light appearance. *Visual* checks compare against the sta
   selection change; a second click selects. A mouse-down on a background title bar raises it
   immediately.
 - A-16 (D-37) Clicking a background window's close control closes it without raising it first.
-- A-17 (D-36) *Visual* Hovering the light block of an inactive window colours its lights and
+- A-17 (D-36) *Visual* Hovering the light block of an inactive window colors its lights and
   shows the ×, −, and triangle glyphs; hovering the rest of its title bar does not.
 - A-18 (D-46, D-47) A Markdown window opened from the dock grows out of the Markdown icon
   (from 15 % to full in ~230 ms, fast then easing); closing it shrinks it back toward the icon
-  in ~200 ms, accelerating, then it vanishes. A New Files window grows from 85 % about its centre.
+  in ~200 ms, accelerating, then it vanishes. A New Files window grows from 85 % about its center.
 - A-19 (D-50) Closing the front window leaves every window inactive and the menu bar showing
   Files.
 - A-20 (D-55, D-56, D-57) r tilts every window with a wobble that settles within ~0.6 s; dragging
@@ -1502,8 +1474,7 @@ load at 1280 × 800 in light appearance. *Visual* checks compare against the sta
   "Controls" with the Reference column at the left edge.
 - A-23 (D-72) Opening Vocabulary ▸ Enums opens a Markdown viewer titled "Enums"; opening
   Language ▸ The language opens a viewer titled "declare.md"; opening a guide chapter or Button
-  opens (or redirects) the Documentation window at that place (Handbook's place page,
-  "Handbook — guide/…").
+  opens a viewer too — titled "Button" (inline text), or with the chapter's file name.
 - A-24 (D-73) Right-click on a guide chapter: Open, Open as Text (enabled — it opens the chapter's
   file in a viewer); on Button: Open as Text is disabled; the row is ringed while the menu is up;
   a press outside closes the menu and that press has no other effect.
@@ -1520,25 +1491,25 @@ load at 1280 × 800 in light appearance. *Visual* checks compare against the sta
 - A-29 (D-79) With `docs/declare.md` made unavailable, the viewer shows the failure line.
 - A-30 *Visual* (D-80 – D-82) The welcome note: square, paper `#FEF49C`; when front, a `#FEEA3D`
   strip with the three widgets; collapse shades it to 12 px; zoom fills; close closes.
-- A-31 (D-83, D-84, D-49) About Files opens a 280 × 380 box centred near the top, the Files icon
+- A-31 (D-83, D-84, D-49) About Files opens a 280 × 380 box centered near the top, the Files icon
   at 96; clicking another window closes it with the close zoom; pressing the wallpaper closes it.
 - A-32 (D-123 – D-125) Clicking Mail shows the alert with "Nope.", "Declare Desktop doesn't
   include Mail.", the picture and OK at the stated positions; presses on the scrim do nothing;
   OK dismisses.
 
 **Dock**
-- A-33 *Visual* (D-86 – D-89) At rest the plate is 880 × 88 with radius 27 at 40 % opacity and
+- A-33 *Visual* (D-86 – D-89) At rest the plate is 520 × 88 with radius 27 at 40 % opacity and
   its rim; icons 56 px, 16 apart, with their faces as drawn.
-- A-34 (D-90) With the pointer held still over the 4th icon's resting centre, the icon widths
-  of icons 1–8 are 56 × (1.06, 1.18, 1.35, 1.55, 1.35, 1.18, 1.06, 1.00), and the plate is that much
+- A-34 (D-90) With the pointer held still over the 4th icon's resting center, the icon widths
+  of icons 1–7 are 56 × (1.06, 1.18, 1.35, 1.55, 1.35, 1.18, 1.06), and the plate is that much
   wider. (Sample after ~150 ms.)
 - A-35 (D-91) Moving up out of the band collapses the dock; hovering the top of the magnified
   icon (between 100 and 132 px above the bottom) keeps it magnified.
 - A-36 (D-92) Sliding across the dock, sizes change continuously with no visible stepping; on
   stopping they settle within ~120 ms without overshoot; leaving, they subside in ~120 ms.
 - A-37 (D-93) Hovering an icon shows its pill at once at 151.5 px above the bottom, whatever
-  the magnification; the pill matches the stated shape and colours.
-- A-38 (D-95, D-116) Clicking 50 Birds: the icon bounces twice (rise ~300 ms decelerating, fall
+  the magnification; the pill matches the stated shape and colors.
+- A-38 (D-95, D-116) Clicking Swatches: the icon bounces twice (rise ~300 ms decelerating, fall
   ~260 ms accelerating, 30 px); the window appears ~900 ms after the click; the dot appears then.
   A second open is instant.
 - A-39 (D-116) Double-clicking Markdown's icon during its bounce opens exactly one window, at
@@ -1547,42 +1518,44 @@ load at 1280 × 800 in light appearance. *Visual* checks compare against the sta
   in their order, the upper one front.
 
 **Minimize and restore**
-- A-41 (D-105, D-106) Minimize a 50 Birds window: it flies into a tile right of a fading-in
+- A-41 (D-105, D-106) Minimize a Swatches window: it flies into a tile right of a fading-in
   divider in ~260 ms (slow start, accelerating), straightened and with 3.5-px corners; the plate
-  widens smoothly (~250 ms); no window is front; the tile is 64 × 41 and shows a 20-px 50 Birds
-  badge only once landed; hovering it shows "Handbook" (the window's title).
+  widens smoothly (~250 ms); no window is front; the tile is 64 × 41 and shows a 20-px Swatches
+  badge only once landed; hovering it shows "Swatches" (the window's title).
 - A-42 (D-102) The tile magnifies with the icons, growing rightward and upward.
 - A-43 (D-101, D-139) A minimized hosted window's content keeps updating (e.g. switching
   appearance re-themes the thumbnail).
 - A-44 (D-107) Clicking the tile restores the window in ~260 ms (fast, easing), front from the
   first frame; tiles to its right then slide left. Clicking the tile again mid-flight has no
   further effect.
-- A-45 (D-118, D-117) Closing the 50 Birds window leaves its dot lit; Quit 50 Birds (⌘Q)
+- A-45 (D-118, D-117) Closing the Swatches window leaves its dot lit; Quit Swatches (⌘Q)
   closes all its windows (minimized ones too) and the dot goes out; the next open bounces.
 
 **Hosting**
-- A-46 (D-129, D-130, D-141) Opening Documentation shows Handbook filling the body below the
-  title bar; the title reads "Handbook"; following a chapter link changes it to "Handbook — …";
-  resizing the window reflows Handbook live.
-- A-47 (D-131, D-142) Switching appearance re-themes every open Handbook instantly; the contents
-  line reads "Appearance: Dark".
-- A-48 (D-134, D-133) In Documentation: open "The Dock", scroll halfway, open "Menus" via its
-  link; ‹ returns to The Dock at the same scroll position; › returns to Menus; with one stop,
-  both arrows are disabled at the start.
-- A-49 (D-135) From Viewer's Handbook contents, "Calendar’s handbook, at The Keyboard" opens a
-  Calendar window (clear-dock placement, D-121) at that chapter; clicking it again with the
-  Calendar window open sends that window there and brings it forward; "An outside address"
-  navigates the browser away.
-- A-50 (D-136, D-148, D-128) With a Handbook window front: J/K change chapters; r does nothing
-  to the desktop; ⌘E goes to contents; ⌘W closes the window; holding ⌘ 700 ms shows the panel
-  with the "Handbook" group first, then Declare, the application, File, Edit.
-- A-51 (D-138, D-143) Shrink a Handbook window to its minimum height and open Text Size: the menu
-  extends past the window's bottom edge, fully visible; with the window tilted (r) the menu is
-  tilted with it.
-- A-52 (D-54, D-137) A click in a background Handbook window's content only raises it; the link
-  under the pointer is not followed.
-- A-53 (D-119) Brand ▸ View & Edit Source opens a Viewer window starting at Handbook's Source
-  page showing the desktop's main source text.
+- A-46 (D-129, D-130, D-141) Opening Swatches from the dock shows its list filling the body below
+  the title bar; the title reads "Swatches"; clicking rebeccapurple changes it to
+  "rebeccapurple"; resizing the window reflows the list live.
+- A-47 (D-131, D-142) Switching appearance re-themes every open Swatches window instantly
+  (surface `#232326`); the list footer reads "148 colors · served from swatches/".
+- A-48 (D-134, D-133, D-147) In a Swatches window: scroll the list about halfway, open a color,
+  then a nearest-color link; ‹ returns to the first color's page, ‹ again to the list at the
+  same scroll position; › goes forward again; at the start both arrows are disabled.
+- A-49 (D-135) On a color page: "Open in a separate window" opens a second window, titled
+  "palette" until it reports the color's name; in it, "Show in Swatches" brings the first
+  Swatches window forward at that color; after closing every Swatches window, "Show in
+  Swatches" from the palette window opens a new Swatches window (bouncing if Swatches was quit);
+  "Look it up on MDN" navigates the browser away.
+- A-50 (D-136, D-148, D-128) With a Swatches window front: typing "rs" in the filter narrows the
+  list and does nothing to the desktop; ⌘F from a color page returns to the list with the
+  filter focused; ⌘W closes the window; holding ⌘ 700 ms shows the panel with the "Swatches"
+  group first, then Declare, the application, File, Edit.
+- A-51 (D-138, D-143) Shrink a Swatches window to its minimum height and open Sort: the menu
+  extends past the window's bottom edge, fully visible; Hue re-orders the list; with the window
+  tilted (r, pressed while the desktop has the keyboard) the menu is tilted with it.
+- A-52 (D-54, D-137) A click on a row in a background Swatches window only raises the window; the
+  row's page does not open.
+- A-53 *Visual* (D-142, D-144, D-145, D-104) The Swatches list and color page match their stated
+  sizes, type and colors in both appearances; its dock icon shows the four chips.
 
 **Keyboard and access**
 - A-54 (D-127) From a fresh load, Tab goes: the menu bar, then into the front window (Files),
@@ -1595,7 +1568,7 @@ load at 1280 × 800 in light appearance. *Visual* checks compare against the sta
 
 **Size**
 - A-58 (D-1, D-150) At 700 × 500 the stage stays 800 × 600 and the page pans; widening the
-  browser re-centres the dock and moves the clock without moving any window.
+  browser re-centers the dock and moves the clock without moving any window.
 
 ---
 
@@ -1611,7 +1584,7 @@ Springs are given as stiffness / damping with mass 1.
 | focus ring flight (D-7) | springs on position (220 / 16), size (220 / 18), radius and rotation (220 / 20); opacity spring 90 / 20 |
 | window open (D-46) | timed, 230 ms, cubic-out (1 − (1 − t)³) |
 | window close (D-47) | timed, 200 ms, cubic-in (t³) |
-| tilt and egg scale (D-55, D-56) | one spring per window, 160 / 14 (rest thresholds 0.01° and 0.002) |
+| tilt and easter-egg scale (D-55, D-56) | one spring per window, 160 / 14 (rest thresholds 0.01° and 0.002) |
 | Files reveal glide (D-70) | scroll animation, 260 ms, cubic-out |
 | dock magnification (D-90 – D-92) | each icon's size on its own spring toward the curve value, 1300 / 62, rest 0.002; the band's in/out as an instant 0/1 factor in the icon target; a second, smoothed copy of that factor on a spring 3600 / 120 for the tiles and the band hysteresis |
 | tile magnification (D-102) | pointer x smoothed by a spring 1300 / 62 (rest 0.5), and the smoothed band factor |
@@ -1629,10 +1602,10 @@ Write it idiomatically, following the platform's established practices, as code 
 people will read and maintain. Use the ecosystem's established libraries where one fits — a
 Markdown renderer, for example — as a maintainer would expect.
 
-Two programs: the desktop, and Handbook (§12), built separately and loaded by the desktop
+Two programs: the desktop, and Swatches (§12), built separately and loaded by the desktop
 only through the hosting capability of §11. There is no server of your own beyond serving
-static files; the desktop and Handbook, `docs/declare-model.json`, the 50 Markdown files, the
-two source files (§14.3) and `rick.jpeg` are all served as files.
+static files; the desktop and Swatches, `docs/declare-model.json`, the 50 Markdown files and
+`rick.jpeg` are all served as files.
 
 Check your work in a real browser, at a desk-sized window and in both appearances. The
 automated checks of §15 will drive the desktop by pointer and keyboard and read what is on

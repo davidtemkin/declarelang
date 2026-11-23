@@ -392,8 +392,8 @@ the node that declares it; there is nothing to subscribe to and nothing to unreg
 - Two children cannot share a name.
   > says: App.a: 'a' is already a child (first at line 1, col 7) — members share one namespace
   > probe: App [ a: View [ ], a: View [ ] ]
-- A child cannot be named after a scope noun.
-  > says: 'this' is a scope noun (language §11) — a child cannot take its name
+- A child cannot be named after a reserved word.
+  > says: 'this' is a reserved word (language §3: this, parent, classroot, app) — a child cannot take its name
   > probe: App [ this: View [ ] ]
 
 ### related
@@ -894,11 +894,11 @@ View carries, `children`, is reserved as well.
 - `classroot` names the root of a class you define; it has no meaning on the App.
   > says: 'classroot' is the root of a class you define — valid only inside a class body. This code is in the App, not a class. Reach values here by a bare name, 'this', or 'app'.
   > probe: App [ t: Text [ text = { classroot.name } ] ]
-- A scope noun cannot name a child.
-  > says: 'app' is a scope noun (language §11) — a child cannot take its name
+- A reserved word cannot name a child.
+  > says: 'app' is a reserved word (language §3: this, parent, classroot, app) — a child cannot take its name
   > probe: App [ app: View [ ] ]
-- A scope noun cannot be declared.
-  > says: 'parent' is a scope noun (language §11) — it cannot be declared
+- A reserved word cannot be declared.
+  > says: 'parent' is a reserved word (language §3: this, parent, classroot, app) — it cannot be declared
   > probe: App [ parent: number = 1 ]
 - A bare name must resolve up the enclosing brackets.
   > says: cannot resolve 'nothingHere' — not a member of t: Text → App

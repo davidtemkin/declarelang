@@ -1,11 +1,11 @@
 {
   "homepage": {
-    "total": 1529,
-    "code": 598,
-    "comment": 572,
-    "blank": 359,
-    "wireGzip": 243989,
-    "programGzip": 16296
+    "total": 1552,
+    "code": 617,
+    "comment": 573,
+    "blank": 362,
+    "wireGzip": 246753,
+    "programGzip": 17580
   },
   "calendar": {
     "total": 985,
@@ -24,12 +24,12 @@
     "programGzip": 19909
   },
   "desktop": {
-    "total": 3527,
-    "code": 2010,
-    "comment": 938,
+    "total": 3529,
+    "code": 2011,
+    "comment": 939,
     "blank": 579,
-    "wireGzip": 270089,
-    "programGzip": 24034
+    "wireGzip": 270095,
+    "programGzip": 24037
   },
   "todo": {
     "total": 1075,

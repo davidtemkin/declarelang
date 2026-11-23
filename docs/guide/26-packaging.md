@@ -140,7 +140,10 @@ compiler, boots the program headlessly to its settled state and serializes its r
 content as semantic HTML: actual headings, paragraphs, links. The crawl follows your
 app's own links — literal fragments and handler writes alike — and emits one document
 at the program URL: the default location's content, plus a section per reachable
-location. Discoverable = linked, exactly like the web. Append `?extract` to any
+location. Discoverable = linked, exactly like the web, and that includes the links in a
+closed menu or sheet: an overlay that is not open contributes its links (and nothing
+else it holds) as the page's navigation, the way a site's nav menu is how its pages are
+reached. Append `?extract` to any
 program URL and read what a crawler gets; `declarec --crawler=true` bakes it into the package's
 `index.html`.
 (Try it on the birds guide. Because every tile is a [`link`](declare-docs:View.link), the crawl walks the
