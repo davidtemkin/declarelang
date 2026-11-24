@@ -95,3 +95,11 @@ export default function boot(options: BootOptions): Promise<Tenant | null>;
  *  `onChange` runs with its result once per settle in which that changed. Returns
  *  the unwatch. `import boot, { observe } from "/declare/bundles/declare-boot.js"`. */
 export function observe<T>(read: () => T, onChange: (value: T) => void): () => void;
+
+/** How full the kernel's cell table is, for a health check rather than a feature: `cells`
+ *  is what the program has taken (a high-water mark, since free ids are reused) and
+ *  `capacity` is the table it takes them from. A ratio that climbs towards 1 and stays
+ *  there is a leak, days before every `ensure()` starts throwing E57F1C9. Two counters,
+ *  no cell contents and no program data. `import { kernelOccupancy } from
+ *  "/declare/bundles/declare-boot.js"`. */
+export function kernelOccupancy(): { cells: number; capacity: number };

@@ -697,6 +697,14 @@ export function kernelStats(top = 12) {
         byLabel: [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, top),
     };
 }
+/** The kernel's cell table, as numbers: the cells a program has taken and the
+ *  table it is taking them from. Free ids are reused, so `cells` is a high-water
+ *  mark — one that climbs across a churn and stays up is a leak, and at
+ *  `capacity` the next allocation throws E57F1C9. Reads two counters and no cell
+ *  contents, so a health check can sample it as often as it likes. */
+export function kernelOccupancy() {
+    return K === null ? { cells: 0, capacity: 0 } : { cells: K.cells(), capacity: K.tableSize() };
+}
 /** The kernel, for the modules that hold cells directly (attributes.ts's
  *  slot table access in the next phase). */
 export function kernel() { return need(); }

@@ -20,7 +20,7 @@
 // that names a preset throws at boot (found live on both hosts, 2026-09-23).
 import "./services.js";
 
-export { settle, afterSettle, observe, kernelReady } from "./reactive.js";
+export { settle, afterSettle, observe, kernelReady, kernelOccupancy } from "./reactive.js";
 import { Cell, settle as settleNow } from "./reactive.js";
 
 /** A value held outside any program that page code reads like an app's own: `get()` is

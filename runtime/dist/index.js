@@ -42,7 +42,7 @@ export { provideStreams } from "./stream-seam.js";
 export { Tooltips } from "./tooltips.js";
 export { Animator } from "./animator.js";
 export { AnimatorGroup } from "./animator-group.js";
-export { settle, afterSettle, observe, kernelReady, kernelReadySync, kernelLoaded, kernelStats } from "./reactive.js";
+export { settle, afterSettle, observe, kernelReady, kernelReadySync, kernelLoaded, kernelStats, kernelOccupancy } from "./reactive.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export { pathOf } from "./node-path.js";
 export { scrollPlaces, holdScrollPlaces, dropScrollPlaces } from "./scroll-places.js";
