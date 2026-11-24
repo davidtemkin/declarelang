@@ -39,7 +39,7 @@ import { highlight, programIndex } from "./compiler/dist/highlight.js";
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "52f6945e3e65";
+const BUILD_ID = "d99ecd8c93a5";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -190,7 +190,7 @@ async function revalidate(req) {
 // The page color each program's run page opens on: its App's literal fill, keyed by
 // the program's path from the root. Stamped by tools/internal/bake-app-stubs.mjs, which
 // gives the program's stub the same color; a program not here opens on the browser's own.
-const PAGE_COLORS = {"apps/desktop/desktop.declare":"#0a0612","apps/games/asteroids/asteroids.declare":"#000000","apps/games/stargate/stargate.declare":"#000000","apps/games/tempest/tempest.declare":"#000000","apps/lzx-calendar/lzx-calendar.declare":"#1e3a49","apps/lzx-dashboard/lzx-dashboard.declare":"#80807e","apps/lzx-weather/lzx-weather.declare":"#eaeaea"};
+const PAGE_COLORS = {"apps/desktop/desktop.declare":"#0a0612","apps/games/asteroids/asteroids.declare":"#000000","apps/games/stargate/stargate.declare":"#000000","apps/games/tempest/tempest.declare":"#000000","apps/lzx-calendar/lzx-calendar.declare":"#1e3a49","apps/lzx-dashboard/lzx-dashboard.declare":"#ffffff","apps/lzx-weather/lzx-weather.declare":"#eaeaea"};
 
 async function hostPageResponse(url) {
   const html = runWrapper({

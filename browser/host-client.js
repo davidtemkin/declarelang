@@ -16,7 +16,7 @@
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
 import { installLiveEdit } from "./live-edit.js";
-import { mapUrl, buildProgram, mountApp, fontsReady, settle, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, navigationOf, setAppAssetBase, setAppDataBase, kernelReady, scrollPlaces, holdScrollPlaces, dropScrollPlaces } from "../runtime/dist/host-api.js";
+import { mapUrl, buildProgram, mountApp, fontsReady, settle, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, navigationOf, setAppDataBase, kernelReady, scrollPlaces, holdScrollPlaces, dropScrollPlaces } from "../runtime/dist/host-api.js";
 import { wireIslands } from "./host-islands.js";
 
 // A compiled program arrives as ONE thing: `program`, the parsed, checked,
@@ -105,7 +105,7 @@ export async function bootHost(cfg) {
     catch { console.error(`[Declare] data-declare-provide is not valid JSON — nothing provided: ${provideAttr.slice(0, 80)}`); }
   }
   pageProvides = { ...pageProvides, ...(cfg.provides ?? {}) };
-  const app = buildApp({ program: cfg.program }, { provides: pageProvides, host });
+  const app = buildApp({ program: cfg.program }, { provides: pageProvides, host, assetBase: cfg.mainAssetBase || null });
   host.__declareApp = app;                            // the app itself (tools and tests reach it here)
   // THE PAGE AS A HOST, in an island's words (islands.md): the page hears the
   // app's postToHost through `boot({ onPost })`, speaks to its onHostMessage
@@ -132,7 +132,6 @@ export async function bootHost(cfg) {
   // dataBase override (cfg.dataBase, applied globally above) still governs
   // where the bytes come from.
   if (cfg.mainAssetBase) {
-    setAppAssetBase(app, cfg.mainAssetBase);
     setAppDataBase(app, cfg.dataBase ? new URL(cfg.dataBase, document.baseURI).href : cfg.mainAssetBase);
   }
   if (!embedded) window.__app = app;                  // the page's debug handle — top-level only

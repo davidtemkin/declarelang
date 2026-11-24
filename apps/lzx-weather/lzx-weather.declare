@@ -1,332 +1,312 @@
 /*
-# NeoWeather
+# Rain or Shine?
 
-A small but complete weather app in Declare, mirroring the classic Laszlo
-weather sample. Its data is the bundled static file data/weather.json; it's
-one file, and the classes below are all specific to it. Three named fonts,
-each a `Font` on the App: `chrome` and `body` are faces already on the
-machine, `title` is a web font loaded from its .woff2 file.
+OpenLaszlo's weather sample: a splash where you enter a zip code, and a report
+with three sliding tabs — current conditions, a radar map, and a five-day
+forecast. Its data is the bundled file data/weather.json, the same for any zip.
 
-This is a port of an OpenLaszlo sample from 2003, kept faithful to the
-original's look and behavior. It is not yet a model of idiomatic Declare: for
-that, read the programs listed in skill/SKILL.md.
+Where the person is comes down to two facts on the App: whether they have asked
+for the weather (`asked`), and which tab is open (`tab`). Everything else follows
+from those and from the data source's own facts (`loading`, `loaded`, `failed`):
+which screen shows, where the zip button and the top bar sit, which tab is open.
+The motion between those places is timed, each `Animator` gated by the fact it
+shows.
+
+The art is the original's: the backdrop, the splash, the top bar, the tab bars
+and the zip button are its images.
 */
 
+// a 240×320 desktop window, its zip field at the original's size
+
+defaultFlags [ devices = desktop ]
 
 /*
 ## Building blocks
-
-A labelled stat row, the tab slider that keeps exactly one tab open, a drawn
-beveled bar, the sliding weather tab itself, a one-day forecast row, and a
-full-window `Screen` layer switched by a flag.
 */
 
-// StatRow — one "Label: value" row. Its two Texts read label/value from the row
-// instance (classroot); the { } around a value means "recompute when it changes".
+// Text as the original sets it: inset 2px on every side of its box, its lines
+// 1.2 times the font size, and on the Mac a hundredth of an em between letters.
+// So a line of 9px Tahoma stands 15 tall, and a stack of them one pixel apart
+// steps by 16.
 
-class StatRow [
-    label: string = "",
-    value: string = "",
+class Label extends Text [ padding = 2, lineHeight = 1.2, letterSpacing = { this.fontSize * 0.01 } ]
 
-    layout: SimpleLayout [ axis = x, spacing = -10 ],
-
-    labelText: Text [ width = 90, text = { classroot.label } ],
-    valueText: Text [ width = 160, fontWeight = normal, text = { classroot.value } ]
-    ]
-
-
-// TabSlider — lays the tabs out in a vertical stack and keeps exactly one open.
-// Clicking a tab calls select(), which opens that tab and closes the others.
-
-class TabSlider [ width = 100%,
-
-    layout: SimpleLayout [ axis = y ],
-
-    select(tab: WeatherTab) {
-        for (const child of this.children) child.setSelected(child === tab)
-        }
-    ]
-
-
-// BeveledBar — a filled bar with a 1px light line along the top edge and a dark
-// line along the bottom, for a raised look. It draws these itself (no image).
-
-class BeveledBar [
-    highlight: Color = #FFFFFF,
-    lowlight:  Color = #000000,
-
-    draw(d: DrawContext) {
-        d.fillStyle = highlight
-        d.fillRect(0, 0, width, 1)
-        d.fillStyle = lowlight
-        d.fillRect(0, height - 1, width, 1)
-        }
-    ]
-
-
-// WeatherTab — a 25px-tall header bar that grows to reveal its content when the
-// tab is selected, and shrinks back when another tab is picked.
+// One tab of the report: a 25-tall bar over its content. It opens to
+// `openHeight`, wiping its content into view from the top, and closes to its bare
+// bar; the use site says when it is open, and what choosing it, a press on its
+// bar, does. The open tab's bar fades to a third over 333ms and its title turns
+// white.
+//
+// To a screen reader it is a group named by its bar, the bar a button that says
+// whether the tab is open, and the content is there only while it is open or
+// moving.
 
 class WeatherTab [ width = 100%,
-
     label: string = "default title",
-    selected: boolean = false,
     openHeight: number = 255,
+    open: boolean = false,
+    choose() { },
 
-    height = { selected ? openHeight : 25 },
-    slide: Animator [ attribute = height, duration = 300, easing = laszloBoth ],
+    accessibilityRole = group,
+    accessibilityLabel = { label },
 
-    // With clip on, anything past the box edge is hidden — so as the height grows
-    // the content is wiped into view from the top instead of appearing all at once.
+    // how far open it is, in pixels: open at once for the tab open at the start,
+    // then moved over 300ms whenever it opens or closes. It is pixels, not a 0–1
+    // blend, because the Laszlo easing's curve is set by the distance travelled
 
+    extent: number = { open ? openHeight : 25 },
+    opening: Animator [ attribute = extent, to = { classroot.openHeight }, duration = 300, easing = laszloBoth, started = { classroot.open } ],
+    closing: Animator [ attribute = extent, to = 25, duration = 300, easing = laszloBoth, started = { !classroot.open } ],
+
+    // how strongly the bar shows: dimmed while the tab is open
+
+    barOpacity: number = { open ? 0.33 : 1 },
+    dimming: Animator [ attribute = barOpacity, to = 0.33, duration = 333, easing = laszloBoth, started = { classroot.open } ],
+    brightening: Animator [ attribute = barOpacity, to = 1, duration = 333, easing = laszloBoth, started = { !classroot.open } ],
+
+    height = { extent },
     clip = true,
 
-    // height is a live value: openHeight when selected, else 25. The animator drives
-    // it during the slide, then the constraint takes back over — so it settles
-    // exactly on 255 or 25.
+    // Tab reaches the content only while the tab is open
 
-    setSelected(on: boolean) {
-        slide.to = on ? openHeight : 25
-        slide.start()
-        selected = on
-        },
+    tabOrder() { return open ? this.tabDefault() : [bar] },
 
-    header: View [ width = 100%,
+    defaultPlacement = body,
 
-        onClick() { classroot.parent.select(classroot) },
-
-        bg: BeveledBar [ width = 100%, height = 25,
-            fill = #6F79A7, highlight = #BCC4E2, lowlight = #1A2452,
-            opacity = { selected ? 0.33 : 1 } ],
+    bar: Control [ width = 100%, height = 25,
+        accessibilityLabel = { classroot.label },
+        accessibilityExpanded = { classroot.open },
+        press() { classroot.choose() },
+        bg: Image [ width = 100%, height = 25, fit = both, imageRendering = pixelated, source = "resources/tab.png", opacity = { classroot.barOpacity } ],
         icon: Image [ source = "resources/slider_icon2.png", x = 2, y = 3 ],
-        caption: Text [ text = { label }, x = 15, y = 4, textShadow = Shadow(1, 1, 0, #3B4057),
-            textColor = { selected ? 0xFFFFFF : 0xCAD0EC } ]
-        ]
+        title: Label [ text = { classroot.label }, x = 15, y = 4, textShadow = Shadow(1, 1, 0, #3B4057),
+            textColor = { classroot.open ? 0xFFFFFF : 0xCAD0EC } ]
+        ],
+
+    body: View [ y = 25, width = 100%,
+        visible = { classroot.open || classroot.height > 25.5 } ]
     ]
 
 
-// WeatherSummary — one forecast day (icon, day, description, hi/lo). Its :fields
-// read from whichever forecast entry it's bound to.
+// One forecast day: its icon on a black square, the day, the sky, and the high
+// and low. The words run past the square to the right.
 
 class WeatherSummary [ fill = #000000, width = 34, height = 34, x = 10,
     fontFamily = { app.body }, fontSize = 12,
-
     icon: Image [ x = 1, y = 1, width = 32, height = 32, fit = both,
+        accessibilityLabel = :text,
         source = { :code != null ? `resources/icons/${:code}.gif` : "" } ],
-
-    day: Text [ x = 42, width = 140, text = :day ],
-    desc: Text [ x = 42, y = 14, width = 120, fontSize = 11, fontWeight = normal, text = :text ],
-
-    hiLabel: Text [ x = 165, text = "Hi:" ],
-    loLabel: Text [ x = 165, y = 14, text = "Lo:" ],
-    hi: Text [ x = 188, width = 60, text = :high ],
-    lo: Text [ x = 188, y = 14, width = 60, text = :low ]
-    ]
-
-
-// Screen — a full-window layer that fades in or out based on its shown flag.
-
-class Screen [ width = 100%, height = 100%,
-
-    shown: boolean = false,
-
-    opacity = { shown ? 1 : 0 },
-    visible = { opacity > 0 }
+    day: Label [ x = 42, width = 140, text = :day ],
+    desc: Label [ x = 42, y = 14, width = 120, fontSize = 11, fontWeight = normal, wrap = true, text = :text ],
+    hiLabel: Label [ x = 165, text = "Hi:" ],
+    loLabel: Label [ x = 165, y = 14, text = "Lo:" ],
+    hi: Label [ x = 188, width = 60, text = :high ],
+    lo: Label [ x = 188, y = 14, width = 60, text = :low ]
     ]
 
 
 /*
 ## The app
 
-A 240×320 window over a background photo, with two full-window Screens — the
-zip-entry splash and the weather report — switched on whether the weather
-data has loaded.
+A 240×320 window over a background photo, with two screens: the splash with the
+zip button, shown until the weather has loaded, and the report.
 */
 
 App [ width = 240, height = 320, fill = #EAEAEA,
     chrome: Font [ family = "Tahoma, Geneva, sans-serif" ],
     body: Font [ family = "Helvetica, Arial, sans-serif" ],
-    title: Font [
-        FontFace [ src = "resources/fonts/work-sans-700.woff2", weight = bold ]
-        ],
     fontFamily = { app.chrome }, fontSize = 9,
     fontWeight = bold, textColor = #FFFFFF,
 
+    // the zip as typed; the top bar shows it once the weather is asked for
+
     zip: string = "94403",
 
-    // The app's data source. The screens below switch on its .loading / .loaded /
-    // .failed flags, and read the weather from its .value (or .error).
+    // where the person is: whether they have asked for the weather, and which tab
+    // of the report is open
 
-    // The two slides that answer a fetch's outcome: the top bar comes down on
-    // arrival (the source's own event), the zip bar comes back on failure (a
-    // change event on its `failed` flag).
+    asked: boolean = false,
+    tab: string = "conditions",
 
-    weatherData: DataSource [ url = "data/weather.json",
-        onLoad() { app.report.topBar.slideDown.start() }
-        ],
+    weatherData: DataSource [ url = "data/weather.json" ],
 
-    fetchFailed: boolean = { weatherData.failed },
-    trackChanges = ["fetchFailed"],
-    onChange(e: ChangeEvent) {
-        if (weatherData.failed) splash.zipBtn.slideIn.start()
+    // the zip button is away while the weather is asked for and has not failed
+
+    zipAway: boolean = { app.asked && !app.weatherData.failed },
+
+    ask() {
+        app.asked = true
+        app.weatherData.fetch()
         },
+
+    // back to the splash: the request is withdrawn, the report emptied, and the
+    // zip field cleared for the next one
+
+    changeZip() {
+        app.asked = false
+        app.zip = ""
+        app.weatherData.clear()
+        },
+
+    // the up and down arrows step the focus through the controls, as Tab does
+
+    keyBindings = { [ ({ key: "ArrowDown", command: "stepFocus", args: [1] }),
+                      ({ key: "ArrowUp", command: "stepFocus", args: [-1] }) ] },
+    stepFocus(dir: number) { if (dir > 0) Focus.next(); else Focus.prev() },
 
     bg: Image [ source = "resources/weather_bg.jpg" ],
 
-    /* ## The entry screen
-       Shown until the data loads: the splash art, a status line for the
-       loading / error states, and the zip bar that slides away on submit. */
+    /* ## The splash
+       Shown until the weather loads: the art, a status line while it loads or
+       after it fails, and the zip button, which slides away while the weather is
+       asked for. */
 
-    splash: Screen [ shown = { !weatherData.loaded },
+    splash: View [ width = 100%, height = 100%, visible = { !app.weatherData.loaded },
 
-        // The splash background. Its "Rain or Shine?" title is painted into the
-        // image itself, not drawn as live text.
+        // the art carries the title, "Rain or Shine?", painted in
 
-        art: Image [ source = "resources/weather_splash2.jpg" ],
+        art: Image [ source = "resources/weather_splash2.jpg",
+            accessibilityLabel = "Rain or Shine? A sample weather application" ],
 
-        status: Text [ x = 15, y = 230, width = 240, textColor = #000099,
-            text = { weatherData.failed ? "Server error: the weather could not be fetched"
-                   : weatherData.loading ? "Loading weather data..." : "" } ],
+        status: Label [ x = 15, y = 230, width = 240, textColor = #000099, accessibilityLive = polite,
+            text = { app.weatherData.failed ? "Server error: the weather could not be fetched"
+                   : app.weatherData.loading ? "Loading weather data..." : "" } ],
 
-        zipBtn: View [ y = 245, x = 0,
+        zipBar: View [ y = 245, x = 0,
+            slideOut: Animator [ attribute = x, to = -2000, duration = 333, easing = laszloBoth, started = { app.zipAway } ],
+            slideIn:  Animator [ attribute = x, to = 0, duration = 333, easing = laszloBoth, started = { !app.zipAway } ],
 
-            // These two animate the whole zip bar: off to the left when you submit,
-            // and back when you return or the fetch fails.
+            // The button: its art and words, sinking a pixel down and right, onto
+            // its pressed frame, while held. Releasing it asks for the weather.
 
-            slideOut: Animator [ attribute = x, to = -2000, duration = 333, easing = laszloBoth ],
-            slideIn:  Animator [ attribute = x, to = 0, duration = 333, easing = laszloBoth ],
-
-            // The rounded pill behind the zip row: a top-to-bottom gradient with
-            // rounded corners. Clicking it fetches the weather (and slides the bar away).
-
-            pill: View [ width = 236, height = 28, opacity = 0.7, cornerRadius = 13,
-                fill = Gradient.linear(Gradient.stop(0, #C2C2DC), Gradient.stop(0.08, #797AB4),
-                Gradient.stop(0.92, #797AB4), Gradient.stop(1, #27283B)),
-                onClick() {
-                    slideOut.start()
-                    weatherData.fetch()
-                    }
+            button: Control [ x = { pressed ? 1 : 0 }, y = { pressed ? 1 : 0 },
+                accessibilityLabel = "Get the weather",
+                press() { app.ask() },
+                art: Image [ opacity = 0.7,
+                    source = { parent.pressed ? "resources/zipbutton0002.png" : "resources/zipbutton0001.png" } ],
+                caption: Label [ text = "Enter Zip Code:", x = 15, y = 7, accessibilityHidden = true,
+                    textShadow = Shadow(1, 0, 0, #222222) ],
+                ok: Label [ text = "OK", x = 205, y = 7, accessibilityHidden = true,
+                    textShadow = Shadow(1, 0, 0, #222222) ]
                 ],
 
-            // y = 9 (not a rounder number) nudges this label to line up exactly with
-            // where the original app draws it.
+            // The zip field, beside the words and moving with them: a white face
+            // in a bevel of two rings, grey and black above and to the left, light
+            // below and, on the outer ring, to the right. Return in it asks for
+            // the weather too.
 
-            caption: Text [ text = "Enter Zip Code:", x = 15, y = 9,
-                textShadow = Shadow(1, 0, 0, #222222) ],
-
-            // The zip box: it looks like a text field but is not editable — it
-            // just displays app.zip.
-
-            field: View [ x = 120, y = 5, width = 80, height = 20,
-                fill = #FFFFFF, stroke = Stroke(2, #1A1A1A),
-
-                entry: Text [ x = 3, y = 4, text = { app.zip }, textColor = #000000 ]
-                ],
-
-            ok: Text [ text = "OK", x = 205, y = 9, textShadow = Shadow(1, 0, 0, #222222) ]
+            field: View [ x = { 120 + (parent.button.pressed ? 1 : 0) }, y = { 5 + (parent.button.pressed ? 1 : 0) },
+                width = 80, height = 20, fill = #FFFFFF,
+                stroke = [Stroke(1, #989898), Stroke(1, #E1E1E1), Stroke(1, #E1E1E1), Stroke(1, #989898)],
+                input: TextInput [ x = 1, y = 1, width = 78, height = 18,
+                    fill = #FFFFFF, cornerRadius = 0, padding = [0, 2, 4, 3],
+                    stroke = [Stroke(1, #262626), null, Stroke(1, #EFEFEF), Stroke(1, #262626)],
+                    textColor = #000000, accessibilityLabel = "Zip code", purpose = postalCode,
+                    value <-> app.zip,
+                    onEnter() { app.ask() }
+                    ]
+                ]
             ]
         ],
 
-    /* ## The report screen
-       Shown once the data loads. Its datapath points the whole subtree at a
-       slice of the loaded JSON; the :paths below (:location.city,
-       :item.condition.temp, …) read fields from it. */
+    /* ## The report
+       Shown once the weather loads, its subtree pointed at the loaded channel; the
+       :paths below (:location.city, :item.condition.temp, …) read fields of it. */
 
-    report: Screen [ shown = { weatherData.loaded }, datapath = { weatherData.value?.rss?.channel },
+    report: View [ width = 100%, height = 100%, visible = { app.weatherData.loaded },
+        datapath = { app.weatherData.value?.rss?.channel },
 
-        // The top bar. It sets the font once here (family, weight, size, color) and
-        // the title / label / zip Texts below inherit it, so none of them repeat it.
+        // the top bar comes down with the report and goes back up without it; its
+        // art carries the title and "Zipcode:", and the zip is written beside them
 
-        topBar: BeveledBar [ y = -16, opacity = 0, width = 240, height = 16,
-            fill = #3F4977, highlight = #6F79A7, lowlight = #1A2452,
-            fontFamily = { app.title }, fontWeight = bold, fontSize = 10, textColor = #FFFFFF,
-
-            // The bar slides down into view after a successful fetch, and back up
-            // when you return to the splash.
-
-            slideDown: AnimatorGroup [ process = simultaneous, duration = 333, easing = laszloBoth,
+        topBar: Image [ source = "resources/weather_topbar2.gif", y = -16, opacity = 0,
+            down: AnimatorGroup [ process = simultaneous, duration = 333, easing = laszloBoth,
+                started = { app.weatherData.loaded },
                 Animator [ attribute = y, to = 0 ],
                 Animator [ attribute = opacity, to = 1 ]
                 ],
-            slideUp: AnimatorGroup [ process = simultaneous, duration = 333, easing = laszloBoth,
+            up: AnimatorGroup [ process = simultaneous, duration = 333, easing = laszloBoth,
+                started = { !app.weatherData.loaded },
                 Animator [ attribute = y, to = -16 ],
                 Animator [ attribute = opacity, to = 0 ]
                 ],
 
-            onClick() {
-                slideUp.start()
-                app.splash.zipBtn.slideIn.start()
-                weatherData.clear()
-                },
+            zip: Label [ x = 194, width = 100, text = { app.zip },
+                textColor = { parent.back.focused ? 0xFFFFFF : 0xCAD0EC } ],
 
-            title:    Text [ text = "Rain or Shine?", x = 8, y = 3, textShadow = Shadow(1, 1, 0, #1A2452) ],
-            bullet:   View [ x = 150, y = 6, width = 5, height = 5, fill = #BCC4E2 ],
-            zipLabel: Text [ text = "Zipcode:", x = 159, y = 3, textShadow = Shadow(1, 1, 0, #1A2452) ],
-            zip:      Text [ text = { app.zip }, x = 208, y = 3, width = 100, textColor = #CAD0EC, textShadow = Shadow(1, 1, 0, #1A2452) ]
+            // the whole bar is the way back to the splash
+
+            back: Control [ width = 100%, height = 100%, accessibilityLabel = "Change the zip code",
+                press() { app.changeZip() }
+                ]
             ],
 
-        weatherContent: TabSlider [ y = 15, height = 305,
+        tabs: View [ y = 15, width = 100%, height = 305,
+            layout: SimpleLayout [ axis = y ],
 
-            conditionsTab: WeatherTab [ label = "Current Conditions", selected = true,
+            conditions: WeatherTab [ open = { app.tab == "conditions" },
+                choose() { app.tab = "conditions" },
+                label = "Current Conditions",
 
-                currentData: View [ y = 35, width = 240,
-
+                currentData: View [ y = 10, width = 240,
                     layout: SimpleLayout [ axis = y, spacing = 10 ],
 
-                    form: View [ width = 240, fontFamily = { app.body }, fontSize = 14,
-
-                        where: Text [ x = 15, width = 240,
+                    now: View [ width = 240, fontFamily = { app.body }, fontSize = 14,
+                        where: Label [ x = 15, width = 240,
                             text = { :location.city + ", " + :location.region } ],
-
                         iconBox: View [ x = 26, y = 28, width = 52, height = 52, fill = #FFFFFF ],
                         icon: Image [ x = 26, y = 28, width = 64, height = 64,
+                            accessibilityLabel = :item.condition.text,
                             source = { :item.condition.code != null
                                      ? `resources/icons/${:item.condition.code}.gif` : "" } ],
-
-                        temp: Text [ x = 95, y = 20, width = 240, fontSize = 60, text = :item.condition.temp ],
-                        desc: Text [ x = 15, y = 90, width = 240, text = :item.condition.text ]
+                        temp: Label [ x = 95, y = 20, width = 240, fontSize = 60, text = :item.condition.temp ],
+                        desc: Label [ x = 15, y = 90, width = 240, text = :item.condition.text ]
                         ],
 
-                    moreData: View [ x = 15,
+                    // the labels and their values, two columns ten pixels into
+                    // each other; the values run one line longer, with the time of
+                    // the report, which the tab below covers
 
-                        layout: SimpleLayout [ axis = y, spacing = 1 ],
-
-                        StatRow [ label = "Humidity:", value = :atmosphere.humidity ],
-                        StatRow [ label = "Barometer:", value = :atmosphere.pressure ],
-                        StatRow [ label = "Windspeed:", value = :wind.speed ],
-                        StatRow [ label = "Sunrise:", value = :astronomy.sunrise ],
-                        StatRow [ label = "Sunset:", value = :astronomy.sunset ],
-                        StatRow [ label = "Wind Chill:", value = :wind.chill ]
-
-                        // The original shows a 7th row (observation date), but the mock
-                        // data has no value for it, so this stops at 6.
-
+                    more: View [ x = 15,
+                        layout: SimpleLayout [ axis = x, spacing = -10 ],
+                        labels: View [
+                            layout: SimpleLayout [ axis = y, spacing = 1 ],
+                            Label [ width = 90, text = "Humidity:" ],
+                            Label [ text = "Barometer:" ],
+                            Label [ text = "Windspeed:" ],
+                            Label [ text = "Sunrise:" ],
+                            Label [ text = "Sunset:" ],
+                            Label [ text = "Wind Chill:" ]
+                            ],
+                        values: View [ fontWeight = normal,
+                            layout: SimpleLayout [ axis = y, spacing = 1 ],
+                            Label [ width = 160, text = :atmosphere.humidity ],
+                            Label [ width = 160, text = :atmosphere.pressure ],
+                            Label [ width = 160, text = :wind.speed ],
+                            Label [ width = 160, text = :astronomy.sunrise ],
+                            Label [ width = 160, text = :astronomy.sunset ],
+                            Label [ width = 160, text = :wind.chill ],
+                            Label [ width = 160, text = :item.condition.date ]
+                            ]
                         ]
                     ]
                 ],
 
-            radarTab: WeatherTab [ label = "Radar Maps",
-
-                radarData: View [ y = 35, width = 240, height = 162,
-
-                    // The radar image is mostly transparent (just the map lines), so we
-                    // tint its background and drop a shadow directly on the image.
-
-                    radarscan: Image [ x = 20, y = 20, width = 200, height = 135, fit = both,
-                        source = "resources/radar_us.png",
-                        fill = #00000054, shadow = Shadow(3, 3, 0, #00000054) ]
+            radar: WeatherTab [ open = { app.tab == "radar" },
+                choose() { app.tab = "radar" },
+                label = "Radar Maps",
+                radarData: View [ y = 10, width = 240, height = 162,
+                    dropShadow: View [ x = 23, y = 23, width = 200, height = 135, fill = #000000, opacity = 0.33 ],
+                    scan: Image [ x = 20, y = 20, width = 200, height = 135, fit = both,
+                        source = "resources/radar_us.png", accessibilityLabel = "Radar map of the United States" ]
                     ]
                 ],
 
-            forecastTab: WeatherTab [ label = "Forecast",
-
-                forecastData: View [ y = 35,
-
+            forecast: WeatherTab [ open = { app.tab == "forecast" },
+                choose() { app.tab = "forecast" },
+                label = "Forecast",
+                forecastData: View [ y = 10,
                     layout: SimpleLayout [ axis = y, spacing = 10 ],
-
-                    // The trailing [] builds one WeatherSummary per item in the
-                    // forecast array, each bound to its own entry.
-
                     WeatherSummary [ datapath = :item.forecast[] ]
                     ]
                 ]

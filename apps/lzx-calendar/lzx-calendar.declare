@@ -1,1178 +1,1191 @@
 /*
-# NeoCalendar
+# Laszlo Calendar
 
-The Laszlo Calendar rewritten from the ground up in Declare. The contract is
-SPEC.md — extracted from the running original, with its source read for
-intent — and this file implements the spec, not the original's structure:
-the three view modes (month / week / day) plus the open day, with the 500ms
-slider motion and mode-aware navigation (SPEC §12 B–D). Grid geometry is
-exact; the chrome is drawn — no images except the logo/menubar holdouts —
-"geometry exact, chrome or better".
+OpenLaszlo's calendar sample: a month of days that becomes a week or a single
+day, events you select, drag to another day or another time, and edit in an
+info panel that slides in at the right. Its events are the bundled
+data/events.json.
 
-Colors (SPEC §3–4; sampled + source-verified) — day-cell bodies: weekday
-`#9BA9B1` · weekend `#879BA8` · out-of-month `#768A97` · selected/hilite
-`#D3D3D3`. Event categories: default / holiday / astro / milestone.
+Where the person is comes down to a few facts on the App: the month shown, the
+selected day, the open day (the one grown to show its hours, if any), the view
+(month, week or day), the selected event, and whether the info panel is open.
+Everything on screen derives from those.
 
-This is a port of an OpenLaszlo sample from 2003, kept faithful to the
-original's look and behavior. It is not yet a model of idiomatic Declare: for
-that, read the programs listed in skill/SKILL.md.
+The grid is the one part that moves. Each day cell carries its own place and
+size, and `arrange()` sends every cell to where the facts put it, gliding over
+half a second or placing it at once: changing the view glides; opening or
+closing a day glides in the week and day views and snaps in the month view;
+paging a month or opening the info panel snaps. A cell that leaves the view
+vanishes at once, and one that comes back is placed and shows when the glide is
+done.
+
+The art is the original's: the toolbar, the buttons and their icons, the day
+names, the selected day's frame, the selected event's bar, the info panel's
+frame, the hour grid and the scrollbar.
 */
+
+// a fixed 835×600 desktop window, its fields at the design's sizes
+
+defaultFlags [ devices = desktop ]
+
+script {
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+        "August", "September", "October", "November", "December"]
+
+    function monthName(m: number): string { return MONTHS[m] }
+
+    // an hour as the cells write it: 12a, 9a, 12p, 4p
+    function hourLabel(h: number): string {
+        const ap = h < 12 ? "a" : "p"
+        const hh = h > 12 ? h - 12 : h == 0 ? 12 : h
+        return hh + ap
+        }
+
+    // a time of day as the info panel writes it: 9:00a, 12:30p, 0:15a
+    function longTime(minutes: number): string {
+        let h = Math.floor(minutes / 60)
+        const m = minutes % 60
+        const ap = h > 11 ? "p" : "a"
+        if (h > 12) h -= 12
+        return h + ":" + (m < 10 ? "0" + m : "" + m) + ap
+        }
+
+    function keyOf(d: Date): string { return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate() }
+
+    // a color as the original's default component style lifts it: each channel
+    // times (0xF2 + 0x33) / 255, clipped at white (the scrollbar's art in
+    // resources/ol/scrollbar-styled is lifted the same way)
+    function styled(c: number): number {
+        const k = (0xF2 + 0x33) / 255
+        const ch = (s: number) => Math.min(255, Math.round(((c >> s) & 255) * k))
+        return (ch(16) << 16) | (ch(8) << 8) | ch(0)
+        }
+
+    // The room a label takes as the original measures it: its words in bold
+    // Verdana 10, tracked by 0.01em between letters, and 2px either side, to the
+    // nearest pixel. Where a label's room decides a layout (the buttons, the hour
+    // before a title, the month centered in the toolbar), this is that room.
+    function roomOf(text: string): number {
+        if (text == "") return 0
+        const words = measureText(text, { fontFamily: ["Verdana", "Vera", "sans-serif"], fontSize: 10, fontWeight: "bold" }).width
+        return Math.round(words + 0.1 * (text.length - 1) + 4)
+        }
+
+    // an event's colors by its kind: its face, its face under the pointer, and the
+    // strip down its time in an open day
+    const KINDS: Record<string, { dim: number, bright: number, strip: number }> = {
+        holiday:   { dim: 0xCBD1C5, bright: 0xD4DAC8, strip: 0x587457 },
+        astro:     { dim: 0xC5C3D5, bright: 0xCDC6DC, strip: 0x4C5E7E },
+        milestone: { dim: 0xBBC6D1, bright: 0xC6CEDC, strip: 0x4C5E7E },
+        "":        { dim: 0xC6CEDC, bright: 0xDDDDDD, strip: 0x5D84CB } }
+    function kindOf(category: string) { return KINDS[category] ?? KINDS[""] }
+    }
+
 
 /*
-## EventBar
-
-One event in a day's closed list (SPEC §4): a 22px bar — category fill, a 1px
-white top hairline and a #555 bottom one, drawn — then the short time ("9a")
-and the title. `TimeEvent`, below, is the same event on the open timeline.
+## The events
 */
 
-class EventBar [
-    width = 100%, height = 22,
-    clip = true,
+schema CalEvent [ id: number, y: number, m: number, d: number, start: number, end: number,
+    title: string, notes?: string, location?: string, attendees?: string, category?: string ]
 
-    category: string = "",
-    selected: boolean = false,
-    dayKey: string = "",
+// Every event, fetched once. Each write to them is a method here, with the
+// original's rules for times: a new start keeps the event's length, an end that
+// would cross midnight stopping at 23:45; the end moves in quarter hours and the
+// event never empties or fills the day.
 
-    // Selected: the bar goes near-white with a category-tinted grip texture and
-    // an ⓘ button (SPEC §5 selector chrome); a click selects day + event (§6).
+class Events extends DataSource [ url = "data/events.json", autoFetch = true,
+    schema = [ events[]: CalEvent ],
 
-    fill = { ({ holiday: 0xCBD1C5, astro: 0xC5C3D5, milestone: 0xBBC6D1 })[category] ?? 0xC6CEDC },
-    State [ applied = { selected }, fill = 0xFAFAFA ],
+    all() -> CalEvent[] { return value?.events ?? [] },
+    find(id: number) -> CalEvent? { return this.all().find((e) => e.id == id) ?? null },
+    indexOf(id: number) -> number { return this.all().findIndex((e) => e.id == id) },
 
-    draw(d: DrawContext) {
-        d.fillStyle = 0xFFFFFF
-        d.fillRect(0, 0, width, 1)
-        d.fillStyle = 0x555555
-        d.fillRect(0, height - 1, width, 1)
-        if (selected) {
-            d.fillStyle = 0x8A98A0
-            for (let gx = 3; gx < width - 3; gx += 4) {
-                d.fillRect(gx, 2, 1, 2); d.fillRect(gx, height - 4, 1, 2)
-                }
-            }
+    // the events of one day, earliest first
+
+    on(key: string) -> CalEvent[] {
+        return this.all().filter((e) => e.y + "-" + e.m + "-" + e.d == key).sort((a, b) => a.start - b.start)
         },
 
-    info:  InfoButton [ x = 2, y = 4, visible = { classroot.selected } ],
-    time:  Text [ x = { classroot.selected ? 19 : 4 }, y = 6, fontSize = 10,
-        textColor = #4B5D6C, text = { app.shortTime(:start) } ],
-    title: Text [ x = { parent.time.x + parent.time.width + 5 }, y = 6,
-        width = { parent.width - this.x - 2 }, fontSize = 10,
-        textColor = #4B5D6C, text = :title ],
-
-    onPointerDown() { app.startDrag(:id) },
-    onPointerUp()   { app.releaseDrag() },
-    onDrag(e: PointerEvent) { app.dragMove(e.rootX, e.rootY) },
-    onDragEnd(e: DragEndEvent) { app.endDrag(e.canceled) },
-    onClick() { app.selectEvent(:id, this.dayKey) }
-    ]
-
-
-// InfoButton — the ⓘ on a selected event (opens the info panel, §5/§7): a
-// drawn 14px disc with an italic-ish "i"; inherits the event cursor so its
-// click knows which event (:id) to open.
-
-class InfoButton extends Control [
-    width = 14, height = 14, cornerRadius = 7,
-    fill = Gradient.linear(Gradient.stop(0, 0xF4F4F4), Gradient.stop(1, 0xAEB6BD)),
-    stroke = Stroke(1, #7C8A92),
-
-    glyph: Text [ x = 5, y = 2, fontSize = 9, fontWeight = bold,
-        textColor = #4B5D6C, text = "i" ],
-
-    press() { app.showInfo(:id) }
-    ]
-
-
-// PlusMinus — the corner open/close button of the selected-day chrome (§5):
-// `+` opens the selected day in place; `−` (when already open) collapses it /
-// returns to the month. A drawn glyph — the original used button bitmaps.
-
-class PlusMinus [
-    isOpen: boolean = false,
-    width = 11, height = 11, cornerRadius = 2,
-    fill = Gradient.linear(Gradient.stop(0, 0xE8ECEC), Gradient.stop(0.5, 0xC2CBCE), Gradient.stop(1, 0x8A9BA3)),
-    stroke = Stroke(1, #46606C),
-
-    draw(d: DrawContext) {
-        d.fillStyle = 0x2E4550
-        d.fillRect(2, 5, 7, 1)               // the bar — both `+` and `−`
-        if (!isOpen) d.fillRect(5, 2, 1, 7)  // the stem — `+` only
+    setDay(id: number, day: Date) {
+        const i = this.indexOf(id)
+        if (i < 0) return
+        this.set(["events", i, "y"], day.getFullYear())
+        this.set(["events", i, "m"], day.getMonth() + 1)
+        this.set(["events", i, "d"], day.getDate())
         },
 
-    onClick() {
-        if (isOpen) app.closeDay()
-        else app.openDay(app.selectedKey)
+    setStart(id: number, start: number) {
+        const e = this.find(id), i = this.indexOf(id)
+        if (e == null || start < 0 || start >= 1440) return
+        const len = e.end - e.start <= 0 ? 15 : e.end - e.start
+        this.set(["events", i, "start"], start)
+        this.set(["events", i, "end"], start + len >= 1440 ? 1425 : start + len)
+        },
+
+    stepEnd(id: number, dir: number) {
+        const e = this.find(id), i = this.indexOf(id)
+        if (e == null) return
+        const len = e.end - e.start + 15 * dir
+        if (len > 0 && len < 1440 && e.end + 15 * dir < 1440) this.set(["events", i, "end"], e.end + 15 * dir)
+        },
+
+    setText(id: number, field: string, text: string) {
+        const i = this.indexOf(id)
+        if (i >= 0) this.set(["events", i, field], text)
+        },
+
+    // a 9–10a "New Event" on a day; answers its id
+
+    add(day: Date) -> number {
+        const id = 1 + this.all().reduce((mx, e) => Math.max(mx, e.id), 0)
+        this.insert(["events"], this.all().length, ({ id: id, y: day.getFullYear(), m: day.getMonth() + 1, d: day.getDate(),
+            start: 540, end: 600, title: "New Event", notes: "", location: "", attendees: "", category: "" }))
+        return id
+        },
+
+    remove(id: number) {
+        const i = this.indexOf(id)
+        if (i >= 0) this.removeAt(["events"], i)
         }
     ]
 
 
 /*
-## Info-panel widgets
-
-`Nudger` is a value with ‹ › nudges — the info panel's date/time rows (§7):
-`field` picks the action (date = ±1 day; start = ±15m move; end = ±15m
-duration), and `label` is the formatted value, set at the instance site.
-`AccordionSection` is one collapsible panel tab (Notes / Location /
-Attendees), one open at a time (`app.openTab`): the open section's multiline
-field fills the area and pushes the sections below it down (SPEC §7), under a
-header with drawn bevel hairlines and a disclosure triangle. The field edits
-`field` of the record at its cursor — the panel's working copy.
+## Building blocks
 */
 
-class Nudger [
-    field: string = "",
+// Text as the original sets it: inset 2px on every side of its box, its lines 1.2
+// times the font size, and on the Mac a hundredth of an em between letters.
+
+class Label extends Text [ padding = 2, lineHeight = 1.2, letterSpacing = { this.fontSize * 0.01 } ]
+
+// A button's art: a left cap, a stretched middle and a right cap, each end oval
+// or slanted, in its up, over or down frame.
+
+class ButtonArt [ height = 21,
+    leftCap: string = "oval",
+    rightCap: string = "oval",
+    frame: string = "up",
+    left: Image [ source = { "resources/ol/btn_rsrcs/" + classroot.leftCap + "btn_" + classroot.frame + "_lft.png" } ],
+    middle: Image [ x = { parent.left.width }, height = 21, fit = both,
+        width = { parent.width - parent.left.width - parent.right.width },
+        source = { "resources/ol/btn_rsrcs/btn_" + classroot.frame + "_mid.png" } ],
+    right: Image [ x = { parent.width - this.width },
+        source = { "resources/ol/btn_rsrcs/" + classroot.rightCap + "btn_" + classroot.frame + "_rt.png" } ]
+    ]
+
+
+// The toolbar's and the panel's button: its art, under the pointer and held in
+// their frames; an icon, a label, or both; sized to what it holds. The label is white over a faint dark copy, which
+// rests a pixel high until the button is first pressed and just under the label
+// after; the icon and the label sink a pixel while the button is held.
+
+class CalButton extends Control [ height = 21,
     label: string = "",
-    width = 120, height = 16,
-    fill = #FFFFFF,
-    stroke = Stroke(1, #A8ACA6),
+    icon: string = "",
+    leftCap: string = "oval",
+    rightCap: string = "oval",
+    leftInset: number = { leftCap == "shear" ? 3 : 8 },
+    rightInset: number = { rightCap == "shear" ? 5 : 12 },
+    labelRoom: number = { roomOf(label) },
+    natural: number = { leftInset + (icon != "" ? iconArt.width + (label != "" ? 3 : 0) : 0) + labelRoom + rightInset },
+    width = { natural },
+    accessibilityLabel = { label },
+    frame: string = { pressed ? "dn" : hovered ? "mo" : "up" },
+    sunk: number = { pressed ? 1 : 0 },
+    touched: boolean = false,
+    onPointerDown() { touched = true },
 
-    val: Text [ x = 5, y = 2, fontSize = 10, textColor = #2E3E48, text = { classroot.label } ],
+    art: ButtonArt [ width = { parent.width }, leftCap = { classroot.leftCap }, rightCap = { classroot.rightCap }, frame = { classroot.frame } ],
+    iconArt: Image [ x = { classroot.leftInset }, visible = { classroot.icon != "" },
+        y = { Math.floor((21 - this.height) / 2) + classroot.sunk },
+        source = { classroot.icon != "" ? "resources/ol/images/buttons/" + classroot.icon + ".png" : "" } ],
+    hilite: Label [ x = { classroot.icon != "" ? parent.title.x : parent.title.x - 1 },
+        y = { classroot.pressed ? 3.7 : classroot.touched ? 2.7 : 1 }, opacity = 0.4,
+        visible = { classroot.label != "" }, textColor = #143B45, fontSize = 10, fontWeight = bold,
+        text = { classroot.label } ],
+    title: Label [ y = { 2 + classroot.sunk }, visible = { classroot.label != "" },
+        x = { classroot.icon != "" ? classroot.leftInset + parent.iconArt.width + 3 : classroot.leftInset },
+        textColor = #FFFFFF, fontSize = 10, fontWeight = bold, text = { classroot.label } ]
+    ]
 
-    left: View [ x = { parent.width - 28 }, y = 1, width = 13, height = 14, cornerRadius = 2,
-        fill = Gradient.linear(Gradient.stop(0, 0xE6EAEA), Gradient.stop(1, 0x99A5AD)),
-        draw(d: DrawContext) { d.fillStyle = 0x33454F
-                  d.beginPath(); d.moveTo(8, 3); d.lineTo(4, 7); d.lineTo(8, 11); d.fill() },
-        onClick() { app.stepField(classroot.field, -1) }
+
+// A button drawn by three images: at rest, under the pointer, and held down.
+
+class ArtButton extends Control [
+    upArt: string = "",
+    overArt: string = "",
+    downArt: string = "",
+    face: Image [ source = { parent.pressed ? classroot.downArt : parent.hovered ? classroot.overArt : classroot.upArt } ]
+    ]
+
+
+/*
+## The open day's hours
+
+An open day shows its hours on the original's grid of hour lines, and its box
+scrolls them: the platform's own scrolling, its scrollbar hidden and the classic
+one drawn in its place: an arrow at each end steps 10px, the track pages by
+the view, and either repeats while held; the thumb is as long as the share in
+view, never under 14px, with its gripper in the middle. While everything fits, the
+bar shows its disabled art over the day's color. The whole bar, ground and art,
+wears the original's default component style, a little lighter than its art.
+*/
+
+// one part of the bar that acts while held; the bar is for the pointer, so its
+// parts are not stops for Tab
+
+class Repeater extends Control [ focusable = false,
+    act() { },
+    onPointerDown() { act(); afterDelay(500, () => again()) },
+    again() { if (pressed) { act(); afterDelay(50, () => again()) } }
+    ]
+
+
+class HourScrollbar [ width = 14,
+    pane: View = { parent as View },
+    hoursHeight: number = 527,
+    idleGround: Color = #9BA9B1,
+    on: boolean = { hoursHeight > height },
+    fill = { styled(on ? 0x595959 : idleGround) },
+
+    // where the hours stand, and a step on from where the last one sent them: the
+    // platform reports where the pane is once a frame, so notches faster than
+    // that still add up
+
+    at: number = { pane.scrollY },
+    sent: number = -1,
+    trackChanges = ["at"],
+    onChange() { sent = -1 },
+    go(v: number) { sent = Math.max(0, Math.min(hoursHeight - height, v)); pane.scrollTo(sent) },
+    step(dir: number) { go((sent >= 0 ? sent : at) + dir * 10) },
+    page(dir: number) { go((sent >= 0 ? sent : at) + dir * height) },
+
+    piece(name: string) -> string { return "resources/ol/scrollbar-styled/" + name + ".png" },
+    frame(base: string, held: boolean, over: boolean) -> string {
+        return piece(base + (!on ? "_dsbl" : held ? "_dn" : over ? "_mo" : "_up")) },
+
+    up: Repeater [ x = 1, y = 1, width = 12, height = 13, accessibilityLabel = "Scroll up",
+        act() { classroot.step(-1) },
+        Image [ source = { classroot.frame("scrollbtn_y_top", parent.pressed, parent.hovered) } ]
         ],
-    right: View [ x = { parent.width - 14 }, y = 1, width = 13, height = 14, cornerRadius = 2,
-        fill = Gradient.linear(Gradient.stop(0, 0xE6EAEA), Gradient.stop(1, 0x99A5AD)),
-        draw(d: DrawContext) { d.fillStyle = 0x33454F
-                  d.beginPath(); d.moveTo(5, 3); d.lineTo(9, 7); d.lineTo(5, 11); d.fill() },
-        onClick() { app.stepField(classroot.field, 1) }
+    track: View [ x = 1, y = 14, width = 12, height = { parent.height - 28 },
+        thumbH: number = { Math.max(14, Math.floor(classroot.height / classroot.hoursHeight * this.height)) },
+        thumbY: number = { Math.min(Math.ceil(classroot.at / classroot.hoursHeight * this.height), this.height - this.thumbH) },
+        above: Repeater [ width = 12, height = { classroot.on ? parent.thumbY : parent.height }, accessibilityLabel = "Page up",
+            act() { classroot.page(-1) },
+            Image [ width = 12, height = 100%, fit = both,
+                source = { classroot.piece(!classroot.on ? "y_scrolltrack_dsbl" : parent.pressed ? "y_scrolltrack_dn" : "y_scrolltrack") } ]
+            ],
+        below: Repeater [ y = { parent.thumbY + parent.thumbH }, width = 12, visible = { classroot.on },
+            height = { parent.height - parent.thumbY - parent.thumbH }, accessibilityLabel = "Page down",
+            act() { classroot.page(1) },
+            Image [ width = 12, height = 100%, fit = both,
+                source = { classroot.piece(parent.pressed ? "y_scrolltrack_dn" : "y_scrolltrack") } ]
+            ],
+        thumb: View [ y = { parent.thumbY }, width = 12, height = { parent.thumbH }, visible = { classroot.on },
+            grabY: number = 0,
+            onPointerDown(e: PointerEvent) { grabY = e.y },
+            onDrag(e: PointerEvent) {
+                const track = parent as View
+                classroot.go((e.rootY - track.rootOrigin().y - grabY) / Math.max(1, track.height) * classroot.hoursHeight)
+                },
+            cap: Image [ source = { classroot.piece("scrollthumb_y_top") } ],
+            middle: Image [ y = 1, width = 12, height = { parent.height - 3 }, fit = both, source = { classroot.piece("scrollthumb_y_mid") } ],
+            foot: Image [ y = { parent.height - 2 }, source = { classroot.piece("scrollthumb_y_bot") } ],
+            gripper: View [ x = 1, width = 11, clip = true, height = { Math.min(200, parent.height - 16) },
+                y = { Math.round((parent.height - this.height) / 2) },
+                Image [ source = { classroot.piece("thumb_y_gripper") } ]
+                ]
+            ]
+        ],
+    down: Repeater [ x = 1, y = { parent.height - 14 }, width = 12, height = 13, accessibilityLabel = "Scroll down",
+        act() { classroot.step(1) },
+        Image [ source = { classroot.frame("scrollbtn_y_bot", parent.pressed, parent.hovered) } ]
         ]
     ]
 
 
-class AccordionSection [
-    idx: number = 0,
-    label: string = "",
-    field: string = "",
-    width = 197,
-    y = { 90 + this.idx * 20 + (this.idx > app.openTab ? 330 : 0) },
+/*
+## An event in a day
 
-    hdr: View [ width = 100%, height = 20,
-        fill = { app.openTab == classroot.idx ? 0xE2E4DF : 0xEEF0EB },
-        draw(d: DrawContext) {
-            d.fillStyle = 0xFDFFFF; d.fillRect(0, 0, width, 1)
-            d.fillStyle = 0xC6C7C4; d.fillRect(0, height - 1, width, 1)
-            d.fillStyle = 0x5A6A72
-            d.beginPath()
-            if (app.openTab == classroot.idx) {
-                d.moveTo(width - 14, 7); d.lineTo(width - 6, 7); d.lineTo(width - 10, 13)
-                }
-            else { d.moveTo(width - 12, 6); d.lineTo(width - 6, 9.5); d.lineTo(width - 12, 13) }
-            d.fill()
-            },
-        lbl: Text [ x = 6, y = 5, fontSize = 10, textColor = #3A4A50, text = { classroot.label } ],
-        onClick() { app.setTab(classroot.idx) }
+Closed, a day lists its events one under another, earliest first, each a 22px
+line as wide as the window, so the day's box cuts its title off: the hour, then
+the title. Open, each sits on the hour grid at its start, 22px an hour, as tall
+as it lasts, with a tinted strip down its time to the left. Under the pointer it
+lightens.
+
+Pressing an event selects it; pressing and moving drags it. Return on the
+selected event opens the info panel, as a double click does.
+*/
+
+class EventLine extends Control [
+    eventId: number = 0,
+    category: string = "",
+    start: number = 0,
+    end: number = 0,
+    title: string = "",
+    opened: boolean = false,
+    reopened: boolean = false,
+    order: number = 0,
+
+    selected: boolean = { app.selectedEvent == eventId },
+
+    x = { opened ? 24 : 0 },
+    y = { opened ? start * 22 / 60 + 11 : order * 22 },
+    height = { opened ? Math.max(22, (end - start) * 22 / 60) : 22 },
+    width = 835,
+    fill = { hovered ? kindOf(category).bright : kindOf(category).dim },
+
+    pointerEvents = "auto",
+    focusable = { app.selectedKey == app.keyOfEvent(eventId) },
+    accessibilityLabel = { hourLabel(Math.floor(start / 60)) + " " + title },
+    accessibilityPressed = { selected },
+    press() { app.selectEvent(eventId) },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "Enter" && selected && !e.repeat) app.openInfo()
+        else super.onKeyDown(e)
+        },
+    onPointerDown(e: PointerEvent) { app.selectEvent(eventId); app.drag.begin(this, e) },
+    onDrag(e: PointerEvent) { app.drag.follow(e) },
+    onDragEnd(e: DragEndEvent) { app.drag.drop(e.canceled) },
+    onDoubleClick() { app.openInfo() },
+
+    timeStrip: View [ x = -29, width = 29, height = { parent.height }, fill = { kindOf(classroot.category).strip }, opacity = 0.3,
+        visible = { classroot.opened } ],
+    topLine: View [ width = { parent.width }, height = 1, fill = #FFFFFF ],
+    bottomLine: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = #555555 ],
+    hour: Label [ x = 2, y = 3, visible = { !classroot.opened }, textColor = #4B5D6C,
+        text = { hourLabel(Math.floor(classroot.start / 60)) } ],
+    words: Label [ y = 3, height = 20, textColor = #4B5D6C, text = { classroot.title },
+        x = { classroot.opened ? 10 : classroot.reopened ? 25 : roomOf(parent.hour.text) + 5 } ]
+    ]
+
+
+/*
+## A day cell
+
+A day's frame and its box of events, the date at its top left: the box grey-blue
+for the month's weekdays, a little darker on weekends, darker still for the days
+of the months beside it; light grey while the day is selected. Open, the box
+shows the day's hours and its events on them, with the scrollbar at its right.
+
+A press on a day selects it and opens it. Its place and size are its own: the
+grid's `arrange()` moves them, all four together over half a second, or at once.
+*/
+
+class DayCell [ fill = #7A949E, width = 3, height = 10,
+    index: number = 0,
+    date: Date = { app.dateAt(index) },
+    key: string = { keyOf(date) },
+    inMonth: boolean = { date.getMonth() == app.month },
+    weekend: boolean = { date.getDay() == 0 || date.getDay() == 6 },
+    selected: boolean = { app.started && key == app.selectedKey },
+    opened: boolean = { app.started && key == app.openKey },
+    row: number = { Math.floor(index / 7) },
+    col: number = { index % 7 },
+
+    // once a day has been opened and closed, its titles sit a little further in;
+    // the selected day is the one the frame and the grid's focus are on
+
+    wasOpened: boolean = false,
+    onInit() { if (selected) app.activeDay = this },
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) {
+            if (c.name == "opened" && !opened) { wasOpened = true; box.scrollTo(0) }
+            if (c.name == "selected" && selected) app.activeDay = this
+            }
+        },
+    trackChanges = ["opened", "selected"],
+
+    accessibilityRole = group,
+    accessibilityLabel = { date.toDateString() + (selected ? ", selected" : "") },
+
+    onClick() { app.openDay(key) },
+
+    // where the grid sends it, and the motion that takes it there
+
+    tx: number = 0,
+    ty: number = 0,
+    tw: number = 3,
+    th: number = 10,
+    shown: boolean = true,
+    visible = { shown },
+    showsAt: number = 0,
+    motion: AnimatorGroup [ process = simultaneous, duration = 500, easing = laszloBoth,
+        Animator [ attribute = x, to = { classroot.tx } ],
+        Animator [ attribute = y, to = { classroot.ty } ],
+        Animator [ attribute = width, to = { classroot.tw } ],
+        Animator [ attribute = height, to = { classroot.th } ]
         ],
 
-    area: TextInput [ x = 2, y = 20, width = { parent.width - 4 }, height = 326,
-        multiline = true, fill = #FFFFFF, fontSize = 10, textColor = #333333,
-        accessibilityLabel = { classroot.label },
-        value <-> { :@[(classroot.field)] },
-        visible = { app.openTab == classroot.idx } ]
-    ]
+    // Send it to `b`, gliding if it is showing and the change glides, else at
+    // once; a cell coming back into view shows when the glide is done. A cell
+    // leaving the view lets its selected event go. The top row keeps its columns
+    // moving even hidden, for the day names over them.
 
-
-/*
-## The open timeline
-
-`HourLabel` is one hour marker down the open timeline's left gutter (SPEC
-§3), replicated over the `hours` dataset's records ({ num, ampm, y, bold }):
-the number 10px (bold on 12a/12p), the am/pm a 7px subscript, centered on the
-hour rule at :y. `TimeEvent` is an event placed on that timeline (SPEC §3–4),
-positioned and sized by time — y = start·(22/60)+11, height = max(22,
-dur·22/60) — with the category fill, a category-tinted time gutter (29px, 30%
-opacity) at the left, and the title only (the closed form's leading time is
-redundant on a timeline). Its record is a lane wrapper — `{ ev, lane, lanes }`,
-the event itself plus where it sits among the events it overlaps.
-*/
-
-class HourLabel [
-    num:  Text [ x = 2, fontSize = 10, textColor = #4B5D6C,
-        fontWeight = { :bold ? "bold" : "normal" }, text = :num ],
-    ampm: Text [ x = { parent.num.x + parent.num.width }, y = 3, fontSize = 7,
-        textColor = #4B5D6C, text = :ampm ]
-    ]
-
-
-class TimeEvent [
-    category: string = "",
-    clip = true,
-    selected: boolean = false,
-    dayKey: string = "",
-    evId: number = { :ev.id ?? -1 },
-
-    fill = { ({ holiday: 0xCBD1C5, astro: 0xC5C3D5, milestone: 0xBBC6D1 })[category] ?? 0xC6CEDC },
-    State [ applied = { selected }, fill = 0xFAFAFA ],
-
-    // Placed by time; overlapping events share the width by lane (§12-E — the
-    // wrapper carries the event's lane index and its cluster's lane count).
-
-    y = { :ev.start * 22 / 60 + 11 },
-    height = { Math.max(22, (:ev.end - :ev.start) * 22 / 60) },
-    x = { :lane * (parent.width / :lanes) },
-    width = { parent.width / :lanes },
-
-    draw(d: DrawContext) {
-        if (!selected) {
-            d.fillStyle = category == "holiday"   ? "rgba(88,116,87,0.30)"
-                        : category == "astro"     ? "rgba(76,94,126,0.30)"
-                        : category == "milestone" ? "rgba(76,94,126,0.30)"
-                        :                           "rgba(93,132,203,0.30)"
-            d.fillRect(0, 1, 29, height - 2)
+    arrange(b: Box, glide: boolean) {
+        if (!b.vis) {
+            if (app.selectedEvent >= 0 && app.keyOfEvent(app.selectedEvent) == key) app.leaveEvent()
+            tx = b.x; ty = y; tw = b.w; th = height
+            if (row == 0 && glide) motion.start()
+            else if (row == 0) { x = b.x; width = b.w }
+            shown = false
+            return
             }
-        d.fillStyle = 0xFFFFFF
-        d.fillRect(0, 0, width, 1)
-        d.fillStyle = 0x555555
-        d.fillRect(0, height - 1, width, 1)
-        if (selected) {
-            d.fillStyle = 0x8A98A0
-            for (let gx = 3; gx < width - 3; gx += 4) {
-                d.fillRect(gx, 2, 1, 2); d.fillRect(gx, height - 4, 1, 2)
-                }
-            }
+        tx = b.x; ty = b.y; tw = b.w; th = b.h
+        if (glide && shown) { motion.start(); return }
+        motion.stop()
+        x = b.x; y = b.y; width = b.w; height = b.h
+        if (glide) {
+            const stamp = ++showsAt
+            afterDelay(600, () => { if (showsAt == stamp) shown = true })
+            } else { shown = true }
         },
 
-    info:  InfoButton [ x = 2, y = 4, datapath = :ev, visible = { classroot.selected } ],
-    time:  Text [ x = 19, y = 4, fontSize = 10, textColor = #4B5D6C,
-        visible = { classroot.selected }, text = { app.shortTime(:ev.start) } ],
-    title: Text [ x = { classroot.selected ? 36 : 10 }, y = 4, fontSize = 10,
-        textColor = #4B5D6C, width = { parent.width - this.x - 2 }, text = :ev.title ],
+    inner: View [ x = 1, y = 1, width = { parent.width - 2 }, height = { parent.height - 2 }, fill = #526C7B ],
+    corner: Image [ source = "resources/ol/images/day/top_lft_dslct2.png" ],
+    dayNumber: Label [ x = 3, y = 1, width = 35, visible = { app.started },
+        textColor = { classroot.inMonth ? 0xDAE3E8 : 0x7E929F }, text = { "" + classroot.date.getDate() } ],
 
-    onPointerDown() { app.startDrag(evId) },
-    onPointerUp()   { app.releaseDrag() },
-    onDrag(e: PointerEvent) { app.dragMove(e.rootX, e.rootY) },
-    onDragEnd(e: DragEndEvent) { app.endDrag(e.canceled) },
-    onClick() { app.selectEvent(evId, this.dayKey) }
-    ]
+    box: View [ x = 3, y = 19, width = { parent.width - 8 }, height = { parent.height - 26 }, clip = true,
+        fill = { classroot.boxColor },
+        scrolls = { classroot.opened ? "y" : "none" }, hideScrollbars = true,
 
+        // a wheel notch steps the open day's hours ten pixels. Closed, the box lets
+        // a press through to the day, its events taking their own
 
-/*
-## DayCell
+        onWheel(e: WheelEvent) { if (classroot.opened && e.deltaY != 0) scroller.step(Math.sign(e.deltaY)) },
+        pointerEvents = { classroot.opened ? "auto" : "none" },
 
-One day of the grid (SPEC §3). Closed form: a drawn frame — day number on the
-dark strip, body colored by kind, events stacked in start order (the month
-model sorts them, so a plain vertical stack is the sorted list). Open form (in place
-in month, widened column in week, the day view): the closed list gives way to
-an hour timeline — the `opened` state on the body swaps them, so only open
-cells build a timeline. Geometry (x/y/width/height/visible) is owned by the
-grid's CalendarGrid layout, not the cell — it carries none of the slide
-machinery.
-*/
-
-class DayCell [
-    dayKey: string = "",
-    selected: boolean = false,
-    open: boolean = false,
-
-    // The frame, drawn: a 1px #7A949E ring around the #526C7B strip, with the
-    // original's rounded top-left corner (r≈5.5 — the `ctl` art; the other
-    // three corners are square, so cornerRadius can't express it).
-
-    draw(d: DrawContext) {
-        // Selected: the ring lightens to a bevel — the floating selected-day
-        // chrome (SPEC §5); its corner +/- button rides at the top-right.
-        d.fillStyle = selected ? 0xCAD5DA : 0x7A949E
-        d.beginPath()
-        d.moveTo(5.5, 0); d.lineTo(width, 0); d.lineTo(width, height)
-        d.lineTo(0, height); d.lineTo(0, 5.5)
-        d.arc(5.5, 5.5, 5.5, Math.PI, 1.5 * Math.PI, false)
-        d.fill()
-        d.fillStyle = 0x526C7B
-        d.beginPath()
-        d.moveTo(5.5, 1); d.lineTo(width - 1, 1); d.lineTo(width - 1, height - 1)
-        d.lineTo(1, height - 1); d.lineTo(1, 5.5)
-        d.arc(5.5, 5.5, 4.5, Math.PI, 1.5 * Math.PI, false)
-        d.fill()
-        },
-
-    num: Text [ x = 4, y = 4, fontSize = 10,
-        text = { "" + :num },
-        textColor = { :inMonth ? 0xDAE3E8 : 0x7E929F } ],
-
-    // The selected-day chrome's corner button: `+` to open, `−` to close.
-
-    pm: PlusMinus [ x = { parent.width - 14 }, y = 3,
-        visible = { classroot.selected }, isOpen = { classroot.open } ],
-
-    body: View [ x = 3, y = 19, width = { parent.width - 8 }, height = { parent.height - 26 },
-        clip = true,
-        fill = { :inMonth ? (:weekend ? 0x879BA8 : 0x9BA9B1) : 0x768A97 },
-        State [ applied = { classroot.selected || app.dragOverKey == classroot.dayKey }, fill = 0xD3D3D3 ],
-
-        // Closed form: the sorted event list (hidden the moment the cell opens).
-
-        list: View [ width = 100%, visible = { !classroot.open },
-            layout: SimpleLayout [ axis = y ],
-            EventBar [ datapath = :events[], category = :category,
-                dayKey = { classroot.dayKey }, selected = { app.selectedEvent == :id } ]
+        hours: View [ visible = { classroot.opened },
+            grid: Image [ x = -2, source = "resources/ol/images/day/cal_timegrid.png" ]
             ],
 
-        // Open form: an hour timeline, built only while the cell is open. The
-        // hour rules are drawn (22px/hour, +11px half-hour zero); labels ride
-        // the `hours` records down a 28px gutter; events sit by time, in lanes.
+        events: View [ visible = { app.started },
+            datapath = { classroot.dayEvents.value },
+            EventLine [ datapath = :list[],
+                eventId = :id, category = { :category ?? "" }, start = :start, end = :end, title = :title,
+                order = { rowIndex }, opened = { classroot.opened }, reopened = { classroot.wasOpened } ]
+            ],
 
-        opened: State [ applied = { classroot.open },
-            // The scrolling content (611px = 24·22 + 11). It opens scrolled to
-            // the day's first event with an hour of context above, or to 7:30a
-            // when empty (SPEC §12-F — the original computed this then never
-            // applied it); clamped so it can't scroll past the day's end.
+        scroller: HourScrollbar [ x = { parent.width - 14 }, height = { parent.height }, visible = { classroot.opened }, ignoreScroll = true,
+            idleGround = { classroot.boxColor } ]
+        ],
 
-            tl: View [ width = 100%, height = 611,
-                y = { 0 - Math.max(0, Math.min(:firstStart * 22 / 60 - 11,
-                          Math.max(0, 611 - parent.height))) },
-                draw(d: DrawContext) {
-                    d.fillStyle = 0xAEB8BF
-                    for (let h = 0; h < 24; h++) d.fillRect(28, h * 22 + 11, width - 38, 1)
-                    d.fillStyle = 0x8C9AA3
-                    d.fillRect(28, 0, 1, height)
-                    },
-                labels: View [ width = 28, datapath = { app.hours.value },
-                    HourLabel [ datapath = :hours[], y = { :y - 6 } ]
+    // the box's color: light grey while selected, or, in a drag, while the dragged
+    // event is over it; else by whose month and what day it is
+
+    boxColor: Color = { boxColorOf(app.started, app.drag.moving ? app.drag.over === this : selected, inMonth, weekend) },
+    boxColorOf(on: boolean, sel: boolean, mine: boolean, wkend: boolean) -> Color {
+        if (on && sel) return 0xD3D3D3
+        if (on && !mine) return 0x768A97
+        if (on && wkend) return 0x879BA8
+        return 0x9BA9B1
+        },
+
+    // this day's events, earliest first
+
+    dayEvents: Dataset [ contents = { { list: app.events.on(classroot.key) } } ],
+
+    // the width a selected event's bar takes in this day
+
+    eventWidth: number = { box.width - (opened ? 38 : 0) }
+    ]
+
+
+/*
+## The selected day's frame
+
+A bevelled frame laid over the selected day, following it as it moves: its date
+at the top left, and at the top right a button that opens the day (+) or, open,
+closes it (−).
+*/
+
+class DayLook [
+    cell: DayCell? = { app.activeDay },
+    x = { cell != null ? cell.x + app.grid.x : 0 },
+    y = { cell != null ? cell.y + app.grid.y : 0 },
+    width = { cell != null ? cell.width : 150 },
+    height = { cell != null ? cell.height : 23 },
+    opened: boolean = { cell != null && cell.opened },
+
+    topLeft: Image [ x = -1, y = -1, source = "resources/ol/images/day-grab-bar/top_lft2.png" ],
+    topMiddle: Image [ x = 5, width = { parent.width - 22 }, fit = both, source = "resources/ol/images/day-grab-bar/top_mdl2.png" ],
+    toggle: Control [ x = { 5 + parent.width - 22 - 1 }, y = -1, width = 19, height = 21,
+        accessibilityLabel = { classroot.opened ? "Close the day" : "Open the day" },
+        press() { if (classroot.opened) app.closeDay(); else if (classroot.cell != null) app.openDay(classroot.cell.key) },
+        Image [ source = { "resources/ol/images/day-grab-bar/top_rt_slct_" + (classroot.opened ? "-" : "+") + "_"
+            + (parent.pressed ? "dn" : parent.hovered ? "mo" : "up") + ".png" } ]
+        ],
+    day: Label [ x = 3, y = 2, width = 60, textColor = #DAE3E8,
+        text = { classroot.cell != null ? "" + classroot.cell.date.getDate() : "0" } ],
+
+    leftSide: Image [ x = -2, y = 19, height = { parent.height - 26 }, fit = both, source = "resources/ol/images/day-grab-bar/lft_mid_slct.png" ],
+    rightSide: Image [ x = { parent.width - 5 }, y = 19, height = { parent.height - 26 }, fit = both,
+        source = "resources/ol/images/day-grab-bar/rt_mid_slct.png" ],
+    bottomLeft: Image [ y = { parent.height - 7 }, source = "resources/ol/images/day-grab-bar/bot_lft_slct.png" ],
+    bottomMiddle: Image [ x = 6, y = { parent.height - 7 }, width = { parent.width - 12 }, fit = both,
+        source = "resources/ol/images/day-grab-bar/bot_mid_slct.png" ],
+    bottomRight: Image [ x = { parent.width - 6 }, y = { parent.height - 7 }, source = "resources/ol/images/day-grab-bar/bot_rt_slct.png" ]
+    ]
+
+
+/*
+## The selected event's bar
+
+A white bar laid over the selected event, its hour and title, with a gripper
+along its top and a foot along its bottom, both tinted for the event's kind, and
+the info button hanging off its left end. It follows its event; while the event
+is dragged it follows the pointer instead.
+*/
+
+class EventBar [
+    line: EventLine? = { app.selectedLine },
+    cell: DayCell? = { app.selectedCell },
+    art: string = { line == null || line.category == "" ? "none" : line.category },
+    visible = { line != null && cell != null && cell.visible },
+    x = { app.drag.moving ? app.drag.barX
+        : line != null && cell != null ? app.grid.x + cell.x + cell.box.x + line.x : 0 },
+
+    // where it stands in the window; its band may start lower
+
+    top: number = { app.drag.moving ? app.drag.barY
+        : line != null && cell != null ? app.grid.y + cell.y + cell.box.y + line.y - cell.box.scrollY : 0 },
+    y = { top - parent.y },
+
+    // as wide as its day's events, or, floating free in a drag, the day it is over
+
+    width = { app.drag.moving && !app.drag.snapped && app.drag.over != null ? app.drag.over.eventWidth
+            : cell != null ? cell.eventWidth : 0 },
+    height = { line != null ? line.height : 22 },
+    fill = #FFFFFF,
+
+    hour: Label [ x = 2, y = 5, textColor = #4B5D6C,
+        text = { app.drag.moving && app.drag.snapped ? hourLabel(app.drag.hour)
+               : classroot.line != null ? hourLabel(Math.floor(classroot.line.start / 60)) : "" } ],
+    wordsClip: View [ width = { parent.width }, height = { parent.height }, clip = true,
+        Label [ x = { roomOf(classroot.hour.text) + 5 }, y = 5, textColor = #4B5D6C,
+            text = { classroot.line != null ? classroot.line.title : "" } ]
+        ],
+    gripTop: View [ x = -2, width = { parent.width + 2 }, height = 7, clip = true,
+        Image [ source = { "resources/ol/tinted/" + classroot.art + "/gripper.png" } ]
+        ],
+    gripFoot: Image [ y = { parent.height - 3 }, width = { parent.width }, height = 7, fit = both,
+        source = { "resources/ol/tinted/" + classroot.art + "/selector_btm3.png" } ],
+    info: Control [ x = -21, y = -1, width = 21, height = 24, accessibilityLabel = "Event info",
+        press() { app.openInfo() },
+        ground: Image [ source = { "resources/ol/tinted/" + classroot.art + "/event_infobtn_"
+            + (parent.pressed ? "dn" : parent.hovered ? "mo" : "up") + ".png" } ],
+        mark: Image [ source = "resources/ol/images/buttons/event_infobtn_icon.png" ]
+        ]
+    ]
+
+
+// A drag of the selected event: where the pointer took the bar; the day under the
+// pointer, which lights up while the bar is over it; and, over the event's own
+// open day near its column, the quarter hour the bar is on. A drop moves the event
+// to that time, or to the lit day; off the grid, it is let go where it was.
+
+class Drag extends Node [
+    line: EventLine? = null,
+    over: DayCell? = null,
+    moving: boolean = false,
+    grabX: number = 0,
+    grabY: number = 0,
+    startX: number = 0,
+    barX: number = 0,
+    barY: number = 0,
+    snapped: boolean = false,
+    hour: number = 0,
+    minute: number = 0,
+
+    begin(l: EventLine, e: PointerEvent) {
+        line = l
+        const o = l.rootOrigin()
+        startX = o.x
+        grabX = e.rootX - o.x; grabY = e.rootY - o.y
+        },
+    follow(e: PointerEvent) {
+        if (line == null) return
+        moving = true
+        snapped = false
+        over = app.dayUnder(e.rootX, e.rootY)
+        const cell = app.selectedCell
+        if (cell != null && cell.opened && Math.abs(e.rootX - grabX - startX) < 30) {
+            const boxY = app.grid.y + cell.y + cell.box.y
+            const top = e.rootY - grabY
+            const lowest = boxY + cell.box.height - app.band.bar.height
+            if (top > boxY - 30 && top < lowest + 30) {
+                snapped = true
+                barX = startX
+                barY = Math.max(boxY, Math.min(lowest, top))
+                // the quarter hour nearest where the bar stands: an event is drawn
+                // 11 down from its hour's line, 22 to the hour
+                const quarters = Math.max(0, Math.min(95, Math.round((barY - boxY + cell.box.scrollY - 11) / 22 * 4)))
+                hour = Math.floor(quarters / 4)
+                minute = (quarters % 4) * 15
+                return
+                }
+            }
+        barX = e.rootX - grabX
+        barY = e.rootY - grabY
+        },
+    drop(canceled: boolean) {
+        if (moving && !canceled && line != null) {
+            if (snapped) app.events.setStart(line.eventId, hour * 60 + minute)
+            else if (over != null && over.key != app.keyOfEvent(line.eventId)) app.moveSelectedTo(over.date)
+            }
+        moving = false
+        snapped = false
+        over = null
+        line = null
+        }
+    ]
+
+
+/*
+## The info panel
+
+The selected event's details in a framed panel: its title, its day and times,
+each with arrows that step it, and three sections, Notes, Location and
+Attendees, one open at a time. Apply keeps what was typed; Delete removes the
+event. A new event closed without Apply is removed.
+*/
+
+// A value shown in a box, its top and left edges dark and its bottom and right
+// edges white, as if pressed into the panel.
+
+class InfoValue [ height = 14,
+    text: string = "",
+    edge: View [ width = { parent.width }, height = 1, fill = #333333 ],
+    side: View [ y = 1, width = 1, height = { parent.height - 1 }, fill = #333333 ],
+    under: View [ y = { parent.height }, width = { parent.width }, height = 1, fill = #FFFFFF ],
+    after: View [ x = { parent.width }, y = { parent.height }, width = 1, height = 1, fill = #FFFFFF ],
+    value: Label [ x = 2, width = { parent.width - 4 }, textColor = #000000, text = { classroot.text } ]
+    ]
+
+
+// A field of the panel: white, with a dark top and left edge. What is typed is
+// kept when the field is left.
+
+class InfoField extends TextInput [ fill = #FFFFFF, cornerRadius = 0, padding = [0, 3, 2, 1],
+    textColor = #000000,
+    stroke = [Stroke(1, #000000), null, null, Stroke(1, #000000)],
+    commitOn = "end"
+    ]
+
+
+// One of the panel's arrows, stepping something back or on.
+
+class StepArrow extends ArtButton [ width = 14,
+    back: boolean = true,
+    upArt = { "resources/ol/images/infopanel/" + (back ? "larrow" : "rarrow") + ".png" },
+    overArt = { "resources/ol/images/infopanel/" + (back ? "larrow" : "rarrow") + "_bright.png" },
+    downArt = { "resources/ol/images/infopanel/" + (back ? "larrow" : "rarrow") + "_dim.png" }
+    ]
+
+
+// A section of the panel: a 21px bar with its name, and under it, while open, a
+// field. Opening one closes the open one, over 200ms.
+
+class InfoSection [ width = 100%, clip = true, fill = #EEF0EB,
+    label: string = "",
+    field: string = "notes",
+    open: boolean = { app.infoSection == field },
+    extent: number = { open ? 323 : 21 },
+    opening: Animator [ attribute = extent, to = 323, duration = 200, easing = laszloBoth, started = { classroot.open } ],
+    closing: Animator [ attribute = extent, to = 21, duration = 200, easing = laszloBoth, started = { !classroot.open } ],
+    height = { extent },
+    accessibilityRole = group, accessibilityLabel = { label },
+
+    bar: Control [ width = { parent.width }, height = 21, fill = { classroot.open ? 0xE2E4DF : 0xEEF0EB },
+        accessibilityLabel = { classroot.label }, accessibilityExpanded = { classroot.open },
+        press() { app.infoSection = classroot.field },
+        lightLine: View [ width = { parent.width }, height = 1, fill = { classroot.open ? 0xB8B9B5 : 0xFDFFFF } ],
+        darkLine: View [ y = 20, width = { parent.width }, height = 1, fill = { classroot.open ? 0xFDFFFF : 0xC6C7C4 } ],
+        name: Label [ x = 5, y = 1, width = 150, textColor = #898B86, text = { classroot.label } ],
+        mark: Image [ x = { parent.width - 15 }, y = 10, source = "resources/ol/images/infopanel/tabarrow.png" ]
+        ],
+    entry: InfoField [ x = 10, y = 31, width = 175, height = 280, multiline = true, visible = { classroot.height > 21 },
+        accessibilityLabel = { classroot.label },
+        value = { app.textOf(classroot.field) },
+        commit(v: string) { app.keepText(classroot.field, v) }
+        ]
+    ]
+
+
+class InfoPanel [ width = 203, height = 516, clip = true,
+    topLeft: Image [ x = -1, y = -1, source = "resources/ol/images/day-grab-bar/top_lft2.png" ],
+    topMiddle: Image [ x = 5, width = { parent.width - 22 }, fit = both, source = "resources/ol/images/day-grab-bar/top_mdl2.png" ],
+    closeBtn: ArtButton [ x = { 5 + parent.width - 22 - 1 }, y = -1, accessibilityLabel = "Close",
+        upArt = "resources/ol/images/day-grab-bar/top_rt_infoclose_up.png",
+        overArt = "resources/ol/images/day-grab-bar/top_rt_infoclose_mo.png",
+        downArt = "resources/ol/images/day-grab-bar/top_rt_infoclose_dn.png",
+        press() { app.closeInfo() }
+        ],
+    leftRail: Image [ x = -2, y = 19, height = { parent.height - 26 }, fit = both, source = "resources/ol/images/day-grab-bar/lft_mid_slct.png" ],
+    rightRail: Image [ x = { parent.width - 7 }, y = 19, height = { parent.height - 26 }, fit = both,
+        source = "resources/ol/images/day-grab-bar/rt_mid_slct.png" ],
+    footLeft: Image [ y = { parent.height - 7 }, source = "resources/ol/images/day-grab-bar/bot_lft_slct.png" ],
+    footMiddle: Image [ x = 6, y = { parent.height - 7 }, width = { parent.width - 12 }, fit = both,
+        source = "resources/ol/images/day-grab-bar/bot_mid_slct.png" ],
+    footRight: Image [ x = { parent.width - 6 }, y = { parent.height - 7 }, source = "resources/ol/images/day-grab-bar/bot_rt_slct.png" ],
+    heading: Label [ x = 5, y = 1, width = { parent.width - 30 }, textColor = #DAE3E8, text = "Event Info", accessibilityRole = heading ],
+
+    contents: View [ x = 3, y = 19, width = { parent.width - 6 }, height = { parent.height - 27 }, fill = #9BA9B1,
+        textColor = #000000,
+
+        summary: View [ width = 198, height = 83, fill = #EEF0EB,
+            content: View [ x = 10, y = 10, width = 178,
+                layout: SimpleLayout [ axis = y, spacing = 5 ],
+                title: InfoField [ width = 178, height = 20, accessibilityLabel = "Title",
+                    value = { app.textOf("title") },
+                    commit(v: string) { app.keepText("title", v) }
                     ],
-                events: View [ x = 28, width = { parent.width - 38 },
-                    TimeEvent [ datapath = :laned[], category = :ev.category,
-                        dayKey = { classroot.dayKey }, selected = { app.selectedEvent == this.evId } ]
-                    ]
+                day: View [ height = 16,
+                    InfoValue [ y = 1, width = 150, text = { app.selectedInfo != null ? app.longDate(app.selectedInfo) : "" } ],
+                    StepArrow [ x = 149, back = true, accessibilityLabel = "A day earlier",
+                        press() { app.stepDay(-1) }
+                        ],
+                    StepArrow [ x = 163, back = false, accessibilityLabel = "A day later",
+                        press() { app.stepDay(1) }
+                        ]
+                    ],
+                times: View [ height = 16,
+                    InfoValue [ y = 1, width = 45, text = { app.selectedInfo != null ? longTime(app.selectedInfo.start) : "" } ],
+                    StepArrow [ x = 49, back = true, accessibilityLabel = "Start earlier",
+                        press() { app.stepStart(-1) }
+                        ],
+                    StepArrow [ x = 63, back = false, accessibilityLabel = "Start later",
+                        press() { app.stepStart(1) }
+                        ],
+                    Label [ x = 81, width = 20, text = "to" ],
+                    InfoValue [ x = 100, y = 1, width = 45, text = { app.selectedInfo != null ? longTime(app.selectedInfo.end) : "" } ],
+                    StepArrow [ x = 149, back = true, accessibilityLabel = "End earlier",
+                        press() { app.stepEnd(-1) }
+                        ],
+                    StepArrow [ x = 163, back = false, accessibilityLabel = "End later",
+                        press() { app.stepEnd(1) }
+                        ]
+                    ],
+                rule: View [ x = 5, width = { parent.width - 10 }, height = 1, fill = #EEF0EB ]
+                ]
+            ],
+
+        gutterTop: View [ y = 83, width = { parent.width - 7 }, height = 4, fill = #EEF0EB,
+            View [ width = { parent.width }, height = 1, fill = #B8B9B5 ],
+            View [ y = 3, width = { parent.width }, height = 1, fill = #FDFFFF ]
+            ],
+
+        sections: View [ y = 87, width = 100%, height = 365,
+            layout: SimpleLayout [ axis = y ],
+            InfoSection [ label = "Notes", field = "notes" ],
+            InfoSection [ label = "Location", field = "location" ],
+            InfoSection [ label = "Attendees", field = "attendees" ]
+            ],
+
+        gutterFoot: View [ y = 452, width = { parent.width - 7 }, height = 3, fill = #EEF0EB,
+            View [ width = { parent.width }, height = 1, fill = #B8B9B5 ],
+            View [ y = 3, width = { parent.width }, height = 1, fill = #FDFFFF ],
+            apply: CalButton [ x = 15, y = 13, label = "Apply",
+                press() { app.applied = true }
                 ],
-
-            // Vertical scrollbar (drawn — the original's vscrollbar was a
-            // 238-line bitmap widget): a track down the right edge with a thumb
-            // sized by viewport/content and placed by the current scroll.
-
-            bar: View [ x = { parent.width - 10 }, width = 10, height = 100%,
-                visible = { 611 > parent.height },
-                draw(d: DrawContext) {
-                    d.fillStyle = 0x46606F
-                    d.fillRect(0, 0, width, height)
-                    const th = Math.max(20, height * height / 611)
-                    const maxS = Math.max(1, 611 - height)
-                    const ty = (0 - (parent.tl?.y ?? 0)) / maxS * (height - th)
-                    d.fillStyle = 0x9BAAB3
-                    d.fillRect(1, ty, width - 2, th)
-                    }
+            remove: CalButton [ x = { parent.width - this.width - 15 }, y = 13, label = "Delete",
+                press() { app.deleteSelected() }
                 ]
             ]
         ]
     ]
 
 
-// DayName — a weekday column title, tracking its column's live geometry:
-// replicated over the `names` records relayout maintains (x/width per column,
-// per mode) — the original constrained each label to its top-row cell for the
-// same effect. Day mode shows only the open day's label (SPEC §12-D).
+// One day name over its column, centered on the column's top cell as it moves;
+// in the day view, only the open day's.
 
-class DayName [
-    t: Text [ fontSize = 10, fontWeight = bold, textColor = #B7BEC1,
-        x = center, text = :label ]
-    ]
-
-
-/*
-## CalendarGrid
-
-The grid layout (SPEC §2), a custom layout written in Declare. It extends
-TweenLayout: the layout owns every cell's x/y/width/height/visible and glides
-them between two whole layouts through one scalar `t` (the original's
-gridsliderlayout idiom, rebuilt declaratively); the reveal-at-end rule is a
-function of `t` inside the layout, not a per-cell timer. `place()` is the
-pure geometry — cell box = fn(mode, focus col/row, rows, W, H) with the SPEC
-§2 open-redistribution; the App sets mode/focus and calls retarget(animate)
-(snap vs slide) on a geometry-affecting change. duration inherits
-TweenLayout's 500ms (SPEC §11).
-*/
-
-class CalendarGrid extends TweenLayout [
-    mode: string = "month",
-    focusCol: number = -1,          // open/selected column (-1 = none)
-    focusRow: number = -1,          // open/selected row    (-1 = none)
-    rows: number = 5,
-    openW: number = 150,            // SPEC §2: open cell +150w / +170h, redistributed
-    openH: number = 170,
-
-    // per-column widths / per-row heights, then prefix-summed to origins
-
-    geom() {
-        const W = this.view.width, H = this.view.height, rows = this.rows, sp = 4
-        const cw = Math.floor((W - sp * 6) / 7)
-        const ch = Math.floor((H - sp * (rows - 1)) / rows)
-        const colW = [], rowH = []
-        for (let c = 0; c < 7; c++)
-            colW.push(this.mode == "day" ? (c == this.focusCol ? W - sp : 0)
-                    : this.focusCol < 0  ? cw
-                    :                      c == this.focusCol ? cw + this.openW : cw - Math.floor(this.openW / 6))
-        for (let r = 0; r < rows; r++)
-            rowH.push(this.mode != "month" ? (r == this.focusRow ? H : 0)
-                    : this.focusRow < 0    ? ch
-                    :                        r == this.focusRow ? ch + this.openH : ch - Math.floor(this.openH / (rows - 1)))
-        const colX = [0], rowY = [0]
-        for (let c = 1; c < 7; c++) colX.push(colX[c - 1] + colW[c - 1] + (colW[c - 1] > 0 ? sp : 0))
-        for (let r = 1; r < rows; r++) rowY.push(rowY[r - 1] + rowH[r - 1] + (rowH[r - 1] > 0 ? sp : 0))
-        return { colX: colX, colW: colW, rowY: rowY, rowH: rowH }
-        },
-
-    // one box per laid cell (SPEC §2). Same laid() order the base places them in.
-
-    place() {
-        const g = this.geom(), rows = this.rows
-        return this.laid().map((c, i) => {
-            const col = i % 7, row = Math.floor(i / 7)
-            const w = g.colW[col], h = row < rows ? g.rowH[row] : 0
-            return { x: g.colX[col], y: row < rows ? g.rowY[row] : 0, w: w, h: h, vis: w > 0 && h > 0 }
-            })
-        },
-
-    // the seven day-name column boxes (day mode shows only the focus column)
-
-    colBoxes() {
-        const g = this.geom()
-        const names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-        const out = []
-        for (let c = 0; c < 7; c++)
-            out.push({ label: names[c], x: g.colX[c], w: g.colW[c],
-                       vis: this.mode == "day" ? c == this.focusCol : true })
-        return out
-        }
-    ]
-
-
-// CalButton — the pill button, drawn (SPEC §13: kills the button slices):
-// gradient face, rounded caps, white bold label; pressed = darker face.
-
-class CalButton extends Control [
-    label: string = "",
-    height = 17,
-    cornerRadius = 8,
-
-    fill = { pressed
-        ? Gradient.linear(Gradient.stop(0, 0x8FA0A6), Gradient.stop(0.35, 0x7D8E96), Gradient.stop(1, 0x4E626E))
-        : Gradient.linear(Gradient.stop(0, 0xD9DFDF), Gradient.stop(0.35, 0xB4BDBF), Gradient.stop(1, 0x5C717D)) },
-    stroke = Stroke(1, #143B45),
-
-    caption: Text [ fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
-        x = center, y = 3,
-        textShadow = Shadow(0, -1, 0, #33555577),
-        text = { label } ]
-
+class DayName extends Image [
+    col: number = 0,
+    cell: DayCell? = { app.grid.childViews.length > col ? app.grid.childViews[col] as DayCell : null },
+    x = { cell != null ? cell.x + (cell.width - 63) / 2 : 0 },
+    visible = { app.view != "day" || col == (app.openIndex >= 0 ? app.openIndex : app.selectedIndex) % 7 }
     ]
 
 
 /*
 ## The app
-
-A fixed 835×600 window: the top panel (menubar + daynames), the day grid, the
-slide-in info panel, and the drag ghost, over one store.
 */
 
+schema Box [ x: number, y: number, w: number, h: number, vis: boolean ]
+
 App [ width = 835, height = 600, fill = #1E3A49,
-    fontFamily = ["Verdana", "Geneva", "sans-serif"], fontSize = 10, fontWeight = normal, textColor = #FFFFFF,
+    fontFamily = ["Verdana", "Vera", "sans-serif"], fontSize = 11, textColor = #FFFFFF,
 
-    /* ## The store (SPEC §9)
-       All months' events in one fetch (the original lazy-loaded per-month
-       XML; the corpus is tiny and edits are in-memory by scope). `data` is
-       the truth, and every edit is a write to it. `cal` is the displayed
-       month, derived: one record per visible day, holding that day's events
-       in start order. `names` is the seven column boxes relayout maintains
-       for the day-name labels; `hours` the open timeline's gutter. */
+    events: Events [ ],
+    clock: Time [ tick = day ],
 
-    data: DataSource [ url = "data/events.json",
-        onLoad() {
-            const now = new Date()
-            app.setMonth(now.getFullYear(), now.getMonth() + 1)
-            app.top.slideDown.start()
-            app.grid.fadeIn.start()
-            }
-        ],
-    cal: Dataset [ contents = { app.buildMonth() } ],
-    names: Dataset { { "cols": [] } },
-    hours: Dataset [ contents = { { hours: app.buildHours() } } ],
+    // ── where the person is ────────────────────────────────────────────────
 
-    year: number = 0,
-    month: number = 0,                    // 1-based, like the data
-    rows: number = { app.month == 0 ? 5 : Math.ceil((new Date(app.year, app.month - 1, 1).getDay() + new Date(app.year, app.month, 0).getDate()) / 7) },
+    // the calendar comes up once the toolbar has slid in, its selection frame a
+    // second after
+
+    started: boolean = false,
+    framed: boolean = false,
+
+    year: number = { new Date(app.clock.now).getFullYear() },
+    month: number = { new Date(app.clock.now).getMonth() },
+    view: string = "month",
     selectedKey: string = "",
-    selectedEvent: number = -1,           // the selected event's id, or -1
-    panelOpen: boolean = false,           // the info panel is showing (SPEC §7)
-    newEvent: boolean = false,            // panel opened on a just-added event…
-    applied: boolean = false,             // …and whether it has been Apply'd
-    openTab: number = 0,                  // accordion: 0 Notes / 1 Location / 2 Attendees
-    dragId: number = -1,                  // event being dragged, or -1 (SPEC §6)
-    dragArmed: boolean = false,           // moved since press → a drag, not a click
-    dragOverKey: string = "",             // day cell under the pointer (hilite)
-    dragX: number = 0,                    // last pointer position, app-relative
-    dragY: number = 0,
-    dragTitle: string = "",               // the dragged event's title and category —
-    dragCat: string = "",                 // the ghost dresses itself from these
-
-    // the view-mode state machine (SPEC §2): month | week | day, plus the
-    // orthogonal open day (in-place expanded in month, widened column in week)
-
-    mode: string = "month",
     openKey: string = "",
+    selectedEvent: number = -1,
+    infoOpen: boolean = false,
+    infoUsed: boolean = false,
+    infoSection: string = "notes",
+    applied: boolean = true,
 
-    monthName(m: number) -> string {
-        return ["January","February","March","April","May","June","July",
-                "August","September","October","November","December"][m - 1]
-        },
+    // ── the month ─────────────────────────────────────────────────────────
 
-    shortTime(min: number) -> string {
-        const h = Math.floor(min / 60)
-        return (h == 0 ? 12 : h > 12 ? h - 12 : h) + (h > 11 ? "p" : "a")
-        },
+    // the Sunday on or before the 1st, and five rows or six
 
-    keyOf(dt: object) -> string {
-        return dt.getFullYear() + "-" + (dt.getMonth() + 1) + "-" + dt.getDate()
-        },
-
-    parseKey(key: string) -> object {
-        const p = key.split("-").map(Number)
-        return new Date(p[0], p[1] - 1, p[2])
-        },
-
-    // The displayed month: 35 or 42 day records starting the Sunday of the
-    // week containing the 1st (SPEC §2). Each day holds its events, sorted by
-    // start — the data's own records, so a row reads what an edit wrote — and
-    // `laned`, the same events wrapped with their lanes for the timeline.
-
-    buildMonth() -> object {
-        const y = this.year, m = this.month
-        if (m == 0) return { days: [] }
-        const first = new Date(y, m - 1, 1)
-        const start = new Date(y, m - 1, 1 - first.getDay())
-        const all = app.data.value != null ? app.data.value.events : []
-        const days = []
-        for (let i = 0; i < this.rows * 7; i++) {
-            const dt = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
-            const events = all
-                .filter(e => e.y == dt.getFullYear() && e.m == dt.getMonth() + 1 && e.d == dt.getDate())
-                .sort((a, b) => a.start - b.start || b.id - a.id)
-            days.push({
-                key: this.keyOf(dt),
-                num: dt.getDate(),
-                col: i % 7,
-                row: Math.floor(i / 7),
-                inMonth: dt.getMonth() == m - 1,
-                weekend: dt.getDay() == 0 || dt.getDay() == 6,
-                events: events,
-                laned: app.lanesOf(events),
-                firstStart: events.length > 0 ? events[0].start : 450,
-                })
-            }
-        return { days: days }
-        },
-
-    // Show a month. Selection: an explicit key (mode-aware nav), else today
-    // when visible, else the 1st (§12-A).
-
-    setMonth(y: number, m: number, selKey: string?) {
-        this.year = y
-        this.month = m
-        if (selKey != null) this.selectedKey = selKey
-        else {
-            const now = new Date()
-            this.selectedKey = (now.getFullYear() == y && now.getMonth() == m - 1)
-                ? this.keyOf(now) : y + "-" + m + "-1"
-            }
-        this.relayout(false)              // cells that already exist re-place now;
-        },                                // fresh ones place on arrival (the layout re-arms)
-
-    /* ## The mode machine
-       Original semantics kept: opening in month snaps (gridslider disables
-       animation in grid mode); widening in week and every mode switch slide. */
-
-    openDay(key: string) {
-        this.selectedKey = key
-        if (this.mode == "day") return
-        // Month: open in place (timeline). Week: a plain click only selects and
-        // keeps the column a list — the `+` chrome is what opens it (SPEC §6).
-        if (this.mode == "month") this.openKey = key
-        this.relayout(this.mode == "week")
-        },
-
-    showMonth() {
-        const animate = this.mode != "month"
-        this.mode = "month"
-        this.openKey = ""
-        this.relayout(animate)
-        },
-
-    // The `−` button: day view → back to month; an open month/week cell → close
-    // it in place (SPEC §6).
-
-    closeDay() {
-        if (this.mode == "day") this.showMonth()
-        else { this.openKey = ""; this.relayout(this.mode == "week") }
-        },
-
-    showWeek() {
-        const animate = this.mode != "week"
-        this.mode = "week"
-        this.openKey = ""                 // entering week closes the open day
-        this.relayout(animate)            // (the original's showrow)
-        },
-
-    showDay() {
-        this.mode = "day"
-        this.openKey = this.selectedKey
-        this.relayout(true)
-        },
-
-    // Mode-aware navigation (SPEC §12-B): month steps a month, week a week,
-    // day a day; the mode is preserved. Navigation snaps (§11).
-
-    step(dir: number) {
-        if (this.mode == "month") {
-            const wrap = this.month == (dir > 0 ? 12 : 1)
-            this.setMonth(wrap ? this.year + dir : this.year,
-                          wrap ? (dir > 0 ? 1 : 12) : this.month + dir)
-            return
-            }
-        const d = this.parseKey(this.selectedKey)
-        d.setDate(d.getDate() + dir * (this.mode == "week" ? 7 : 1))
-        this.goTo(d)
-        },
-
-    // Select a date, showing its month if it is another one; in day view the
-    // open day follows.
-
-    goTo(d: object) {
-        const key = this.keyOf(d)
-        if (this.mode == "day") this.openKey = key
-        if (d.getFullYear() != this.year || d.getMonth() + 1 != this.month) {
-            this.setMonth(d.getFullYear(), d.getMonth() + 1, key)
-            }
-        else {
-            this.selectedKey = key
-            this.relayout(false)
-            }
-        },
-
-    /* ## The grid-layout bridge (SPEC §2)
-       Geometry lives in the grid's CalendarGrid layout; `relayout` pushes
-       the App's mode + focus col/row (known from the selection / open day)
-       onto the layout, retargets it (animate = slide, else snap), and
-       refreshes the day-name columns from the layout's own geometry. Cell
-       arrival is handled by the layout itself, which re-arms when its
-       children change. */
-
-    relayout(animate: boolean) {
-        const L = this.grid.layout
-        if (L == null) return
-        L.rows = this.rows
-        L.mode = this.mode
-        let fCol = -1, fRow = -1
-        if (this.mode == "month") {
-            if (this.openKey != "") { const p = this.cellPos(this.openKey); fCol = p.col; fRow = p.row }
-            }
-        else {
-            const p = this.cellPos(this.selectedKey); fRow = p.row
-            if (this.mode == "day") fCol = p.col
-            }
-        L.focusCol = fCol
-        L.focusRow = fRow
-        L.retarget(animate)
-        this.names.set(["cols"], L.colBoxes())
-        },
-
-    // a day key's grid position (col/row) in the displayed month, or -1/-1 —
-    // counted in days from the grid's first Sunday
-
-    cellPos(key: string) -> object {
-        if (key == "" || this.month == 0) return { col: -1, row: -1 }
-        const first = new Date(this.year, this.month - 1, 1)
-        const start = new Date(this.year, this.month - 1, 1 - first.getDay())
-        const i = Math.round((this.parseKey(key).getTime() - start.getTime()) / 86400000)
-        if (i < 0 || i >= this.rows * 7) return { col: -1, row: -1 }
-        return { col: i % 7, row: Math.floor(i / 7) }
-        },
-
-    // A cell is "open" (hour timeline, not the list) iff it is the open day —
-    // set when a month cell opens in place, when `+` opens a week column, or on
-    // entering day view. Other week/month cells stay closed lists (SPEC §3).
-
-    isOpen(key: string) -> boolean {
-        return key != "" && key == this.openKey
-        },
-
-    // Click an event → select its day and the event; does not open the day
-    // (SPEC §6). The DayCell/event `selected` constraints react to the two keys.
-
-    selectEvent(id: number, key: string) {
-        this.selectedKey = key
-        this.selectedEvent = id
-        if (this.panelOpen) this.startDraft()   // retarget the open panel (§5)
-        },
-
-    /* ## Event drag (SPEC §6)
-       A press arms nothing; the first move makes it a drag (so a plain click
-       never moves the bar). The day cell under the pointer hilites; dropping
-       on a day moves the event there (same time), selecting that day. A drag
-       swallows the click that the router pairs with the release. */
-
-    catFill(cat: string) -> Color {
-        return cat == "holiday" ? 0xCBD1C5 : cat == "astro" ? 0xC5C3D5
-             : cat == "milestone" ? 0xBBC6D1 : 0xC6CEDC
-        },
-    startDrag(id: number) {
-        this.dragId = id
-        this.dragArmed = false
-        const e = this.srcEvent(id)          // what the ghost that follows the pointer shows
-        this.dragTitle = e != null ? e.title : ""
-        this.dragCat = e != null ? e.category : ""
-        },
-    dragMove(rx: number, ry: number) {
-        if (this.dragId < 0) return
-        this.dragArmed = true
-        this.dragX = rx
-        this.dragY = ry
-        this.dragOverKey = this.dayAtPoint(rx, ry)
-        },
-    endDrag(canceled: boolean) {
-        if (this.dragId < 0) return
-        if (this.dragArmed && !canceled) {
-            const key = this.dayAtPoint(this.dragX, this.dragY)
-            if (key != "") this.dropEvent(this.dragId, key)
-            }
-        this.dragId = -1
-        this.dragArmed = false
-        this.dragOverKey = ""
-        },
-
-    // the press ended without becoming a drag (a click): nothing to drop
-
-    releaseDrag() { if (!this.dragArmed) { this.dragId = -1; this.dragOverKey = "" } },
-    dropEvent(id: number, key: string) {
-        const e = this.srcEvent(id)
-        if (e == null) return
-        const d = this.parseKey(key)
-        this.setDate(id, d)
-        // Dropping on an open day sets the time from the drop-y (15-min snap,
-        // duration preserved, end ≤ 23:45 — SPEC §6 time-drag).
-        if (this.isOpen(key)) {
-            const t = this.timeAtPoint(key, this.dragY)
-            if (t >= 0) this.setStart(id, t)
-            }
-        this.selectedKey = key
-        this.selectedEvent = id
-        this.relayout(false)
-        },
-
-    // The 15-min-snapped minute-of-day at an app-relative y inside an open day's
-    // timeline (accounts for the cell box and its scroll), or -1.
-
-    timeAtPoint(key: string, ry: number) -> number {
-        for (const c of this.grid.children) {
-            if (c.dayKey == key && c.body != null && c.body.tl != null) {
-                const contentY = (ry - 57 - c.y - 19) - c.body.tl.y
-                return Math.round(((contentY - 11) / 22 * 60) / 15) * 15
-                }
-            }
+    firstShown: Date = { new Date(app.year, app.month, 1 - new Date(app.year, app.month, 1).getDay()) },
+    rows: number = { new Date(app.year, app.month, 1).getDay() + new Date(app.year, app.month + 1, 0).getDate() > 35 ? 6 : 5 },
+    dateAt(i: number) -> Date { return new Date(firstShown.getFullYear(), firstShown.getMonth(), firstShown.getDate() + i) },
+    indexOfKey(key: string) -> number {
+        for (let i = 0; i < rows * 7; i++) if (keyOf(dateAt(i)) == key) return i
         return -1
         },
+    keyOfEvent(id: number) -> string { const e = app.events.find(id); return e != null ? e.y + "-" + e.m + "-" + e.d : "" },
 
-    // The day key whose (live) cell box contains an app-relative point, or "".
+    selectedIndex: number = { app.indexOfKey(app.selectedKey) },
+    openIndex: number = { app.indexOfKey(app.openKey) },
 
-    dayAtPoint(rx: number, ry: number) -> string {
-        const gx = rx - 20, gy = ry - 57              // grid sits at (20, 57)
-        for (const c of this.grid.children) {
-            if (c.dayKey != null && c.visible
-                && gx >= c.x && gx < c.x + c.width
-                && gy >= c.y && gy < c.y + c.height) return c.dayKey
+    activeDay: DayCell? = null,
+    selectedCell: DayCell? = { app.activeDay != null && app.activeDay.key == app.keyOfEvent(app.selectedEvent) ? app.activeDay : null },
+    selectedLine: EventLine? = { app.lineOf(app.selectedCell, app.selectedEvent) },
+    lineOf(cell: DayCell?, id: number) -> EventLine? {
+        if (cell == null) return null
+        for (const l of cell.box.events.childViews) if ((l as EventLine).eventId == id) return l as EventLine
+        return null
+        },
+
+    // the day under a point of the window, the gap after a day counting as that
+    // day, as the original counts it; none off the grid. It is measured from the
+    // cells' places rather than asked of viewAt, which would answer the gap's
+    // background, or the dragged bar under the pointer
+
+    dayUnder(rx: number, ry: number) -> DayCell? {
+        const gx = rx - grid.x, gy = ry - grid.y
+        if (gx < 0 || gx > grid.width || gy < 0 || gy > grid.height) return null
+        for (const c of grid.childViews) {
+            const cell = c as DayCell
+            if (cell.visible && gx >= cell.x && gx < cell.x + cell.width + 4 && gy >= cell.y && gy < cell.y + cell.height + 4) return cell
             }
-        return ""
+        return null
         },
 
-    // The ⓘ button / double-click opens the info panel on an event (SPEC §7).
-
-    showInfo(id: number) {
-        this.selectedEvent = id
-        this.newEvent = false
-        this.openPanel()
+    selectedInfo: CalEvent? = { app.events.find(app.selectedEvent) },
+    longDate(e: CalEvent) -> string { return monthName(e.m - 1) + " " + e.d + ", " + e.y },
+    textOf(field: string) -> string {
+        const e = selectedInfo
+        if (e == null) return ""
+        return field == "title" ? e.title : field == "notes" ? e.notes ?? "" : field == "location" ? e.location ?? "" : e.attendees ?? ""
         },
 
-    // Open: grid contracts (snap −208), panel slides x852→622 + fades (500ms).
+    // ── the grid's arrangement ────────────────────────────────────────────
 
-    openPanel() {
-        this.panelOpen = true
-        this.grid.width = 600
-        this.relayout(false)
-        this.infoPanel.slideIn.start()
-        this.startDraft()
+    gridWidth: number = 808,
+    gridHeight: number = 516,
+
+    // where cell i goes, for the facts as they stand
+
+    boxOf(i: number) -> Box {
+        const sp = 4
+        const rowOnly = view != "month"
+        const colOnly = view == "day"
+        const openRow = openIndex < 0 ? -1 : Math.floor(openIndex / 7)
+        const openCol = openIndex < 0 ? -1 : openIndex % 7
+        const fr = openRow < 0 ? Math.floor(selectedIndex / 7) : openRow
+        const fc = openCol < 0 ? selectedIndex % 7 : openCol
+        const cw = Math.floor((gridWidth - sp * 6) / 7)
+        const ch = Math.floor((gridHeight - sp * (rows - 1)) / rows)
+        const k = openCol < 0 ? 0 : 1
+        const cellW = cw - Math.floor(k * 150 / 6)
+        const cellH = ch - Math.floor(k * 170 / (rows - 1))
+        const hOf = (ri: number) => rowOnly ? (ri == fr ? gridHeight : 0) : ri != openRow ? cellH : ch + 170
+        const wOf = (ci: number) => colOnly ? (ci == fc ? gridWidth - sp : 0) : ci != openCol ? cellW : cw + 150
+        const r = Math.floor(i / 7), c = i % 7
+        let x = 0, y = 0
+        for (let cc = 0; cc < c; cc++) x += wOf(cc) + (colOnly ? 0 : sp)
+        for (let rr = 0; rr < r; rr++) y += hOf(rr) + (rowOnly ? 0 : sp)
+        const w = wOf(c), h = hOf(r)
+        return ({ x: x, y: y, w: w, h: h, vis: w > 0 && h > 0 && r < rows })
         },
 
-    // Close. A panel opened by Add Event on an unapplied new event deletes it on
-    // cancel (SPEC §7 cancel semantics); the grid re-expands (snap).
+    // send every cell where the facts put it, gliding or at once
 
-    closePanel() {
-        if (this.newEvent && !this.applied) this.deleteEvent()
-        this.panelOpen = false
-        this.newEvent = false
-        this.grid.width = 808
-        this.relayout(false)
-        this.infoPanel.slideOut.start()
+    arrange(glide: boolean) {
+        afterSettle(() => {
+            for (const c of grid.childViews) { const cell = c as DayCell; cell.arrange(boxOf(cell.index), glide) }
+            })
+        },
+    onInit() { arrange(false) },
+
+    // Tab: the toolbar, the selected day's open button, the grid and its events,
+    // the selected event's info button, the panel. The frame is declared after the
+    // grid so that it paints over it, but it is reached before the day's events.
+
+    tabOrder() { return [top, look, grid, band, interior] },
+
+    // ── what the person does ──────────────────────────────────────────────
+
+    // a month, in the month view, its 1st selected; the selected event is let go
+    // unless it is the one being moved there
+
+    show(month: number, year: number, keepEvent: boolean) {
+        if (month == app.month && year == app.year) return
+        app.month = month; app.year = year
+        openKey = ""; view = "month"
+        if (!keepEvent) leaveEvent()
+        selectedKey = keyOf(new Date(year, month, 1))
+        arrange(false)
+        },
+    step(dir: number) {
+        const d = new Date(year, month + dir, 1)
+        show(d.getMonth(), d.getFullYear(), false)
         },
 
-    // The selected event's record, or null — the panel's cursor.
+    // open a day: in the month view at once, in the week and day views gliding
 
-    selRec() -> object {
-        return this.selectedEvent < 0 ? null : this.srcEvent(this.selectedEvent)
+    openDay(key: string) {
+        selectedKey = key
+        openKey = key
+        arrange(view != "month")
+        },
+    closeDay() {
+        openKey = ""
+        if (view == "day") { view = "month"; arrange(true); return }
+        arrange(view != "month")
         },
 
-    // An event's record in the data, and its index — what the verbs write
-    // through. Edits are in-memory only (SPEC §9).
-
-    srcEvent(id: number) -> object {
-        return this.data.value.events.find(e => e.id == id) ?? null
+    showDay() { openKey = selectedKey; view = "day"; arrange(true) },
+    showWeek() {
+        const row = Math.floor(selectedIndex / 7)
+        if (view == "week" || openIndex < 0 || Math.floor(openIndex / 7) != row) openKey = ""
+        view = "week"
+        arrange(true)
         },
-    eventIndex(id: number) -> number {
-        return this.data.value.events.findIndex(e => e.id == id)
-        },
-
-    longDate(rec: object) -> string {
-        return rec != null ? this.monthName(rec.m) + " " + rec.d + ", " + rec.y : ""
-        },
-
-    longTime(min: number) -> string {
-        const h = Math.floor(min / 60), m = min % 60
-        return (h == 0 ? 12 : h > 12 ? h - 12 : h) + ":"
-             + (m < 10 ? "0" + m : "" + m) + (h > 11 ? "p" : "a")
+    showMonth() {
+        if (view == "month") { if (openKey != "") { openKey = ""; arrange(false) } return }
+        view = "month"
+        arrange(true)
         },
 
-    setTab(i: number) { this.openTab = i },
+    selectEvent(id: number) {
+        selectedEvent = id
+        const key = keyOfEvent(id)
+        if (key != "") selectedKey = key
+        },
 
-    // Add Event (SPEC §8): a 9–10a "New Event" on the selected day, selected and
-    // opened in the panel. Closing without Apply deletes it (cancel semantics).
+    // the bar goes, and the info panel half a second later
+
+    leaveEvent() {
+        selectedEvent = -1
+        if (infoOpen) afterDelay(500, () => { if (selectedEvent < 0) closeInfo() })
+        },
+
+    drag: Drag [ ],
+
+    moveSelectedTo(day: Date) {
+        if (selectedEvent < 0) return
+        events.setDay(selectedEvent, day)
+        selectedKey = keyOf(day)
+        },
+
+    // ── the info panel ────────────────────────────────────────────────────
 
     addEvent() {
-        const es = this.data.value.events
-        const id = 1 + es.reduce((mx, e) => Math.max(mx, e.id), 0)
-        const d = this.parseKey(this.selectedKey)
-        this.data.insert(["events"], es.length, { id: id, y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(),
-                  start: 540, end: 600, title: "New Event",
-                  notes: "", location: "", attendees: "", category: "" })
-        this.selectedEvent = id
-        this.newEvent = true
-        this.applied = false
-        this.openPanel()
+        const day = selectedIndex >= 0 ? dateAt(selectedIndex) : new Date(year, month, 1)
+        selectedEvent = events.add(day)
+        openInfo()
+        applied = false
         },
 
-    // The panel's text fields edit a working copy of the selected event —
-    // filled when the panel opens or retargets, committed by Apply (SPEC §7).
-    // The date/time steppers edit the record itself, live.
+    // the title takes the keyboard with its words selected, ready to be typed over
 
-    draft: Dataset { { } },
+    focusTitle() {
+        const t = interior.info.contents.summary.content.title
+        Focus.focus(t)
+        t.select(0, t.value.length)
+        },
+    openInfo() {
+        if (infoOpen) { focusTitle(); return }
+        if (selectedInfo != null && selectedInfo.title != "New Event") applied = true
+        gridWidth = 602
+        arrange(false)
+        infoUsed = true
+        infoOpen = true
+        },
+    closeInfo() {
+        if (!applied) deleteSelected()
+        if (!infoOpen) return
+        infoOpen = false
+        applied = true
+        },
 
-    startDraft() {
-        const e = this.selRec()
+    // once the panel has slid away, the grid takes the room back, two pixels more
+    // than it started with
+
+    infoGone() { gridWidth = 810; arrange(false) },
+
+    keepText(field: string, text: string) { if (selectedEvent >= 0) events.setText(selectedEvent, field, text) },
+    deleteSelected() {
+        if (selectedEvent < 0) return
+        const id = selectedEvent
+        leaveEvent()
+        events.remove(id)
+        },
+    stepStart(dir: number) {
+        const e = selectedInfo
         if (e == null) return
-        this.draft.set([], { title: e.title, notes: e.notes ?? "", location: e.location ?? "", attendees: e.attendees ?? "" })
+        const s = e.start + 15 * dir
+        if (s >= 0 && s < 1440) events.setStart(e.id, s)
         },
+    stepEnd(dir: number) { if (selectedEvent >= 0) events.stepEnd(selectedEvent, dir) },
 
-    apply() {
-        const i = this.eventIndex(this.selectedEvent)
-        if (i < 0) return
-        const t = this.draft.value
-        for (const f of ["title", "notes", "location", "attendees"]) this.data.set(["events", i, f], t[f])
-        this.applied = true
-        },
+    // the event a day earlier or later; the selection follows, paging the month
+    // at its ends, and the view stays as it is
 
-    // The edits the steppers and the drop make, each a write to the event's
-    // record: its day, and its start (duration preserved, end ≤ 23:45).
-
-    setDate(id: number, d: object) {
-        const i = this.eventIndex(id)
-        if (i < 0) return
-        this.data.set(["events", i, "y"], d.getFullYear())
-        this.data.set(["events", i, "m"], d.getMonth() + 1)
-        this.data.set(["events", i, "d"], d.getDate())
-        },
-    setStart(id: number, t: number) {
-        const e = this.srcEvent(id), i = this.eventIndex(id)
+    stepDay(dir: number) {
+        const e = selectedInfo
         if (e == null) return
-        const dur = e.end - e.start
-        const start = Math.max(0, Math.min(t, 1425))
-        this.data.set(["events", i, "start"], start)
-        this.data.set(["events", i, "end"], start + dur)
+        const day = new Date(e.y, e.m - 1, e.d + dir)
+        events.setDay(e.id, day)
+        const key = keyOf(day)
+        if (indexOfKey(key) < 0) show(day.getMonth(), day.getFullYear(), true)
+        selectedKey = key
+        if (view == "day") showDay()
+        else if (view == "week") showWeek()
         },
 
-    // Date ‹›: move the event ±1 day (crosses months by navigating — SPEC §7).
+    // ── the toolbar, sliding down from above at the start ──────────────────
 
-    moveDay(delta: number) {
-        const e = this.selRec()
-        if (e == null) return
-        const d = new Date(e.y, e.m - 1, e.d + delta)
-        this.setDate(e.id, d)
-        this.goTo(d)
-        },
-
-    // Start ‹›: ±15m moves the event.
-
-    moveStart(delta: number) {
-        const e = this.selRec()
-        if (e != null) this.setStart(e.id, e.start + delta)
-        },
-
-    // Dispatch a Nudger's nudge to the right edit (SPEC §7).
-
-    stepField(field: string, dir: number) {
-        if (field == "date") this.moveDay(dir)
-        else if (field == "start") this.moveStart(dir * 15)
-        else this.moveEnd(dir * 15)
-        },
-
-    // End ‹›: ±15m changes duration (min 15m, max < 24h — SPEC §7).
-
-    moveEnd(delta: number) {
-        const e = this.selRec(), i = this.eventIndex(this.selectedEvent)
-        if (e == null) return
-        this.data.set(["events", i, "end"], Math.max(e.start + 15, Math.min(e.end + delta, 1439)))
-        },
-
-    deleteEvent() {
-        const i = this.eventIndex(this.selectedEvent)
-        if (i >= 0) this.data.removeAt(["events"], i)
-        this.selectedEvent = -1
-        },
-
-    // The 24 hour-gutter markers for the open timeline (SPEC §3): number, am/pm,
-    // the y of its hour rule (22px/hour, +11px half-hour zero), bold on 12a/12p.
-
-    buildHours() -> array {
-        const hours = []
-        for (let h = 0; h < 24; h++)
-            hours.push({ num: "" + (h % 12 == 0 ? 12 : h % 12),
-                         ampm: h < 12 ? "a" : "p", y: h * 22 + 11, bold: h % 12 == 0 })
-        return hours
-        },
-
-    // Side-by-side lanes for overlapping open-timeline events (SPEC §12-E).
-    // `events` is start-sorted; each disjoint cluster shares its own lane count
-    // so non-overlapping events stay full width (lane 0 of 1). A lane depends
-    // on the other events, so it rides a wrapper around each event, never a
-    // copy of it: `{ ev, lane, lanes }`.
-
-    lanesOf(events: array) -> array {
-        const out = []
-        const flush = (cluster) => {
-            const laneEnd = [], lane = []
-            for (const e of cluster) {
-                let ln = 0
-                while (ln < laneEnd.length && laneEnd[ln] > e.start) ln++
-                laneEnd[ln] = e.end
-                lane.push(ln)
+    top: View [ x = 20, y = -50, width = 806, fontSize = 10,
+        slideIn: Animator [ attribute = y, to = 0, duration = 500, easing = laszloBoth, started = true,
+            onStop() {
+                app.started = true
+                app.selectedKey = keyOf(new Date(app.year, app.month, 1))
+                app.arrange(false)
+                afterDelay(1000, () => { app.framed = true })
                 }
-            cluster.forEach((e, k) => out.push({ ev: e, lane: lane[k], lanes: laneEnd.length }))
-            }
-        let cluster = [], clusterEnd = 0
-        for (const e of events) {
-            if (cluster.length > 0 && e.start >= clusterEnd) { flush(cluster); cluster = []; clusterEnd = 0 }
-            cluster.push(e)
-            clusterEnd = Math.max(clusterEnd, e.end)
-            }
-        if (cluster.length > 0) flush(cluster)
-        return out
-        },
-
-    // Startup (SPEC §10): once data is in — the source's own `onLoad` — the
-    // month is built, the top panel slides down and the grid fades up (the
-    // loading-still → panel → grid reveal).
-
-    onInit() { data.fetch() },
-
-    /* ## Top panel (SPEC §1)
-       The daynames bar (sitting behind the menubar strip — the original
-       stacking), then the menubar: logo, the drawn view-segment buttons, the
-       month pager, the centered title, and Add Event. */
-
-    top: View [ x = 20, width = 806, y = -50,
-        slideDown: Animator [ attribute = y, to = 0, duration = 500, easing = laszloBoth ],
-
-        weekbar: View [ y = 26, width = 808, height = 26, fill = #354D5B,
-            datapath = { app.names.value },
-            rule: View [ y = 25, width = 100%, height = 1, fill = #708A94 ],
-
-            names: View [ y = 11, width = 100%, height = 12,
-                DayName [ datapath = :cols[], x = :x, width = :w, height = 12, visible = :vis ]
-                ]
             ],
 
-        mbar: View [ width = 806, height = 32,
-            strip: Image [ source = "resources/mainbar-overlay.png" ],
-            logo:  Image [ source = "resources/logo.png" ],
+        weekBar: View [ y = 26, width = 808, height = 26, fill = #354D5B,
+            names: View [ y = 11, width = 792,
+                DayName [ col = 0, source = "resources/ol/images/days-of-week/sun.png" ],
+                DayName [ col = 1, source = "resources/ol/images/days-of-week/mon.png" ],
+                DayName [ col = 2, source = "resources/ol/images/days-of-week/tues.png" ],
+                DayName [ col = 3, source = "resources/ol/images/days-of-week/wed.png" ],
+                DayName [ col = 4, source = "resources/ol/images/days-of-week/thurs.png" ],
+                DayName [ col = 5, source = "resources/ol/images/days-of-week/fri.png" ],
+                DayName [ col = 6, source = "resources/ol/images/days-of-week/sat.png" ]
+                ],
+            rule: View [ y = 25, width = { parent.width }, height = 1, fill = #708A94 ]
+            ],
 
-            viewBtns: View [ x = 142, y = 4, width = 174, height = 17, cornerRadius = 8,
-                fill = Gradient.linear(Gradient.stop(0, 0xD9DFDF), Gradient.stop(0.35, 0xB4BDBF), Gradient.stop(1, 0x5C717D)),
-                stroke = Stroke(1, #143B45),
+        bar: View [ width = { parent.width }, height = 32, fill = #354D5B,
+            art: Image [ source = "resources/ol/images/menubar/mainbar-overlay.png" ],
+            logo: Image [ source = "resources/ol/images/menubar/logo.png", accessibilityLabel = "Laszlo Calendar" ],
 
-                // segment separators + the three tiny icons, drawn
-
-                draw(d: DrawContext) {
-                    d.fillStyle = 0x143B45
-                    d.fillRect(47, 0, 1, height)
-                    d.fillRect(104, 0, 1, height)
-                    // day: a page outline
-                    d.fillRect(8, 5, 8, 1); d.fillRect(8, 12, 8, 1)
-                    d.fillRect(8, 5, 1, 8); d.fillRect(15, 5, 1, 8)
-                    // week: four bars
-                    d.fillRect(55, 5, 2, 8); d.fillRect(58, 5, 2, 8)
-                    d.fillRect(61, 5, 2, 8); d.fillRect(64, 5, 2, 8)
-                    // month: a 3×3 dot grid
-                    d.fillRect(112, 5, 2, 2); d.fillRect(115, 5, 2, 2); d.fillRect(118, 5, 2, 2)
-                    d.fillRect(112, 8, 2, 2); d.fillRect(115, 8, 2, 2); d.fillRect(118, 8, 2, 2)
-                    d.fillRect(112, 11, 2, 2); d.fillRect(115, 11, 2, 2); d.fillRect(118, 11, 2, 2)
-                    },
-
-                dayLbl:   Text [ x = 20,  y = 3, fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
-                    textShadow = Shadow(0, -1, 0, #33555577), text = "day" ],
-                weekLbl:  Text [ x = 69,  y = 3, fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
-                    textShadow = Shadow(0, -1, 0, #33555577), text = "week" ],
-                monthLbl: Text [ x = 124, y = 3, fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
-                    textShadow = Shadow(0, -1, 0, #33555577), text = "month" ],
-
-                dayHit:   View [ x = 0,   width = 47, height = 17,
-                    onClick() { app.showDay() }
+            views: View [ x = 141, y = 4,
+                layout: SimpleLayout [ axis = x ],
+                CalButton [ rightCap = "shear", icon = "iconday", label = "day", accessibilityLabel = "Day view",
+                    press() { app.showDay() }
                     ],
-                weekHit:  View [ x = 47,  width = 57, height = 17,
-                    onClick() { app.showWeek() }
+                CalButton [ leftCap = "shear", rightCap = "shear", icon = "iconweek", label = "week", accessibilityLabel = "Week view",
+                    press() { app.showWeek() }
                     ],
-                monthHit: View [ x = 104, width = 70, height = 17,
-                    onClick() { app.showMonth() }
+                CalButton [ leftCap = "shear", icon = "iconmonth", label = "month", accessibilityLabel = "Month view",
+                    press() { app.showMonth() }
                     ]
                 ],
 
-            monthCtl: View [ x = 321, y = 8, width = 161, height = 17, cornerRadius = 8,
-                fill = Gradient.linear(Gradient.stop(0, 0xBBC3C5), Gradient.stop(0.4, 0xC5CCCF), Gradient.stop(1, 0x7A8B94)),
-                stroke = Stroke(1, #24424F),
-
-                // the segment separators: incised vertical grooves (dark line
-                // + a highlight one px to its right), dividing the arrow caps
-                // from the title — oracle-measured at x16 / x142.
-
-                draw(d: DrawContext) {
-                    d.fillStyle = 0x143B45
-                    d.fillRect(16, 0, 1, 17)
-                    d.fillRect(142, 0, 1, 17)
-                    d.fillStyle = 0xD9DFDF
-                    d.fillRect(17, 0, 1, 17)
-                    d.fillRect(143, 0, 1, 17)
-                    // the cap arrows
-                    d.fillStyle = 0xFFFFFF
-                    d.beginPath()
-                    d.moveTo(14, 4); d.lineTo(7, 8.5); d.lineTo(14, 13)
-                    d.fill()
-                    d.beginPath()
-                    d.moveTo(147, 4); d.lineTo(154, 8.5); d.lineTo(147, 13)
-                    d.fill()
-                    },
-
-                prevBtn: View [ width = 24, height = 17,
-                    onClick() { app.step(-1) }
+            pager: View [ x = 321, y = 8, width = 161,
+                back: CalButton [ rightCap = "shear", icon = "iconleftarrow", accessibilityLabel = "Previous month",
+                    press() { app.step(-1) }
                     ],
-                nextBtn: View [ x = 137, width = 24, height = 17,
-                    onClick() { app.step(1) }
+                plate: ButtonArt [ x = { parent.back.width }, leftCap = "shear", rightCap = "shear",
+                    width = { parent.width - parent.back.width - parent.next.width } ],
+                next: CalButton [ x = { parent.width - this.width }, leftCap = "shear", leftInset = 5, rightInset = 9,
+                    icon = "iconrightarrow", accessibilityLabel = "Next month",
+                    press() { app.step(1) }
                     ]
                 ],
 
-            // bold white centered title with the drop shadow the original
-            // faked with a second offset text view — here one textShadow.
+            titleShadow: Label [ x = { parent.title.x - 0.3 }, y = 9, opacity = 0.5, fontWeight = bold,
+                textColor = #143B45, text = { parent.title.text }, accessibilityHidden = true ],
+            title: Label [ y = 10, x = { Math.round((parent.width - roomOf(this.text)) / 2) - 2 }, fontWeight = bold,
+                accessibilityLive = polite, text = { monthName(app.month) + " " + app.year } ],
 
-            monthTitle: Text [ y = 10, fontWeight = bold, textColor = #FFFFFF,
-                x = { (parent.width - this.width) / 2 - 2 },
-                textShadow = Shadow(0, -1, 0, #143B4580),
-                text = { app.month > 0 ? app.monthName(app.month) + " " + app.year : "" } ],
-
-            addBtn: CalButton [ x = 496, y = 5, width = 76, label = "Add Event",
+            addEvent: CalButton [ x = 496, y = 5, label = "Add Event",
                 press() { app.addEvent() }
                 ]
             ]
         ],
 
-    /* ## The grid (SPEC §2)
-       The day cells, replicated over `cal.days` under the CalendarGrid
-       layout; fades up on startup. */
+    // ── the grid ───────────────────────────────────────────────────────────
 
-    grid: View [ x = 20, y = 57, width = 808, height = 516, opacity = 0,
-        fadeIn: Animator [ attribute = opacity, to = 1, duration = 1000, easing = laszloBoth ],
-        datapath = { app.cal.value },
-        layout: CalendarGrid [ ],
+    cells: Dataset [ contents = { { cells: [...Array(42).keys()].map((i) => ({ i: i })) } } ],
 
-        DayCell [ datapath = :days[], dayKey = :key,
-            selected = { app.selectedKey == this.dayKey },
-            open = { app.isOpen(this.dayKey) },
-            onClick() { app.openDay(this.dayKey) }
-            ]
+    grid: View [ x = 20, y = 57, width = { app.gridWidth }, height = { app.gridHeight },
+        focusable = true,
+        accessibilityRole = grid,
+        accessibilityLabel = { monthName(app.month) + " " + app.year },
+        accessibilityActiveItem = { app.activeDay },
+        keyBindings = { [ ({ key: "ArrowLeft", command: "moveSelection", args: [-1] }),
+                          ({ key: "ArrowRight", command: "moveSelection", args: [1] }),
+                          ({ key: "ArrowUp", command: "moveSelection", args: [-7] }),
+                          ({ key: "ArrowDown", command: "moveSelection", args: [7] }),
+                          ({ key: "Enter", command: "toggleSelected" }) ] },
+        moveSelection(d: number) {
+            const i = Math.max(0, Math.min(app.rows * 7 - 1, app.selectedIndex + d))
+            app.selectedKey = keyOf(app.dateAt(i))
+            },
+        toggleSelected() { if (app.openKey == app.selectedKey) app.closeDay(); else app.openDay(app.selectedKey) },
+        focusShape() {
+            const c = app.activeDay
+            return c != null ? ({ x: c.x, y: c.y, w: c.width, h: c.height, rad: 0 }) : ({ x: 0, y: 0, w: this.width, h: this.height, rad: 0 })
+            },
+        datapath = { app.cells.value },
+        DayCell [ datapath = :cells[], index = :i ]
         ],
 
-    /* ## The info panel (SPEC §7)
-       Slides in from the right over the grid. Beveled body drawn in Declare (the
-       original was 9-slice bitmaps); bound to the selected event's record, so
-       the date/time ‹› nudges edit it live. The text fields edit the working
-       copy (`draft`), which Apply commits. */
+    look: DayLook [ visible = { app.started && app.activeDay != null }, opacity = { app.framed ? 1 : 0 } ],
 
-    infoPanel: View [ x = 852, y = 57, width = 205, height = 516, opacity = 0,
-        visible = { opacity > 0 },
-        datapath = { app.selRec() },
-        fill = #C6CAC4,
-        stroke = Stroke(1, #83877F),
+    // the selected event's bar rides in a band: the whole window while the event
+    // floats free, its open day's hours while it sits in one, so that scrolling the
+    // day carries the bar out of sight with its event rather than past the day. The
+    // band itself lets presses through to the grid; only the bar takes them
 
-        slideIn:  AnimatorGroup [ process = simultaneous, duration = 500, easing = laszloBoth,
-            Animator [ attribute = x, to = 622 ],
-            Animator [ attribute = opacity, to = 1 ]
-            ],
-        slideOut: AnimatorGroup [ process = simultaneous, duration = 500, easing = laszloBoth,
-            Animator [ attribute = x, to = 852 ],
-            Animator [ attribute = opacity, to = 0 ]
-            ],
-
-        bar: View [ width = 100%, height = 18, fill = #384852,
-            cap: Text [ x = 8, y = 3, fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
-                text = "Event Info" ],
-            xbtn: View [ x = { parent.width - 15 }, y = 4, width = 11, height = 11,
-                draw(d: DrawContext) {
-                    d.fillStyle = 0xFFFFFF
-                    d.lineWidth = 1.5
-                    d.beginPath(); d.moveTo(2, 2); d.lineTo(9, 9)
-                    d.moveTo(9, 2); d.lineTo(2, 9); d.stroke()
-                    },
-                onClick() { app.closePanel() }
-                ]
-            ],
-
-        titleF: TextInput [ x = 6, y = 24, width = 193, height = 17, fill = #FFFFFF,
-            fontSize = 11, textColor = #333333, accessibilityLabel = "Title",
-            datapath = { app.draft.value }, value <-> :title ],
-
-        dateStep:  Nudger [ x = 8, y = 47, width = 189, field = "date",
-            label = { app.monthName(:m) + " " + :d + ", " + :y } ],
-        startStep: Nudger [ x = 8, y = 66, width = 82, field = "start",
-            label = { app.longTime(:start) } ],
-        toLbl:     Text [ x = 94, y = 68, fontSize = 10, textColor = #2E3E48, text = "to" ],
-        endStep:   Nudger [ x = 115, y = 66, width = 82, field = "end",
-            label = { app.longTime(:end) } ],
-
-        notesSec: AccordionSection [ x = 4, idx = 0, label = "Notes",     field = "notes",     datapath = { app.draft.value } ],
-        locSec:   AccordionSection [ x = 4, idx = 1, label = "Location",  field = "location",  datapath = { app.draft.value } ],
-        attSec:   AccordionSection [ x = 4, idx = 2, label = "Attendees", field = "attendees", datapath = { app.draft.value } ],
-
-        applyBtn:  CalButton [ x = 8, y = 486, width = 82, label = "Apply",
-            press() { app.apply() }
-            ],
-        deleteBtn: CalButton [ x = 115, y = 486, width = 82, label = "Delete",
-            press() { app.deleteEvent(); app.closePanel() }
-            ]
+    band: View [ width = 100%, clip = { held }, pointerEvents = "none",
+        held: boolean = { app.selectedCell != null && app.selectedCell.opened && !(app.drag.moving && !app.drag.snapped) },
+        y = { held ? app.grid.y + app.selectedCell!.y + app.selectedCell!.box.y : 0 },
+        height = { held ? app.selectedCell!.box.height : app.height },
+        bar: EventBar [ pointerEvents = "auto" ]
         ],
 
-    // A ghost of the dragged event that follows the pointer (SPEC §6) — the top
-    // layer, shown once a press turns into a drag. Its label and fill derive
-    // from the dragged event; x/y track the app-relative pointer.
+    // ── the info panel, sliding in from the right over the grid's edge ──────
 
-    dragGhost: View [ visible = { app.dragId >= 0 && app.dragArmed },
-        x = { app.dragX - 10 }, y = { app.dragY - 9 },
-        width = 132, height = 18, opacity = 0.82, cornerRadius = 3,
-        fill = { app.catFill(app.dragCat) }, stroke = Stroke(1, #8A98A4),
-        label: Text [ x = 7, y = 3, fontSize = 10, textColor = #3A4650, text = { app.dragTitle } ]
+    interior: View [ x = 20, y = 57, width = 810, height = 516, clip = true,
+        info: InfoPanel [ x = 830, opacity = 0, visible = { this.x < 830 },
+            slideIn: Animator [ attribute = x, from = 830, to = 602, duration = 500, easing = laszloBoth, started = { app.infoOpen },
+                onStop() { app.focusTitle() }
+                ],
+            fadeIn: Animator [ attribute = opacity, from = 0, to = 1, duration = 500, easing = laszloBoth, started = { app.infoOpen } ],
+            slideOut: Animator [ attribute = x, from = 602, to = 830, duration = 500, easing = laszloBoth,
+                started = { app.infoUsed && !app.infoOpen },
+                onStop() { app.infoGone() }
+                ],
+            fadeOut: Animator [ attribute = opacity, to = 0, duration = 400, easing = laszloBoth,
+                started = { app.infoUsed && !app.infoOpen } ]
+            ]
         ]
     ]

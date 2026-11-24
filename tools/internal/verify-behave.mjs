@@ -1973,6 +1973,7 @@ const expect = {
         },
         settle: async () => { await landed(); await frames(page); },
         advance: (ms) => page.evaluate((ms) => globalThis.__declareTimers?.advance?.(ms), ms).catch(() => {}),
+        step,
         fail,
         judged: () => { asserted++; },
       });

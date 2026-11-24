@@ -15,7 +15,7 @@
 // native.
 
 import { buildProgram, mountApp, settle, observe, provideTransport, provideMeasurer, fontsReady, bridgeFor, kernelReadySync,
-         Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant, islandProvisions, setAppAssetBase,
+         Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant, islandProvisions,
          scrollPlaces, holdScrollPlaces, dropScrollPlaces, islandNavigation, provideHostServices,
          provideFilesHost, deliverFiles, feedPointer,
          provideClipboardHost, deliverCopy, deliverPaste, takesClipboard } from "../runtime/dist/index.js";
@@ -879,7 +879,7 @@ function mountCompiled(surfaceId, compiled, assetUrl) {
   kernelReadySync();
   const linkable = islView && typeof islView.post === "function";
   const child = buildProgram(compiled.program, { provides: linkable ? islandProvisions(islView) : undefined,
-    size: { width: islView.width, height: islView.height } });
+    size: { width: islView.width, height: islView.height }, assetBase: assetUrl || null });
   // THE ISLAND BOUNDARY (islands.md) — the native runner is a full peer of the
   // web hosts: what the island `provides` goes down, what the tenant
   // `exposes` comes up, and the post/onPost verbs. Built WITH what the island
@@ -908,7 +908,6 @@ function mountCompiled(surfaceId, compiled, assetUrl) {
   // The child's RELATIVE assets live in its own program's directory, never the
   // host's (host-client's childAssetBase). Without this, birds-in-a-desktop-
   // window resolved every plate against the DESKTOP's directory — all 404.
-  if (assetUrl) setAppAssetBase(child, assetUrl);
   mountEmbed(surfaceId, child.$surface);
   // The pointer, in the island's frame: the runtime's, as the canvas renderer's (feedPointer).
   if (islView) pointerStops.set(child, feedPointer(child, islView));

@@ -6,7 +6,7 @@
 // capability, compiler/src/capabilities.ts); there, wireIslands is a stand-in
 // whose methods do nothing.
 
-import { islandPermitted, mapUrl, renderProgramAsync, afterSettle, disposeApp, DomBackend, observe, provideHostServices, onIslandSlot, setAppAssetBase, assetBaseFor, linkIslandTenant, islandProvisions, islandNavigation, mountEmbeddedApp, feedPointer, kernelReady, onDiscard } from "../runtime/dist/host-api.js";
+import { islandPermitted, mapUrl, renderProgramAsync, afterSettle, disposeApp, DomBackend, observe, provideHostServices, onIslandSlot, assetBaseFor, linkIslandTenant, islandProvisions, islandNavigation, mountEmbeddedApp, feedPointer, kernelReady, onDiscard } from "../runtime/dist/host-api.js";
 
 /** Wire the islands of `app`, the app bootHost just mounted in `host`. Returns
  *  `renderChild` (a live edit re-renders an island through it), `retry` (the
@@ -268,9 +268,9 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
     try {
       await kernelReady();
       // the island's own size is the child app's from its first evaluation
-      const childApp = buildApp(compiled, { provides: typeof view.post === "function" ? islandProvisions(view) : undefined,
-        size: { width: view.width, height: view.height } });
       const base = childAssetBase(name || "", islandDirFor(view));
+      const childApp = buildApp(compiled, { provides: typeof view.post === "function" ? islandProvisions(view) : undefined,
+        size: { width: view.width, height: view.height }, assetBase: base || null });
       // ASSET base only — deliberately no per-app DATA base: an island child's
       // relative data urls resolve through the PAGE's transport, its host's
       // space (the desktop passes the viewer `program=desktop.declare`, a path
@@ -279,7 +279,6 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
       // AGAIN here on the canvas mount 2026-08-21: the same one-line disease
       // in the twin code path, presenting as "no code in the viewer" on
       // ?render=canvas.
-      if (base) setAppAssetBase(childApp, base);
       // the boundary first, so the tenant's first settle sees what the host provides
       if (typeof view.post === "function") {
         try { childApp.__unlink = linkIslandTenant(view, childApp); }

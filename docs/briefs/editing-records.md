@@ -50,9 +50,10 @@ App [ width = 360, height = 260, fill = white,
 **Look up** `Dataset.set`, `Dataset.insert`, `Dataset.removeAt`, `Checkbox.commit`,
 `TextInput.text`, `Editor`.
 
-**Examples** `apps/lzx-calendar/lzx-calendar.declare`: `draft`, `startDraft()`, `apply()`,
-and the steppers writing the record live · `apps/tracker/tracker.declare`: the editor
-card over `draft`.
+**Examples** `apps/lzx-calendar/lzx-calendar.declare`: `Events`, whose methods make every
+write (`setStart`, `stepEnd`), the steppers writing the record live, and the info panel's
+fields kept as they are left (`commitOn`, `keepText`) · `apps/tracker/tracker.declare`: the
+editor card over `draft`.
 
 **Guide** Data § Writing a record · § Editing text, and forms ·
 Controls § The value pattern.

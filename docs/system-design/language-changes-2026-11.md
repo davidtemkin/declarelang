@@ -650,3 +650,46 @@ replicated labels 2.5× as many (5,432 → 13,600; views built 899 → 1,933). B
 (measured back to back). "Dependency order" has no single answer inside such a loop, and FIFO by
 invalidation happens to suit it. The kernels are as they were; the attempt is kept outside the
 tree. Open: a design that orders the acyclic part and leaves converging loops in queue order.
+
+## `measureText` answers exact widths and heights (2026-11-23)
+
+`text-measure.ts`. `measureText(…).width` and `.height` were rounded up to a whole pixel;
+now they are the measurer's exact values, fractions kept. A `Text`'s own size is unchanged:
+its box is still its widest line rounded up. Asked for by DT, so that a program can round
+as its design needs: the LZX Calendar sizes a button as OpenLaszlo did, `round(width + 4)`,
+which a pre-rounded width could not reproduce, and it carried a table of measured widths
+instead.
+
+*Measured before the change.* Every use in `apps/` and `library/`: the Segmented control,
+the docs app and the Calendar's date block already wrap the measure in `Math.ceil` (no
+change); the Calendar picks the same label at every room from 40 to 320; a Menu panel is at
+most 1 px narrower (its labels size themselves, nothing clips); the tour's chips, which
+`Math.round`, are 1 px narrower in 5 of 8, their right padding centered on its 14 instead
+of 14–15. Twelve apps shot under both: nine identical, three with anti-aliasing noise only.
+The case rounding up would protect, a `Text` given exactly its measured width: 945 runs
+(21 strings, 9 sizes, 5 faces, two weights) wrapped none at 1x, 2x or 3x, in Chrome (DOM and
+canvas renderers) and Safari 27.2, whose DOM line widths agree with its canvas measure to
+0.00005 px. The canvas renderer breaks lines with the runtime's own measure, and wrapped
+none. The Mac host's measurer was already exact (Core Text's advance) and the rounding was the
+shared runtime's; its text layer, which breaks lines natively, wrapped none of the 945 either
+(each run captured beside its rounded-up twin). Firefox was not available.
+
+*Alternative not taken:* a second, exact field beside a rounded one (two names for one
+fact), or rounding to the device pixel (still a rounded measure).
+
+## An embedded app's assets resolve beside it from its first evaluation (2026-11-23)
+
+`boot.ts` (`buildProgram` takes the app's `assetBase`), and its callers: `renderProgramAsync`,
+`host-client.js`, `host-islands.js`, `mac-boot.js`. A host registered an app's own asset
+directory after building it, so a face or bitmap that started loading during the build resolved
+against the page instead: in the Viewer's edit pane, the LZX Dashboard's first font came from
+the Viewer's folder (a 404) while its later ones loaded. The build now runs with the app's base
+as the page's, and the root holds it from then on. A bug fix; the documented rule ("relative
+means beside my program") is unchanged.
+
+## A compile that quiets a finding keeps its program (2026-11-23)
+
+`compile.ts`. When `defaultFlags` quieted a diagnostic, `compile()` copied its result with a
+spread, which dropped the program (a non-enumerable property): no program and no error. It now
+copies with `carryProgram`, as the other copies do. Pinned in `diagnostics-hints.test.mjs`.
+

@@ -49,7 +49,8 @@ App [ width = 360, height = 300, fill = white,
 
 **Examples** `apps/weather/weather.declare`: `data` with `auto` · `apps/marketmap/marketmap.declare`:
 `Market`, a class of `DataSource` decoding its feed in `onLoad` ·
-`apps/lzx-calendar/lzx-calendar.declare`: `fetch()` in `onInit`, the view revealed in `onLoad`.
+`apps/lzx-calendar/lzx-calendar.declare`: `Events`, a class of `DataSource` that fetches itself
+(`autoFetch`) and makes every write to its records.
 
 **Guide** Data § Where data comes from · § Talking to a server ·
 Typed data: schemas.

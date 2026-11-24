@@ -31,7 +31,7 @@ script {
                 "draw": 19.2,
                 "anim": 3.9,
                 "text": 5,
-                "boot": 5.8,
+                "boot": 5.9,
                 "layout": 2.5,
                 "themes": 0.1,
                 "a11y": 3.9,
@@ -54,9 +54,9 @@ script {
                 "ker": 0
             },
             "totals": {
-                "calDom": 177,
+                "calDom": 177.1,
                 "calCanvas": 202.4,
-                "calMac": 154.1
+                "calMac": 154.2
             }
         },
         "runtimeKB": 137.3,

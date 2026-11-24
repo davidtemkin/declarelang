@@ -289,6 +289,10 @@ interface TextMetrics { readonly width: number; readonly height: number; readonl
  *  one line, or wrapped at \`width\`. Called in a constraint or a drawing, it re-runs
  *  when anything it measured with changes, a font's faces included.
  *
+ *  \`width\` and \`height\` are exact, fractions kept. A \`Text\` sizes its own box to
+ *  the same extent rounded up to a whole pixel; a box you size from the measure takes
+ *  whatever rounding its design needs: \`Math.ceil(m.width) + 16\`.
+ *
  *  The style says everything the measurement uses: a field left out takes its plain
  *  default, never the face around it. **To measure the way a \`Text\` here would
  *  render, pass \`providedTextStyle(…)\`** — the provided face, with your overrides:

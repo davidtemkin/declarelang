@@ -13,7 +13,7 @@ import { App, View, withHostProvides, withStartingHost } from "./view.js";
 import { onDiscard } from "./node.js";
 import { applyDeps } from "./deps.js";
 import { fontsReady } from "./font-value.js";
-import { setAppAssetBase } from "./asset-base.js";
+import { provideAssetBase, setAppAssetBase } from "./asset-base.js";
 import { DeclareError, notAboard } from "./errors.js";
 import { Keys } from "./keys.js";
 import { Focus, deliverKeys } from "./focus.js";
@@ -652,9 +652,25 @@ export function buildProgram(program, opts = {}) {
     // a size stated outright — an island's, which is its view's, not an element's
     const build = () => withHostProvides(opts.provides, () => instantiate(program));
     const starting = opts.host !== undefined ? startingSize(opts.host) : opts.size ?? null;
-    const root = starting !== null ? withStartingHost(starting, build) : build();
+    // The app's own directory for its relative assets (asset-base.ts), in force
+    // from its first evaluation: a face or a bitmap that starts loading while the
+    // app is built resolves beside the app's program, as every later one does.
+    // The app has no root to key it by until it is built, so the build runs with
+    // it as the page's base, and the root holds it from then on.
+    const base = opts.assetBase ?? null;
+    const prev = base !== null ? provideAssetBase(base) : null;
+    let root;
+    try {
+        root = starting !== null ? withStartingHost(starting, build) : build();
+    }
+    finally {
+        if (base !== null)
+            provideAssetBase(prev);
+    }
     if (!(root instanceof App))
         throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
+    if (base !== null)
+        setAppAssetBase(root, base);
     return root;
 }
 /** Like renderProgram(), but first loads the program's own web `font` faces so
@@ -681,17 +697,15 @@ export async function renderProgramAsync(program, host, backend, options) {
     mark("instantiate");
     if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
         phasesStart("construct, other");
-    const root = buildProgram(program, { deps: opts.deps, provides: opts.provides, host });
+    const root = buildProgram(program, { deps: opts.deps, provides: opts.provides, host, assetBase });
     done("instantiate");
     opts.beforeMount?.(root);
     // ASSETS only. An embedded program's relative DATA resolves in its host's
     // space, through the page's transport — the contract hosts write to (the
     // desktop provides each app its `base`, and the app's sources prefix it; it
     // provides the Viewer a `subject` spelled from the desktop's folder). A data
-    // base here would hold only after this line, so a program's first fetch and
+    // base here would hold only after the build, so a program's first fetch and
     // its later ones would name different files.
-    if (assetBase != null)
-        setAppAssetBase(root, assetBase);
     mark("fonts");
     await fontsReady(root);
     done("fonts");

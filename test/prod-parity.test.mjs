@@ -74,12 +74,16 @@ async function shot(url) {
   await settled(page);
   // A production page has no dev bridge, so settled() cannot see its motion
   // (lzx-calendar animates at boot): the picture is the condition — shoot
-  // until two shots 100 ms apart agree.
+  // until it has held still for 1.5 s. An entrance can pause between its
+  // stages (lzx-calendar shows its days, then its selection frame a second
+  // later), so a still moment is not yet the end.
   let prev = Buffer.from(await page.screenshot({ type: "png" }));
-  for (let i = 0; i < 40; i++) {
+  let still = 0;
+  for (let i = 0; i < 80; i++) {
     await new Promise((r) => setTimeout(r, 100));
     const next = Buffer.from(await page.screenshot({ type: "png" }));
-    if (next.equals(prev)) return next;
+    still = next.equals(prev) ? still + 1 : 0;
+    if (still >= 15) return next;
     prev = next;
   }
   throw new Error(`${url} never stopped changing`);

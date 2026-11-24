@@ -261,7 +261,7 @@ export async function inFlight(page, findable = false) {
  *  hold, named — said alike by the driver's swipes and a locator's reach. */
 export const heldBy = (held) => `the open ${held.kind} '${held.path}' holds scrolling outside it while it is open (scrollBelow = block), as it holds a person's, whose first press outside it would only close it — close it first (Escape, or the choice that ends it)`;
 
-export function withLocators(page, { act, series, settle, advance, fail: refuse = (m) => { throw new Error(m); }, judged = () => {} }) {
+export function withLocators(page, { act, series, settle, advance, fail: refuse = (m) => { throw new Error(m); }, judged = () => {}, step = () => {} }) {
   // the script's line that reached the locator or expect last: a failure names it,
   // so "found nothing within 5 s" says which of a script's lookups it was
   let site = null;
@@ -396,7 +396,10 @@ export function withLocators(page, { act, series, settle, advance, fail: refuse 
   // covered, as a click is (aim) — a field off the window or under another
   // view is said, not typed into behind the screen. force: true skips it.
   const reachToType = async (i, steps, o = {}) => { if (o.force !== true) await aim(i, steps, o); };
+  // every action is a step of the script's input, as the driver's own verbs are:
+  // a press logs itself through `act`; typing, a fill, a key and a hover say so here
   const typeInto = async (i, text, steps = null, o = {}) => {
+    step(`type "${text}"`);
     if (steps !== null) await reachToType(i, steps, o);
     await on(i, (el) => el.focus());
     await page.keyboard.type(String(text));
@@ -453,9 +456,10 @@ export function withLocators(page, { act, series, settle, advance, fail: refuse 
       },
       async dblclick(o = {}) { clickOptions("dblclick", o); return api.click({ ...o, clickCount: 2 }); },
       async tap(o = {}) { return api.click(o); },
-      async hover(o = {}) { const c = await aim(await one(steps, o.timeout), steps, o); await page.mouse.move(c.x, c.y); await settle(); },
+      async hover(o = {}) { const c = await aim(await one(steps, o.timeout), steps, o); step(`hover at (${Math.round(c.x)}, ${Math.round(c.y)})`); await page.mouse.move(c.x, c.y); await settle(); },
       async fill(value, o = {}) {
         const i = await one(steps, o.timeout);
+        step(String(value) === "" ? "clear" : `fill "${value}"`);
         await reachToType(i, steps, o);
         await on(i, (el) => { el.focus(); if (typeof el.select === "function") el.select(); });
         // the value arrives whole, in one input event, as Playwright's fill sets it
@@ -469,7 +473,7 @@ export function withLocators(page, { act, series, settle, advance, fail: refuse 
       async clear(o = {}) { return api.fill("", o); },
       async pressSequentially(text, o = {}) { await typeInto(await one(steps, o.timeout), text, steps, o); },
       async type(text, o = {}) { await typeInto(await one(steps, o.timeout), text, steps, o); },
-      async press(key, o = {}) { const i = await one(steps, o.timeout); await reachToType(i, steps, o); await on(i, (el) => el.focus()); await pressChord(page, key); await settle(); },
+      async press(key, o = {}) { const i = await one(steps, o.timeout); step(`key ${key}`); await reachToType(i, steps, o); await on(i, (el) => el.focus()); await pressChord(page, key); await settle(); },
       async check(o = {}) { if (!(await api.isChecked(o))) await api.click(o); },
       async uncheck(o = {}) { if (await api.isChecked(o)) await api.click(o); },
       async setChecked(v, o = {}) { return v ? api.check(o) : api.uncheck(o); },
@@ -487,6 +491,7 @@ export function withLocators(page, { act, series, settle, advance, fail: refuse 
           return picked.map((op) => op.value);
         }, want);
         if (chosen === null) fail(`${describe(steps)}.selectOption(…) works on a <select> — a Combobox is chosen by typing into it and pressing Enter, or by clicking its option`);
+        step(`select ${chosen.join(", ")}`);
         await settle();
         return chosen;
       },

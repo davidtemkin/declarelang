@@ -48,7 +48,8 @@ Shows a message, with an action record when it offers one: `toast.say("Saved")`,
 A toast already showing takes the new message and starts its time again.
 
 ## picked()
-Receives the action's id when its button is pressed. Override it at the use site. The button
+Receives the action's id when its button is pressed, while the toast is still open; it closes
+after, unless `picked` itself showed a new message with `say()`. Override it at the use site. The button
 takes no focus, so a press on it leaves focus where it was; a program that offers the same
 action from the keyboard gives it a shortcut of its own.
 
@@ -162,7 +163,16 @@ class Toast extends Floating [
 
         act: Button [ visible = { classroot.action != null },
             label = { classroot.action != null ? "" + classroot.action.label : "" },
-            onClick() { if (classroot.action != null) { const id = "" + classroot.action.id; classroot.close(); classroot.picked(id) } }
+
+            // the action is told while its toast is still open, as a menu's pick
+            // is, and the toast closes after, unless the action said something new
+
+            onClick() {
+                if (classroot.action == null) return
+                const mine = classroot._round
+                classroot.picked("" + classroot.action.id)
+                if (classroot._round == mine) classroot.close()
+                }
             ]
         ]
     ]

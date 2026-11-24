@@ -104,7 +104,7 @@ try {
   // "beside my .declare" (asset-base.ts) — and a face the child cannot load
   // never aborts the mount: the pane shows, in its fallback face.
   await test("the Viewer's edit pane mounts a child with a web font, at the viewed program's base", async () => {
-    await page.goto(`${B}/apps/lzx-weather/lzx-weather.declare?viewer=edit`, { waitUntil: "networkidle2", timeout: 60000 });
+    await page.goto(`${B}/apps/lzx-dashboard/lzx-dashboard.declare?viewer=edit`, { waitUntil: "networkidle2", timeout: 60000 });
     await page.waitForFunction(
       () => (document.querySelector('[data-declare-slot^="run:"]')?.children.length ?? 0) > 0,
       { timeout: 30000 },
@@ -116,7 +116,7 @@ try {
         nodes: box?.querySelectorAll("*").length ?? 0,
         fonts: [...document.fonts].map((f) => f.status),
         imgs: imgs.length,
-        misbased: imgs.map((i) => i.src).filter((s) => !s.includes("/apps/lzx-weather/")),
+        misbased: imgs.map((i) => i.src).filter((s) => !s.includes("/apps/lzx-dashboard/")),
         broken: imgs.filter((i) => i.complete && !i.naturalWidth).length,
       };
     });

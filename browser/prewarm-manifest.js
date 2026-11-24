@@ -61,6 +61,7 @@ export const PREWARMED = [
   // every visitor who opened it paid a full fetch-source + client compile
   // with nothing to fall back to (2026-09-21).
   { main: "apps/architecture/architecture.declare", props: { render: "dom" } },
+  { main: "apps/model-tour/model-tour.declare", props: { render: "dom" } },
   // the homepage's live demo panels (its islands, in apps/homepage/demos/): prewarmed, the
   // previews mount the moment the page paints — no compiler download on the path
   // at all. Islands always render on the DOM backend, so render:dom is the one key.

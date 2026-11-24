@@ -1056,14 +1056,13 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   const gone = new Set(out.diagnostics.filter((d) => !kept.includes(d)).map((d) => `${d.code} ${d.pos?.file ?? ""}:${d.pos?.line}:${d.pos?.col}`));
   const keep = (e: DeclareError): boolean => !gone.has(`${e.code} ${e.pos?.file ?? ""}:${e.pos?.line}:${e.pos?.col}`);
   const said = [...quiet].map(([by, n]) => `${n} quieted by ${by}`).join(", ");
-  return {
-    ...out,
+  return carryProgram(out, {
     warnings: out.warnings.filter(keep),
     ...(out.hints !== undefined ? { hints: out.hints.filter(keep) } : {}),
     diagnostics: kept,
     quieted: [...quiet].map(([by, count]) => ({ by, count })),
     report: [renderReport(kept), said].filter((x) => x !== "").join("\n"),
-  };
+  });
 }
 
 /** Errors an early phase refused without stopping (a library name the program

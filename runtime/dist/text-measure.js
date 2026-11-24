@@ -1,6 +1,9 @@
 // measureText — a run of text measured in a style, with the measurer and the
-// wrapping a `Text` uses (measure.ts), so the numbers agree with a Text of that
-// style and width, on every renderer.
+// wrapping a `Text` uses (measure.ts), so the lines agree with a Text of that
+// style and width, on every renderer. The width and height are the exact
+// extent, fractions kept: a `Text` sizes its own box to that extent rounded up
+// to a whole pixel, and a program sizing a box from the measure rounds as its
+// design needs (`Math.ceil`, `Math.round`) or not at all.
 //
 //   width = { measureText(app.label, { fontFamily: app.brand, fontSize: 13 }).width + 16 }
 //   draw(d: DrawContext) { const m = measureText("Plate 4", Caption); d.fillText("Plate 4", (d.w - m.width) / 2, m.baseline, Caption) }
@@ -42,8 +45,8 @@ export function measureText(text, style, width) {
     const lines = width !== undefined && width > 0 ? wrapLines(shown, font, width, tracking) : shown.split("\n");
     const widest = lines.reduce((w, line) => Math.max(w, textWidth(line, font, tracking)), 0);
     return {
-        width: Math.ceil(widest),
-        height: Math.ceil(lineH * lines.length),
+        width: widest,
+        height: lineH * lines.length,
         baseline: m.ascent,
         capHeight: capHeight(font),
         lines: lines.length,

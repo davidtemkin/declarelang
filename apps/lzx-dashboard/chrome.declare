@@ -1,234 +1,349 @@
 /*
-# Chrome — the drawn window system
+# Chrome — the window system
 
-The window frame, the accordion, and the pill button. In the original all
-three are bitmaps: about 170 slices of grayscale art, multiplied at runtime by
-a per-window tint so one set of pieces could dress five differently coloured
-windows. Here they are drawn, and the tint is folded in — each class takes the
-few colours its window needs and paints the rest from them.
-
-`shade` is the original's arithmetic, kept because the art was built for it:
-a grayscale value times a factor is how every highlight and shadow in this
-file relates to its base colour.
+The text, the image button, the window frame and the stack of tabs inside it. The
+frames and tab bars are the original's grayscale art, tinted per window with the
+same arithmetic the original runs.
 */
 
-script {
-    /** A 0xRRGGBB colour with every channel multiplied by `f` and clamped. */
-    function shade(c: number, f: number): number {
-        const ch = (s: number) => Math.min(255, Math.round(((c >> s) & 255) * f))
-        return (ch(16) << 16) | (ch(8) << 8) | ch(0)
-        }
-    }
+
+// Text as the original sets it: inset 2px on every side of its box, its lines 1.2
+// times the font size, and on the Mac a hundredth of an em between letters.
+
+class Label extends Text [ padding = 2, lineHeight = 1.2, letterSpacing = { this.fontSize * 0.01 } ]
+
+/*
+## ImageButton
+
+A button drawn by three images: at rest, under the pointer, and held down. Its
+size is its art's.
+*/
+
+class ImageButton extends Control [
+    upArt: string = "",
+    overArt: string = "",
+    downArt: string = "",
+    face: Image [ source = { parent.pressed ? classroot.downArt : parent.hovered ? classroot.overArt : classroot.upArt } ]
+    ]
+
+
+// The same, its art stretched to whatever size the button is given.
+
+class StretchedImageButton extends Control [
+    upArt: string = "",
+    overArt: string = "",
+    downArt: string = "",
+    face: Image [ width = 100%, height = 100%, fit = both,
+        source = { parent.pressed ? classroot.downArt : parent.hovered ? classroot.overArt : classroot.upArt } ]
+    ]
 
 
 /*
 ## DashButton
 
-The rounded pill, drawn where the original used a nine-piece stretched
-bitmap. Two of them appear in the app and differ only in colour, so `face`
-and `edge` are the whole variation: sage in the contacts bar, rust on the
-login. The label is engraved — a dark copy sitting just above a white one.
+The contacts bar's buttons: a pill of three pieces of art (its two ends and a
+middle stretched between them) in three states, and a white label centered over
+a dark copy of itself half a pixel right and up.
 */
 
-class DashButton extends Control [
+class DashButton extends Control [ height = 16,
     label: string = "",
-    height = 16,
-    cornerRadius = 8,
+    accessibilityLabel = { label },
+    state: string = { pressed ? "dn" : hovered ? "mo" : "up" },
+    left:   Image [ source = { "resources/img/cntctbtn_" + parent.state + "_lft.png" } ],
+    middle: Image [ x = { parent.left.width }, width = { parent.width - parent.left.width - parent.right.width }, fit = both,
+        source = { "resources/img/cntctbtn_" + parent.state + "_mid.png" } ],
+    right:  Image [ x = { parent.width - this.width }, source = { "resources/img/cntctbtn_" + parent.state + "_rt.png" } ],
+    hilite: Label [ x = { parent.title.x + 0.5 }, y = -0.7, textColor = #143B45,
+        fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, text = { classroot.label } ],
+    title: Label [ x = { Math.round((parent.width - this.width) / 2) }, textColor = #FFFFFF,
+        fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, text = { classroot.label } ]
+    ]
 
-    face: Color = #96B8A6,
-    edge: Color = #2F5646,
 
-    fill = { pressed ? shade(face, 0.85) : hovered ? shade(face, 1.08) : face },
-    stroke = { Stroke(1.5, edge) },
+/*
+## ScrollPane and Scrollbar
 
-    // Centred in whatever height the pill is — 16 in the contacts bar, 20 on
-    // the login — engraved by one textShadow 0.7px above the face.
+A pane that scrolls its content up and down, the platform's own scrolling with
+its scrollbar hidden and the original's classic one drawn down its right side in
+its place: an arrow at each end, a track, and a thumb
+as long as the share of the content in view (never under 14px) with a ribbed
+gripper, at most 200px, in its middle. An arrow steps 10px, the track pages by the
+pane's height; held, either repeats after half a second, every 50ms. The wheel
+steps 10px a notch, as the original's. While everything fits, the bar shows its
+disabled art and no thumb.
 
-    faceText: Text [ x = { Math.round((parent.width - this.width) / 2) }, y = center,
-        fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #FFFFFF,
-        textShadow = { Shadow(0.5, -0.7, 0, edge) },
-        text = { classroot.label } ]
+The keyboard scrolls the pane itself: the arrows step and Page Up and Page Down
+page, so the bar's parts are for the pointer. The bar is tinted with its window,
+ground and all: `art` names its folder of
+tinted pieces, `ground` the tinted grey behind them, and `idleGround` what shows
+behind them while the bar is idle, the pane's own color, tinted.
+*/
+
+class ScrollPane [ scrolls = y, hideScrollbars = true,
+    art: string = "contacts",
+    ground: Color = #595959,
+    idleGround: Color = #FFFFFF,
+
+    scrollable: boolean = { content.height > height },
+
+    // A step goes on from where the last one sent the pane: the platform reports
+    // where the pane is once a frame, so notches faster than that still add up.
+
+    sent: number = -1,
+    trackChanges = ["scrollY"],
+    onChange() { sent = -1 },
+    go(v: number) { sent = Math.max(0, Math.min(content.height - height, v)); this.scrollTo(sent) },
+    step(dir: number) { go((sent >= 0 ? sent : scrollY) + dir * 10) },
+    page(dir: number) { go((sent >= 0 ? sent : scrollY) + dir * height) },
+    onWheel(e: WheelEvent) { if (e.deltaY != 0) step(Math.sign(e.deltaY)) },
+
+    // from the keyboard: the arrows step, Page Up and Page Down page
+
+    focusable = { scrollable },
+    keyBindings = { [ ({ key: "ArrowUp", command: "step", args: [-1] }), ({ key: "ArrowDown", command: "step", args: [1] }),
+                      ({ key: "PageUp", command: "page", args: [-1] }), ({ key: "PageDown", command: "page", args: [1] }) ] },
+
+    defaultPlacement = content,
+    content: View [ width = { parent.width - 14 } ],
+    bar: Scrollbar [ x = { parent.width - 14 }, height = { parent.height }, ignoreScroll = true ]
+    ]
+
+
+// One end or stretch of the bar that acts while held: once on the press, then,
+// held past half a second, every 50ms.
+
+class Repeater extends Control [ focusable = false,
+    act() { },
+    onPointerDown() { act(); afterDelay(500, () => again()) },
+    again() { if (pressed) { act(); afterDelay(50, () => again()) } }
+    ]
+
+
+class Scrollbar [ width = 14,
+    pane: ScrollPane = { parent as ScrollPane },
+    on: boolean = { pane.scrollable },
+    fill = { on ? pane.ground : pane.idleGround },
+    piece(name: string) -> string { return "resources/img/tinted/scroll-" + pane.art + "/" + name + ".png" },
+    frame(base: string, held: boolean, over: boolean) -> string {
+        return piece(base + (!on ? "_dsbl" : held ? "_dn" : over ? "_mo" : "_up")) },
+
+    up: Repeater [ x = 1, y = 1, width = 12, height = 13, accessibilityLabel = "Scroll up",
+        act() { classroot.pane.step(-1) },
+        Image [ source = { classroot.frame("scrollbtn_y_top", parent.pressed, parent.hovered) } ]
+        ],
+
+    track: View [ x = 1, y = 14, width = 12, height = { parent.height - 28 },
+        thumbH: number = { Math.max(14, Math.floor(classroot.pane.height / Math.max(1, classroot.pane.content.height) * this.height)) },
+        thumbY: number = { Math.min(Math.ceil(classroot.pane.scrollY / Math.max(1, classroot.pane.content.height) * this.height), this.height - this.thumbH) },
+
+        above: Repeater [ width = 12, accessibilityLabel = "Page up", height = { classroot.on ? parent.thumbY : parent.height },
+            act() { classroot.pane.page(-1) },
+            Image [ width = 12, height = 100%, fit = both,
+                source = { classroot.piece(!classroot.on ? "y_scrolltrack_dsbl" : parent.pressed ? "y_scrolltrack_dn" : "y_scrolltrack") } ]
+            ],
+        below: Repeater [ y = { parent.thumbY + parent.thumbH }, width = 12, accessibilityLabel = "Page down", visible = { classroot.on },
+            height = { parent.height - parent.thumbY - parent.thumbH },
+            act() { classroot.pane.page(1) },
+            Image [ width = 12, height = 100%, fit = both,
+                source = { classroot.piece(parent.pressed ? "y_scrolltrack_dn" : "y_scrolltrack") } ]
+            ],
+
+        // the thumb follows the content, and dragging it moves the content in step
+
+        thumb: View [ y = { parent.thumbY }, width = 12, height = { parent.thumbH }, visible = { classroot.on },
+            grabY: number = 0,
+            onPointerDown(e: PointerEvent) { grabY = e.y },
+            onDrag(e: PointerEvent) {
+                const track = parent as View
+                const top = e.rootY - track.rootOrigin().y - grabY
+                classroot.pane.go(top / Math.max(1, track.height) * classroot.pane.content.height)
+                },
+            cap: Image [ source = { classroot.piece("scrollthumb_y_top") } ],
+            middle: Image [ y = 1, width = 12, height = { parent.height - 3 }, fit = both,
+                source = { classroot.piece("scrollthumb_y_mid") } ],
+            foot: Image [ y = { parent.height - 2 }, source = { classroot.piece("scrollthumb_y_bot") } ],
+            gripper: View [ x = 1, width = 11, clip = true,
+                height = { Math.min(200, parent.height - 16) },
+                y = { Math.round((parent.height - this.height) / 2) },
+                Image [ source = { classroot.piece("thumb_y_gripper") } ]
+                ]
+            ]
+        ],
+
+    down: Repeater [ x = 1, y = { parent.height - 14 }, width = 12, height = 13, accessibilityLabel = "Scroll down",
+        act() { classroot.pane.step(1) },
+        Image [ source = { classroot.frame("scrollbtn_y_bot", parent.pressed, parent.hovered) } ]
+        ]
     ]
 
 
 /*
 ## TabStack and DashTab
 
-The accordion every window's content sits in: tabs stacked vertically, exactly
-one open, sliding over 333ms. A closed tab is its 18px header bar; the open
-one takes every pixel the closed ones leave, so resizing a window re-derives
-all of them with no bookkeeping.
+Every window's content sits in a stack of tabs, exactly one open, sliding over
+333ms. A closed tab is its 18px bar; the open one takes every pixel the closed ones
+leave, so resizing a window re-derives them all.
 
-A constraint may not aggregate over a view's children, so the stack computes
-the one shared number — what the closed tabs take together — and writes it to
-each tab as a plain attribute. Each tab's own height then reads only its own state.
+The stack holds its open tab, and how many tabs it has, which is what the closed
+ones take together. Opening a tab is one move: the tab that was open starts
+closing and the new one starts opening, each from where it stands, and then the
+stack holds the new one; while a tab moves, its motion holds its height, and after
+it lands its height follows the window again. To a screen reader a tab is a group
+named by its bar, the bar a button that says whether it is open; Tab reaches what
+a tab holds only while it is open.
 */
 
-class TabStack [
-    width = 100%, height = 100%,
-
+class TabStack [ width = 100%, height = 100%,
+    current: DashTab? = null,
+    count: number = 4,
+    closedTotal: number = { 18 * (count - 1) },
     layout: SimpleLayout [ axis = y ],
 
-    assign(animate: boolean) {
-        let sel = 0
-        for (let i = 0; i < this.children.length; i++) if (this.children[i].selected) sel = i
-        const used = 18 * (this.children.length - 1)
-        for (let i = 0; i < this.children.length; i++) {
-            const c = this.children[i]
-            c.othersUsed = used
-            if (animate) { c.slide.to = i === sel ? this.height - used : 18; c.slide.start() }
-            }
-        },
-
-    onInit() { assign(false) },
-
-    select(tab: DashTab) {
-        for (const child of this.children) child.selected = child === tab
-        assign(true)
+    choose(tab: DashTab) {
+        if (tab == current) return
+        current?.closing.start()
+        tab.opening.start()
+        current = tab
         }
     ]
 
 
-// The header bar is `tabbar.png` drawn rather than loaded: eighteen rows of
-// grayscale — white on top, a two-step falloff, a flat body, a darkening tail
-// — multiplied by the tint of whichever side of the bar it is on. The label
-// plate uses `btnBase`, the rest of the row `barBase`, split by a white and a
-// black hairline.
+// One tab. Its bar is the label's plate, as wide as the label and five more, a
+// black and a white hairline at half strength, and the strip running on to the
+// right edge: the plate and the strip are the same grayscale art, each tinted its
+// own color for the window. A press anywhere on the bar opens the tab; under the
+// pointer the plate takes the art's pressed frame.
 
-class DashTab [
-    width = 100%,
+class DashTab [ width = 100%, clip = true,
     label: string = "",
-    selected: boolean = false,
+    initiallyOpen: boolean = false,
+    art: string = "daily",               // the window whose tinted art the bar wears
 
-    btnBase: Color = #4F4538,          // per window flavor, sampled
-    barBase: Color = #88775F,
+    open: boolean = { (parent as TabStack).current == this },
+    onInit() { if (initiallyOpen) (parent as TabStack).current = this },
 
-    othersUsed: number = 54,           // what the closed siblings take, together
+    accessibilityRole = group,
+    accessibilityLabel = { label },
 
-    height = { selected ? parent.height - othersUsed : 18 },
-    slide: Animator [ attribute = height, duration = 333, easing = laszloBoth ],
-    clip = true,
+    // its height: open, the whole of what the closed tabs leave, following the
+    // window's size; closed, its bar
 
-    header: View [ width = 100%, height = 18,
+    openHeight: number = { parent.height - (parent as TabStack).closedTotal },
+    height = { open ? openHeight : 18 },
+    opening: Animator [ attribute = height, to = { classroot.openHeight }, duration = 333, easing = laszloBoth ],
+    closing: Animator [ attribute = height, to = 18, duration = 333, easing = laszloBoth ],
 
-        onClick() { classroot.parent.select(classroot); app.stage.popup.hide() },
+    tabOrder() { return open ? this.tabDefault() : [this.bar] },
 
-        draw(d: DrawContext) {
-            const bw = Math.min(width, title.width + 11)
-            // One gradient with a hard stop per row, rather than eighteen
-            // stacked rects: on a retina display the seam between abutting
-            // rects antialiases and shows as banding, a single fill cannot.
-            const rows = [255, 226, 197, 168, 168, 168, 168, 168, 168, 168, 168, 168, 168, 168, 156, 145, 110, 75]
-            const css = (c) => "rgb(" + ((c >> 16) & 255) + "," + ((c >> 8) & 255) + "," + (c & 255) + ")"
-            const bands = (x0, w0, base) => {
-                const grad = d.createLinearGradient(0, 0, 0, 18)
-                for (let i = 0; i < 18; i++) {
-                    const col = css(shade(base, rows[i] / 168))
-                    grad.addColorStop(i / 18, col)
-                    grad.addColorStop(Math.min(1, (i + 1) / 18 - 0.0001), col)
-                    }
-                d.fillStyle = grad
-                d.fillRect(x0, 0, w0, 18)
-                }
-            bands(0, bw, classroot.btnBase)
-            d.fillStyle = 0xFFFFFF80; d.fillRect(bw, 0, 1, 18)
-            d.fillStyle = 0x00000080; d.fillRect(bw + 1, 0, 1, 18)
-            bands(bw + 2, width - bw - 2, classroot.barBase)
-            },
-
-        title: Text [ x = 6, y = 1, fontFamily = { app.vera }, fontWeight = bold,
-            fontSize = 12, textColor = #FFFFFF, textShadow = Shadow(-0.5, 0.5, 0, #00000080),
-            text = { classroot.label } ]
+    bar: Control [ width = 100%, height = 18,
+        accessibilityRole = button,
+        accessibilityLabel = { classroot.label },
+        accessibilityExpanded = { classroot.open },
+        press() { app.offered = null; (classroot.parent as TabStack).choose(classroot) },
+        layout: SimpleLayout [ axis = x ],
+        plate: View [ height = 18, width = { this.title.width + 5 },
+            face: Image [ width = 100%, height = 18, fit = both,
+                source = { "resources/img/tinted/" + classroot.art + (parent.hovered ? "/tab_label_down.png" : "/tab_label.png") } ],
+            titleShadow: Label [ x = 3.5, y = -0.5, opacity = 0.5, textColor = #000000,
+                fontFamily = { app.vera }, fontSize = 12, text = { classroot.label } ],
+            title: Label [ x = 4, fontFamily = { app.vera }, fontSize = 12, textColor = #FFFFFF,
+                text = { classroot.label } ]
+            ],
+        blackLine: View [ width = 1, height = 18, fill = #000000, opacity = 0.5 ],
+        whiteLine: View [ width = 1, height = 18, fill = #FFFFFF, opacity = 0.5 ],
+        strip: Image [ height = 18, fit = both, width = { parent.width - parent.plate.width - 2 },
+            source = { "resources/img/tinted/" + classroot.art + "/tab_bar.png" } ]
         ]
     ]
 
 
-// One flavour per window: the two base colours its tab strips are drawn from.
+/*
+## DashShadow
 
-class DailyTab   extends DashTab [ btnBase = #4F4538, barBase = #88775F ]
+A soft shadow down the right side and along the bottom of the box it is given,
+with its corners: the original's art. A window and the login window cast one.
+*/
 
-class CommTab    extends DashTab [ btnBase = #47483A, barBase = #616350 ]
+class DashShadow [
+    topRight:    Image [ x = { parent.width - 12 }, source = "resources/img/shdw_top_rt.png" ],
+    rightSide:   Image [ x = { parent.width - 12 }, y = 22, height = { parent.height - 53 }, fit = both,
+        source = "resources/img/shdw_mid_rt.png" ],
+    bottomLeft:  Image [ x = 2, y = { parent.height - 26 }, source = "resources/img/shdw_bot_lft.png" ],
+    bottomSide:  Image [ x = 28, y = { parent.height - 15 }, width = { parent.width - 55 }, fit = both,
+        source = "resources/img/shdw_bot_mid.png" ],
+    bottomRight: Image [ x = { parent.width - 27 }, y = { parent.height - 31 }, source = "resources/img/shdw_bot_rt.png" ]
+    ]
 
-class PlannerTab extends DashTab [ btnBase = #414648, barBase = #575E62 ]
-
-class MediaTab   extends DashTab [ btnBase = #444148, barBase = #5D5762 ]
-
-class PeopleTab  extends DashTab [ btnBase = #3E5047, barBase = #4F6058 ]
 
 /*
 ## DashWindow
 
-The window all five instances share. Its whole frame — pinstriped top bar,
-icon corner, title lozenge, side rails, rounded bottom — is drawn from one
-near-black per window, so a window is configured by a fill and a frame colour
-rather than by a set of images.
+The window all five share, framed in the original's art tinted for the window: the
+top-left corner where its icon sits, the title's plate stretched to the title, the
+long top bar, the cap with its two buttons, the side rails, and the bottom with
+the resize grip at its right end. A soft shadow falls to the right and below.
 
-It drags by the title bar (going half-transparent while it moves, as the
-original did), resizes from the grip in the bottom-right, and maximizes or
-restores by animating x, y, width and height together over 500ms.
+It drags by its title bar, going half-transparent while it moves; resizes from the
+grip; and maximizes or goes back to where it started, its x, y, width and height
+moving together over 500ms. Any press on it brings it to the front.
 */
 
 class DashWindow [
     winLabel: string = "",
     icon: string = "",
-    tint: Color = #999999,             // the body fill (the original's windowTintColor)
-    frame: Color = #252421,            // the frame near-black, sampled per window
+    art: string = "daily",               // its folder of tinted frame art
+    tint: Color = #999999,               // the body's fill: the window's color
     homeX: number = 0,
     homeY: number = 0,
     homeW: number = 400,
     homeH: number = 300,
-    minW: number = 160,
+    minWindowWidth: number = 160,
     minH: number = 118,
     maximized: boolean = false,
     dragging: boolean = false,
 
-    // Geometry is plain state, seeded once from `home*`. Drag, resize,
-    // maximize and restore all write it directly, which a constraint would
-    // refuse.
+    // no narrower than its title bar's fixed parts
+
+    minW: number = { Math.max(minWindowWidth, Math.ceil(31 + topRow.titlePlate.width + 26 + 48)) },
+
+    accessibilityRole = region,
+    accessibilityLabel = { winLabel },
+
+    // Its place and size are its own, started at home: the drag, the grip and the
+    // two motions all write them, which a constraint would refuse.
 
     onInit() { x = homeX; y = homeY; width = homeW; height = homeH },
     opacity = { dragging ? 0.5 : 1 },
 
-    // four attributes moving together — the maximize and restore gesture
-
-    move: AnimatorGroup [ process = simultaneous, duration = 500, easing = laszloOut,
-        ax: Animator [ attribute = x ],
-        ay: Animator [ attribute = y ],
-        aw: Animator [ attribute = width ],
-        ah: Animator [ attribute = height ]
+    toMax: AnimatorGroup [ process = simultaneous, duration = 500, easing = laszloOut, started = { classroot.maximized },
+        Animator [ attribute = x, to = 18 ],
+        Animator [ attribute = y, to = 47 ],
+        Animator [ attribute = width, to = { app.desktop.width - 36 } ],
+        Animator [ attribute = height, to = { app.desktop.height - 64 } ]
+        ],
+    toHome: AnimatorGroup [ process = simultaneous, duration = 500, easing = laszloOut, started = { !classroot.maximized },
+        Animator [ attribute = x, to = { classroot.homeX } ],
+        Animator [ attribute = y, to = { classroot.homeY } ],
+        Animator [ attribute = width, to = { classroot.homeW } ],
+        Animator [ attribute = height, to = { classroot.homeH } ]
         ],
 
-    glide(tx: number, ty: number, tw: number, th: number) {
-        move.ax.to = tx; move.ay.to = ty; move.aw.to = tw; move.ah.to = th
-        move.start()
-        },
-    maximize() {
-        this.raise()
-        app.stage.popup.hide()
-        maximized = true
-        glide(12, 1, app.deskW - 36, app.deskH - 64)
-        },
-    restore() {
-        this.raise()
-        app.stage.popup.hide()
-        if (!maximized) return
-        maximized = false
-        glide(homeX, homeY, homeW, homeH)
-        },
+    maximize() { front(); maximized = true },
+    restore()  { front(); maximized = false },
 
-    onPointerDown() { this.raise(); app.stage.popup.hide() },
+    // any press on a window brings it to the front, and lets the media popup go
 
-    // The window's silhouette, and what casts its shadow. The root cannot: its
-    // box includes the transparent strip above the bar, so a shadow cast from
-    // it would print a square behind the rounded bottom corners. This plate is
-    // the real outline — everything else paints over it, except at the corners,
-    // where its fill is exactly the frame colour they need.
+    front() { this.raise(); app.offered = null },
+    onPointerDown() { front() },
 
-    silhouette: View [ y = 10, width = 100%, height = { parent.height - 10 },
-        fill = { classroot.frame }, cornerRadius = 13,
-        shadow = Shadow(5, 9, 9, #00000099) ],
+    frameArt(piece: string) -> string { return "resources/img/tinted/" + art + "/" + piece + ".png" },
 
-    // ── the title bar: pinstriped strip, icon corner, title lozenge ────────
+    // the shadow, from a box 3px left of the window and 15px wider
+
+    dropShadow: DashShadow [ x = -3, y = 20, width = { parent.width + 15 }, height = { parent.height - 5 } ],
+
+    // ── the title bar ───────────────────────────────────────────────────────
 
     topRow: View [ width = 100%, height = 31,
         grabX: number = 0,
@@ -236,95 +351,81 @@ class DashWindow [
 
         onPointerDown(e: PointerEvent) {
             grabX = e.x; grabY = e.y; classroot.dragging = true
-            classroot.raise(); app.stage.popup.hide()
+            classroot.front()
             },
-
-        // A drag's events carry root-space coordinates; a window's x/y are
-        // relative to the stage, hence the parent origin coming off.
-
         onDrag(e: PointerEvent) {
-            classroot.x = e.rootX - grabX - classroot.parent.x
-            classroot.y = e.rootY - grabY - classroot.parent.y
+            classroot.x = e.rootX - grabX
+            classroot.y = e.rootY - grabY
             },
         onPointerUp() { classroot.dragging = false },
 
-        draw(d: DrawContext) {
-            const f = classroot.frame
-            d.fillStyle = 0x939393; d.fillRect(26, 8, width - 26, 2) // the light edge above the bar
-            // The bar, rounded into its top-left corner. The icon is a circle
-            // laid over that corner with nothing square behind it.
-            d.fillStyle = f
-            d.beginPath()
-            d.moveTo(0, 31); d.lineTo(0, 22); d.quadraticCurveTo(0, 10, 14, 10)
-            d.lineTo(width, 10); d.lineTo(width, 31); d.closePath(); d.fill()
-            for (let yy = 13; yy < 24; yy += 3) {                    // the ribbed pinstripes
-                d.fillStyle = shade(f, 1.95); d.fillRect(40, yy, width - 40, 1)
-                d.fillStyle = 0x000000; d.fillRect(40, yy + 1, width - 40, 1)
-                }
-            },
+        corner: Image [ source = { classroot.frameArt("top_left") } ],
+        iconArt: Image [ source = { classroot.icon }, accessibilityHidden = true ],
 
-        iconArt: Image [ x = 2, y = 0, width = 31, height = 31,
-            source = { classroot.icon } ],
-        lozenge: View [ x = 32, y = 8, height = 23,
-            width = { titleText.width + 24 },
+        // the title, on a plate stretched to it, and the plate's swept right end
 
-            // the title's lozenge, its right end swept into a cap
+        titlePlate: Image [ x = 35, y = 8, width = { parent.title.width }, fit = both,
+            source = { classroot.frameArt("top_title") } ],
+        title: Label [ x = 32, y = 8, fontFamily = { app.vera }, fontSize = 16, textColor = #FFFFFF,
+            accessibilityRole = heading, accessibilityLevel = 2,
+            text = { classroot.winLabel } ],
+        titleEnd: Image [ x = { parent.title.x + parent.title.width + 3 }, y = 8,
+            source = { classroot.frameArt("top_title_right") } ],
 
-            draw(d: DrawContext) {
-                d.fillStyle = classroot.frame
-                d.beginPath()
-                d.moveTo(0, 0); d.lineTo(width - 22, 0)
-                d.quadraticCurveTo(width - 6, 0, width, height)
-                d.lineTo(0, height); d.closePath(); d.fill()
-                },
-            titleText: Text [ x = 2, y = 2, fontFamily = { app.vera }, fontWeight = bold,
-                fontSize = 16, textColor = #FFFFFF, text = { classroot.winLabel } ]
+        bar: Image [ x = { parent.titleEnd.x + parent.titleEnd.width }, y = 10, fit = width,
+            width = { parent.cap.x - parent.titleEnd.x - 25.5 },
+            source = { classroot.frameArt("top") } ],
+
+        cap: Image [ x = { parent.width - 48 }, y = 10, source = { classroot.frameArt("top_right") },
+
+            // the original's button art comes in three frames, and its buttons show
+            // the second under the pointer and the third while held
+
+            restoreBtn: ImageButton [ x = 15, y = 4, accessibilityLabel = { "Restore " + classroot.winLabel },
+                upArt = "resources/img/glob_win_plusminus_button.png",
+                overArt = "resources/img/glob_win_plusminus_button_down.png",
+                downArt = "resources/img/glob_win_plusminus_button_over.png",
+                press() { classroot.restore() }
+                ],
+            maxBtn: ImageButton [ x = 30, y = 4, accessibilityLabel = { "Maximize " + classroot.winLabel },
+                upArt = "resources/img/glob_win_plusminus_button.png",
+                overArt = "resources/img/glob_win_plusminus_button_down.png",
+                downArt = "resources/img/glob_win_plusminus_button_over.png",
+                press() { classroot.maximize() }
+                ]
             ],
 
-        cap: View [ x = { parent.width - 48 }, y = 10, width = 48, height = 21,
-            fill = { classroot.frame },
+        // the minus and plus, laid over the two buttons
 
-            restoreBtn: View [ x = 15, y = 4, width = 13, height = 12,
-                fill = { hovered ? 0x6A6A6A : 0x4A4A4A }, cornerRadius = 2,
-                onClick() { classroot.restore() },
-                glyph: View [ x = 3, y = 5, width = 7, height = 3, fill = #DDDDDD ]
-                ],
-            maxBtn: View [ x = 30, y = 4, width = 13, height = 12,
-                fill = { hovered ? 0x6A6A6A : 0x4A4A4A }, cornerRadius = 2,
-                onClick() { classroot.maximize() },
-                glyphH: View [ x = 3, y = 5, width = 7, height = 3, fill = #DDDDDD ],
-                glyphV: View [ x = 5, y = 3, width = 3, height = 7, fill = #DDDDDD ]
-                ]
-            ]
+        minus: Image [ x = { parent.width - 30 }, y = 19, source = "resources/img/dash_minus.png" ],
+        plus:  Image [ x = { parent.width - 15 }, y = 17, source = "resources/img/dash_plus.png" ]
         ],
 
-    // ── the body: the window's fill between two frame rails ────────────────
+    // ── the body: the window's color between two rails ──────────────────────
 
     body: View [ y = 31, width = 100%, height = { parent.height - 31 - 15 },
         fill = { classroot.tint },
 
-        // Events do not bubble here, so a press on the body is not a press on
-        // the window: raising has to be asked for on both.
+        // a press is the deepest handler's, not its ancestors', so the body asks
+        // for the window to come forward too
 
-        onPointerDown() { classroot.raise() },
-        railL: View [ width = 3, height = 100%, fill = { classroot.frame } ],
-        railR: View [ x = { parent.width - 3 }, width = 3, height = 100%,
-            fill = { classroot.frame } ]
+        onPointerDown() { classroot.front() },
+        railL: Image [ width = 3, height = 100%, fit = both, source = { classroot.frameArt("side") } ],
+        railR: Image [ x = { parent.width - 3 }, width = 3, height = 100%, fit = both,
+            source = { classroot.frameArt("side") } ]
         ],
 
-    // ── the bottom rail, rounded, with the resize grip in its right end ────
+    // ── the bottom, with the resize grip at its right end ───────────────────
 
     bottomRow: View [ y = { parent.height - 15 }, width = 100%, height = 15,
-
-        grip: View [ x = { parent.width - 15 }, width = 15, height = 15,
+        left:   Image [ source = { classroot.frameArt("bottom_left") } ],
+        middle: Image [ x = 15, width = { parent.width - 30 }, fit = both, source = { classroot.frameArt("bottom") } ],
+        grip:   Image [ x = { parent.width - 15 }, source = { classroot.frameArt("bottom_right") },
             cursor = "nwse-resize",
+            onPointerDown() { classroot.front() },
             onDrag(e: PointerEvent) {
-                classroot.width = Math.max(classroot.minW, e.rootX - classroot.parent.x - classroot.x)
-                classroot.height = Math.max(classroot.minH, e.rootY - classroot.parent.y - classroot.y)
-                },
-            draw(d: DrawContext) {                      // the grip's diagonal ridges
-                d.fillStyle = 0xFFFFFF44
-                d.fillRect(4, 10, 8, 1); d.fillRect(7, 7, 5, 1); d.fillRect(10, 4, 2, 1)
+                classroot.width = Math.max(classroot.minW, e.rootX - classroot.x)
+                classroot.height = Math.max(classroot.minH, e.rootY - classroot.y)
                 }
             ]
         ]

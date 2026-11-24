@@ -1,64 +1,78 @@
 /*
 # The live applets
 
-Chat, contacts and the two media players — the four tabs of the dashboard that
-actually do something. (The rest are period screenshots, as they were in the
-original.)
+Chat, contacts and the two media players: the tabs of the dashboard that do
+something. (The rest show pictures of their period.)
+*/
 
+
+/*
 ## Chat
 
-The Communications window's live tab. The original talked to a chat server and
-rendered what came back; there is no server here, so a sent line is echoed
-straight into the transcript — in the blue the original gave your own
-messages.
+The Communications window's live tab. There is no chat server here, so a line
+you send goes straight into the transcript, your name in blue; another person's
+would come in red.
+
+The transcript is a white well with rounded corners and the window's scrollbar;
+below it, the entry between its rounded ends, and Send.
 */
 
 class ChatPanel [
-    width = 100%, height = 100%,
+    draft: string = "",
 
     send() {
-        const t = entry.text.trim()
+        const t = draft.trim()
         if (t === "") return
         app.chatLog.insert(["messages"], app.chatLog.value.messages.length,
-            ({ text: app.userName + ": " + t, self: true }))
-        entry.value = ""
-        transcript.scrollTo(Infinity)   // the far end — the platform clamps to the real bottom
+            ({ from: app.userName, text: t, self: true }))
+        draft = ""
+        afterSettle(() => well.transcript.scrollTo(Infinity))
         },
 
-    transcript: View [ x = 15, y = 5, width = { parent.width - 34 },
-        height = { parent.height - 34 },
-        fill = #FFFFFF, cornerRadius = 11, clip = true, scrolls = y,
+    // the well: the transcript, framed by its corner and edge art
 
-        // the transcript's margin is its own content box. The bottom stays 0:
-        // the original's list runs to the bottom edge, and a scroller counts
-        // its insets into the extent, so a bottom inset here would add room
-        // the port does not have.
+    well: View [ x = 5, y = 4, width = { parent.width - 10 }, height = { parent.height - 52 },
+        fontFamily = { app.veraRoman },
 
-        padding = [4, 6, 0, 6],
+        transcript: ScrollPane [ x = 10, width = { parent.width - 10 }, height = 100%, fill = #FFFFFF,
+            art = "chat", ground = #323229, idleGround = #8E9076,
+            accessibilityRole = region, accessibilityLabel = "Chat", accessibilityLive = polite,
+            lines: View [ width = 100%, padding = [4, 0, 6, 0], datapath = { app.chatLog.value },
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
+                HTMLText [ datapath = :messages[], width = 100%, padding = 2,
+                    textStyles = { { me: { textFill: "#0000FF" }, them: { textFill: "#CC0000" } } },
+                    html = { "<span class='" + (:self ? "me" : "them") + "'>" + escapeHtml(:from) + "</span>: " + escapeHtml(:text) } ]
+                ]
+            ],
 
-        rows: View [ width = 100%,
-            datapath = { app.chatLog.value },
-            layout: SimpleLayout [ axis = y, spacing = 2 ],
-            Text [ datapath = :messages[],
-                width = 100%, wrap = true,
-                fontFamily = { app.veraRoman }, fontSize = 11,
-                textColor = { :self ? 0x0000FF : 0xCC0000 },
-                text = :text ]
+        topLeft:     Image [ fill = #FFFFFF, source = "resources/img/chat_corner_tl.png" ],
+        top:         Image [ x = 12, width = { parent.width - 24 }, fit = both, source = "resources/img/chat_t.png" ],
+        topRight:    Image [ x = { parent.width - 12 }, source = "resources/img/chat_corner_tr.png" ],
+        left:        Image [ y = 10, height = { parent.height - 20 }, fit = both, fill = #FFFFFF, source = "resources/img/chat_l.png" ],
+        right:       Image [ x = { parent.width - 3 }, y = 10, height = { parent.height - 20 }, fit = both, source = "resources/img/chat_r.png" ],
+        bottomLeft:  Image [ y = { parent.height - 10 }, fill = #FFFFFF, source = "resources/img/chat_corner_bl.png" ],
+        bottom:      Image [ x = 12, y = { parent.height - 10 }, width = { parent.width - 24 }, fit = both, source = "resources/img/chat_b.png" ],
+        bottomRight: Image [ x = { parent.width - 12 }, y = { parent.height - 10 }, source = "resources/img/chat_corner_br.png" ]
+        ],
+
+    // the entry, between its rounded ends
+
+    entryBar: View [ x = 6, y = { parent.height - 42 }, width = { parent.width - 12 }, height = 17,
+        fontFamily = { app.veraRoman },
+        left:   Image [ source = "resources/img/chat_round_edge.png" ],
+        middle: Image [ x = 10, width = { parent.width - 20 }, fit = both, source = "resources/img/chat_middle.png" ],
+        right:  Image [ x = { parent.width - 10 }, source = "resources/img/chat_round_edge_rt.png" ],
+        entry:  TextInput [ x = 10, y = 1, width = { parent.width - 20 }, height = 15,
+            fill = null, stroke = null, cornerRadius = 0, padding = [0, 3, 2, 1],
+            accessibilityLabel = "Message",
+            value <-> classroot.draft,
+            onEnter() { classroot.send() }
             ]
         ],
 
-    entry: TextInput [ x = 10, y = { parent.height - 23 }, height = 17, accessibilityLabel = "Message",
-        width = { parent.width - 46 },
-        fill = #FFFFFF, cornerRadius = 8, stroke = Stroke(2, #959964),
-        fontFamily = { app.veraRoman }, fontSize = 11,
-        onEnter() { classroot.send() }
-        ],
-
-    sendBtn: Image [ width = 37, height = 15,
-        x = { parent.width - 44 }, y = { parent.height - 22 },
-        source = { pressed ? "resources/img/send_down.png"
-                 : hovered ? "resources/img/send_over.png" : "resources/img/send_up.png" },
-        onClick() { classroot.send() }
+    sendBtn: ImageButton [ x = { parent.width - 44 }, y = { parent.height - 41 }, accessibilityLabel = "Send",
+        upArt = "resources/img/send_up.png", overArt = "resources/img/send_over.png", downArt = "resources/img/send_down.png",
+        press() { classroot.send() }
         ]
     ]
 
@@ -66,320 +80,189 @@ class ChatPanel [
 /*
 ## Contacts
 
-The People window's live tab: fifteen contacts as an accordion — one row open
-at a time, clicking the open one closes it — over a slide-out form for adding
-another. A row flashes white when that person comes online.
+The People window's live tab: a bar for adding a contact, the form it opens, and
+the contacts as rows that open one at a time; pressing the open one closes it.
+When someone comes online their row shows a small light, and flashes white.
 */
 
-class ContactRow [
-    width = 100%,
+// A field of the new-contact form: white, in a one-pixel black border.
 
-    // Whether this row is the open one — the list decides, and a click on the
-    // header asks it (`picked`). A change of `open` slides the row to its new
-    // height.
+class ContactField extends TextInput [ height = 18,
+    fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, padding = [0, 3, 2, 2],
+    fontFamily = { app.veraRoman }
+    ]
 
+
+// One contact. Closed, its 34px plate: name and title. Open, 190px more: the
+// e-mail button, and the contact's addresses, numbers and notes under their heads.
+
+class ContactRow [ clip = true,
     open: boolean = false,
     picked() { },
-    height = { open ? 224 : 34 },
-    slide: Animator [ attribute = height, to = { classroot.open ? 224 : 34 }, duration = 333, easing = laszloBoth ],
-    trackChanges = ["open"],
-    onChange() { slide.start() },
-    clip = true,
 
-    header: View [ width = 100%, height = 34, fill = #88B29D,
-        onClick() { classroot.picked() },
-        edgeT: View [ width = 100%, height = 1, fill = #B0DEC9 ],
-        edgeL: View [ width = 1, height = 34, fill = #B0DEC9 ],
-        edgeB: View [ y = 33, width = 100%, height = 1, fill = #568A70 ],
-        edgeR: View [ x = { parent.width - 1 }, width = 1, height = 34, fill = #568A70 ],
+    // how far open it is, in pixels, moved over 300ms when it opens or closes
 
-        nameText:  Text [ x = 11, y = 3, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10,
-            textColor = #222222, text = :name ],
-        titleText: Text [ x = 11, y = 16, fontFamily = { app.veraRoman }, fontSize = 10,
-            textColor = #222222, text = :title ],
+    extent: number = { open ? 224 : 34 },
+    opening: Animator [ attribute = extent, to = 224, duration = 300, easing = laszloBoth, started = { classroot.open } ],
+    closing: Animator [ attribute = extent, to = 34, duration = 300, easing = laszloBoth, started = { !classroot.open } ],
+    height = { extent },
 
-        // Presence: when this contact is the one who just came online, a white
-        // wash snaps over the row and fades away across two seconds.
+    // whether this person has just come online
 
-        flash: View [ width = 100%, height = 34, fill = #FFFFFF, opacity = 0,
-            fade: Animator [ attribute = opacity, to = 0, duration = 2000 ],
+    online: boolean = { app.flashUser == :user },
 
-            // The wash is a response to a moment — this contact becoming the one
-            // who just signed on — so it is a change event, not a constraint: the
-            // value it watches is derived, and the settle in which it turns true
-            // is the settle that starts the fade.
+    accessibilityRole = group,
+    accessibilityLabel = :name,
+    textColor = #222222, fontSize = 10,
 
-            justOn: boolean = { app.flashUser === :user },
-            trackChanges = ["justOn"],
-            onChange(e: ChangeEvent) { if (this.justOn) { this.opacity = 0.9; this.fade.start() } }
-            ]
+    plate: Control [ width = 100%, height = 34, fill = #88B29D,
+        accessibilityLabel = { :name + ", " + :title },
+        accessibilityExpanded = { classroot.open },
+        press() { classroot.picked() },
+        wash: View [ width = 100%, height = 34, fill = #FFFFFF, opacity = 0,
+            Animator [ attribute = opacity, from = 0.9, to = 0, duration = 2000, started = { classroot.online } ]
+            ],
+        lightEdge: View [ width = 100%, height = 1, fill = #B0DEC9 ],
+        lightSide: View [ width = 1, height = 100%, fill = #B0DEC9 ],
+        darkSide:  View [ x = { parent.width - 1 }, width = 1, height = 100%, fill = #568A70 ],
+        darkEdge:  View [ y = { parent.height - 1 }, width = 100%, height = 1, fill = #568A70 ],
+        name:  Label [ x = 9, y = 2, width = 180, fontFamily = { app.vera }, fontWeight = bold, text = :name ],
+        title: Label [ x = 9, y = 15, width = 180, fontFamily = { app.veraRoman }, text = :title ],
+        light: Image [ x = { parent.width - 20 }, y = 14, visible = { classroot.online },
+            source = "resources/img/presencelight.png", accessibilityLabel = "online" ]
         ],
 
-    detail: View [ y = 34, width = 100%, visible = { classroot.open },
-        fontFamily = { app.veraRoman }, fontSize = 10, textColor = #222222,
+    detail: View [ width = 100%, visible = { classroot.height > 34 }, fontFamily = { app.veraRoman },
+        emailButton: Image [ x = 5, y = 38, source = "resources/img/contact_email_but.png", accessibilityLabel = "e-mail" ],
+        ruleDark:  View [ x = 5, y = 58, width = { parent.width - 10 }, height = 1, fill = #8D9E95 ],
+        ruleLight: View [ x = 5, y = 59, width = { parent.width - 10 }, height = 1, fill = #C4DBCF ],
+        infoPlate: View [ x = 5, y = 60, width = 35, height = 15, fill = #82998D ],
+        infoHead:  Label [ x = 6, y = 60, textColor = #FFFFFF, fontFamily = { app.vera }, fontWeight = bold, text = "Info" ],
 
-        secInfo: View [ x = 5, y = 8, width = 35, height = 15, fill = #82998D,
-            t: Text [ x = 4, y = 1, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10,
-                textColor = #FFFFFF, text = "Info" ]
-            ],
-        divA: View [ x = 5, y = 26, width = { parent.width - 15 }, height = 1, fill = #8D9E95 ],
-        divB: View [ x = 5, y = 27, width = { parent.width - 15 }, height = 1, fill = #C4DBCF ],
+        // the sections run on from each other, each head ten pixels under what the
+        // section before it holds, its small mark beside it
 
-        emailHead: Text [ x = 5, y = 33, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, text = "Email Addresses" ],
-        emailVal:  Text [ x = 12, y = 47, width = { parent.width - 20 }, text = :email ],
-        telHead:   Text [ x = 5, y = 64, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, text = "Telephone No's" ],
-        telVal:    Text [ x = 12, y = 78, width = { parent.width - 20 }, text = :telephone ],
-        addrHead:  Text [ x = 5, y = 95, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, text = "Address" ],
-        addrVal:   Text [ x = 12, y = 109, width = { parent.width - 20 }, wrap = true, text = :address ],
+        emailHead: Label [ x = 5, y = 77, fontFamily = { app.vera }, fontWeight = bold, text = "Email Addresses" ],
+        emailMark: Image [ x = { parent.width - 20 }, y = 79, source = "resources/img/contact_mini_n.png" ],
+        email:     Label [ x = 5, y = 90, text = :email ],
+        phoneHead: Label [ x = 5, y = { parent.email.y + parent.email.height + 10 }, fontFamily = { app.vera }, fontWeight = bold, text = "Telephone No's" ],
+        phoneMark: Image [ x = { parent.width - 20 }, y = { parent.email.y + parent.email.height + 16 }, source = "resources/img/contact_mini_n.png" ],
+        phone:     Label [ x = 5, y = { parent.email.y + parent.email.height + 24 }, text = :telephone ],
+        addrHead:  Label [ x = 5, y = { parent.phone.y + parent.phone.height + 10 }, fontFamily = { app.vera }, fontWeight = bold, text = "Address" ],
+        addrMark:  Image [ x = { parent.width - 20 }, y = { parent.phone.y + parent.phone.height + 16 }, source = "resources/img/contact_mini_n.png" ],
+        address:   Label [ x = 5, y = { parent.phone.y + parent.phone.height + 24 }, text = :address ],
 
-        divC: View [ x = 5, y = 130, width = { parent.width - 15 }, height = 1, fill = #8D9E95 ],
-        divD: View [ x = 5, y = 131, width = { parent.width - 15 }, height = 1, fill = #C4DBCF ],
-        secNotes: View [ x = 5, y = 138, width = 90, height = 15, fill = #82998D,
-            t: Text [ x = 4, y = 1, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10,
-                textColor = #FFFFFF, text = "Notes & More" ]
-            ],
-        notesVal: Text [ x = 12, y = 158, width = { parent.width - 20 }, wrap = true,
-            text = { :notes ?? "" } ]
+        notesTop: number = { address.y + address.height },
+        notesRuleDark:  View [ x = 5, y = { parent.notesTop + 10 }, width = { parent.width - 10 }, height = 1, fill = #8D9E95 ],
+        notesRuleLight: View [ x = 5, y = { parent.notesTop + 11 }, width = { parent.width - 10 }, height = 1, fill = #C4DBCF ],
+        notesPlate: View [ x = 5, y = { parent.notesTop + 12 }, width = 90, height = 15, fill = #82998D ],
+        notesMark:  Image [ x = { parent.width - 20 }, y = { parent.notesTop + 15 }, source = "resources/img/contact_mini_plus.png" ],
+        notesHead:  Label [ x = 6, y = { parent.notesTop + 12 }, textColor = #FFFFFF, fontFamily = { app.vera }, fontWeight = bold,
+            text = "Notes & More " ],
+        notes:      Label [ x = 5, y = { parent.notesTop + 30 }, text = { :notes ?? "" } ]
         ]
     ]
 
 
 class ContactsPanel [
-    width = 100%, height = 100%,
     formOpen: boolean = false,
 
-    // ── the toolbar: new, and save/cancel while an edit is open ────────────
+    // the contact being added, as typed
 
-    bar: View [ width = 100%, height = 25,
-        // flat sage with a rule at its foot — the sunken well belongs to the
-        // cap art on the right, not to the strip the pill sits on
+    draft: Dataset [ schema = Contact ] { { "name": "", "user": "", "title": "", "email": "", "telephone": "", "address": "" } },
 
-        draw(d: DrawContext) {
-            d.fillStyle = 0x8CB29C; d.fillRect(0, 0, width, 24)
-            d.fillStyle = 0x47735D; d.fillRect(0, 24, width, 1)
-            },
-
-        // The stepped right end and its search/sort cluster, which are
-        // decorative in the original too. Both hide while the form is open.
-
-        cap: Image [ x = { parent.width - 160 }, visible = { !classroot.formOpen },
-            source = "resources/img/contact_data_top_r.png",
-            icons: Image [ x = 80, y = 4, source = "resources/img/contact_data_top_buttons.png" ]
-            ],
-        newBtn: DashButton [ x = 4, y = 2, width = 43, label = "new",
-            face = #96B8A6, edge = #2F5646,
-            press() {
-                if (classroot.formOpen) return
-                classroot.formOpen = true
-                classroot.form.slide.to = 270; classroot.form.slide.start()
-                }
-            ],
-        saveBtn: DashButton [ x = { parent.width - 110 }, y = 2, width = 50, label = "save",
-            face = #96B8A6, edge = #2F5646,
-            visible = { classroot.formOpen },
-            press() { classroot.saveNew() }
-            ],
-        cancelBtn: DashButton [ x = { parent.width - 55 }, y = 2, width = 50, label = "cancel",
-            face = #96B8A6, edge = #2F5646,
-            visible = { classroot.formOpen },
-            press() { classroot.closeForm() }
-            ]
-        ],
-
-    saveNew() {
-        const d = app.contactsData.value.contacts
-        app.contactsData.insert(["contacts"], d.length, ({
-            name: form.nameIn.text, user: form.nameIn.text.split(" ")[0],
-            title: form.titleIn.text, email: form.emailIn.text,
-            telephone: form.phoneIn.text, address: form.addrIn.text }))
-        closeForm()
+    openForm() {
+        draft.set([], ({ name: "", user: "", title: "", email: "", telephone: "", address: "" }))
+        formOpen = true
+        afterSettle(() => Focus.focus(adder.form.nameField))
         },
-    closeForm() {
-        form.slide.to = 0; form.slide.start()
+    saveNew() {
+        const d = draft.value
+        app.contactsData.insert(["contacts"], app.contactsData.value?.contacts.length ?? 0, ({
+            name: d.name, user: d.name.split(" ")[0], title: d.title, email: d.email,
+            telephone: d.telephone, address: d.address }))
         formOpen = false
         },
 
-    // ── the new-contact form, which slides open beneath the toolbar ────────
-
-    form: View [ y = 25, width = 100%, height = 0, clip = true, fill = #B6CCC1,
-        visible = { this.height > 0 },
-        slide: Animator [ attribute = height, duration = 500, easing = laszloBoth ],
-        gutter: View [ width = 55, height = 100%, fill = #9EBAAB ],
-        fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #222222,
-
-        nameLbl:  Text [ x = 5, y = 5,   text = "Name" ],
-        nameIn:   TextInput [ x = 60, y = 3, width = { parent.width - 65 }, height = 18,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Name" ],
-        titleLbl: Text [ x = 5, y = 22,  text = "Title" ],
-        titleIn:  TextInput [ x = 60, y = 20, width = { parent.width - 65 }, height = 18,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Title" ],
-        emailLbl: Text [ x = 5, y = 50,  text = "Email" ],
-        emailIn:  TextInput [ x = 60, y = 48, width = { parent.width - 65 }, height = 18,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Email" ],
-        phoneLbl: Text [ x = 5, y = 97,  text = "Phone" ],
-        homeLbl:  Text [ x = 60, y = 97, fontFamily = { app.veraRoman }, text = "Home" ],
-        phoneIn:  TextInput [ x = 93, y = 95, width = { parent.width - 98 }, height = 16,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Home phone" ],
-        workLbl:  Text [ x = 60, y = 114, fontFamily = { app.veraRoman }, text = "Work" ],
-        workIn:   TextInput [ x = 93, y = 112, width = { parent.width - 98 }, height = 16,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Work phone" ],
-        cellLbl:  Text [ x = 60, y = 131, fontFamily = { app.veraRoman }, text = "Cell" ],
-        cellIn:   TextInput [ x = 93, y = 129, width = { parent.width - 98 }, height = 16,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Cell phone" ],
-        faxLbl:   Text [ x = 60, y = 148, fontFamily = { app.veraRoman }, text = "Fax" ],
-        faxIn:    TextInput [ x = 93, y = 146, width = { parent.width - 98 }, height = 16,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Fax" ],
-        addrLbl:  Text [ x = 5, y = 177, text = "Address" ],
-        addrIn:   TextInput [ x = 60, y = 175, width = { parent.width - 65 }, height = 16,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Address" ],
-        addr2In:  TextInput [ x = 60, y = 192, width = { parent.width - 65 }, height = 16,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Address line 2" ],
-        addr3In:  TextInput [ x = 60, y = 209, width = { parent.width - 65 }, height = 16,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Address line 3" ],
-        addr4In:  TextInput [ x = 60, y = 226, width = { parent.width - 65 }, height = 16,
-            fill = #FFFFFF, stroke = Stroke(1, #000000), cornerRadius = 0, fontFamily = { app.veraRoman }, fontSize = 10,
-            accessibilityLabel = "Address line 4" ]
-        ],
-
-    /*
-    ### The list, and its own scroll
-
-    `scrolls = y` would hand this pane to the platform, and the platform draws
-    a scrollbar of its own — beside the one this window is supposed to have.
-    So the offset is ours: the list clips, the rows ride at `-scrollPos`, and
-    the wheel and the drawn bar are its two drivers. The trade is momentum and
-    rubber-band, which belong to the platform scroller; a fifteen-row list
-    does not miss them.
-    */
-
-    scrollPos: number = 0,
-
-    // the open contact, by user: one row open at a time, and clicking the
-    // open one closes it
+    // the open contact, by user
 
     openUser: string = "",
 
-    contentH() -> number { return Math.max(1, list.rows.height) },
-    maxScroll() -> number { return Math.max(0, contentH() - list.height) },
-    scrollList(dy: number) { scrollPos = Math.max(0, Math.min(maxScroll(), scrollPos + dy)) },
+    // ── the bar, and the form it opens: 25px closed, 295 open, over 500ms ──
 
-    list: View [ y = { 25 + form.height }, width = { parent.width - 16 },
-        height = { parent.height - 25 - form.height },
-        fill = #88B29D, clip = true,
+    adder: View [ width = 100%, clip = true,
+        extent: number = { classroot.formOpen ? 295 : 25 },
+        opening: Animator [ attribute = extent, to = 295, duration = 500, easing = laszloBoth, started = { classroot.formOpen } ],
+        closing: Animator [ attribute = extent, to = 25, duration = 500, easing = laszloBoth, started = { !classroot.formOpen } ],
+        height = { extent },
 
-        onWheel(e: WheelEvent) { classroot.scrollList(e.deltaY) },
+        bar: View [ width = 100%, height = 20, fill = #8CB29C,
+            newBtn:    DashButton [ x = 4, y = 2, width = 43, label = "new",
+                press() { classroot.openForm() }
+                ],
+            saveBtn:   DashButton [ x = { parent.width - 110 }, y = 2, width = 50, label = "save",
+                press() { classroot.saveNew() }
+                ],
+            cancelBtn: DashButton [ x = { parent.width - 55 }, y = 2, width = 50, label = "cancel",
+                press() { classroot.formOpen = false }
+                ]
+            ],
+        rule: View [ y = 20, width = 100%, height = 1, fill = #48735D ],
 
-        rows: View [ x = 0, y = { -classroot.scrollPos }, width = 100%,
-            datapath = { app.contactsData.value },
-            layout: SimpleLayout [ axis = y ],
-            ContactRow [ datapath = :contacts[], open = { classroot.openUser == :user },
-                picked() { classroot.openUser = classroot.openUser == :user ? "" : "" + :user }
+        // the plate at the bar's right end, with its search and sort marks: it
+        // rides at the foot of the form, so while the form is closed it covers
+        // save and cancel; the form, over it, covers it in turn while open
+
+        footLine: Image [ y = { parent.height - 5 }, width = 100%, fit = both, source = "resources/img/contact_data_top_l.png" ],
+        plate: Image [ x = { parent.width - 160 }, y = { parent.height - 25 }, source = "resources/img/contact_data_top_r.png",
+            marks: Image [ x = 80, y = 4, source = "resources/img/contact_data_top_buttons.png" ]
+            ],
+
+        form: View [ y = 21, width = 100%, height = { parent.height - 20 }, fill = #B6CCC1,
+            visible = { classroot.formOpen || parent.height > 25 },
+            accessibilityRole = group, accessibilityLabel = "New contact",
+            datapath = { classroot.draft.value },
+            textColor = #222222, fontSize = 10,
+            gutter: View [ width = 55, height = 100%, fill = #9EBAAB ],
+
+            Label [ x = 3, y = 5, fontFamily = { app.vera }, fontWeight = bold, text = "Name" ],
+            nameField: ContactField [ x = 60, y = 3, width = { parent.width - 65 }, accessibilityLabel = "Name", value <-> :name ],
+            Label [ x = 3, y = 23, fontFamily = { app.vera }, fontWeight = bold, text = "Title" ],
+            ContactField [ x = 60, y = 20, width = { parent.width - 65 }, accessibilityLabel = "Title", value <-> :title ],
+            Label [ x = 3, y = 52, fontFamily = { app.vera }, fontWeight = bold, text = "Email" ],
+            ContactField [ x = 60, y = 48, width = { parent.width - 65 }, accessibilityLabel = "Email", purpose = email, value <-> :email ],
+            ContactField [ x = 60, y = 65, width = { parent.width - 65 }, accessibilityLabel = "Second email", purpose = email ],
+            Label [ x = 3, y = 95, fontFamily = { app.vera }, fontWeight = bold, text = "Phone" ],
+            Label [ x = 57, y = 97, fontFamily = { app.veraRoman }, text = "Home" ],
+            ContactField [ x = 93, y = 95, width = { parent.width - 98 }, accessibilityLabel = "Home phone", value <-> :telephone ],
+            Label [ x = 57, y = 114, fontFamily = { app.veraRoman }, text = "Work" ],
+            ContactField [ x = 93, y = 112, width = { parent.width - 98 }, accessibilityLabel = "Work phone" ],
+            Label [ x = 57, y = 131, fontFamily = { app.veraRoman }, text = "Cell" ],
+            ContactField [ x = 93, y = 129, width = { parent.width - 98 }, accessibilityLabel = "Cell phone" ],
+            Label [ x = 57, y = 148, fontFamily = { app.veraRoman }, text = "Fax" ],
+            ContactField [ x = 93, y = 146, width = { parent.width - 98 }, accessibilityLabel = "Fax" ],
+            Label [ x = 3, y = 175, fontFamily = { app.vera }, fontWeight = bold, text = "Address" ],
+            ContactField [ x = 60, y = 175, width = { parent.width - 65 }, accessibilityLabel = "Address", value <-> :address ],
+            ContactField [ x = 60, y = 192, width = { parent.width - 65 }, accessibilityLabel = "Address line 2" ],
+            ContactField [ x = 60, y = 209, width = { parent.width - 65 }, accessibilityLabel = "Address line 3" ],
+            ContactField [ x = 60, y = 226, width = { parent.width - 65 }, accessibilityLabel = "Address line 4" ],
+            notesBtn: DashButton [ x = 4, y = 250, width = 43, label = "notes",
+                press() { classroot.formOpen = false }
                 ]
             ]
         ],
 
-    /*
-    ### The scrollbar
+    list: ScrollPane [ y = { parent.adder.height }, width = 100%, height = { parent.height - parent.adder.height - 9 },
+        fill = #B6CCC1, art = "contacts", ground = #383F3B, idleGround = #729081,
+        rows: View [ width = 100%, datapath = { app.contactsData.value },
+            layout: SimpleLayout [ axis = y ],
 
-    A classic one, drawn to the widget the original mounts here — the stock
-    `<scrollbar axis="y">` from `runtime/components/lz/vscrollbar.lzx`, tinted
-    sage. An arrow at each end; a light thumb, proportional to how much of the
-    list is visible, carrying a ribbed gripper down its middle; and two track
-    segments that page a viewport when pressed, one above the thumb and one
-    below. The gripper is clipped to `min(200, height − 16)` and centred, as
-    the original's tall ridge texture is.
-    */
+            // two pixels narrower than the pane's content, as the original's
 
-    pageBy(dir: number) { scrollList(dir * list.height) },
-
-    sbar: View [ x = { parent.width - 16 }, y = { 25 + form.height }, width = 16,
-        height = { parent.height - 25 - form.height },
-
-        draw(d: DrawContext) {
-            d.fillStyle = 0xB6CCC1; d.fillRect(0, 0, 2, height)     // rail against the list
-            d.fillStyle = 0x64716B; d.fillRect(2, 0, 1, height)     // track's left edge (a0)
-            d.fillStyle = 0x798780; d.fillRect(3, 0, 12, height)    // the track itself (c0)
-            d.fillStyle = 0x94A59D; d.fillRect(15, 0, 1, height)    // its right highlight (eb)
-            },
-
-        // one arrow: the pale face, a dark chevron, a shadowed foot
-
-        button(d: DrawContext, w: number, h: number, up: boolean) {
-            const g = d.createLinearGradient(0, 0, 0, h)
-            g.addColorStop(0, "#98AAA1"); g.addColorStop(1, "#67736D")
-            d.fillStyle = g; d.fillRect(0, 0, w, h)
-            d.fillStyle = 0xA0B4AA; d.fillRect(0, 0, w, 1)
-            d.fillStyle = 0x404844; d.fillRect(0, h - 2, w, 1)
-            d.fillStyle = 0x383F3B; d.fillRect(0, h - 1, w, 1)
-            d.fillStyle = 0x383F3B
-            d.beginPath()
-            if (up) { d.moveTo(w / 2, 3); d.lineTo(w - 3.5, 8); d.lineTo(3.5, 8) }
-            else { d.moveTo(3.5, 4); d.lineTo(w - 3.5, 4); d.lineTo(w / 2, 9) }
-            d.closePath(); d.fill()
-            },
-
-        upBtn: View [ x = 2, width = 14, height = 13,
-            draw(d: DrawContext) { classroot.sbar.button(d, width, height, true) },
-            onClick() { classroot.scrollList(-34) }
-            ],
-        downBtn: View [ x = 2, y = { parent.height - 13 }, width = 14, height = 13,
-            draw(d: DrawContext) { classroot.sbar.button(d, width, height, false) },
-            onClick() { classroot.scrollList(34) }
-            ],
-
-        // the two track segments; pressing either pages a viewport
-
-        pageUp: View [ x = 2, y = 13, width = 14,
-            height = { Math.max(0, classroot.sbar.thumb.y - 13) },
-            onPointerDown() { classroot.pageBy(-1) }
-            ],
-        pageDown: View [ x = 2, width = 14,
-            y = { classroot.sbar.thumb.y + classroot.sbar.thumb.height },
-            height = { Math.max(0, parent.height - 13 - this.y) },
-            onPointerDown() { classroot.pageBy(1) }
-            ],
-
-        thumb: View [ x = 2, width = 14,
-            trackH() -> number { return classroot.sbar.height - 26 },
-            height = { Math.max(20, trackH()
-                * Math.min(1, classroot.list.height / classroot.contentH())) },
-            y = { 13 + (trackH() - this.height)
-                * (classroot.scrollPos / Math.max(1, classroot.maxScroll())) },
-
-            draw(d: DrawContext) {
-                const g = d.createLinearGradient(0, 0, 0, height)
-                g.addColorStop(0, "#90A299"); g.addColorStop(1, "#6F7C75")   // e6 → b0
-                d.fillStyle = g; d.fillRect(0, 0, 14, height)
-                d.fillStyle = 0xA0B4AA; d.fillRect(0, 0, 14, 1)              // top hairline (ff)
-                d.fillStyle = 0xA0B4AA; d.fillRect(0, 0, 1, height)          // left highlight
-                d.fillStyle = 0x505A55; d.fillRect(13, 0, 1, height)         // right shadow (80)
-                d.fillStyle = 0x505A55; d.fillRect(0, height - 1, 14, 1)     // foot
-                // the gripper: ridges every 3px, centred, capped at 200
-                const gh = Math.max(0, Math.min(200, height - 16))
-                const top = Math.round((height - gh) / 2)
-                for (let i = 0; i + 2 < gh; i += 3) {
-                    d.fillStyle = 0xA0B4AA; d.fillRect(2, top + i, 9, 1)
-                    d.fillStyle = 0x6F7C75; d.fillRect(3, top + i + 1, 8, 1)
-                    }
-                },
-
-            grabY: number = 0,
-            onPointerDown(e: PointerEvent) { grabY = e.y },
-            onDrag(e: PointerEvent) {
-                const t = trackH() - this.height
-                const ny = Math.max(0, Math.min(t, e.rootY - parent.rootOrigin().y - 13 - grabY))
-                classroot.scrollPos = (ny / Math.max(1, t)) * classroot.maxScroll()
-                }
+            ContactRow [ datapath = :contacts[], width = { parent.width - 2 },
+                open = { classroot.openUser == :user },
+                picked() { classroot.openUser = classroot.openUser == :user ? "" : :user }
+                ]
             ]
         ]
     ]
@@ -388,207 +271,201 @@ class ContactsPanel [
 /*
 ## Media
 
-Two players, one transport. The Media window's Music and Video tabs are the
-same three parts in a different order: a grid of tracks, a player, and the
-transport between them — and the transport is one class serving both.
-
-Nothing here is a media widget. The scrubber's position, the time readout, the
-load bar and the volume ramp are all derived from `Audio` and `Video`'s own
-attributes — `position`, `duration`, `loaded`, `volume` — which is what those
-classes are for: they carry the transport and leave the chrome to the app.
+The Media window's Music and Video tabs: a player, its transport, and the tracks
+to choose from. Pressing a track's picture or name offers it in the popup, whose
+play button starts it.
 */
 
-class TrackCell [
-    width = 68, height = 68,
+// One track to choose: its picture and, centered under it, its name.
+
+class TrackCell extends Control [ width = 68, height = 68, clip = true,
     kind: string = "audio",
-    art: Image [ x = 12, y = 9, width = 40, height = 40, fit = both,
-        source = :imageurl ],
-    caption: Text [ y = 50, width = 100%, fontFamily = { app.kroe }, fontSize = 8,
-        textColor = #000000, textAlign = center, text = :label ],
-    onClick() { app.stage.popup.show(art, :@, kind) }
+    accessibilityLabel = :label,
+    press() { app.offer(art, :@, kind) },
+    art: Image [ x = 12, y = 9, width = 40, height = 40, fit = both, source = :imageurl ],
+    caption: Label [ y = 50, x = { Math.round((68 - this.width) / 2) }, accessibilityHidden = true,
+        fontFamily = { app.kroe }, fontSize = 8, textColor = #000000, text = :label ]
     ]
 
 
-class MediaTransport [
-    width = 100%, height = 74,
-    idleLabel: string = "Choose a track below.",
+/*
+### The transport
 
-    // The player this transport drives — the panel points it at its Audio or
-    // Video. The verbs go through it, and so does everything the transport
-    // displays: a constraint that reads through `player` follows the playhead.
+The track's title, centered; back to the start, the load bar with the scrubber
+riding it, and on to the end; the time; and the volume along the bottom, over
+the tab-shaped art.
 
+The scrubber shows pause until the player stops, then play. A short press on it
+while stopped plays; dragging it seeks, and leaves the player stopped where it is
+let go. The back and next buttons stop at the start or the end. The volume thumb
+travels 39px, the volume twice its place and at most full; the soft and loud ends
+step it 5px.
+*/
+
+class MediaTransport [ height = 74,
+    label: string = "",
     player: Media? = null,
+
+    // stopped, the scrubber shows play
+
+    stopped: boolean = false,
+
     pos: number = { player != null ? player.position : 0 },
-    dur: number = { player != null ? player.duration : 0 },
-    isPlaying: boolean = { player != null && player.playing },
-    isLoaded: boolean = { player != null && player.loaded },
+    dur: number = { player != null && player.duration > 0 ? player.duration : 0 },
 
-    // The buttons, wells and glyphs are the original's art — pixel icons are
-    // not worth redrawing — while the bars and their geometry are ours.
-
-    info: Text [ y = 5, width = 100%, textAlign = center,
-        fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #222222,
-        text = { app.nowPlaying != null ? "" + app.nowPlaying.info : classroot.idleLabel } ],
-
-    prev: Image [ x = 5, y = 25, width = 18, height = 18,
-        source = { pressed ? "resources/img/prevdown.png"
-                 : hovered ? "resources/img/prevover.png" : "resources/img/prev.png" },
-
-        // Each player's `playing` is derived from `app.mediaWants`, so the
-        // transport moves that rather than the player: a write straight to a
-        // constrained attribute is refused.
-
-        onClick() { const p = classroot.player; if (p) p.position = 0; app.mediaWants = false }
-        ],
-
-    loadbar: View [ x = 23, y = 25, width = { parent.width - 132 }, height = 18, clip = true,
-        well: Image [ source = "resources/img/loadbarback.png" ],
-        onClick(e: PointerEvent) {
-            const p = classroot.player
-            if (p && p.duration > 0) p.position = (e.x / this.width) * p.duration
-            },
-
-        // the load-progress fill; metadata arriving is what counts as loaded
-
-        prog: Image [ y = 5, height = 8, fit = both, source = "resources/img/loadbar.png",
-            width = { parent.width * (classroot.isLoaded ? 1 : 0) } ],
-
-        // The scrubber. Its x is derived from the playhead even mid-drag —
-        // dragging writes `position` and x follows — so there is never a
-        // second source of truth about where the thumb belongs.
-
-        scrub: Image [ y = 1, width = 16, height = 16,
-            // Pause while running, and before any track is chosen, which is
-            // the frame the original's button boots on; play once there is
-            // something to resume.
-
-            showsPause: boolean = { app.nowPlayingKind === "" || classroot.isPlaying },
-            source = { showsPause
-                ? (hovered ? "resources/img/pauseover.png" : "resources/img/pause.png")
-                : (hovered ? "resources/img/playover.png" : "resources/img/play.png") },
-            State [ applied = { pressed },
-                source = { showsPause ? "resources/img/pausedown.png" : "resources/img/playdown.png" } ],
-            x = { (classroot.pos / Math.max(0.0001, classroot.dur)) * (parent.width - 16) },
-            grabX: number = 0,
-            onPointerDown(e: PointerEvent) { grabX = e.x },
-            onDrag(e: PointerEvent) {
-                const p = classroot.player
-                const nx = Math.max(0, Math.min(parent.width - 16, e.rootX - parent.rootOrigin().x - grabX))
-                if (p && p.duration > 0) p.position = (nx / (parent.width - 16)) * p.duration
-                },
-            onClick() { app.mediaWants = !app.mediaWants }
-            ]
-        ],
-
-    next: Image [ x = { 23 + loadbar.width }, y = 25, width = 18, height = 18,
-        source = { pressed ? "resources/img/nextdown.png"
-                 : hovered ? "resources/img/nextover.png" : "resources/img/next.png" },
-        onClick() {
-            const p = classroot.player
-            if (p && p.duration > 0) p.position = p.duration
-            app.mediaWants = false
-            }
-        ],
-
-    clockOf(secs: number) -> string {
-        const s = Math.floor(secs)
-        return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
+    play() { if (player != null) { stopped = false; player.playing = true } },
+    stopAt(t: number) {
+        if (player == null) return
+        player.playing = false
+        player.position = Math.max(0, Math.min(dur, t))
+        stopped = true
         },
 
-    timeWell: Image [ x = { parent.width - 87 }, y = 27, source = "resources/img/media_timereadout.png",
-        readout: Text [ x = 3, y = 1, fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #000000,
-            text = { classroot.clockOf(classroot.pos) } ]
+    // the time as the original writes it: minutes and seconds, two digits each
+
+    clock(secs: number) -> string {
+        let s = Math.floor(secs)
+        let out = "00:"
+        if (s > 60) { const m = Math.floor(s / 60); out = (m < 10 ? "0" : "") + m + ":"; s = s - m * 60 }
+        return out + (s < 10 ? "0" + s : "" + s)
+        },
+
+    info: Label [ y = 5, x = { Math.round((parent.width - this.width) / 2) }, accessibilityLive = polite,
+        fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #000000, text = { classroot.label } ],
+
+    controls: View [ x = 5, y = 25,
+        layout: SimpleLayout [ axis = x ],
+        back: ImageButton [ accessibilityLabel = "Back to the start",
+            upArt = "resources/img/prev.png", overArt = "resources/img/prevover.png", downArt = "resources/img/prevdown.png",
+            press() { classroot.stopAt(0) }
+            ],
+        loadbar: View [ width = { classroot.width - 132 }, height = 18,
+            well: View [ width = 100%, height = 18, clip = true,
+                onClick(e: PointerEvent) { classroot.stopAt(e.x / parent.scrubber.maxX * classroot.dur) },
+                Image [ source = "resources/img/loadbarback.png" ]
+                ],
+            progress: Image [ y = 5, height = 8, fit = both, source = "resources/img/loadbar.png",
+                width = { classroot.player != null && classroot.player.loaded ? parent.width : 0 } ],
+
+            scrubber: Control [ y = 1, width = 16, height = 16,
+                maxX: number = { parent.width - 16 },
+                x = { classroot.dur > 0 ? classroot.pos / classroot.dur * this.maxX : 0 },
+                accessibilityRole = slider, accessibilityLabel = "Position",
+                accessibilityMin = 0, accessibilityMax = { Math.round(classroot.dur) }, accessibilityValue = { Math.round(classroot.pos) },
+                accessibilityValueText = { classroot.clock(classroot.pos) },
+                accessibilityIncrement() { classroot.stopAt(classroot.pos + 5) },
+                accessibilityDecrement() { classroot.stopAt(classroot.pos - 5) },
+                face: Image [ source = { "resources/img/" + (classroot.stopped ? "play" : "pause")
+                    + (parent.pressed ? "down" : parent.hovered ? "over" : "") + ".png" } ],
+                grabX: number = 0,
+                startPos: number = 0,
+                wasPlaying: boolean = false,
+                onPointerDown(e: PointerEvent) {
+                    grabX = e.x; startPos = classroot.pos
+                    wasPlaying = classroot.player != null && classroot.player.playing
+                    },
+                onDrag(e: PointerEvent) {
+                    const nx = e.rootX - parent.rootOrigin().x - grabX
+                    classroot.stopAt(nx / maxX * classroot.dur)
+                    },
+                press() { if (!wasPlaying && Math.abs(classroot.pos - startPos) < 5 / 30) classroot.play() }
+                ]
+            ],
+        next: ImageButton [ accessibilityLabel = "On to the end",
+            upArt = "resources/img/next.png", overArt = "resources/img/nextover.png", downArt = "resources/img/nextdown.png",
+            press() { classroot.stopAt(classroot.dur) }
+            ]
         ],
 
-    isBtns: Image [ x = { parent.width - 42 }, y = 25, source = "resources/img/media_is_buttons.png" ],
+    readout: Image [ x = { parent.width - 87 }, y = 27, source = "resources/img/media_timereadout.png" ],
+    time: Label [ x = { parent.width - 85 }, y = 26, width = 120, accessibilityHidden = true,
+        fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #000000,
+        text = { classroot.clock(classroot.pos) } ],
+    marks: Image [ x = { parent.width - 42 }, y = 25, source = "resources/img/media_is_buttons.png" ],
 
-    // the view-switch strip along the bottom edge, decorative in both
+    // the tab-shaped art along the foot, under the volume
 
-    tabL: Image [ y = { parent.height - 7 }, width = 100%, height = 7, fit = width,
-        source = "resources/img/media_tab_l.png" ],
-    tabM: Image [ x = 80, y = { parent.height - 28 }, source = "resources/img/media_tab_m.png" ],
-    tabR: Image [ x = 112, y = { parent.height - 25 }, width = { parent.width - 112 }, height = 25,
-        fit = width, source = "resources/img/media_tab_r.png" ],
-    tabBtns: Image [ x = { parent.width - 97 }, y = { parent.height - 22 },
-        source = "resources/img/media_tab_buttons.png" ],
+    tabLeft:   Image [ y = { parent.height - 7 }, width = 100%, height = 7, fit = both, source = "resources/img/media_tab_l.png" ],
+    tabMiddle: Image [ x = 80, y = { parent.height - 28 }, source = "resources/img/media_tab_m.png" ],
+    tabRight:  Image [ x = 112, y = { parent.height - 25 }, width = { parent.width - 112 }, height = 25, fit = both,
+        source = "resources/img/media_tab_r.png" ],
+    tabMarks:  Image [ x = { parent.width - 97 }, y = { parent.height - 22 }, source = "resources/img/media_tab_buttons.png" ],
 
-    // volume: the thumb's 0..39 travel maps linearly onto 0..1
-
-    volume: View [ x = 5, y = { parent.height - 23 }, width = 80, height = 14,
-        soft: Image [ x = 0, y = 2, source = "resources/img/volumesoft.png",
-            onClick() { thumb.x = Math.max(0, thumb.x - 5) }
+    volume: View [ x = 5, y = { parent.height - 23 },
+        level: number = 39,
+        softer: Control [ accessibilityLabel = "Softer",
+            press() { parent.level = parent.level - 5 },
+            Image [ source = "resources/img/volumesoft.png" ]
             ],
-        track: Image [ x = 10, y = 6, source = "resources/img/volumebar.png" ],
-        thumb: Image [ x = 39, y = 2, source = "resources/img/volumebutton.png",
-            grabX: number = 0,
-            onPointerDown(e: PointerEvent) { grabX = e.x },
-            onDrag(e: PointerEvent) {
-                x = Math.max(0, Math.min(39, e.rootX - parent.rootOrigin().x - 10 - grabX))
-                const p = classroot.player
-                if (p) p.volume = x / 39
-                }
+        bar: Image [ x = 10, y = 4, source = "resources/img/volumebar.png",
+            thumb: Image [ y = -3.5, x = { classroot.volume.level }, source = "resources/img/volumebutton.png",
+                grabX: number = 0,
+                onPointerDown(e: PointerEvent) { grabX = e.x },
+                onDrag(e: PointerEvent) {
+                    classroot.volume.level = Math.max(0, Math.min(39, e.rootX - parent.rootOrigin().x - grabX))
+                    }
+                ]
             ],
-        loud: Image [ x = 64, y = 1, source = "resources/img/volumeloud.png",
-            onClick() { thumb.x = Math.min(39, thumb.x + 5) }
+        louder: Control [ x = 64, accessibilityLabel = "Louder",
+            press() { parent.level = parent.level + 5 },
+            Image [ source = "resources/img/volumeloud.png" ]
             ]
+        ],
+
+    // the volume the thumb's place gives the player
+
+    loudness: number = { Math.max(0, Math.min(1, volume.level * 2)) }
+    ]
+
+
+// A list of tracks under a player: white, scrolling with the media scrollbar.
+
+class TrackList extends ScrollPane [ fill = #FFFFFF, art = "media", ground = #2E262D, idleGround = #856C81,
+    kind: string = "audio",
+    cells: View [ width = { parent.width + 4 },
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 0 ],
+        TrackCell [ datapath = :tracks[], kind = { classroot.kind } ]
         ]
     ]
 
+
+// Music: the track's picture in a shadowed well, the transport, and the tracks.
 
 class MusicPanel [
-    width = 100%, height = 100%, fill = #BB95C0,
+    playTrack(t: Track) { current = t; song.source = t.url; transport.label = t.info; transport.play() },
+    current: Track? = null,
 
-    // A clip that ends has to clear the want, not just its own state: since
-    // `playing` is derived from `mediaWants`, leaving that true would
-    // re-assert play the instant the element reported the end.
-
-    song: Audio [ source = { app.nowAudio != null ? "" + app.nowAudio.url : "" },
-        playing = { app.nowPlayingKind === "audio" && app.mediaWants },
-        onEnded() { app.mediaWants = false }
+    song: Audio [ volume = { parent.transport.loudness },
+        onEnded() { parent.transport.stopped = true }
         ],
 
-    iconWell: Image [ x = 4, y = 3, width = 32, height = 32, fit = both,
-        shadow = Shadow(2, 2, 0, #826886),
-        source = { app.nowPlaying != null ? "" + app.nowPlaying.imageurl : "" } ],
+    well: View [ x = 6, y = 5, width = 32, height = 32, fill = #826886 ],
+    picture: Image [ x = 4, y = 3, width = 32, height = 32, fit = both,
+        source = { classroot.current != null ? classroot.current.imageurl : "" },
+        accessibilityLabel = { classroot.current != null ? classroot.current.label : "" } ],
 
-    transport: MediaTransport [ y = 32, player = { song } ],
+    transport: MediaTransport [ y = 32, width = 100%, label = "Choose a track below.", player = { classroot.song } ],
 
-    grid: View [ y = 106, width = 100%, height = { parent.height - 106 },
-        fill = #FFFFFF, clip = true, scrolls = y,
-        cells: View [ width = 100%,
-            datapath = { app.musicData.value },
-            layout: WrappingLayout [ spacing = 8, rowSpacing = 0 ],
-            TrackCell [ datapath = :tracks[], kind = "audio" ]
-            ]
-        ]
+    list: TrackList [ y = 106, width = 100%, height = { parent.height - 108 }, kind = "audio",
+        datapath = { app.musicData.value } ]
     ]
 
 
+// Video: the picture, kept at the clip's 240:135 and centered on black, the
+// transport under it, and a strip of clips along the foot.
+
 class VideoPanel [
-    width = 100%, height = 100%, fill = #BB95C0,
+    playTrack(t: Track) { reel.source = t.url; transport.label = t.info; transport.play() },
 
-    // black behind the picture only; the transport band below stays mauve
-
-    backing: View [ width = 100%, height = { parent.height - 74 - 65 }, fill = #000000 ],
-
-    reel: Video [ source = { app.nowVideo != null ? "" + app.nowVideo.url : "" }, muted = false,
-        playing = { app.nowPlayingKind === "video" && app.mediaWants },
-        height = { parent.height - 74 - 65 },
-        width = { this.height * 240 / 135 },
-        x = center,
-        fit = both,
-        onEnded() { position = 0; app.mediaWants = false }
+    screen: View [ width = 100%, height = { parent.transport.y }, fill = #000000 ],
+    reel: Video [ height = { parent.transport.y }, width = { this.height * 240 / 135 }, x = center,
+        fit = both, clip = true, muted = false, volume = { parent.transport.loudness }, accessibilityLabel = { parent.transport.label },
+        onEnded() { parent.transport.stopAt(0) }
         ],
 
-    transport: MediaTransport [ y = { parent.height - 74 - 65 },
-        idleLabel = "Choose a video below.", player = { reel } ],
+    transport: MediaTransport [ y = { parent.height - 65 - 74 }, width = 100%, label = "Choose a video below.",
+        player = { classroot.reel } ],
 
-    strip: View [ y = { parent.height - 65 }, width = 100%, height = 65,
-        fill = #F8EEF8, clip = true,
-        cells: View [ width = 100%,
-            datapath = { app.videosData.value },
-            layout: WrappingLayout [ spacing = 8, rowSpacing = 0 ],
-            TrackCell [ datapath = :tracks[], kind = "video" ]
-            ]
-        ]
+    list: TrackList [ y = { parent.height - 65 }, width = 100%, height = 65, fill = #F8EEF8, idleGround = #81657E, kind = "video",
+        datapath = { app.videosData.value } ]
     ]

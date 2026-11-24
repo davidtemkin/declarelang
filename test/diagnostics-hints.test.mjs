@@ -656,6 +656,7 @@ App [ width = 300, height = 200,
   assert.deepEqual(codes(quiet).filter((c) => c === "DECLARE3005" || c === "DECLARE4025"), []);
   assert.deepEqual(quiet.quieted.map((q) => q.by).sort(), ["devices = desktop", "lint = false"]);
   assert.match(quiet.report, /quieted by lint = false/);
+  assert.ok(quiet.program !== undefined, "a compile that quieted a finding still carries its program");
   const run = await compile(src("defaultFlags [ lint = false ]"), { lint: true });
   assert.ok(codes(run).includes("DECLARE4025"), "a run's own flag overrides the program's");
   const phone = await compile(src("defaultFlags [ devices = mobile ]"));

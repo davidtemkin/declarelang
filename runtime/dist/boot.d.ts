@@ -89,6 +89,7 @@ export declare function buildProgram(program: Program, opts?: {
         width: number;
         height: number;
     };
+    assetBase?: string | null;
 }): App;
 /** What renderProgramAsync takes beside the program: the program's own
  *  directory for its relative bitmaps and faces (`assetBase`), the host's
