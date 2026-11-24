@@ -41,7 +41,7 @@ import { prewarmIsland } from "./prewarm-island.js";
 // The embedder's notification half (guide ch. 18): `observe(read, cb)` from the
 // SAME runtime instance the booted apps run on — a page that imported a second
 // runtime copy would register its constraints in a graph the apps never notify.
-export { observe } from "../runtime/dist/host-api.js";
+export { observe, kernelOccupancy } from "../runtime/dist/host-api.js";
 import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 import { loadBuild, relativize } from "./prewarm-cache.js";

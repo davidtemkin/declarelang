@@ -12,7 +12,7 @@ import { PAGE_API_FILE as D, pageApiSource as sf, membersOf } from "./page-api.m
 
 const PAGE_API = { BootOptions: membersOf("BootOptions") };
 
-await test("the bundle exports exactly what the declaration says: boot (default) and observe", () => {
+await test("the bundle exports exactly what the declaration says: boot (default), observe and kernelOccupancy", () => {
   const bundle = readFileSync("bundles/declare-boot.js", "utf8");
   const m = bundle.match(/export\s*\{([^}]*)\}\s*;?\s*$/);
   assert.ok(m, "the bundle ends in one export statement");

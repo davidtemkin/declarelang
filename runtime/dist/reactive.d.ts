@@ -81,6 +81,15 @@ export declare function kernelStats(top?: number): {
     consts: number;
     byLabel: Array<[string, number]>;
 };
+/** The kernel's cell table, as numbers: the cells a program has taken and the
+ *  table it is taking them from. Free ids are reused, so `cells` is a high-water
+ *  mark — one that climbs across a churn and stays up is a leak, and at
+ *  `capacity` the next allocation throws E57F1C9. Reads two counters and no cell
+ *  contents, so a health check can sample it as often as it likes. */
+export declare function kernelOccupancy(): {
+    cells: number;
+    capacity: number;
+};
 /** The kernel, for the modules that hold cells directly (attributes.ts's
  *  slot table access in the next phase). */
 export declare function kernel(): Kernel;

@@ -6267,23 +6267,23 @@
    },
    "EC32436": {
     "message": "the kernel is not loaded — await kernelReady() before instantiating a program (…)",
-    "at": "reactive.ts:665"
+    "at": "reactive.ts:674"
    },
    "E9E8D8A": {
     "message": "…: a disposed constraint cannot run",
-    "at": "reactive.ts:1068"
+    "at": "reactive.ts:1077"
    },
    "EAB267A": {
     "message": "kernel: out of rules — the program exceeds the runtime's rule capacity",
-    "at": "reactive.ts:1070"
+    "at": "reactive.ts:1079"
    },
    "E6BFAE9": {
     "message": "…: wire() after the constraint already ran",
-    "at": "reactive.ts:1094"
+    "at": "reactive.ts:1103"
    },
    "E9CD748": {
     "message": "kernel: settle failed (…)",
-    "at": "reactive.ts:1366"
+    "at": "reactive.ts:1375"
    },
    "E3D0EC5": {
     "message": "a selective path replicates its selection fully (windowing over selections is a later increment)",
