@@ -459,6 +459,52 @@ await test("an open menu keeps the arrows from the control it was opened from", 
   app.m.close(); settle();
 });
 
+// A context menu opens on a gesture, not on a press, so the view beneath keeps the
+// focus: what stops its arrows roving is the claim, not where the focus went.
+
+await test("a context menu over a table: the arrows rove the menu and leave the table alone", async () => {
+  const app = await boot(`App [ width = 500, height = 320,
+    d: Dataset { { "rows": [] } },
+    rm: ContextMenu [ items = { [ ({ id: "open", label: "Open" }), ({ id: "delete", label: "Delete" }) ] } ],
+    t: Table [ width = 400, height = 200, datapath = { d.value },
+        onContextMenu(e: PointerEvent) { app.rm.showAt(this, e) },
+        TableRow [ datapath = :rows[], height = 30, Text [ text = :label ] ] ] ]`);
+  deliverKeys(Keys, Focus);
+  app.d.value = { rows: [{ id: 0, label: "alpha" }, { id: 1, label: "beta" }, { id: 2, label: "gamma" }] };
+  settle();
+  Focus.focus(app.t); settle();
+  press("ArrowDown");
+  const at = app.t.activeIndex;
+  app.rm.showAt(app.t, { x: 40, y: 60 }); settle(); await turns();
+  press("ArrowDown");
+  assert.equal(app.t.activeIndex, at, "the table's selection moved under the open menu");
+  app.rm.close(); settle();
+});
+
+// A pick closes the menu and delivers a turn later; the Return that picked it must
+// not also reach the control it was opened from, whose press() would open it again.
+
+await test("Return on a menu row picks it without pressing the control that opened the menu", async () => {
+  const app = await boot(`App [ width = 500, height = 320,
+    n: number = 0, chose: string = "",
+    m: Menu [ items = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] },
+        picked(id: string) { app.chose = id } ],
+    btn: Button [ x = 20, y = 20, label = "Assignee",
+        press() { app.n = app.n + 1 },
+        menu = { app.m } ] ]`);
+  deliverKeys(Keys, Focus);
+  Focus.focus(app.btn); settle();
+  press("Enter");
+  const opened = app.n;
+  assert.equal(opened, 1, "Return on the button opened its menu");
+  press("ArrowDown");
+  press("Enter");
+  await turns(8);
+  assert.equal(app.chose, "a", "the roved row was picked");
+  assert.equal(app.n, opened, "the button was pressed again and its menu reopened");
+  assert.equal(app.m.shown, false, "and the menu is closed");
+});
+
 await test("a sheet modal to one window stays open, and lets by, a press in another window", async () => {
   const app = await boot(`App [ width = 800, height = 500,
     a: Window [ frame = false, x = 20, y = 20, width = 300, height = 240,
