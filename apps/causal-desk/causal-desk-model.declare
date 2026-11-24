@@ -1,0 +1,82 @@
+class CausalModel extends Node [
+
+    values: object = { computeScenarioModel(app.modelDocument.value,
+        app.scenarioDocument.value, app.workingScenario.value, app.activeScenarioId) },
+    comparisonValues: object = { computeScenarioModel(app.modelDocument.value,
+        app.scenarioDocument.value, app.workingScenario.value, app.comparisonScenarioId) },
+
+    dependencyData: Dataset [ contents = { dependencyRows(app.modelDocument.value,
+        app.selectedFactorId, classroot.values, classroot.comparisonValues) } ],
+    contributionData: Dataset [ contents = { buildContributionData(app.modelDocument.value,
+        app.scenarioDocument.value, app.workingScenario.value, app.activeScenarioId,
+        app.comparisonScenarioId, app.selectedFactorId) } ]
+    ]
+
+
+class FactorCard extends Control [ width = 174, height = 68, cornerRadius = 12,
+
+    factorId: string = { :id },
+    factorLabel: string = { :label },
+    factorKind: string = { :kind },
+    column: number = { :column },
+    rowY: number = { :rowY },
+    shown: boolean = { :shown },
+    selected: boolean = { app.selectedFactorId == factorId },
+    currentValue: number = { numberAt(app.model.values, factorId) },
+    comparisonValue: number = { numberAt(app.model.comparisonValues, factorId) },
+    delta: number = { currentValue - comparisonValue },
+    changed: boolean = { materiallyDifferent(currentValue, comparisonValue) },
+    onContributionPath: boolean = { factorOnContributionPath(app.modelDocument.value,
+        app.selectedContributionFactorId, app.selectedFactorId, factorId) },
+    animatedValue: number = { currentValue },
+    shownValue: number = { Number.isFinite(currentValue)
+        ? app.effectiveReducedMotion ? currentValue : animatedValue : currentValue },
+
+    x = { graphColumnX(column, parent.width) },
+    y = { rowY },
+    visible = { shown },
+    cursor = "pointer",
+    fill = { selected ? 0x183C50 : factorKind == "assumption" ? 0x152D3B : 0x202B32 },
+    stroke = { stroke(selected ? 2 : onContributionPath ? 2 : 1,
+        selected ? 0x75D6FF : onContributionPath ? 0xF2C46D
+            : changed ? 0xB5883B : hot ? 0x557887 : 0x34434B) },
+    shadow = { selected ? shadow(0, 8, 24, 0x55000000) : shadow(0, 3, 12, 0x33000000) },
+
+    motion: Spring [ attribute = animatedValue,
+        to = { Number.isFinite(currentValue) ? currentValue : 0 },
+        paused = { app.effectiveReducedMotion || !Number.isFinite(currentValue) },
+        stiffness = 230, damping = 28, mass = 1 ],
+
+    kind: Text [ x = 12, y = 10, fontSize = 10, fontWeight = semibold,
+        textColor = { factorKind == "assumption" ? 0x78C8E8 : 0x8B9AA2 },
+        textTransform = uppercase, text = { factorKind } ],
+    label: Text [ x = 12, y = 29, width = 96, fontSize = 12, fontWeight = semibold,
+        textColor = { selected ? 0xF5FBFE : 0xDDE6EA }, text = { factorLabel } ],
+    value: Text [ x = 108, y = 30, width = 54, fontSize = 13, fontWeight = bold,
+        textAlign = right, textColor = { selected ? 0x75D6FF : 0xF2C46D },
+        text = { formatValue(shownValue, :unit as string) } ],
+    deltaText: Text [ x = 70, y = 50, width = 92, fontSize = 9, fontWeight = semibold,
+        wrap = false, textAlign = right, textColor = { delta >= 0 ? 0x79C99E : 0xE58C8C },
+        visible = { changed }, text = { formatDelta(delta, :unit as string) } ],
+
+    press() { app.selectFactor(factorId) },
+    onClick() { if (!disabled) press() },
+    onKeyDown(e: KeyEvent) {
+        if (disabled) return
+        if ((e.key == "Enter" || e.key == " ") && !e.repeat) press()
+        else if (e.key == "ArrowUp" || e.key == "ArrowDown"
+            || e.key == "ArrowLeft" || e.key == "ArrowRight") {
+            app.moveFactorFocus(factorId, e.key)
+        }
+        }
+    ]
+
+
+class EdgeField extends View [ pointerEvents = "none",
+
+    draw(d: Draw) {
+        drawEdges(d, width, app.modelDocument.value, app.model.values,
+            app.model.comparisonValues, app.selectedFactorId,
+            app.selectedContributionFactorId)
+        }
+    ]

@@ -1,0 +1,129 @@
+script {
+    type SavedScenarioRecord = {
+        schemaVersion: number
+        modelId: string
+        modelRevision: string
+        workingSourceId: string
+        overrides: Record<string, number>
+        savedAt: string
+    }
+
+    type SavedScenarioValidation = {
+        ok: boolean
+        code: string
+        message: string
+        record: SavedScenarioRecord | null
+    }
+
+    const SAVED_SCENARIO_SCHEMA_VERSION = 1
+    const SAVED_SCENARIO_MODEL_ID = "airline-operating-margin"
+    const SAVED_SCENARIO_MODEL_REVISION = "1"
+    const SAVED_SCENARIO_STORAGE_KEY =
+        "causal-desk/airline-operating-margin/working-scenario"
+
+    function savedScenarioFailure(code: string, message: string): SavedScenarioValidation {
+        return { ok: false, code, message, record: null }
+    }
+
+    function buildSavedScenarioRecord(modelValue: object, scenarioValue: object,
+        workingValue: object, workingSourceId: string, savedAt: string): SavedScenarioRecord {
+        const source = asAssumptions(scenarioAssumptions(modelValue, scenarioValue,
+            ({ assumptions: {} }), workingSourceId)).assumptions
+        const working = asAssumptions(workingValue).assumptions
+        const overrides: Record<string, number> = {}
+        for (const factor of asDocument(modelValue).factors) {
+            if (factor.kind != "assumption") continue
+            const sourceValue = source[factor.id]
+            const workingValue = working[factor.id] ?? sourceValue
+            if (workingValue != sourceValue) overrides[factor.id] = workingValue
+        }
+        return {
+            schemaVersion: SAVED_SCENARIO_SCHEMA_VERSION,
+            modelId: SAVED_SCENARIO_MODEL_ID,
+            modelRevision: SAVED_SCENARIO_MODEL_REVISION,
+            workingSourceId,
+            overrides,
+            savedAt
+        }
+    }
+
+    function validateSavedScenarioRecord(value: object, modelValue: object,
+        scenarioValue: object): SavedScenarioValidation {
+        if (value == null || typeof value != "object" || Array.isArray(value)) {
+            return savedScenarioFailure("malformed", "Saved draft is not a record.")
+        }
+        const raw = value as Record<string, unknown>
+        const savedTime = typeof raw.savedAt == "string" ? Date.parse(raw.savedAt) : Number.NaN
+        if (typeof raw.schemaVersion != "number" || typeof raw.modelId != "string"
+            || typeof raw.modelRevision != "string" || typeof raw.workingSourceId != "string"
+            || typeof raw.savedAt != "string" || raw.savedAt == ""
+            || typeof raw.overrides != "object" || raw.overrides == null
+            || Array.isArray(raw.overrides) || !Number.isFinite(savedTime)
+            || new Date(savedTime).toISOString() != raw.savedAt) {
+            return savedScenarioFailure("malformed", "Saved draft has missing or invalid fields.")
+        }
+        if (raw.schemaVersion != SAVED_SCENARIO_SCHEMA_VERSION) {
+            return savedScenarioFailure("unsupported_schema",
+                "Saved draft uses an unsupported storage version.")
+        }
+        if (raw.modelId != SAVED_SCENARIO_MODEL_ID) {
+            return savedScenarioFailure("wrong_model", "Saved draft belongs to another model.")
+        }
+        if (raw.modelRevision != SAVED_SCENARIO_MODEL_REVISION) {
+            return savedScenarioFailure("stale_revision",
+                "Saved draft belongs to an older model revision.")
+        }
+        if (!scenarioExists(scenarioValue, raw.workingSourceId)) {
+            return savedScenarioFailure("unknown_source",
+                "Saved draft refers to an unknown source scenario.")
+        }
+
+        const overrides: Record<string, number> = {}
+        for (const [id, rawValue] of Object.entries(raw.overrides)) {
+            const factor = asDocument(modelValue).factors.find(row => row.id == id)
+            if (factor == null) {
+                return savedScenarioFailure("unknown_factor",
+                    "Saved draft contains an unknown factor.")
+            }
+            if (factor.kind != "assumption") {
+                return savedScenarioFailure("non_assumption_factor",
+                    "Saved draft attempts to override a non-assumption factor.")
+            }
+            if (typeof rawValue != "number") {
+                return savedScenarioFailure("malformed",
+                    "Saved draft contains a non-numeric assumption value.")
+            }
+            if (!Number.isFinite(rawValue)) {
+                return savedScenarioFailure("non_finite_value",
+                    "Saved draft contains a non-finite assumption value.")
+            }
+            if (factor.min == null || factor.max == null
+                || rawValue < factor.min || rawValue > factor.max) {
+                return savedScenarioFailure("out_of_range",
+                    "Saved draft contains an out-of-range assumption value.")
+            }
+            overrides[id] = rawValue
+        }
+
+        return {
+            ok: true,
+            code: "valid",
+            message: "",
+            record: {
+                schemaVersion: SAVED_SCENARIO_SCHEMA_VERSION,
+                modelId: SAVED_SCENARIO_MODEL_ID,
+                modelRevision: SAVED_SCENARIO_MODEL_REVISION,
+                workingSourceId: raw.workingSourceId,
+                overrides,
+                savedAt: raw.savedAt
+            }
+        }
+    }
+
+    function workingScenarioFromSavedRecord(modelValue: object, scenarioValue: object,
+        record: SavedScenarioRecord): object {
+        const source = asAssumptions(scenarioAssumptions(modelValue, scenarioValue,
+            ({ assumptions: {} }), record.workingSourceId)).assumptions
+        return { assumptions: { ...source, ...record.overrides } }
+    }
+    }
