@@ -8,7 +8,7 @@ Open Claude Code — or another coding agent — in an empty folder, and tell it
 
 Provide any required permissions.
 
-In 15–20 minutes you'll have your first Declare app. That's it.
+In 10–15 minutes you'll have your first Declare app. That's it.
 
 ## Or do it yourself
 

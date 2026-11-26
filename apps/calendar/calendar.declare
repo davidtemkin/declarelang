@@ -924,7 +924,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
 
             Control [ press() { app.openURL("apps/homepage/homepage.declare") },
                 accessibilityRole = link,
-                Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare" ]
+                Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { provided("theme").accent }, text = "Declare" ]
                 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { provided("theme").text }, text = "Calendar" ]
             ],

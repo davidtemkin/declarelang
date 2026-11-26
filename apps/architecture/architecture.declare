@@ -113,7 +113,7 @@ App [ appName = "How it works · Declare",
 
         masthead: View [ width = 100%,
             layout: SimpleLayout [ axis = y, spacing = 18 ],
-            Eyebrow [ text = "Declare · runtime architecture" ],
+            Eyebrow [ text = "Declare’s runtime", textColor = { provided("theme").accent } ],
             Title [ fontSize = { app.width < 700 ? 40 : 54 }, text = "How it works" ],
             Dek [ text = "A Declare front end is one self-contained artifact — small enough to hold in your head, strict enough for a machine to verify, rich enough for an ambitious application. This is what Declare’s runtime does to make that true." ]
             ],
@@ -154,7 +154,7 @@ App [ appName = "How it works · Declare",
 
         // ── 01 · The compiler ────────────────────────────────────────
 
-        compile: Section [ num = "01", head = "Why a program can be checked",
+        compile: Section [ head = "Why a program can be checked",
             Para [ html = "The compiler is where completeness is enforced. It parses the brackets into a tree, resolves every name to an explicit path, extracts what every <code>{ }</code> body reads, and type-checks each body as TypeScript against the real interface of every class — so an attribute that doesn’t exist, or a relationship that reads something it can’t, is an error before anything runs. What it emits is not code that builds a UI but a description of one: the tree, a graph of which value reads which, and, for every body that is plain arithmetic, bytecode for a small stack machine. One line of the homepage’s bouncing-ball demo, compiled:" ],
             Trace [ ],
             Para [ html = "Because the program is data, it can be questioned as data. The Inspector on any page here — ⌥⌘D — reads this same graph: click a value and it shows the body that produced it, everything that body read, and their live values. The same completeness is what lets an AI’s work be checked: the compiler, the Inspector and verify all read one description of the whole interface, not a guess pieced together from files." ]
@@ -162,7 +162,7 @@ App [ appName = "How it works · Declare",
 
         // ── 02 · What a click does ───────────────────────────────────
 
-        run: Section [ num = "02", head = "Why nothing re-renders",
+        run: Section [ head = "Why nothing re-renders",
             Para [ html = "When a handler writes an attribute, nothing updates yet. When the handler returns, the runtime performs one update — a <b>settle</b>: everything that read what changed is recomputed, and whatever that changes in turn, until nothing more does; only then is the host told what moved. If you know React, it is the nearest thing to a commit, except that nothing was rendered to compare against. The meter below is live: raise its level, then step through what your click set in motion." ],
             Figure [
                 ClickFig [ ]
@@ -172,19 +172,19 @@ App [ appName = "How it works · Declare",
 
         // ── 03 · Motion and layout ───────────────────────────────────
 
-        motion: Section [ num = "03", head = "Why every animation can be interrupted",
+        motion: Section [ head = "Why every animation can be interrupted",
             Para [ html = "A <code>Spring</code> is an attribute with a target; each frame it writes its next value, and that write is a settle like any other. Nothing about animation is special-cased, so a new target mid-flight is simply the next write: the spring retargets from wherever it is, and everything that read it follows. Interruptibility isn’t a feature of an animation system; it is what a reactive graph does when you write to it." ],
             Para [ html = "Every box is decided before the host hears of it — by arithmetic over attributes, by a layout (a class with one method, <code>place()</code>), or by the content’s own size. Text is the one place the host contributes a number, the width of a glyph; wrapping and height are the runtime’s, so a paragraph breaks into the same lines on every renderer. Because the runtime placed every box, it also answers the inverse question — what is under this point — and that one answer decides hover, press, and where a drag lands." ]
             ],        // ── 04 · Why it’s fast ───────────────────────────────────────
 
-        fast: Section [ num = "04", head = "Why it’s fast",
+        fast: Section [ head = "Why it’s fast",
             Para [ html = "Because the compiler hands over the whole graph up front, the runtime doesn’t have to discover anything as it runs. Its reactive core (the graph, the settle, and the arithmetic of layout, springs and visibility) is a small C kernel: WebAssembly in the browser, linked natively on the Mac. Bodies that are plain arithmetic arrive as bytecode the kernel evaluates itself, without returning to JavaScript." ],
             Para [ html = "Moving the core there cut update time by 42–53% on every platform measured (Chrome, iOS Safari and the Mac host), and a window drag’s by 81–93%. The rules evaluated didn’t change; each one simply costs less." ]
             ],
 
         // ── 05 · One program, three hosts ────────────────────────────
 
-        hosts: Section [ num = "05", head = "One program, three hosts",
+        hosts: Section [ head = "One program, three hosts",
             Para [ html = { "Everything above happens on one side of a single interface, <code>Surface</code> — " + FIGURES.surfaceMethods + " methods such as <code>setX</code>, <code>setFill</code> and <code>setText</code> that the runtime calls and a backend implements. The DOM backend keeps an element per view and hands the browser what it does best: real text, the page’s own scroll, links, native fields. The canvas backend draws the tree directly to pixels. The Mac host is a Swift application with no web engine in it, applying each settle to Core Animation layers. Drawing (<code>draw(d)</code>) records rather than paints, so each host replays the same recording its own way." } ],
             Para [ html = "Below, the calendar’s build drawn to scale by gzipped bytes: switch hosts and one block is exchanged while everything else holds still. Beneath it, the same desktop program on each host." ],
             f4: Figure [
@@ -194,13 +194,13 @@ App [ appName = "How it works · Declare",
 
         // ── 06 · Living alongside other code ─────────────────────────
 
-        islands: Section [ num = "06", head = "Living alongside other code",
+        islands: Section [ head = "Living alongside other code",
             Para [ html = "A web page embeds a Declare app with one attribute on a sized element; inside a Declare program, a <code>DOMIsland</code> gives a video player, an editor or a React widget a box of its own, and an <code>AppIsland</code> hosts another Declare program — this article is one, inside the homepage. In every direction the contract is the same: values provided, values exposed, and messages posted both ways." ]
             ],
 
         // ── 07 · Still a web page ────────────────────────────────────
 
-        why: Section [ num = "07", head = "Still a web page",
+        why: Section [ head = "Still a web page",
             Para [ html = "In a browser a Declare app is a web page, not an imitation of one: text selects and finds, fields are native, scroll is the page’s own, links ⌘-click and Back tells the truth, and a crawler reads a static extraction from a plain host. What keeps the runtime honest is the second rendering: the DOM and the pixel renderer are held to the same picture on every change." ],
             links: View [ width = 100%,
                 layout: WrappingLayout [ spacing = 22, rowSpacing = 10 ],

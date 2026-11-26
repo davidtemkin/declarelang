@@ -23,9 +23,8 @@ script {
         }
     }
 
-class Eyebrow extends Text [ fontFamily = ["SF Mono", "ui-monospace", "Menlo", "monospace"], fontSize = 12,
-    fontWeight = medium, letterSpacing = 1.4, textTransform = uppercase,
-    textColor = { provided("theme").muted }
+class Eyebrow extends Text [ fontFamily = { app.uiFace }, fontSize = 14,
+    fontWeight = semibold, textColor = { provided("theme").muted }
     ]
 
 
@@ -75,16 +74,12 @@ class Mono extends Text [ fontFamily = ["SF Mono", "ui-monospace", "Menlo", "mon
 /*
 ## Section head
 
-A numbered section: the number is information (the sections follow the
-program from source to pixels), then the title.
+A section's title. The sections follow the program from source to pixels,
+and their order says so without numbers.
 */
 
 class SectionHead [ width = 100%,
-    num: string = "",
     head: string = "",
-    layout: SimpleLayout [ axis = y, spacing = 12 ],
-
-    Eyebrow [ text = { classroot.num }, textColor = { provided("theme").accent } ],
     Title [ fontSize = { app.width < 700 ? 30 : 38 }, text = { classroot.head } ]
     ]
 
@@ -92,16 +87,15 @@ class SectionHead [ width = 100%,
 /*
 ## Section
 
-A numbered section of the article: its head, then whatever it holds. A use
-site adds its own children after the head.
+A section of the article: its head, then whatever it holds. A use site adds
+its own children after the head.
 */
 
 class Section [ width = 100%,
-    num: string = "",
     head: string = "",
     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-    SectionHead [ num = { classroot.num }, head = { classroot.head } ]
+    SectionHead [ head = { classroot.head } ]
     ]
 
 

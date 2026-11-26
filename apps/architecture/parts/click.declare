@@ -86,7 +86,7 @@ class Meter extends Plate [ pad = 18, gap = 14, cornerRadius = 12, fill = { prov
     Spring [ attribute = t, to = { classroot.level }, stiffness = 170, damping = 20 ],
     raise() { level = level >= 5 ? 1 : level + 1 },
 
-    Eyebrow [ text = "live · click it" ],
+    Eyebrow [ text = "Live: click it" ],
     Text [ fontSize = 30, fontWeight = semibold, textColor = { provided("theme").ink },
         text = { "level " + classroot.level } ],
     track: View [ height = 12, cornerRadius = 6, fill = { provided("theme").line },

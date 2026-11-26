@@ -1146,7 +1146,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         brand: View [ height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textFill = { Gradient.linear("90deg", provided("theme").accent, provided("theme").brandTeal) }, text = "Declare",
+                textColor = { provided("theme").accent }, text = "Declare",
                 onClick() { app.openURL("apps/homepage/homepage.declare") }
                 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,

@@ -6,10 +6,10 @@ script {
     const FIGURES = {
         "sizes": {
             "calDom": {
-                "app": 13.1,
+                "app": 13,
                 "lib": 14.4,
-                "core": 46.8,
-                "view": 13.5,
+                "core": 46.4,
+                "view": 13.6,
                 "backend": 16.4,
                 "input": 22.5,
                 "draw": 17.3,
@@ -22,9 +22,9 @@ script {
                 "ker": 12.3
             },
             "calCanvas": {
-                "app": 13.1,
+                "app": 13,
                 "lib": 14.4,
-                "core": 46.2,
+                "core": 45.9,
                 "view": 13.3,
                 "backend": 36.7,
                 "input": 26,
@@ -38,10 +38,10 @@ script {
                 "ker": 12.3
             },
             "calMac": {
-                "app": 13.1,
+                "app": 13,
                 "lib": 14.4,
-                "core": 46.8,
-                "view": 13.5,
+                "core": 46.4,
+                "view": 13.6,
                 "backend": 8.8,
                 "input": 22.5,
                 "draw": 17.3,
@@ -54,12 +54,12 @@ script {
                 "ker": 0
             },
             "totals": {
-                "calDom": 177.1,
-                "calCanvas": 202.4,
-                "calMac": 154.2
+                "calDom": 176.8,
+                "calCanvas": 202.1,
+                "calMac": 153.9
             }
         },
-        "runtimeKB": 137.3,
+        "runtimeKB": 137.1,
         "kernelKB": 12.3,
         "kernelWasmGzipKB": 9.7,
         "kernelWasmRawKB": 23,

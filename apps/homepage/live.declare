@@ -14,7 +14,7 @@ A `CodeField` is a native editable field seeded from the demo’s source — its
 `edited` text follows the source until you type, and its `commit` then keeps the
 edit there (writing a declared default takes it over from its formula), and
 publishes each keystroke on `app.liveSource`. A `SourcePanel` frames it
-(LIVE·EDITABLE chip, Revert, hairline); a `PreviewFrame` hosts the compiled app
+(its caption, Revert, hairline); a `PreviewFrame` hosts the compiled app
 as an **embedded child app** — an `AppIsland`, no iframe — so the preview can’t
 drift from the source.
 */
@@ -56,16 +56,10 @@ class SourcePanel [
 
     height = { this.field.y + this.field.height + 8 + (this.err.visible ? this.err.height : 0) },
 
-    // the affordance chip: this code runs, and you can type in it. Both chips
-    // are a label in a `padding` — the label sits at the content origin and the
-    // chip's width is simply what it holds, so the inset is stated once.
+    // the caption that says this code runs and you can type in it
 
-    live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = { provided("theme").accent },
-        padding = [4, 7, 4, 7],
-        width = { this.contentWidth },
-        t: Text [ fontFamily = { app.uiFace }, fontSize = 9, fontWeight = bold,
-            letterSpacing = 0.8, wrap = false, textColor = { provided("theme").ink }, text = "LIVE · EDITABLE" ]
-        ],
+    live: Text [ x = 12, y = 9, fontFamily = { app.uiFace }, fontSize = 12, wrap = false,
+        textColor = { provided("theme").muted }, text = "Live, editable" ],
     revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { Stroke(1, provided("theme").revertLine) },
         padding = [3, 8, 3, 8],
         x = { parent.width - this.width - 10 },
@@ -140,7 +134,6 @@ schema Sample [ id: string, label: string, caption: string ]
    it shows `demo` with `caption`. */
 
 class DemoSection [ width = 100%,
-    num:     string = "",
     head:    string = "",
     lead:    string = "",
     caption: string = "",
@@ -151,7 +144,7 @@ class DemoSection [ width = 100%,
     shownCaption: string = { classroot.samples.find((s) => s.id == classroot.shown)?.caption ?? classroot.caption },
     code: DataSource [ url = { classroot.shown + ".declare" }, format = "text", autoFetch = true ],
     layout: SimpleLayout [ axis = y, spacing = 36 ],
-    SectionHead [ num = { classroot.num }, head = { classroot.head }, lead = { classroot.lead } ],
+    SectionHead [ head = { classroot.head }, lead = { classroot.lead } ],
     demoBody: View [ width = 100%,
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         Segmented [ visible = { classroot.samples.length > 0 }, accessibilityLabel = "Sample",

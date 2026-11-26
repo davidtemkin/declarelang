@@ -21,6 +21,6 @@ const at = (text) => async ({ drive, page }) => {
 export default [
   // the loop section's head and lead
   { name: "phone-loop", viewport: PHONE, scheme: "dark", route: at("Your AI can write the code") },
-  // the closing line between its two rules
-  { name: "phone-closer", viewport: PHONE, scheme: "dark", route: at("Small enough to know") },
+  // the closing lines under the four tools
+  { name: "phone-closer", viewport: PHONE, scheme: "dark", route: at("The spec is small") },
 ];

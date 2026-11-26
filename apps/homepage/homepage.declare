@@ -5,7 +5,7 @@ The page you are reading, written in Declare. The design tokens live once as
 semantic type classes, and the page is a vertical **flow** of auto-sizing
 sections — no absolute-y. Each section's height falls out of its content, so
 the page stacks and re-flows on its own at any width. The full-bleed chrome —
-the blueprint grid, the sticky header, the pointer dot — sits absolutely
+the blueprint grid, the sticky header — sits absolutely
 around the centered column.
 
 `{ }` bodies are TypeScript, so colors there are `0x…`; `[ ]` literal attributes
@@ -79,12 +79,12 @@ class Heading extends Text [ fontWeight = { app.headWeight }, textColor = { prov
 
 class Display extends Heading [ ]
 
-class Eyebrow extends Text [ fontFamily = ["ui-monospace", "monospace"], fontSize = 13,
-    fontWeight = semibold, letterSpacing = 1.6, textColor = { provided("theme").muted }
+class Eyebrow extends Text [ fontFamily = { app.uiFace }, fontSize = 15,
+    fontWeight = semibold, textColor = { provided("theme").muted }
     ]
 
 
-// the accent section number
+// a page's or a section's label, in the accent
 
 class Marker extends Eyebrow [ textColor = { provided("theme").accent } ]
 
@@ -96,9 +96,9 @@ class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { prov
 
 class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { provided("theme").muted } ]
 
-// The CENTERED band treatment — the two closing sections (the feedback loop
-// and the closer) are statements addressed to the whole column rather than
-// copy running down its left edge, so each line is centered on its own
+// The CENTERED band treatment — the closing section's lines are statements
+// addressed to the whole column rather than copy running down its left edge,
+// so each line is centered on its own
 // `measure`. `x = center` with `textAlign = center` is one idea, so it lives
 // in the class rather than as two attributes to keep in step at every use site.
 
@@ -111,10 +111,6 @@ class BannerLead extends Lead [ measure: number = 620,
     width = { Math.min(this.measure, parent.width) }, x = center, textAlign = center
     ]
 
-
-// the short accent rule the closer wears above and below its line
-
-class BandRule [ x = center, width = 140, height = 2, fill = { provided("theme").accent } ]
 
 /*
 ## The header pills
@@ -323,75 +319,31 @@ class MiniMetric [
     note:  string = "",
     flexes = true,
     layout: SimpleLayout [ axis = y, spacing = 4 ],
-    Display [ fontSize = 34, width = 100%, textFill = { provided("theme").brand },
+    Display [ fontSize = 34, width = 100%, textColor = { provided("theme").accent },
         text = { classroot.value } ],
     Body [ fontSize = 12, width = 100%, text = { classroot.note } ]
     ]
 
 
 /*
-### The sequence badge
-
-The three applications are the page’s one enumerated set, and the layout around
-them is busy enough that the set reads as three unrelated rows. A number pins
-each title to the sequence: the ordinal AT THE TITLE’S OWN SIZE — a `Heading`,
-so font, weight and tracking are the title’s exactly, and the baselines match
-by construction (same metrics, boxes top-aligned in the same row) — in the
-page’s ink on a plain disc, white on the dark page and dark on paper. Plain,
-not accent: the discs must read as counters against the noise, not as three
-more accent-colored controls.
-*/
-
-class AppNum [ width = 30,
-    n: string = "",
-
-    // the row's hover fact, handed in by the use site — the disc answers the
-    // SAME state the title answers, so the pair lights as one target
-
-    hot: boolean = false,
-    visible = { n != "" },
-
-    // the box is the numeral's own line box, top-aligned beside the title's —
-    // same metrics, same top, so the baselines match with no font constants
-
-    height = { this.num.height },
-
-    // the disc paints first (under the digit): the `badge` colour at rest, the
-    // accent while the row is hot or the badge itself is pressed — the title's
-    // own change, answered in fill rather than ink. The NUMERAL stays ink in
-    // every state: ink-on-accent is already the page's text-on-accent pairing
-    // (Button). Centered on the line box — a disc has no baseline of its own.
-
-    disc: View [ width = 30, height = 30, cornerRadius = 15,
-        fill = { classroot.hot || classroot.pressed ? provided("theme").accent : provided("theme").badge },
-        y = center ],
-    num: Display [ fontSize = 22, wrap = false, selectable = false, textColor = { provided("theme").ink },
-        x = center,
-        text = { classroot.n } ]
-    ]
-
-
-/*
 ### An application's title row
 
-The badge, the name and (where there is one) the arrow, all three linked to the
-same place and all three answering one hover fact. Both application rows wear it, and
+The name and (where there is one) the arrow, both linked to the same place and
+both answering one hover fact. Both application rows wear it, and
 because it is a class each part reads the row's hover state as `classroot.hot`
 — the depth it sits at is not part of the arithmetic.
 */
 
 class CardHead [ width = 100%, height = { this.contentHeight },
-    // one destination, one link: the number, the name and the arrow are one stop
+    // one destination, one link: the name and the arrow are one stop
 
     link = { this.url },
-    num:   string = "",
     title: string = "",
     url:   string = "",
     hot:   boolean = false,
     arrow: boolean = false,
     layout: SimpleLayout [ axis = x, spacing = 10 ],
 
-    seq: AppNum [ n = { classroot.num }, hot = { classroot.hot } ],
     name: Heading [ fontSize = 22, wrap = false, selectable = false,
         textColor = { classroot.hot ? provided("theme").accent : provided("theme").text },
         text = { classroot.title } ],
@@ -411,7 +363,6 @@ and the name run the app; the source link opens the reader.
 
 class AppCard [
     title:   string = "",
-    num:     string = "",
     shot:    string = "",
     blurb:   string = "",
     figures: string = "",
@@ -424,14 +375,14 @@ class AppCard [
     // pointer anywhere on either lights BOTH — and there is no cycle, because
     // each derives from the raw `hovered` of the other, never from its styling.
 
-    titleHot: boolean = { this.head.seq.hovered || this.head.name.hovered || this.head.arr.hovered },
+    titleHot: boolean = { this.head.name.hovered || this.head.arr.hovered },
     hot: boolean = { this.frame.hovered || this.titleHot },
 
     // the name LEADS: you read what the thing is, then look at it. The plate
     // under a title also gives the row a left edge to hang from, which three
     // pictures of different interiors do not.
 
-    head: CardHead [ arrow = true, num = { classroot.num }, title = { classroot.title },
+    head: CardHead [ title = { classroot.title },
         url = { classroot.url }, hot = { classroot.hot } ],
 
     frame: Shot [ width = 100%, src = { classroot.shot }, link = { classroot.url }, accessibilityLabel = { "Open " + classroot.title },
@@ -456,8 +407,12 @@ class AppCard [
 class Point [ width = { Math.min(357, parent.width) },
     ptitle: string = "",
     body:   string = "",
-    stroke = { [ Stroke(2, provided("theme").pointRule), null, null, null ] },
-    padding = [18, 0, 0, 0],
+
+    // the last row closes the set with the same rule along its foot
+
+    closes: boolean = false,
+    stroke = { [ Stroke(2, provided("theme").pointRule), null, closes ? Stroke(2, provided("theme").pointRule) : null, null ] },
+    padding = { [18, 0, closes ? 18 : 0, 0] },
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     Heading [ fontSize = 17, text = { classroot.ptitle } ],
     Body    [ fontSize = 15, width = 100%, text = { classroot.body } ]
@@ -480,15 +435,15 @@ on this page does.
 */
 
 class SiteButton extends Button [ height = 46, cornerRadius = 9,
-    fill = { primary ? (hovered ? provided("theme").accentHovered : provided("theme").accent)
+    fill = { primary ? (hovered ? provided("theme").buttonHovered : provided("theme").button)
                      : (hovered ? provided("theme").hover         : provided("theme").surface) },
-    State [ applied = { pressed }, fill = { primary ? provided("theme").accentPressed : provided("theme").press } ],
-    stroke = { primary ? null : Stroke(1, pressed ? provided("theme").accentSecondary : provided("theme").line) },
+    State [ applied = { pressed }, fill = { primary ? provided("theme").buttonPressed : provided("theme").press } ],
+    stroke = { primary ? null : Stroke(1, pressed ? provided("theme").accent : provided("theme").line) },
 
-    // the one ink decision, the library's own seam: the page's ground colour
-    // reads on the accent, the ordinary text colour on the quiet fill
+    // the one ink decision, the library's own seam: white on the accent, the
+    // ordinary text colour on the quiet fill
 
-    ink = { primary ? provided("theme").ink : provided("theme").text }
+    ink = { primary ? provided("theme").onAccent : provided("theme").text }
     ]
 
 
@@ -508,7 +463,7 @@ class FootLink extends FootLabel [
     // provision is for the static footer text and stops at this one.
 
     selectable = false,
-    textColor = { pressed ? provided("theme").accentSecondaryPress : hovered ? provided("theme").accentSecondary : provided("theme").muted }
+    textColor = { pressed ? provided("theme").linkPress : hovered ? provided("theme").linkHover : provided("theme").muted }
     ]
 
 
@@ -534,7 +489,7 @@ class Footer [ width = 100%,
     // inline), so it keeps a word space, not a gap
 
     built: HTMLText [ width = 108, fontSize = 13, fontWeight = semibold, bodyColor = { provided("theme").muted },
-        textStyles = { { g: { textFill: provided("theme").brand } } },
+        textStyles = { { g: { textColor: provided("theme").accent } } },
         html = "Built in <span class='g'>Declare</span>" ],
     FootSep [ ],
     FootLink [ link = { app.site + "apps/homepage/homepage.declare?viewer" }, text = "View Source" ],
@@ -605,11 +560,9 @@ class GridBg [
 
 
 class SectionHead [ width = 100%,
-    num:  string = "",
     head: string = "",
     lead: string = "",
     layout: SimpleLayout [ axis = y, spacing = 14 ],
-    Marker  [ text = { classroot.num } ],
     Heading [ fontSize = 40, width = { Math.min(900, parent.width) }, text = { classroot.head } ],
     Lead    [ width = { Math.min(760, parent.width) }, text = { classroot.lead } ]
     ]
@@ -701,20 +654,16 @@ theme Ink [
     text = #E7EEF2, lead = #9DB0BC, muted = #8A9BA6, dim = #6A7C89, faint = #556673,
 
     // the blue accent and its interaction shades; links brighten past accent
-    // (hover), then flash brighter still at the press — the same direction
-    // FootLink's teal takes, so every text link answers a tap the same way
+    // (hover), then flash brighter still at the press, the footer's links too,
+    // so every text link answers a tap the same way
 
     accent = #4C8DFF, accentHovered = #63A0FF, accentPressed = #3D7BE0, linkHover = #7FB0FF, linkPress = #B2CFFF,
+    onAccent = #FFFFFF,
 
-    // the teal second accent; the brand gradient runs accent → accentSecondary
+    // the primary button's fill: a deeper blue than the accent, so its white
+    // label reads at 4.5:1 or better at rest, under the pointer and pressed
 
-    accentSecondary = #37E0C8, accentSecondaryPress = #9BF2E4,
-    brand = Gradient.linear("90deg", #4C8DFF, #37E0C8),
-
-    // the sequence badges' disc — true white, not the off-white text tone:
-    // a solid counter can take full white where text-on-dark cannot
-
-    badge = #FFFFFF,
+    button = #2F6BDE, buttonHovered = #3570E2, buttonPressed = #2862CC,
 
     // grounds, darkest to lightest, and their interaction shades — `ink`
     // (both records) is also the page colour index.html paints before mount
@@ -740,12 +689,9 @@ theme Ink [
 theme Paper [
     text = #14202A, lead = #3A4A57, muted = #5A6B78, dim = #72838F, faint = #8A99A4,
     accent = #2F6BDE, accentHovered = #1F58C4, accentPressed = #1A4AA6, linkHover = #1F58C4, linkPress = #173F8C,
-    accentSecondary = #0FA38E, accentSecondaryPress = #0B7F6F,
-    brand = Gradient.linear("90deg", #2F6BDE, #0FA38E),
+    onAccent = #FFFFFF,
+    button = #2F6BDE, buttonHovered = #1F58C4, buttonPressed = #1A4AA6,
 
-    // the sequence discs invert on paper: a dark disc under a light digit
-
-    badge = #14202A,
     ink = #F6F9FC, panel = #FFFFFF, press = #E9EEF2, surfaceDeep = #EEF2F5,
     surface = #FFFFFF, hover = #EEF3F7, pillHover = #E8EEF3, pillPress = #DCE4EB,
     plateEdge = #14202A2E,
@@ -767,7 +713,7 @@ theme Paper [
 
 The App provides one of the two palettes as `theme`, and every color below
 reads it. The App itself scrolls, and its scroll carries the content; the
-chrome further down (header, pointer dot, menus) sets `ignoreScroll`, so it
+chrome further down (header, menus) sets `ignoreScroll`, so it
 stays put.
 */
 
@@ -948,13 +894,13 @@ App [ tagline: string = "a UI language for you and your AI",
                 top: View [ width = 100%,
                     layout: SimpleLayout [ axis = y, spacing = 26 ],
 
-                    // the title: product name in the blue→teal gradient, the claim on the
+                    // the title: product name in the accent blue, the claim on the
                     // next line. One rendition at every width — no wide/narrow split to keep in sync.
 
                     headline: View [ width = 100%,
                         layout: SimpleLayout [ axis = y, spacing = 2 ],
                         Heading [ fontSize = { app.heroFont },
-                            textFill = { provided("theme").brand }, text = "Declare" ],
+                            textColor = { provided("theme").accent }, text = "Declare" ],
                         Heading [ fontSize = { app.heroFont }, width = 100%,
                             text = { "is " + app.tagline + "." } ]
                         ],
@@ -963,9 +909,9 @@ App [ tagline: string = "a UI language for you and your AI",
                         HTMLText [ width = { Math.min(700, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { provided("theme").lead },
                             html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces — for taking the custom, fluid experience you have in mind beyond a prototype, into a real app: structured, verifiable, and with the design written plainly in its code." ],
 
-                        Lead [ width = { Math.min(700, parent.width) }, fontWeight = semibold,
-                            textColor = { provided("theme").text },
-                            text = "This page is written in it. By an LLM." ]
+                        Lead [ width = { Math.min(700, parent.width) }, fontSize = 15,
+                            textColor = { provided("theme").muted },
+                            text = "This page is itself a Declare app." ]
                         ]
                     ],
 
@@ -982,7 +928,7 @@ App [ tagline: string = "a UI language for you and your AI",
                     ]
                 ],
 
-            /* ### 01 — Three applications. The calendar leads at full width; the
+            /* ### Three applications. The calendar leads at full width; the
                tracker and the desktop share the row beneath, and stack on a
                phone. The section fades in as it scrolls into view (ScrollReveal).
                The line counts and wire sizes are read from `stats.json`. */
@@ -998,7 +944,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
                 layout: SimpleLayout [ axis = y, spacing = 72 ],
 
-                SectionHead [ num = "01", head = "Expressive. And verifiable.",
+                SectionHead [ head = "Expressive, and verifiable",
                     lead = "A calendar that zooms through time, a desktop with real windows: complete programs, each readable end to end and checked by the compiler. Open one, or edit it live in the browser you’re using." ],
 
                 /* The calendar takes its own row: the pitch on the LEFT where the
@@ -1013,17 +959,17 @@ App [ tagline: string = "a UI language for you and your AI",
                    no cycle. */
 
                 cal: View [ width = 100%,
-                    hot: boolean = { this.plate.hovered || this.tell.head.name.hovered || this.tell.head.seq.hovered },
+                    hot: boolean = { this.plate.hovered || this.tell.head.name.hovered || this.tell.head.arr.hovered },
                     layout: ResponsiveLayout [ plan = { [({ from: 860, flow: "row", gap: 40, share: ({ tell: 50, plate: 50 }) }),
                                                          ({ from: 0, flow: "stack", gap: 26, share: ({ tell: 100, plate: 100 }) })] } ],
 
                     tell: View [ layout: SimpleLayout [ axis = y, spacing = 18 ],
 
                         // the row's hover fact, handed in ONCE at the use site —
-                        // the badge and the name read it as `classroot.hot`
+                        // the name and the arrow read it as `classroot.hot`
                         // rather than each climbing three parents to find it
 
-                        head: CardHead [ num = "1", title = "Declare Calendar",
+                        head: CardHead [ title = "Declare Calendar",
                             url = { app.site + "apps/calendar/calendar.declare" },
                             hot = { parent.parent.hot } ],
 
@@ -1031,7 +977,7 @@ App [ tagline: string = "a UI language for you and your AI",
                         // a video invites (is this the thing?) answered by the drag
 
                         Lead [ fontSize = 17, width = 100%,
-                            text = "Day, week, month and year views are one surface, zooming continuously; a view doesn’t switch so much as become the next one, and every motion can be interrupted. It runs on real data: drag an event to another day, and it’s moved." ],
+                            text = "Day, week, month and year views are one surface, zooming continuously; a view doesn’t so much switch as become the next view, and every motion can be interrupted. It runs on real data: drag an event to another day, and it’s moved." ],
 
                         stat: View [ width = 100%, height = { this.contentHeight },
                             layout: SimpleLayout [ axis = x, spacing = 20 ],
@@ -1095,19 +1041,19 @@ App [ tagline: string = "a UI language for you and your AI",
                     layout: ResponsiveLayout [ plan = { [({ from: 720, flow: "row", gap: 56, share: ({ dsk: 50, trk: 50 }) }),
                                                          ({ from: 0, flow: "stack", gap: 56, share: ({ dsk: 100, trk: 100 }) })] } ],
 
-                    dsk: AppCard [ title = "Declare Desktop", num = "2",
+                    dsk: AppCard [ title = "Declare Desktop",
                         shot   = { app.isDark ? "shots/desktop-dark.webp" : "shots/desktop-light.webp" },
                         url = { app.site + "apps/desktop/desktop.declare" },
                         srcUrl = { app.site + "apps/desktop/desktop.declare?viewer" },
-                        blurb = "The acid test for a UI language: multiple applications, windows that drag, resize, layer and minimize into live thumbnails, a magnifying dock, menus that follow focus, and separately loaded apps running inside its windows. Elsewhere that is a project assembled from several libraries; here it is one program.",
+                        blurb = "Windows that drag, resize and minimize into live thumbnails, a magnifying dock, and apps running inside its windows, all in one program.",
                         figures = { hpLines(app.stats.value?.desktop?.total, app.stats.value?.desktop?.code, app.stats.value?.desktop?.comment)
                               + hpWire(app.stats.value?.desktop?.wireGzip) + " · every pixel drawn from shapes, no image assets" } ],
 
-                    trk: AppCard [ title = "Declare Tracker", num = "3",
+                    trk: AppCard [ title = "Declare Tracker",
                         shot   = { app.isDark ? "shots/tracker-dark.webp" : "shots/tracker-light.webp" },
                         url = { app.site + "apps/tracker/tracker.declare" },
                         srcUrl = { app.site + "apps/tracker/tracker.declare?viewer" },
-                        blurb = "1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code",
+                        blurb = "1,000,000 issues · search as you type · edit in place, with undo · virtualization built in",
 
                         // the wire figure is the production BUILD — app, runtime and
                         // library slices. The tracker's 3 MB issues.json is fetched by a
@@ -1133,19 +1079,19 @@ App [ tagline: string = "a UI language for you and your AI",
                     ]
                 ],
 
-            /* ### 02 — Expressive by design: the language was made for the people
+            /* ### Expressive by design: the language was made for the people
                who make interfaces first, and one live program says so better
                than three. The tour carries the rest of the model. */
 
-            craft: DemoSection [ num = "02", head = "Say what you mean. Exactly.",
-                lead = "Declare was designed first for the people who make interfaces. Layout, motion, states, theming and drawing are the language itself, not libraries bolted on — so the experience you have in mind is something you can write down directly, and read back later as it was meant.",
+            craft: DemoSection [ head = "Concise and readable",
+                lead = "Declare was designed first for the people who make interfaces. Layout, motion, states, theming and drawing are the language itself, not libraries bolted on, so the experience you have in mind is something you can write down directly, and read back later as it was meant.",
                 samples = { [
                     ({ id: "demos/reactivity", label: "Rules",
-                        caption: "Three things follow one value: the number, the bar’s length and its color. Click to change v — all three update together, because each is a relationship that stays true, not a step someone remembered to run." }),
+                        caption: "Three things follow one value: the number, the bar’s length and its color. Click to change v and all three update together, because each is a relationship that stays true and runs every time." }),
                     ({ id: "demos/from-data", label: "Data",
-                        caption: "One Gauge, written once; the data decides how many there are and what each says. Edit a number or add a record and the list follows — no loop, no keys." }),
+                        caption: "One Gauge, written once; the data decides how many there are and what each says. Edit a number or add a record and the list follows, with no loop and no keys." }),
                     ({ id: "demos/spring", label: "Motion",
-                        caption: "Click to move the ball. A Spring says where it belongs and finds the way there, and a second click mid-flight simply sends it back — no timeline, no frames driven by hand." }) ] } ],
+                        caption: "Click to move the ball. A Spring says where it belongs and finds the way there, and a second click mid-flight simply sends it back, with no timeline and no frames driven by hand." }) ] } ],
 
             /* ### The feedback loop — the page's argument for WHY the language is
                shaped this way, placed where it can land: after three tiny programs
@@ -1164,13 +1110,10 @@ App [ tagline: string = "a UI language for you and your AI",
                     BannerHead [ fontSize = { app.width < 700 ? 24 : 30 }, measure = 880,
                         text = "Your AI can write the code. Can it tell when it’s wrong?" ],
 
-                    // The answer to the head's question, and the bridge to the four
-                    // beats: catch (question), fix (correct), finish (prove) — the
-                    // grid previewed without being listed, and "finish" last, where
-                    // the sentence's weight falls. The context beat is "started".
+                    // the line that leads into the four tools
 
                     BannerLead [ fontSize = 17, measure = 620,
-                        text = "In Declare, yes. A small language gets it started; these four tools let it catch its mistakes, fix them, and finish." ]
+                        text = "Declare comes with tools that help an AI get it right." ]
                     ],
 
                 // Sized to the TEXT rather than to the page, and centered: at the
@@ -1190,64 +1133,43 @@ App [ tagline: string = "a UI language for you and your AI",
                     first: View [ width = 100%,
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 56, share: ({ a: 50, b: 50 }) }),
                                                              ({ from: 0, flow: "stack", gap: 32, share: ({ a: 100, b: 100 }) })] } ],
-                        a: Point [ ptitle = "Start with context",
-                            body = "One installable skill: the language, the library, the conventions, the working loop — nothing to reconstruct from a repository. And declare-help answers any name or error code on demand." ],
-                        b: Point [ ptitle = "Correct, don’t guess",
+                        a: Point [ ptitle = "The Declare skill",
+                            body = "One installable skill: the language, the library, the conventions, the working loop, so there’s nothing to reconstruct from a repository. And declare-help answers any name or error code on demand." ],
+                        b: Point [ ptitle = "The compiler",
                             body = "Every diagnostic names the broken rule and the valid rewrite. Try it: change textColor to color in the panel above and read what comes back." ]
                         ],
 
                     second: View [ width = 100%,
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 56, share: ({ a: 50, b: 50 }) }),
                                                              ({ from: 0, flow: "stack", gap: 32, share: ({ a: 100, b: 100 }) })] } ],
-                        a: Point [ ptitle = "Question the result",
-                            body = "The Inspector can tell you or an agent why a live value is what it is, what it depends on, and what happens if you change it — live, in the running program, not guessed from source." ],
-                        b: Point [ ptitle = "Prove the change",
-                            body = "A formal six-rung ladder, from parse to pixels, is how an app is shown to be correct. Your AI climbs it one rung at a time, and every rung reports what it proved — and what it cannot see." ]
+                        a: Point [ ptitle = "The Inspector", closes = { parent.width >= 760 },
+                            body = "The Inspector can tell you or an agent why a live value is what it is, what it depends on, and what happens if you change it, read from the running app." ],
+                        b: Point [ ptitle = "The verifier", closes = true,
+                            body = "A formal six-rung ladder, from parse to pixels, is how an app is shown to be correct. Your AI climbs it one rung at a time. Each rung reports the issues it found." ]
                         ]
                     ],
 
-                // The close is the proof already on the page — the calendar's own
-                // "0 lines written by hand" — not a restatement of the four beats.
-                // No door: the FAQ is one click away in the header on every view.
-
-                // the evidence, on the page and with its caveat, then the proof
-                // already above it
+                // the evidence with its caveat, and the closing sentence. No door: the FAQ is one click away in
+                // the header on every view.
 
                 evidence: BannerLead [ fontSize = 17, measure = 760,
-                    text = "Measured: given the same brief, the same agent built a ticket-buying app twice. The Declare app was 1,279 lines to React’s 2,666, and its first build that ran passed all eleven hidden checks; React’s passed six. Single runs, not yet a benchmark — every run is in the repository." ],
-                close: BannerLead [ fontSize = 17, measure = 760,
-                    text = "The calendar above was built this way: human-designed and directed, built with AI, and kept honest by the compiler." ]
-                ],
+                    text = "Given the same brief, the same agent built a ticket-buying app twice. The Declare app was 1,279 lines to React’s 2,666, and its first build that ran passed all eleven hidden checks; React’s passed six. These are single runs, not yet a benchmark. Every run is in the repository." ],
+                ending: BannerLead [ fontSize = 17, measure = 760,
+                    text = "The spec is small and the tools are strict, so there’s a lot less that can go wrong." ],
 
-            /* ### The closing line — centered between two accent rules. Two
-               beats, one per half of the headline: the language you can know
-               whole, and the toolchain that makes what comes back trustworthy.
-               The second beat answers the loop section above it, which is why
-               the line is not about size twice. */
+                /* ### The closing call to action and the footer
 
-            closer: ScrollReveal [
-                layout: SimpleLayout [ axis = y, spacing = 30 ],
-                ruleTop: BandRule [ ],
-                BannerHead [ fontSize = { app.width < 700 ? 26 : 38 }, measure = 900,
-                    text = "Small enough to know. Strict enough to trust." ],
-                ruleBot: BandRule [ ]
-                ],
+                   The button that leads into the getting-started page, and the
+                   footer under it. They close this section rather than the
+                   page, so they sit at the section's own spacing, not the
+                   page's wide gap between sections. */
 
-            /* ### The closing call to action — the primary blue button that
-               leads into the getting-started page, centered above the footer */
-
-            /* the page flow's full spacing would sit both above and below
-               this one short row — the button pulls up into the gap (negative
-               y, no clip) and the zero-height container lets the footer
-               follow closer */
-
-            cta: View [ width = 100%, height = 0,
-                SiteButton [ width = 260, x = center, y = -24, label = "Get started →", link = "#getstarted" ]
-                ],
-
-            /* ### Footer */
-
-            footer: Footer [ ]
+                close: View [ width = 100%, padding = [28, 0, 0, 0],
+                    layout: SimpleLayout [ axis = y, spacing = 64 ],
+                    SiteButton [ width = 260, x = center, label = "Get started →", link = "#getstarted" ],
+                    footer: Footer [ ]
+                    ]
+                ]
             ]
         ],
 
@@ -1270,7 +1192,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
                 padding = [0, 0, 62, 0],
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
-                Marker [ text = "WHY DECLARE" ],
+                Marker [ text = "Why Declare" ],
 
                 // The essay is a document, so it arrives as one: why.md, fetched
                 // as text and flowed by the Markdown view — the same
@@ -1305,7 +1227,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 // (the FAQ links to it), landing clear of the header
 
                 rule:   Divider [ anchor = "story" ],
-                Marker [ text = "WHERE THIS CAME FROM" ],
+                Marker [ text = "Where this came from" ],
 
                 story: Markdown [ visible = { app.story.loaded }, width = 100%,
                     fontSize = 16, lineHeight = 1.35,
@@ -1328,7 +1250,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
        The one-file core doc (docs/declare.md) as a DocView at #language. */
 
-    languageView: DocView [ shows = "language", src = { app.lang }, eyebrow = "THE LANGUAGE",
+    languageView: DocView [ shows = "language", src = { app.lang }, eyebrow = "The language",
         waiting = "Loading the language…",
         trouble = "The language file did not load — " ],
 
@@ -1336,7 +1258,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
        The getting-started guide (getstarted.md) as a DocView at #getstarted. */
 
-    getStartedView: DocView [ shows = "getstarted", src = { app.guide }, eyebrow = "GET STARTED",
+    getStartedView: DocView [ shows = "getstarted", src = { app.guide }, eyebrow = "Get started",
         waiting = "Loading the guide…",
         trouble = "The guide did not load — " ],
 
@@ -1387,7 +1309,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
        `ignoreScroll` — the scroll carries everyone but these; they ride the
        window while the page's own scroll carries the content: the top bar, the
-       pointer dot, the mobile nav sheet and the Apps dropdown. */
+       mobile nav sheet and the Apps dropdown. */
 
     // the bar is ALWAYS present, stuck to the top: a first-time visitor sees
     // the whole map without having to scroll for it
@@ -1424,12 +1346,12 @@ App [ tagline: string = "a UI language for you and your AI",
                 ({ from: 740, flow: "row", share: ({ kebab: 0 }), offset: ({ brand: 1 }) }),
                 ({ from: 0,   flow: "row", share: ({ nav: 0 }),   offset: ({ brand: 1 }) })] } ],
 
-            // wordmark — the product name in the brand gradient, in the hero's typeface
+            // wordmark — the product name in the accent blue, in the hero's typeface
 
             brand: View [ height = 22,
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
                 link = "#home",
-                Display [ fontSize = 15, textFill = { provided("theme").brand }, text = "Declare" ]
+                Display [ fontSize = 15, textColor = { provided("theme").accent }, text = "Declare" ]
                 ],
 
             Spacer [ ],
@@ -1474,32 +1396,6 @@ App [ tagline: string = "a UI language for you and your AI",
                 d3: View [ x = center, y = 22, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? provided("theme").text : provided("theme").muted } ]
                 ]
             ]
-        ],
-
-    // pointer dot — a 10px accent-2 dot in VIEWPORT space that SPRINGS after the
-    // pointer (loose + low-mass = the slower, longer trail). Two position
-    // Springs; the native cursor stays visible and leads, the dot follows.
-
-    pointerDot: View [ ignoreScroll = true, width = 10, height = 10, cornerRadius = 5, fill = { provided("theme").accentSecondary }, opacity = 0.9,
-        shadow = { Shadow(0, 0, 12, provided("theme").accentSecondary) },
-
-        // Decoration, not a target: the dot settles exactly under a resting
-        // cursor and the hit chain is occlusion-correct, so without this line the
-        // dot takes every hover and press the moment the mouse stops — a click
-        // still resolves, but `hovered` and `pressed` styling go dead at rest.
-
-        pointerEvents = "none",
-
-        // Only for a HOVERING pointer (mouse / trackpad) — `app.pointerHovering` is false
-        // for touch, so the dot never appears on a phone, yet an iPad trackpad
-        // (which reports a "mouse" pointer) still gets it. Also yields to the
-        // native I-beam when the pointer is over an editable field.
-
-        visible = { app.pointerHovering && !app.pointerOverText },
-        followX: Spring [ attribute = x, to = { app.pointerX - 5 },
-            stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
-        followY: Spring [ attribute = y, to = { app.pointerY - 5 },
-            stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ]
         ],
 
     // the mobile nav sheet — the kebab's menu, above everything. A dim scrim below

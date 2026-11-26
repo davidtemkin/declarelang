@@ -49,7 +49,7 @@ await test("crawl: homepage emits the #why and #language documents, linked from 
   assert.ok(front.html.includes('href="#why"'), "the front page LINKS to #why (discoverable = linked)");
   assert.ok(front.html.includes('href="#language"'), "the front page LINKS to #language");
   const why = docs.find((d) => d.key === "why");
-  assert.ok(why.html.includes("resemblance is not correctness"), "the why document carries the essay content that is hidden at t=0 on /");
+  assert.ok(why.html.includes("resemblance isn't correctness"), "the why document carries the essay content that is hidden at t=0 on /");
   const lang = docs.find((d) => d.key === "language");
   // matched on a phrase stable across retitlings of the core doc, not the full title
   assert.ok(lang.html.includes("language, in one file"), "the language document carries the rendered core doc");
@@ -103,7 +103,7 @@ await test("crawl: ONE document — sections by location id, fragment links reso
   assert.ok(doc.includes('<section id="why">'), "the why article is a section whose id IS its live location");
   assert.ok(doc.includes('href="#why"'), "the fragment link is NOT rewritten — it resolves to the section right here");
   assert.ok(doc.indexOf('href="#why"') < doc.indexOf('<section id="why">'), "default content first, then the reached sections");
-  assert.ok(doc.includes("resemblance is not correctness"), "content invisible at t=0 is in the one document");
+  assert.ok(doc.includes("resemblance isn't correctness"), "content invisible at t=0 is in the one document");
 });
 
 await test("crawl: a network DataSource fails LOUDLY — never a silently partial document (the build-time data rule)", async () => {
